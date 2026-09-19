@@ -7,6 +7,7 @@ import { getProviderSecret, setProviderSecret, providerSecretStatus } from "./se
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
 import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
+import { authorizeCapability } from "./capability-runtime.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 
@@ -54,12 +55,23 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "ai") {
         const capability = String(body.capability || "chat");
-        const result = await runAi({
-          capability,
-          message: String(body.message || ""),
-          system: body.system ? String(body.system) : undefined
-        });
-        return send(res, 200, { ...result, incidentId: crypto.randomUUID() });
+        const gate = await authorizeCapability(user.uid, "capability_" + capability);
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, capability);
+          const result = await runAi({
+            capability,
+            message: String(body.message || ""),
+            system: body.system ? String(body.system) : undefined
+          });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0, incidentId: crypto.randomUUID() });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
       }
 
       if (req.method === "POST" && path === "device-command") {
@@ -89,7 +101,9 @@ export const bqSqwadApi = onRequest(
         if (pricingDoc.exists && pricingDoc.data()?.enabled === false) return send(res, 403, { error: "web_search_disabled" });
         const charge = body.deepResearch ? Number(pricing.creditsPerDeepResearch ?? 5) : Number(pricing.creditsPerSearch ?? 1);
         const capability = body.deepResearch ? "deep_research" : "web_search";
-        const reservation = await reserveCredits(user.uid, charge, capability);
+        const gate = await authorizeCapability(user.uid, "capability_" + capability);
+        const effectiveCharge = Math.max(charge, gate.creditCost);
+        const reservation = await reserveCredits(user.uid, effectiveCharge, capability);
         let result;
         try {
           result = await callTavily({
@@ -102,6 +116,7 @@ export const bqSqwadApi = onRequest(
           await reverseCredits(user.uid, reservation.reservationId);
           throw error;
         }
+        await gate.release();
         return send(res, 200, { ...result, creditsCharged: reservation.amount });
       }
 
@@ -193,6 +208,7 @@ export const bqSqwadApi = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         };
         const optionId = "capability_" + capability;
+        const admin = await adminFromRequest(req);
         return send(res, 200, {
           ok: true,
           option: await updateAdvancedAdminOption({
@@ -201,7 +217,7 @@ export const bqSqwadApi = onRequest(
             modelId: route.primaryModelId,
             enabled: route.enabled,
             config: { fallbackProviderIds: route.fallbackProviderIds }
-          }, (await adminFromRequest(req)).uid)
+          }, admin.uid)
         });
       }
 
