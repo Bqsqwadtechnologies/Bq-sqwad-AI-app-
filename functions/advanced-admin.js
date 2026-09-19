@@ -30,6 +30,18 @@ export const ADMIN_CONTROL_SECTIONS = [
   ["emergency", "Emergency Controls"]
 ];
 
+export const CORE_CAPABILITY_OPTIONS = [
+  ["capability_chat","Main Chat capability","capabilities","openai","gpt-5.6-luna",["gemini"]],
+  ["capability_device_commands","Device commands capability","device","gemini","gemini-3.5-flash",[]],
+  ["capability_web_search","Web Search capability","capabilities","tavily",null,[]],
+  ["capability_deep_research","Deep Research capability","capabilities","tavily",null,[]],
+  ["capability_live_camera","AI Live Camera capability","capabilities","openai",null,["gemini"]],
+  ["capability_live_voice","AI Live Voice capability","capabilities","openai",null,["gemini"]],
+  ["capability_image_generation","Image generation capability","capabilities","openai",null,["gemini"]],
+  ["capability_video_generation","Video generation capability","capabilities","openai",null,["gemini"]],
+  ["capability_file_analysis","File analysis capability","capabilities","openai",null,["gemini"]]
+];
+
 export const ADVANCED_ADMIN_OPTIONS = [
   ["provider_cost_optimizer","Provider cost optimizer","providers"],
   ["provider_health_monitor","Provider health monitor","monitoring"],
@@ -71,6 +83,11 @@ export const ADVANCED_ADMIN_OPTIONS = [
   ["web_search_pricing","Web Search pricing","pricing"],
   ["feature_rollouts","Feature rollout percentages","rollouts"],
   ["admin_testing_mode","Admin testing mode","experiments"]
+];
+
+const ALL_OPTIONS = [
+  ...CORE_CAPABILITY_OPTIONS.map(([id,label,section]) => [id,label,section]),
+  ...ADVANCED_ADMIN_OPTIONS
 ];
 
 const BASE_DEFAULTS = {
@@ -121,21 +138,22 @@ const CONFIG_DEFAULTS = {
   planOverrides: {}
 };
 
-function defaults(id, label, section) {
+function defaults(id, label, section, providerId = null, modelId = null, fallbackProviderIds = []) {
   return {
     id,
     label,
     section,
     ...BASE_DEFAULTS,
     providerCapabilityId: id,
-    config: { ...CONFIG_DEFAULTS },
+    config: { ...CONFIG_DEFAULTS, fallbackProviderIds },
     updatedAt: null,
     updatedBy: null
   };
 }
 
 function normalize(input, existing, adminUid, found) {
-  const base = defaults(found[0], found[1], found[2]);
+  const core = CORE_CAPABILITY_OPTIONS.find(x => x[0] === found[0]);
+  const base = defaults(found[0], found[1], found[2], core?.[3] || null, core?.[4] || null, core?.[5] || []);
   const current = existing || {};
   const incomingConfig = input.config && typeof input.config === "object" ? input.config : {};
   const config = { ...CONFIG_DEFAULTS, ...(current.config || {}), ...incomingConfig };
@@ -170,7 +188,7 @@ export async function listAdvancedAdminOptions() {
   const db = getFirestore();
   const snapshot = await db.collection("adminAdvancedOptions").get();
   const stored = new Map(snapshot.docs.map(d => [d.id, d.data()]));
-  return ADVANCED_ADMIN_OPTIONS.map(([id, label, section]) => ({
+  return ALL_OPTIONS.map(([id, label, section]) => ({
     ...defaults(id, label, section),
     ...(stored.get(id) || {}),
     id,
@@ -182,7 +200,7 @@ export async function listAdvancedAdminOptions() {
 
 export async function updateAdvancedAdminOption(input, adminUid) {
   const id = String(input.id || "");
-  const found = ADVANCED_ADMIN_OPTIONS.find(x => x[0] === id);
+  const found = ALL_OPTIONS.find(x => x[0] === id);
   if (!found) throw new Error("Unknown advanced admin option: " + id);
 
   const db = getFirestore();
