@@ -34,6 +34,15 @@ data class AdminProviderCredentialState(
     val configured:Boolean = false,
     val lastRotatedAt:String? = null
 )
+
+/**
+ * Transient credential update. The secretValue must only travel over an authenticated
+ * TLS connection to the backend and must never be persisted by the Android client.
+ */
+data class ProviderSecretUpdate(
+    val providerId:String,
+    val secretValue:String
+)
 data class CreditBalance(val available:Long,val reserved:Long=0,val currency:String="credits")
 data class PlanSummary(val planId:String,val name:String,val active:Boolean,val limits:Map<String,Long> = emptyMap())
 data class NotificationItem(val id:String,val title:String,val body:String,val read:Boolean)
@@ -84,7 +93,7 @@ interface AdminProviderRepository {
     suspend fun setFallbackProviders(capabilityId:String,providerIds:List<String>):Boolean
     suspend fun setProviderEnabled(providerId:String,enabled:Boolean):Boolean
     suspend fun listCredentialStatus():List<AdminProviderCredentialState>
-    suspend fun rotateProviderSecret(providerId:String,secretRef:String):Boolean
+    suspend fun updateProviderSecret(update:ProviderSecretUpdate):Boolean
     suspend fun setWebSearchPricing(pricing:WebSearchPricing):Boolean
     suspend fun webSearchPricing():WebSearchPricing
 }
