@@ -156,7 +156,7 @@ private fun AdminOptionEditor(
                 local = local.copy(creditCost = it.toLongOrNull()?.coerceAtLeast(0) ?: local.creditCost)
             }
             AdminNumberField("Daily limit", local.dailyLimit?.toString() ?: "") {
-                local = local.copy(dailyLimit = it.toLongOrNull()?.coerceAtLeast(0.0))
+                local = local.copy(dailyLimit = it.toLongOrNull()?.coerceAtLeast(0L))
             }
             AdminNumberField("Concurrency limit", local.concurrencyLimit?.toString() ?: "") {
                 local = local.copy(concurrencyLimit = it.toLongOrNull()?.coerceAtLeast(0))
@@ -201,7 +201,7 @@ private fun AdminOptionEditor(
                 local = local.copy(config = c.copy(latencyBudgetMs = it.toLongOrNull()?.coerceAtLeast(0)))
             }
             AdminNumberField("Error threshold %", c.errorThresholdPercent?.toString() ?: "") {
-                local = local.copy(config = c.copy(errorThresholdPercent = it.toDoubleOrNull()?.coerceAtLeast(0)))
+                local = local.copy(config = c.copy(errorThresholdPercent = it.toDoubleOrNull()?.coerceAtLeast(0.0)))
             }
             AdminNumberField("Queue limit", c.queueLimit?.toString() ?: "") {
                 local = local.copy(config = c.copy(queueLimit = it.toLongOrNull()?.coerceAtLeast(0)))
