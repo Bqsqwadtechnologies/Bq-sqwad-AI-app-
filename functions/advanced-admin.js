@@ -150,6 +150,8 @@ function defaults(id, label, section, providerId = null, modelId = null, fallbac
     section,
     ...BASE_DEFAULTS,
     providerCapabilityId: id,
+    providerId,
+    modelId,
     config: { ...CONFIG_DEFAULTS, fallbackProviderIds },
     updatedAt: null,
     updatedBy: null
