@@ -41,6 +41,21 @@ data class NotificationItem(
     val read: Boolean
 )
 
+data class CapabilityAccess(
+    val capability: String,
+    val enabled: Boolean,
+    val subscriptionRequired: Boolean = false,
+    val reason: String? = null
+)
+
+data class AiAttachment(
+    val id: String,
+    val name: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val uri: String? = null
+)
+
 interface AuthRepository {
     suspend fun signIn(email: String, credential: String): Account
     suspend fun signOut()
@@ -54,15 +69,20 @@ interface AiGateway {
 data class AiRequest(
     val workspace: String,
     val message: String,
+    val attachments: List<AiAttachment> = emptyList(),
     val useWebSearch: Boolean = false,
-    val generateImage: Boolean = false
+    val generateImage: Boolean = false,
+    val generateVideo: Boolean = false,
+    val analyzeFiles: Boolean = false
 )
 
 data class AiResponse(
     val text: String,
     val providerId: String,
     val modelId: String,
-    val usage: Map<String, Long> = emptyMap()
+    val usage: Map<String, Long> = emptyMap(),
+    val citations: List<String> = emptyList(),
+    val incidentId: String? = null
 )
 
 interface CreditsRepository {
@@ -74,6 +94,7 @@ interface CreditsRepository {
 
 interface FeatureRepository {
     suspend fun entitlements(accountId: String): List<FeatureEntitlement>
+    suspend fun capabilityAccess(accountId: String, capability: String): CapabilityAccess
 }
 
 interface NotificationRepository {
