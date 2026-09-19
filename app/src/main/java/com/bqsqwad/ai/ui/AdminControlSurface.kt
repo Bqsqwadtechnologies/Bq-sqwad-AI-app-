@@ -127,7 +127,7 @@ private fun AdminOptionEditor(
     option: AdvancedAdminOption,
     onSave: (AdvancedAdminOption) -> Unit
 ) {
-    var local by remember(option.id, option.version, option.updatedBy) { mutableStateOf(option) }
+    var local by remember(option.id, option.version) { mutableStateOf(option) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
