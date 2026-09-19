@@ -135,7 +135,12 @@ const CONFIG_DEFAULTS = {
   maxUploadConcurrency: null,
   notificationEnabled: true,
   auditRequired: true,
-  planOverrides: {}
+  planOverrides: {},
+  creditsPerSearch: 1,
+  creditsPerDeepResearch: 5,
+  creditsPerResultPage: 0,
+  maxResults: 10,
+  dailyUserLimit: null
 };
 
 function defaults(id, label, section, providerId = null, modelId = null, fallbackProviderIds = []) {
