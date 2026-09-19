@@ -171,7 +171,7 @@ private fun AdminOptionEditor(
             OutlinedTextField(local.schedule ?: "", { local = local.copy(schedule = it.ifBlank { null }) },
                 label = { Text("Schedule / rollout window") }, modifier = Modifier.fillMaxWidth())
             AdminNumberField("Alert threshold", local.alertThreshold?.toString() ?: "") {
-                local = local.copy(alertThreshold = it.toDoubleOrNull()?.coerceAtLeast(0))
+                local = local.copy(alertThreshold = it.toDoubleOrNull()?.coerceAtLeast(0.0))
             }
             AdminNumberField("Configuration version", local.version.toString()) {
                 local = local.copy(version = it.toIntOrNull()?.coerceAtLeast(1) ?: local.version)
