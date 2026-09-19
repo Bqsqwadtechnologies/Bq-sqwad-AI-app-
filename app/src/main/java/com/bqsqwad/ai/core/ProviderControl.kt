@@ -45,7 +45,7 @@ object BuiltInProviderDefaults {
      * Main Chat and device-command routing are defaults, not hardcoded execution.
      * Admin remote configuration can replace these routes without an APK update.
      */
-    const val MAIN_CHAT_DEFAULT_PROVIDER = GEMINI_ID
+    const val MAIN_CHAT_DEFAULT_PROVIDER = OPENAI_ID
     const val DEVICE_COMMAND_DEFAULT_PROVIDER = GEMINI_ID
     const val WEB_SEARCH_DEFAULT_PROVIDER = TAVILY_ID
 }
