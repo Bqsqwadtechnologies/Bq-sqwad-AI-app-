@@ -145,15 +145,22 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "admin/providers") {
         await adminFromRequest(req);
         const db = getFirestore();
-        const routes = await db.collection("adminProviderRoutes").get();
-        const pricing = await db.collection("webSearchPricing").doc("default").get();
+        const config = await getAdminControlConfig();
         const providers = await Promise.all(
           ["gemini", "openai", "tavily", "paystack", "paystack_public"].map(providerSecretStatus)
         );
         return send(res, 200, {
           providers,
-          routes: routes.docs.map(d => ({ capability: d.id, ...d.data() })),
-          webSearchPricing: pricing.exists ? pricing.data() : { creditsPerSearch: 1, creditsPerDeepResearch: 5 }
+          routes: config.options
+            .filter(x => String(x.id).startsWith("capability_"))
+            .map(x => ({
+              capability: String(x.id).replace(/^capability_/, ""),
+              primaryProviderId: x.providerId,
+              primaryModelId: x.modelId,
+              fallbackProviderIds: x.config?.fallbackProviderIds || [],
+              enabled: x.enabled && !x.killSwitch
+            })),
+          webSearchPricing: config.options.find(x => x.id === "web_search_pricing")?.config || {}
         });
       }
 
@@ -178,8 +185,17 @@ export const bqSqwadApi = onRequest(
           creditCostId: body.creditCostId ? String(body.creditCostId) : null,
           updatedAt: FieldValue.serverTimestamp()
         };
-        await getFirestore().collection("adminProviderRoutes").doc(capability).set(route, { merge: true });
-        return send(res, 200, { ok: true, capabilityId: capability });
+        const optionId = "capability_" + capability;
+        return send(res, 200, {
+          ok: true,
+          option: await updateAdvancedAdminOption({
+            id: optionId,
+            providerId: route.primaryProviderId,
+            modelId: route.primaryModelId,
+            enabled: route.enabled,
+            config: { fallbackProviderIds: route.fallbackProviderIds }
+          }, (await adminFromRequest(req)).uid)
+        });
       }
 
       if (req.method === "GET" && path === "admin/advanced-options") {
