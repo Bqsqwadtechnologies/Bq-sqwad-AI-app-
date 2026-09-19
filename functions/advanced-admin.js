@@ -20,7 +20,7 @@ export const ADVANCED_ADMIN_OPTIONS = [
   ["accessibility","Accessibility-first AI controls"],["passkeys_sessions","Passkeys/session/device management"],
   ["data_export_deletion","Data export and account deletion"],["provider_route_override","Provider/model route override"],
   ["feature_rollouts","Feature rollout percentages"],["ai_incident_controls","Incident controls and replay"],
-  ["capability_marketplace","Admin-controlled capability marketplace"]
+  ["capability_marketplace","Admin-controlled capability marketplace"],["data_retention_controls","Data retention and deletion policy controls"]
 ];
 
 function defaults(id, label) {
