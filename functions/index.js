@@ -7,6 +7,7 @@ import { getProviderSecret, setProviderSecret, providerSecretStatus } from "./se
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
 import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
+import { listAdvancedAdminOptions, updateAdvancedAdminOption } from "./advanced-admin.js";
 import crypto from "node:crypto";
 
 initializeApp();
@@ -156,6 +157,19 @@ export const bqSqwadApi = onRequest(
         };
         await getFirestore().collection("adminProviderRoutes").doc(capability).set(route, { merge: true });
         return send(res, 200, { ok: true, capabilityId: capability });
+      }
+
+      if (req.method === "GET" && path === "admin/advanced-options") {
+        await adminFromRequest(req);
+        return send(res, 200, { options: await listAdvancedAdminOptions() });
+      }
+
+      if (req.method === "POST" && path === "admin/advanced-option") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, {
+          ok: true,
+          option: await updateAdvancedAdminOption(body, admin.uid)
+        });
       }
 
       if (req.method === "POST" && path === "admin/web-search-pricing") {
