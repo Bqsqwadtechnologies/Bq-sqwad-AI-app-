@@ -3,6 +3,7 @@ package com.bqsqwad.ai.core
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.google.android.gms.tasks.Tasks
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -55,7 +56,7 @@ class AdminAdvancedClient(
     )
 
     private suspend fun request(method: String, path: String, body: JSONObject?): JSONObject = withContext(Dispatchers.IO) {
-        val token = FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.await()?.token
+        val token = FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.let { Tasks.await(it).token }
             ?: error("Admin authentication required")
         val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
