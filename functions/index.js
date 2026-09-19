@@ -6,6 +6,7 @@ import { runAi, callTavily } from "./provider-gateway.js";
 import { getProviderSecret, setProviderSecret, providerSecretStatus } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
+import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
 import crypto from "node:crypto";
 
 initializeApp();
@@ -83,20 +84,17 @@ export const bqSqwadApi = onRequest(
         const pricingDoc = await db.collection("webSearchPricing").doc("default").get();
         const pricing = pricingDoc.exists ? pricingDoc.data() : { creditsPerSearch: 1, creditsPerDeepResearch: 5 };
         const charge = body.deepResearch ? Number(pricing.creditsPerDeepResearch) : Number(pricing.creditsPerSearch);
-        const result = await callTavily({
-          query,
-          maxResults: body.maxResults,
-          deepResearch: Boolean(body.deepResearch)
-        });
-        await db.collection("creditLedger").add({
-          uid: user.uid,
-          capability: body.deepResearch ? "deep_research" : "web_search",
-          amount: charge,
-          kind: "usage",
-          providerId: "tavily",
-          createdAt: FieldValue.serverTimestamp()
-        });
-        return send(res, 200, { ...result, creditsCharged: charge });
+        const capability = body.deepResearch ? "deep_research" : "web_search";
+        const reservation = await reserveCredits(user.uid, charge, capability);
+        let result;
+        try {
+          result = await callTavily({ query, maxResults: body.maxResults, deepResearch: Boolean(body.deepResearch) });
+          await commitCredits(user.uid, reservation.reservationId, "tavily");
+        } catch (error) {
+          await reverseCredits(user.uid, reservation.reservationId);
+          throw error;
+        }
+        return send(res, 200, { ...result, creditsCharged: reservation.amount });
       }
 
       if (req.method === "POST" && path === "payments/preview") {
