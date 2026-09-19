@@ -75,19 +75,31 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "device-command") {
-        const result = await runAi({
-          capability: "device_commands",
-          message: String(body.message || ""),
-          system: DEVICE_COMMAND_SYSTEM
-        });
-        let parsed = { actions: [], message: "No supported device action." };
-        try { parsed = JSON.parse(result.text); } catch {}
-        return send(res, 200, {
-          providerId: result.providerId,
-          modelId: result.modelId,
-          message: parsed.message || "",
-          actions: parseDeviceActions(result.text)
-        });
+        const gate = await authorizeCapability(user.uid, "capability_device_commands");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "device_commands");
+          const result = await runAi({
+            capability: "device_commands",
+            message: String(body.message || ""),
+            system: DEVICE_COMMAND_SYSTEM
+          });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          let parsed = { actions: [], message: "No supported device action." };
+          try { parsed = JSON.parse(result.text); } catch {}
+          return send(res, 200, {
+            providerId: result.providerId,
+            modelId: result.modelId,
+            message: parsed.message || "",
+            actions: parseDeviceActions(result.text),
+            creditsCharged: reservation?.amount || 0
+          });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
       }
 
       if (req.method === "POST" && path === "web-search") {
@@ -112,12 +124,13 @@ export const bqSqwadApi = onRequest(
             deepResearch: Boolean(body.deepResearch)
           });
           await commitCredits(user.uid, reservation.reservationId, "tavily");
+          return send(res, 200, { ...result, creditsCharged: reservation.amount });
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
           throw error;
+        } finally {
+          await gate.release();
         }
-        await gate.release();
-        return send(res, 200, { ...result, creditsCharged: reservation.amount });
       }
 
       if (req.method === "POST" && path === "payments/preview") {
