@@ -1,9 +1,7 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,38 +9,37 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.*
 import com.bqsqwad.ai.domain.Workspace
 
 @Composable
 fun BQSqwadApp(modifier: Modifier = Modifier) {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = "home", modifier = modifier) {
-        composable("home") { HomeScreen(onOpen = { nav.navigate("workspace/" + it.name) }) }
+    NavHost(nav, startDestination = "home", modifier = modifier) {
+        composable("home") { HomeScreen { nav.navigate("workspace/" + it.name) } }
         composable("workspace/{name}") { backStack ->
-            val name = backStack.arguments?.getString("name")
-            val workspace = runCatching { Workspace.valueOf(name ?: "CHAT") }.getOrDefault(Workspace.CHAT)
-            WorkspaceScreen(workspace = workspace, onBack = { nav.popBackStack() })
+            val workspace = runCatching { Workspace.valueOf(backStack.arguments?.getString("name") ?: "CHAT") }.getOrDefault(Workspace.CHAT)
+            WorkspaceScreen(workspace, nav::popBackStack)
         }
     }
 }
 
 @Composable
 private fun HomeScreen(onOpen: (Workspace) -> Unit) {
-    Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
+    Scaffold(topBar = {
         TopAppBar(
             title = { Column { Text("BQ Sqwad AI", fontWeight = FontWeight.Bold); Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall) } },
-            actions = { IconButton(onClick = { onOpen(Workspace.ADMIN) }) { Icon(Icons.Default.Settings, "Settings") } }
+            actions = { IconButton({ onOpen(Workspace.ADMIN) }) { Icon(Icons.Default.Settings, "Admin") } }
         )
-    }) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 18.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    }) { p ->
+        Column(Modifier.padding(p).padding(18.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("What do you want to accomplish?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             MainChatCard { onOpen(Workspace.CHAT) }
-            Text("Workspaces", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-                items(Workspace.entries.filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { workspace -> WorkspaceCard(workspace) { onOpen(workspace) } }
+            Text("AI Workspaces", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            LazyVerticalGrid(columns = GridCells.Fixed(2), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(Workspace.entries.filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> WorkspaceCard(w) { onOpen(w) } }
             }
         }
     }
@@ -50,54 +47,82 @@ private fun HomeScreen(onOpen: (Workspace) -> Unit) {
 
 @Composable
 private fun MainChatCard(onClick: () -> Unit) {
-    Card(onClick = onClick, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Main Chat", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) }
-            Text("Ask, create, search when needed, speak your request, or generate images.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedTextField(value = "", onValueChange = {}, enabled = false, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message BQ Sqwad AI") }, trailingIcon = { Icon(Icons.Default.Mic, null) }, shape = RoundedCornerShape(16.dp))
+    Card(onClick, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Main Chat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            Text("Fast conversation, voice-to-text, optional spoken replies and image generation.")
+            OutlinedTextField("", {}, enabled = false, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message BQ Sqwad AI") }, trailingIcon = { Icon(Icons.Default.Mic, "Voice") })
         }
     }
 }
 
 @Composable
-private fun WorkspaceCard(workspace: Workspace, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(iconFor(workspace), null, tint = MaterialTheme.colorScheme.primary)
-            Text(workspace.title, fontWeight = FontWeight.Bold)
-            Text(workspace.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun WorkspaceCard(w: Workspace, onClick: () -> Unit) {
+    Card(onClick, Modifier.heightIn(min = 145.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Icon(iconFor(w), null, tint = MaterialTheme.colorScheme.primary)
+            Text(w.title, fontWeight = FontWeight.Bold)
+            Text(w.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun WorkspaceScreen(workspace: Workspace, onBack: () -> Unit) {
-    Scaffold(containerColor = MaterialTheme.colorScheme.background, topBar = {
-        TopAppBar(title = { Text(workspace.title, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } })
-    }) { padding ->
-        Column(Modifier.padding(padding).padding(20.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(iconFor(workspace), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp))
-            Text(workspace.description, style = MaterialTheme.typography.titleMedium)
-            Text("This workspace is isolated from the other AI surfaces. Feature availability, providers, pricing and limits are controlled by the remote configuration layer.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (workspace == Workspace.ADMIN) AdminPreview() else Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Workspace ready", fontWeight = FontWeight.Bold); Text("The native surface is established for this feature. Backend capability wiring is added separately so secrets never ship in the APK.") }
+private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
+    Scaffold(topBar = { TopAppBar({ Text(w.title, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
+        Column(Modifier.padding(p).padding(20.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Icon(iconFor(w), null, tint = MaterialTheme.colorScheme.primary, Modifier.size(40.dp))
+            Text(w.description, style = MaterialTheme.typography.titleMedium)
+            when (w) {
+                Workspace.CHAT -> ChatSurface()
+                Workspace.SEARCH -> SearchSurface()
+                Workspace.CAMERA -> CameraSurface()
+                Workspace.VOICE -> VoiceSurface()
+                Workspace.PERSONAL -> SimpleSurface("Planning, tasks, memory-aware assistance and personal organization.")
+                Workspace.LIFE -> SimpleSurface("A dedicated Life Matters workspace with its own entitlement and safety controls.")
+                Workspace.LEARNING -> SimpleSurface("Subjects, custom topics, lessons and voice teaching live here.")
+                Workspace.BUSINESS -> BusinessSurface()
+                Workspace.ADMIN -> AdminSurface()
             }
         }
     }
 }
 
-@Composable
-private fun AdminPreview() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        listOf("Feature flags" to "Remote availability and entitlement gates", "AI providers" to "Activate/deactivate providers and routing", "Pricing & credits" to "Server-controlled catalogue and limits", "Testing mode" to "Admin-only controlled test environment", "Audit" to "Record sensitive configuration changes").forEach { (title, detail) ->
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
-        }
+@Composable private fun ChatSurface() {
+    SurfaceCard("Conversation", "Send a message through the configured AI gateway. Web search and image generation are separate capabilities.")
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { AssistChip({ }, label = { Text("Voice input") }, leadingIcon = { Icon(Icons.Default.Mic, null) }); AssistChip({ }, label = { Text("Generate image") }, leadingIcon = { Icon(Icons.Default.Image, null) }) }
+}
+@Composable private fun SearchSurface() {
+    SurfaceCard("Search workspace", "Current-information requests can use the web-search capability when enabled by remote configuration. Sources remain attached to the result.")
+    OutlinedTextField("", {}, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search the web") })
+}
+@Composable private fun CameraSurface() {
+    SurfaceCard("Live vision", "Camera access is permission-gated. Screen capture, location and device actions require explicit Android consent.")
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button({}) { Icon(Icons.Default.Videocam, null); Spacer(Modifier.width(6.dp)); Text("Camera") }; OutlinedButton({}) { Text("Privacy controls") } }
+}
+@Composable private fun VoiceSurface() {
+    SurfaceCard("Real-time voice", "Voice conversation is one workspace: microphone, AI speaking, voice selection and interruption are controlled here.")
+    Button({}) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(8.dp)); Text("Start voice conversation") }
+}
+@Composable private fun BusinessSurface() {
+    SurfaceCard("Business dashboard", "Plan, usage, agents, connections, knowledge, workflows, intelligence and automation are organized below this workspace.")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { AssistChip({}, label = { Text("Agents") }); AssistChip({}, label = { Text("Connections") }); AssistChip({}, label = { Text("Knowledge") }) }
+}
+@Composable private fun AdminSurface() {
+    SurfaceCard("Admin Control Center", "Admin-only remote controls for feature flags, providers, models, pricing, payments, testing mode, plugins and audit.")
+    listOf("Feature flags", "AI providers & routing", "Pricing, credits & plans", "Testing mode", "Notifications", "Audit & security").forEach { label ->
+        ListItem(headlineContent = { Text(label) }, leadingContent = { Icon(Icons.Default.Tune, null) })
+    }
+}
+@Composable private fun SimpleSurface(text: String) = SurfaceCard("Workspace", text)
+
+@Composable private fun SurfaceCard(title: String, body: String) {
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
-private fun iconFor(workspace: Workspace) = when (workspace) {
+private fun iconFor(w: Workspace) = when (w) {
     Workspace.CHAT -> Icons.Default.AutoAwesome
     Workspace.SEARCH -> Icons.Default.Language
     Workspace.CAMERA -> Icons.Default.Videocam
