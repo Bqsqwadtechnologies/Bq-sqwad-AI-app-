@@ -82,7 +82,7 @@ private fun WorkspaceCard(w: Workspace, onClick: () -> Unit) {
 private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
     Scaffold(topBar = { TopAppBar({ Text(w.title, fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
         Column(Modifier.padding(p).padding(20.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(iconFor(w), null, tint = MaterialTheme.colorScheme.primary, Modifier.size(40.dp))
+            Icon(imageVector = iconFor(w), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
             Text(w.description, style = MaterialTheme.typography.titleMedium)
             when (w) {
                 Workspace.CHAT -> ChatSurface()
@@ -107,13 +107,13 @@ private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                AnimatedVisibility(visible = !hasStarted, enter = fadeIn(), exit = fadeOut()) {
+                if (!hasStarted) {
                     FloatingLogoSlot()
                 }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AnimatedVisibility(visible = message.length >= 1200) {
+                if (message.length >= 1200) {
                     SuggestionChip(
                         onClick = { /* Connected to file creation layer later. */ },
                         label = { Text("Turn this long message into a file") },
@@ -122,7 +122,7 @@ private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
                 }
 
                 Box {
-                    AnimatedVisibility(visible = showAttachments, enter = fadeIn(), exit = fadeOut()) {
+                    if (showAttachments) {
                         AttachmentMenu(
                             onDismiss = { showAttachments = false },
                             onSelected = { showAttachments = false }
