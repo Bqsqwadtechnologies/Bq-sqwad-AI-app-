@@ -13,21 +13,59 @@ import java.net.URL
 data class AdvancedAdminOption(
     val id: String,
     val label: String,
+    val section: String = "system",
     val enabled: Boolean = true,
     val rolloutPercent: Int = 100,
     val killSwitch: Boolean = false,
     val requiresApproval: Boolean = false,
     val creditCost: Long = 0,
+    val dailyLimit: Long? = null,
+    val concurrencyLimit: Long? = null,
+    val providerCapabilityId: String? = null,
     val providerId: String? = null,
-    val modelId: String? = null
+    val modelId: String? = null,
+    val allowedPlanIds: List<String> = emptyList(),
+    val version: Int = 1,
+    val schedule: String? = null,
+    val alertThreshold: Double? = null,
+    val config: AdminOperationalConfig = AdminOperationalConfig()
+)
+
+data class AdminOperationalConfig(
+    val responseMaxTokens: Long? = null,
+    val contextWindowLimit: Long? = null,
+    val maxToolCalls: Long = 10,
+    val maxExecutionSeconds: Long = 120,
+    val temperature: Double? = null,
+    val confidenceRequired: Boolean = false,
+    val sourceVerificationRequired: Boolean = false,
+    val systemPromptVersion: String? = null,
+    val rateLimitPerMinute: Long? = null,
+    val rateLimitPerDay: Long? = null,
+    val maintenanceMode: Boolean = false,
+    val backgroundAllowed: Boolean = false,
+    val confirmationRequired: Boolean = false,
+    val permissionRequired: Boolean = false,
+    val dataRetentionDays: Long? = null,
+    val fileRetentionHours: Long? = null,
+    val domainAllowList: List<String> = emptyList(),
+    val domainDenyList: List<String> = emptyList(),
+    val fallbackEnabled: Boolean = true,
+    val fallbackProviderIds: List<String> = emptyList(),
+    val latencyBudgetMs: Long? = null,
+    val errorThresholdPercent: Double? = null,
+    val queueLimit: Long? = null,
+    val maxFileSizeMb: Long? = null,
+    val maxUploadConcurrency: Long? = null,
+    val notificationEnabled: Boolean = true,
+    val auditRequired: Boolean = true
 )
 
 class AdminAdvancedClient(
-    private val baseUrl: String = "https://europe-west1-${FirebaseApp.getInstance().options.projectId}.cloudfunctions.net/bqSqwadApi"
+    private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
-    suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/advanced-options", null).let { root ->
-        val array = root.optJSONArray("options") ?: JSONArray()
-        (0 until array.length()).map { parse(array.getJSONObject(it)) }
+    suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/config", null).let { root ->
+        parseOptions(root.optJSONArray("options") ?: JSONArray())
     }
 
     suspend fun update(option: AdvancedAdminOption): AdvancedAdminOption {
@@ -38,23 +76,114 @@ class AdminAdvancedClient(
             put("killSwitch", option.killSwitch)
             put("requiresApproval", option.requiresApproval)
             put("creditCost", option.creditCost)
-            put("providerId", option.providerId)
-            put("modelId", option.modelId)
+            putNullable("dailyLimit", option.dailyLimit)
+            putNullable("concurrencyLimit", option.concurrencyLimit)
+            putNullable("providerCapabilityId", option.providerCapabilityId)
+            putNullable("providerId", option.providerId)
+            putNullable("modelId", option.modelId)
+            put("allowedPlanIds", JSONArray(option.allowedPlanIds))
+            put("version", option.version)
+            putNullable("schedule", option.schedule)
+            putNullable("alertThreshold", option.alertThreshold)
+            put("config", option.config.toJson())
         }
-        return parse(request("POST", "/admin/advanced-option", body).getJSONObject("option"))
+        return parse(request("POST", "/admin/control", body).getJSONObject("option"))
     }
 
-    private fun parse(o: JSONObject) = AdvancedAdminOption(
-        id = o.optString("id"),
-        label = o.optString("label"),
-        enabled = o.optBoolean("enabled", true),
-        rolloutPercent = o.optInt("rolloutPercent", 100),
-        killSwitch = o.optBoolean("killSwitch", false),
-        requiresApproval = o.optBoolean("requiresApproval", false),
-        creditCost = o.optLong("creditCost", 0),
-        providerId = o.optString("providerId").takeIf { it.isNotBlank() && it != "null" },
-        modelId = o.optString("modelId").takeIf { it.isNotBlank() && it != "null" }
-    )
+    private fun parseOptions(array: JSONArray): List<AdvancedAdminOption> =
+        (0 until array.length()).map { parse(array.getJSONObject(it)) }
+
+    private fun parse(o: JSONObject): AdvancedAdminOption {
+        val c = o.optJSONObject("config") ?: JSONObject()
+        return AdvancedAdminOption(
+            id = o.optString("id"),
+            label = o.optString("label"),
+            section = o.optString("section", "system"),
+            enabled = o.optBoolean("enabled", true),
+            rolloutPercent = o.optInt("rolloutPercent", 100),
+            killSwitch = o.optBoolean("killSwitch", false),
+            requiresApproval = o.optBoolean("requiresApproval", false),
+            creditCost = o.optLong("creditCost", 0),
+            dailyLimit = cLong(o, "dailyLimit"),
+            concurrencyLimit = cLong(o, "concurrencyLimit"),
+            providerCapabilityId = o.optString("providerCapabilityId").takeIf { it.isNotBlank() && it != "null" },
+            providerId = o.optString("providerId").takeIf { it.isNotBlank() && it != "null" },
+            modelId = o.optString("modelId").takeIf { it.isNotBlank() && it != "null" },
+            allowedPlanIds = stringList(o.optJSONArray("allowedPlanIds")),
+            version = o.optInt("version", 1),
+            schedule = o.optString("schedule").takeIf { it.isNotBlank() && it != "null" },
+            alertThreshold = if (o.isNull("alertThreshold")) null else o.optDouble("alertThreshold"),
+            config = AdminOperationalConfig(
+                responseMaxTokens = cLong(c, "responseMaxTokens"),
+                contextWindowLimit = cLong(c, "contextWindowLimit"),
+                maxToolCalls = c.optLong("maxToolCalls", 10),
+                maxExecutionSeconds = c.optLong("maxExecutionSeconds", 120),
+                temperature = if (c.isNull("temperature")) null else c.optDouble("temperature"),
+                confidenceRequired = c.optBoolean("confidenceRequired", false),
+                sourceVerificationRequired = c.optBoolean("sourceVerificationRequired", false),
+                systemPromptVersion = c.optString("systemPromptVersion").takeIf { it.isNotBlank() },
+                rateLimitPerMinute = cLong(c, "rateLimitPerMinute"),
+                rateLimitPerDay = cLong(c, "rateLimitPerDay"),
+                maintenanceMode = c.optBoolean("maintenanceMode", false),
+                backgroundAllowed = c.optBoolean("backgroundAllowed", false),
+                confirmationRequired = c.optBoolean("confirmationRequired", false),
+                permissionRequired = c.optBoolean("permissionRequired", false),
+                dataRetentionDays = cLong(c, "dataRetentionDays"),
+                fileRetentionHours = cLong(c, "fileRetentionHours"),
+                domainAllowList = stringList(c.optJSONArray("domainAllowList")),
+                domainDenyList = stringList(c.optJSONArray("domainDenyList")),
+                fallbackEnabled = c.optBoolean("fallbackEnabled", true),
+                fallbackProviderIds = stringList(c.optJSONArray("fallbackProviderIds")),
+                latencyBudgetMs = cLong(c, "latencyBudgetMs"),
+                errorThresholdPercent = if (c.isNull("errorThresholdPercent")) null else c.optDouble("errorThresholdPercent"),
+                queueLimit = cLong(c, "queueLimit"),
+                maxFileSizeMb = cLong(c, "maxFileSizeMb"),
+                maxUploadConcurrency = cLong(c, "maxUploadConcurrency"),
+                notificationEnabled = c.optBoolean("notificationEnabled", true),
+                auditRequired = c.optBoolean("auditRequired", true)
+            )
+        )
+    }
+
+    private fun cLong(o: JSONObject, key: String): Long? =
+        if (o.isNull(key) || !o.has(key)) null else o.optLong(key)
+
+    private fun stringList(array: JSONArray?): List<String> =
+        if (array == null) emptyList() else (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() }
+
+    private fun JSONObject.putNullable(key: String, value: Any?) {
+        if (value == null) put(key, JSONObject.NULL) else put(key, value)
+    }
+
+    private fun AdminOperationalConfig.toJson() = JSONObject().apply {
+        putNullable("responseMaxTokens", responseMaxTokens)
+        putNullable("contextWindowLimit", contextWindowLimit)
+        put("maxToolCalls", maxToolCalls)
+        put("maxExecutionSeconds", maxExecutionSeconds)
+        putNullable("temperature", temperature)
+        put("confidenceRequired", confidenceRequired)
+        put("sourceVerificationRequired", sourceVerificationRequired)
+        putNullable("systemPromptVersion", systemPromptVersion)
+        putNullable("rateLimitPerMinute", rateLimitPerMinute)
+        putNullable("rateLimitPerDay", rateLimitPerDay)
+        put("maintenanceMode", maintenanceMode)
+        put("backgroundAllowed", backgroundAllowed)
+        put("confirmationRequired", confirmationRequired)
+        put("permissionRequired", permissionRequired)
+        putNullable("dataRetentionDays", dataRetentionDays)
+        putNullable("fileRetentionHours", fileRetentionHours)
+        put("domainAllowList", JSONArray(domainAllowList))
+        put("domainDenyList", JSONArray(domainDenyList))
+        put("fallbackEnabled", fallbackEnabled)
+        put("fallbackProviderIds", JSONArray(fallbackProviderIds))
+        putNullable("latencyBudgetMs", latencyBudgetMs)
+        putNullable("errorThresholdPercent", errorThresholdPercent)
+        putNullable("queueLimit", queueLimit)
+        putNullable("maxFileSizeMb", maxFileSizeMb)
+        putNullable("maxUploadConcurrency", maxUploadConcurrency)
+        put("notificationEnabled", notificationEnabled)
+        put("auditRequired", auditRequired)
+    }
 
     private suspend fun request(method: String, path: String, body: JSONObject?): JSONObject = withContext(Dispatchers.IO) {
         val token = FirebaseAuth.getInstance().currentUser?.getIdToken(false)?.let { Tasks.await(it).token }
