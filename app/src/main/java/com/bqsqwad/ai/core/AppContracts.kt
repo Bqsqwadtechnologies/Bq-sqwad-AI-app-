@@ -98,6 +98,11 @@ interface AdminProviderRepository {
     suspend fun webSearchPricing():WebSearchPricing
 }
 
+interface AdminAdvancedRepository {
+    suspend fun listAdvancedOptions(): List<AdvancedAdminOption>
+    suspend fun updateAdvancedOption(option: AdvancedAdminOption): AdvancedAdminOption
+}
+
 interface AdminRepository {
     suspend fun setProviderEnabled(providerId:String,enabled:Boolean)
     suspend fun setFeatureEnabled(featureId:String,enabled:Boolean)
