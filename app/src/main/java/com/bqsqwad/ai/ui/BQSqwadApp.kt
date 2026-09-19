@@ -14,6 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.res.painterResource\nimport com.bqsqwad.ai.R
 import androidx.navigation.compose.*
 import com.bqsqwad.ai.domain.Workspace
+import com.bqsqwad.ai.core.AdminAdvancedClient
+import com.bqsqwad.ai.core.AdvancedAdminOption
+import kotlinx.coroutines.launch
 
 @Composable
 fun BQSqwadApp(modifier: Modifier = Modifier) {
@@ -226,12 +229,84 @@ private fun AttachmentAction(
     SurfaceCard("Business dashboard", "Plan, usage, agents, connections, knowledge, workflows, intelligence and automation are organized below this workspace.")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { AssistChip({}, label = { Text("Agents") }); AssistChip({}, label = { Text("Connections") }); AssistChip({}, label = { Text("Knowledge") }) }
 }
-@Composable private fun AdminSurface() {
-    SurfaceCard("Admin Control Center", "Admin-only remote controls for feature flags, providers, models, pricing, payments, testing mode, plugins and audit.")
-    listOf("Feature flags", "AI providers & routing", "Pricing, credits & plans", "Testing mode", "Notifications", "Audit & security").forEach { label ->
-        ListItem(headlineContent = { Text(label) }, leadingContent = { Icon(Icons.Default.Tune, null) })
+@Composable
+private fun AdminSurface() {
+    val scope = rememberCoroutineScope()
+    val client = remember { AdminAdvancedClient() }
+    var options by remember { mutableStateOf<List<AdvancedAdminOption>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching { client.list() }
+            .onSuccess { options = it; error = null }
+            .onFailure { error = it.message ?: "Unable to load admin controls" }
+        loading = false
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SurfaceCard(
+            "Admin Control Center",
+            "These 40 advanced capabilities are server-controlled. Enable/disable, rollout, kill-switch, approval, credit and provider controls are persisted through the admin API."
+        )
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        error?.let {
+            Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.errorContainer)) {
+                Text(it, modifier = Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
+        Text("Advanced capability controls", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            items(options, key = { it.id }) { option ->
+                Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(option.label, fontWeight = FontWeight.SemiBold)
+                                Text(option.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(
+                                checked = option.enabled && !option.killSwitch,
+                                onCheckedChange = { checked ->
+                                    val updated = option.copy(enabled = checked)
+                                    options = options.map { if (it.id == option.id) updated else it }
+                                    scope.launch {
+                                        runCatching { client.update(updated) }
+                                            .onFailure { error = it.message ?: "Admin update failed" }
+                                    }
+                                }
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistChip(
+                                onClick = {
+                                    val updated = option.copy(killSwitch = !option.killSwitch)
+                                    options = options.map { if (it.id == option.id) updated else it }
+                                    scope.launch { runCatching { client.update(updated) }.onFailure { error = it.message } }
+                                },
+                                label = { Text(if (option.killSwitch) "Kill switch ON" else "Kill switch") }
+                            )
+                            AssistChip(
+                                onClick = {
+                                    val updated = option.copy(requiresApproval = !option.requiresApproval)
+                                    options = options.map { if (it.id == option.id) updated else it }
+                                    scope.launch { runCatching { client.update(updated) }.onFailure { error = it.message } }
+                                },
+                                label = { Text(if (option.requiresApproval) "Approval required" else "No approval") }
+                            )
+                            Text(
+                                "Rollout ${option.rolloutPercent}% • ${option.creditCost} credits",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.align(Alignment.CenterVertically)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+
 @Composable private fun SimpleSurface(text: String) = SurfaceCard("Workspace", text)
 
 @Composable private fun SurfaceCard(title: String, body: String) {
