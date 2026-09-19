@@ -6,10 +6,10 @@ package com.bqsqwad.ai.core
  */
 object AdminControlCatalog {
     val sections = listOf(
-        "overview","providers","provider_routing","models","web_search","capabilities",
-        "feature_flags","rollouts","plans","pricing","credits","payments","subscriptions",
-        "testing","codron","agents","business","plugins","notifications","referrals",
-        "security","privacy","audit","incidents","experiments","analytics"
+        "ai_models","providers","routing","capabilities","credits","pricing","plans","payments",
+        "subscriptions","business","agents","device","privacy","security","users","notifications",
+        "referrals","codron","plugins","experiments","rollouts","monitoring","incidents","audit",
+        "data","system","emergency"
     )
 
     /** The 40 advanced controls requested for the Admin Control Center. */
