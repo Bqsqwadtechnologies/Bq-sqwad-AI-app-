@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.bqsqwad.ai.ui
 
 import androidx.compose.animation.AnimatedVisibility
@@ -14,7 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.res.painterResource\nimport com.bqsqwad.ai.R
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import com.bqsqwad.ai.R
 import androidx.navigation.compose.*
 import com.bqsqwad.ai.domain.Workspace
 import com.bqsqwad.ai.core.AdminAdvancedClient
@@ -58,7 +62,7 @@ private fun MainChatCard(onClick: () -> Unit) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Main Chat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             Text("Fast conversation, voice-to-text, optional spoken replies. Image, video and file analysis require a subscription.")
-            OutlinedTextField("", {}, enabled = false, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message BQ Sqwad AI") }, trailingIcon = { Icon(Icons.Default.Mic, "Voice") })
+            OutlinedTextField(value = "", onValueChange = {}, enabled = false, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message BQ Sqwad AI") }, trailingIcon = { Icon(Icons.Default.Mic, "Voice") })
         }
     }
 }
@@ -218,11 +222,11 @@ private fun AttachmentAction(
 }
 @Composable private fun SearchSurface() {
     SurfaceCard("Search workspace", "Current-information requests can use the web-search capability when enabled by remote configuration. Sources remain attached to the result.")
-    OutlinedTextField("", {}, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search the web") })
+    OutlinedTextField(value = "", onValueChange = {}, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search the web") })
 }
 @Composable private fun CameraSurface() {
     SurfaceCard("Live vision", "Camera access is permission-gated. Screen capture, location and device actions require explicit Android consent.")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button({}) { Icon(Icons.Default.Videocam, null); Spacer(Modifier.width(6.dp)); Text("Camera") }; OutlinedButton({}) { Text("Privacy controls") } }
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button(onClick = {}) { Icon(Icons.Default.Videocam, null); Spacer(Modifier.width(6.dp)); Text("Camera") }; OutlinedButton(onClick = {}) { Text("Privacy controls") } }
 }
 @Composable private fun VoiceSurface() {
     SurfaceCard("Real-time voice", "Voice conversation is one workspace: microphone, AI speaking, voice selection and interruption are controlled here.")
@@ -230,7 +234,7 @@ private fun AttachmentAction(
 }
 @Composable private fun BusinessSurface() {
     SurfaceCard("Business dashboard", "Plan, usage, agents, connections, knowledge, workflows, intelligence and automation are organized below this workspace.")
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { AssistChip({}, label = { Text("Agents") }); AssistChip({}, label = { Text("Connections") }); AssistChip({}, label = { Text("Knowledge") }) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { AssistChip(onClick = {}, label = { Text("Agents") }); AssistChip({}, label = { Text("Connections") }); AssistChip({}, label = { Text("Knowledge") }) }
 }
 @Composable
 private fun AdminSurface() = AdminControlCenter()
