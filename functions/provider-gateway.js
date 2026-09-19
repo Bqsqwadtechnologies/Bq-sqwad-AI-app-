@@ -16,8 +16,18 @@ async function jsonFetch(url, options = {}) {
 }
 
 export async function getRoute(capability) {
-  const doc = await getFirestore().collection("adminProviderRoutes").doc(capability).get();
-  if (doc.exists) return doc.data();
+  const controlId = "capability_" + capability;
+  const doc = await getFirestore().collection("adminAdvancedOptions").doc(controlId).get();
+  if (doc.exists) {
+    const data = doc.data() || {};
+    const config = data.config || {};
+    return {
+      primaryProviderId: data.providerId || "openai",
+      primaryModelId: data.modelId || DEFAULT_MODELS.openai,
+      fallbackProviderIds: Array.isArray(config.fallbackProviderIds) ? config.fallbackProviderIds : [],
+      enabled: data.enabled !== false && data.killSwitch !== true
+    };
+  }
   const defaults = {
     chat: { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"], enabled: true },
     device_commands: { primaryProviderId: "gemini", primaryModelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [], enabled: true },
