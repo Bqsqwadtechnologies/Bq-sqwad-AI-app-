@@ -9,7 +9,7 @@ import android.hardware.camera2.CameraManager
 
 class DeviceCommandExecutor(private val context: Context) {
 
-    fun execute(action: DeviceAction): Result {
+    fun execute(action: DeviceAction): Result<Unit> {
         if (!DeviceCommandPolicy.isAllowed(action)) {
             return Result.failure(IllegalArgumentException("Unsupported device action"))
         }
