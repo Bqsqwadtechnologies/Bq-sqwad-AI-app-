@@ -1,0 +1,267 @@
+package com.bqsqwad.ai.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.bqsqwad.ai.core.AdminAdvancedClient
+import com.bqsqwad.ai.core.AdminOperationalConfig
+import com.bqsqwad.ai.core.AdvancedAdminOption
+import kotlinx.coroutines.launch
+
+@Composable
+fun AdminControlCenter() {
+    val scope = rememberCoroutineScope()
+    val client = remember { AdminAdvancedClient() }
+    var options by remember { mutableStateOf<List<AdvancedAdminOption>>(emptyList()) }
+    var selectedSection by remember { mutableStateOf("all") }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching { client.list() }
+            .onSuccess { options = it; error = null }
+            .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
+        loading = false
+    }
+
+    val sections = listOf(
+        "all" to "All",
+        "ai_models" to "AI & Models",
+        "providers" to "Providers",
+        "routing" to "Routing",
+        "capabilities" to "Capabilities",
+        "credits" to "Credits",
+        "pricing" to "Pricing",
+        "plans" to "Plans",
+        "payments" to "Payments",
+        "subscriptions" to "Subscriptions",
+        "business" to "Business",
+        "agents" to "Agents",
+        "device" to "Device Intelligence",
+        "privacy" to "Privacy",
+        "security" to "Security",
+        "users" to "Users",
+        "notifications" to "Notifications",
+        "referrals" to "Referrals",
+        "codron" to "Codron",
+        "plugins" to "Plugins",
+        "experiments" to "Experiments",
+        "rollouts" to "Rollouts",
+        "monitoring" to "Monitoring",
+        "incidents" to "Incidents",
+        "audit" to "Audit",
+        "data" to "Data",
+        "system" to "System",
+        "emergency" to "Emergency Controls"
+    )
+
+    val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SurfaceCard(
+            "Admin Control Center",
+            "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
+        )
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    sections.take(9).forEach { (id, label) ->
+                        AssistChip(onClick = { selectedSection = id }, label = { Text(label) })
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    sections.drop(9).forEach { (id, label) ->
+                        AssistChip(onClick = { selectedSection = id }, label = { Text(label) })
+                    }
+                }
+            }
+            item { HorizontalDivider() }
+            items(filtered, key = { it.id }) { option ->
+                AdminOptionEditor(
+                    option = option,
+                    onSave = { updated ->
+                        options = options.map { if (it.id == updated.id) updated else it }
+                        scope.launch {
+                            runCatching { client.update(updated) }
+                                .onFailure { error = it.message ?: "Admin update failed" }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminOptionEditor(
+    option: AdvancedAdminOption,
+    onSave: (AdvancedAdminOption) -> Unit
+) {
+    var local by remember(option.id, option.version, option.updatedBy) { mutableStateOf(option) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(option.label, fontWeight = FontWeight.Bold)
+                    Text(option.section, style = MaterialTheme.typography.labelSmall)
+                    Text(option.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = local.enabled && !local.killSwitch,
+                    onCheckedChange = { local = local.copy(enabled = it); onSave(local) }
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AssistChip(onClick = { local = local.copy(killSwitch = !local.killSwitch); onSave(local) },
+                    label = { Text(if (local.killSwitch) "Kill ON" else "Kill switch") })
+                AssistChip(onClick = { local = local.copy(requiresApproval = !local.requiresApproval); onSave(local) },
+                    label = { Text(if (local.requiresApproval) "Approval required" else "No approval") })
+            }
+
+            AdminNumberField("Rollout %", local.rolloutPercent.toString()) {
+                local = local.copy(rolloutPercent = it.toIntOrNull()?.coerceIn(0, 100) ?: local.rolloutPercent)
+            }
+            AdminNumberField("Credit cost", local.creditCost.toString()) {
+                local = local.copy(creditCost = it.toLongOrNull()?.coerceAtLeast(0) ?: local.creditCost)
+            }
+            AdminNumberField("Daily limit", local.dailyLimit?.toString() ?: "") {
+                local = local.copy(dailyLimit = it.toLongOrNull()?.coerceAtLeast(0))
+            }
+            AdminNumberField("Concurrency limit", local.concurrencyLimit?.toString() ?: "") {
+                local = local.copy(concurrencyLimit = it.toLongOrNull()?.coerceAtLeast(0))
+            }
+            OutlinedTextField(local.providerId ?: "", { local = local.copy(providerId = it.ifBlank { null }) },
+                label = { Text("Provider") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(local.modelId ?: "", { local = local.copy(modelId = it.ifBlank { null }) },
+                label = { Text("Model") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(local.allowedPlanIds.joinToString(","), {
+                local = local.copy(allowedPlanIds = it.split(",").map(String::trim).filter(String::isNotBlank))
+            }, label = { Text("Allowed plan IDs (comma separated)") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(local.schedule ?: "", { local = local.copy(schedule = it.ifBlank { null }) },
+                label = { Text("Schedule / rollout window") }, modifier = Modifier.fillMaxWidth())
+            AdminNumberField("Alert threshold", local.alertThreshold?.toString() ?: "") {
+                local = local.copy(alertThreshold = it.toDoubleOrNull()?.coerceAtLeast(0))
+            }
+            AdminNumberField("Configuration version", local.version.toString()) {
+                local = local.copy(version = it.toIntOrNull()?.coerceAtLeast(1) ?: local.version)
+            }
+
+            Text("Operational policy", fontWeight = FontWeight.SemiBold)
+            val c = local.config
+            AdminNumberField("Max tool calls", c.maxToolCalls.toString()) {
+                local = local.copy(config = c.copy(maxToolCalls = it.toLongOrNull()?.coerceAtLeast(0) ?: c.maxToolCalls))
+            }
+            AdminNumberField("Max execution seconds", c.maxExecutionSeconds.toString()) {
+                local = local.copy(config = c.copy(maxExecutionSeconds = it.toLongOrNull()?.coerceAtLeast(1) ?: c.maxExecutionSeconds))
+            }
+            AdminNumberField("Response max tokens", c.responseMaxTokens?.toString() ?: "") {
+                local = local.copy(config = c.copy(responseMaxTokens = it.toLongOrNull()?.coerceAtLeast(1)))
+            }
+            AdminNumberField("Context window limit", c.contextWindowLimit?.toString() ?: "") {
+                local = local.copy(config = c.copy(contextWindowLimit = it.toLongOrNull()?.coerceAtLeast(1)))
+            }
+            AdminNumberField("Rate limit / minute", c.rateLimitPerMinute?.toString() ?: "") {
+                local = local.copy(config = c.copy(rateLimitPerMinute = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Rate limit / day", c.rateLimitPerDay?.toString() ?: "") {
+                local = local.copy(config = c.copy(rateLimitPerDay = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Latency budget ms", c.latencyBudgetMs?.toString() ?: "") {
+                local = local.copy(config = c.copy(latencyBudgetMs = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Error threshold %", c.errorThresholdPercent?.toString() ?: "") {
+                local = local.copy(config = c.copy(errorThresholdPercent = it.toDoubleOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Queue limit", c.queueLimit?.toString() ?: "") {
+                local = local.copy(config = c.copy(queueLimit = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Max file size MB", c.maxFileSizeMb?.toString() ?: "") {
+                local = local.copy(config = c.copy(maxFileSizeMb = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            AdminNumberField("Upload concurrency", c.maxUploadConcurrency?.toString() ?: "") {
+                local = local.copy(config = c.copy(maxUploadConcurrency = it.toLongOrNull()?.coerceAtLeast(0)))
+            }
+            OutlinedTextField(c.systemPromptVersion ?: "", { local = local.copy(config = c.copy(systemPromptVersion = it.ifBlank { null })) },
+                label = { Text("System prompt/config version") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(c.fallbackProviderIds.joinToString(","), {
+                local = local.copy(config = c.copy(fallbackProviderIds = it.split(",").map(String::trim).filter(String::isNotBlank)))
+            }, label = { Text("Fallback providers (comma separated)") }, modifier = Modifier.fillMaxWidth())
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.confidenceRequired, onCheckedChange = { local = local.copy(config = c.copy(confidenceRequired = it)); onSave(local) })
+                Text("Require confidence indicator", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.sourceVerificationRequired, onCheckedChange = { local = local.copy(config = c.copy(sourceVerificationRequired = it)); onSave(local) })
+                Text("Require source verification", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.confirmationRequired, onCheckedChange = { local = local.copy(config = c.copy(confirmationRequired = it)); onSave(local) })
+                Text("Require action confirmation", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.permissionRequired, onCheckedChange = { local = local.copy(config = c.copy(permissionRequired = it)); onSave(local) })
+                Text("Require device permission", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.maintenanceMode, onCheckedChange = { local = local.copy(config = c.copy(maintenanceMode = it)); onSave(local) })
+                Text("Maintenance mode", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.backgroundAllowed, onCheckedChange = { local = local.copy(config = c.copy(backgroundAllowed = it)); onSave(local) })
+                Text("Background execution allowed", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.fallbackEnabled, onCheckedChange = { local = local.copy(config = c.copy(fallbackEnabled = it)); onSave(local) })
+                Text("Automatic fallback enabled", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.notificationEnabled, onCheckedChange = { local = local.copy(config = c.copy(notificationEnabled = it)); onSave(local) })
+                Text("Notifications enabled", Modifier.padding(top = 12.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Switch(checked = c.auditRequired, onCheckedChange = { local = local.copy(config = c.copy(auditRequired = it)); onSave(local) })
+                Text("Audit logging required", Modifier.padding(top = 12.dp))
+            }
+
+            Text("Tap Save after editing numeric/text fields.", style = MaterialTheme.typography.labelSmall)
+            AssistChip(onClick = { onSave(local) }, label = { Text("Save all settings") })
+        }
+    }
+}
+
+@Composable
+private fun AdminNumberField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(value, onValueChange, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
+}
