@@ -212,6 +212,23 @@ private fun AdminOptionEditor(
             AdminNumberField("Upload concurrency", c.maxUploadConcurrency?.toString() ?: "") {
                 local = local.copy(config = c.copy(maxUploadConcurrency = it.toLongOrNull()?.coerceAtLeast(0)))
             }
+            if (local.id == "web_search_pricing") {
+                AdminNumberField("Credits per normal search", c.creditsPerSearch.toString()) {
+                    local = local.copy(config = c.copy(creditsPerSearch = it.toDoubleOrNull()?.coerceAtLeast(0.0) ?: c.creditsPerSearch))
+                }
+                AdminNumberField("Credits per deep research", c.creditsPerDeepResearch.toString()) {
+                    local = local.copy(config = c.copy(creditsPerDeepResearch = it.toDoubleOrNull()?.coerceAtLeast(0.0) ?: c.creditsPerDeepResearch))
+                }
+                AdminNumberField("Credits per result page", c.creditsPerResultPage.toString()) {
+                    local = local.copy(config = c.copy(creditsPerResultPage = it.toDoubleOrNull()?.coerceAtLeast(0.0) ?: c.creditsPerResultPage))
+                }
+                AdminNumberField("Maximum results", c.maxResults.toString()) {
+                    local = local.copy(config = c.copy(maxResults = it.toLongOrNull()?.coerceIn(1, 20) ?: c.maxResults))
+                }
+                AdminNumberField("Daily user search limit", c.dailyUserLimit?.toString() ?: "") {
+                    local = local.copy(config = c.copy(dailyUserLimit = it.toLongOrNull()?.coerceAtLeast(0)))
+                }
+            }
             OutlinedTextField(c.systemPromptVersion ?: "", { local = local.copy(config = c.copy(systemPromptVersion = it.ifBlank { null })) },
                 label = { Text("System prompt/config version") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(c.fallbackProviderIds.joinToString(","), {
