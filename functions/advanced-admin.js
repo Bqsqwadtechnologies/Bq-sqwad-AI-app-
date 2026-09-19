@@ -1,55 +1,168 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-export const ADVANCED_ADMIN_OPTIONS = [
-  ["provider_cost_optimizer","Provider cost optimizer"],
-  ["provider_health_monitor","Provider health monitor"],
-  ["model_version_management","Model version management"],
-  ["evaluation_lab","AI evaluation laboratory"],
-  ["prompt_config_versioning","Prompt/config versioning"],
-  ["capability_credit_pricing","Capability-level credit pricing"],
-  ["search_domain_controls","Search domain controls and caching"],
-  ["device_approval_policies","Device approval and per-device capabilities"],
-  ["ai_activity_timeline","AI activity timeline"],
-  ["action_preview","Action preview"],
-  ["human_approval","Human approval checkpoints"],
-  ["undoable_ai_actions","Undoable AI actions"],
-  ["agent_sandbox","Agent sandbox"],
-  ["plugin_marketplace","Plugin marketplace and permissions"],
-  ["background_jobs","Background jobs and queues"],
-  ["scheduled_tasks","Scheduled AI tasks"],
-  ["monitoring_agents","Monitoring agents"],
-  ["usage_forecasting","Usage forecasting"],
-  ["automatic_quality_fallback","Automatic quality fallback"],
-  ["emergency_kill_switches","Emergency kill switches"],
-  ["incident_replay","AI incident replay"],
-  ["security_risk_monitoring","Security monitoring and AI risk detection"],
-  ["config_snapshots_rollback","Configuration snapshots and rollback"],
-  ["regional_pricing_promos","Regional pricing, promotions, trials and coupons"],
-  ["subscription_lifecycle","Subscription lifecycle management"],
-  ["business_ai_employees","Business AI employee system"],
-  ["agent_to_agent_workflows","Agent-to-agent workflows"],
-  ["cross_device_sync","Cross-device conversation and project sync"],
-  ["secure_sensitive_vault","Secure temporary sensitive-data vault"],
-  ["resumable_uploads","Large-file resumable uploads"],
-  ["multilingual_ui_voice","Multilingual UI and voice"],
-  ["accessibility_controls","Accessibility-first AI controls"],
-  ["passkeys_sessions_devices","Passkeys, sessions and device management"],
-  ["data_export_deletion","Data export and account deletion"],
-  ["provider_routing","Provider routing"],
-  ["model_routing","Model routing"],
-  ["provider_secret_management","Provider secret management"],
-  ["web_search_pricing","Web Search pricing"],
-  ["feature_rollouts","Feature rollout percentages"],
-  ["admin_testing_mode","Admin testing mode"]
+export const ADMIN_CONTROL_SECTIONS = [
+  ["ai_models", "AI & Models"],
+  ["providers", "Providers"],
+  ["routing", "Routing"],
+  ["capabilities", "Capabilities"],
+  ["credits", "Credits"],
+  ["pricing", "Pricing"],
+  ["plans", "Plans"],
+  ["payments", "Payments"],
+  ["subscriptions", "Subscriptions"],
+  ["business", "Business"],
+  ["agents", "Agents"],
+  ["device", "Device Intelligence"],
+  ["privacy", "Privacy"],
+  ["security", "Security"],
+  ["users", "Users"],
+  ["notifications", "Notifications"],
+  ["referrals", "Referrals"],
+  ["codron", "Codron"],
+  ["plugins", "Plugins"],
+  ["experiments", "Experiments"],
+  ["rollouts", "Rollouts"],
+  ["monitoring", "Monitoring"],
+  ["incidents", "Incidents"],
+  ["audit", "Audit"],
+  ["data", "Data"],
+  ["system", "System"],
+  ["emergency", "Emergency Controls"]
 ];
 
-function defaults(id, label) {
+export const ADVANCED_ADMIN_OPTIONS = [
+  ["provider_cost_optimizer","Provider cost optimizer","providers"],
+  ["provider_health_monitor","Provider health monitor","monitoring"],
+  ["model_version_management","Model version management","ai_models"],
+  ["evaluation_lab","AI evaluation laboratory","experiments"],
+  ["prompt_config_versioning","Prompt/config versioning","ai_models"],
+  ["capability_credit_pricing","Capability-level credit pricing","pricing"],
+  ["search_domain_controls","Search domain controls and caching","providers"],
+  ["device_approval_policies","Device approval and per-device capabilities","device"],
+  ["ai_activity_timeline","AI activity timeline","audit"],
+  ["action_preview","Action preview","security"],
+  ["human_approval","Human approval checkpoints","security"],
+  ["undoable_ai_actions","Undoable AI actions","security"],
+  ["agent_sandbox","Agent sandbox","agents"],
+  ["plugin_marketplace","Plugin marketplace and permissions","plugins"],
+  ["background_jobs","Background jobs and queues","system"],
+  ["scheduled_tasks","Scheduled AI tasks","system"],
+  ["monitoring_agents","Monitoring agents","monitoring"],
+  ["usage_forecasting","Usage forecasting","monitoring"],
+  ["automatic_quality_fallback","Automatic quality fallback","routing"],
+  ["emergency_kill_switches","Emergency kill switches","emergency"],
+  ["incident_replay","AI incident replay","incidents"],
+  ["security_risk_monitoring","Security monitoring and AI risk detection","security"],
+  ["config_snapshots_rollback","Configuration snapshots and rollback","system"],
+  ["regional_pricing_promos","Regional pricing, promotions, trials and coupons","pricing"],
+  ["subscription_lifecycle","Subscription lifecycle management","subscriptions"],
+  ["business_ai_employees","Business AI employee system","business"],
+  ["agent_to_agent_workflows","Agent-to-agent workflows","agents"],
+  ["cross_device_sync","Cross-device conversation and project sync","data"],
+  ["secure_sensitive_vault","Secure temporary sensitive-data vault","privacy"],
+  ["resumable_uploads","Large-file resumable uploads","system"],
+  ["multilingual_ui_voice","Multilingual UI and voice","capabilities"],
+  ["accessibility_controls","Accessibility-first AI controls","capabilities"],
+  ["passkeys_sessions_devices","Passkeys, sessions and device management","security"],
+  ["data_export_deletion","Data export and account deletion","data"],
+  ["provider_routing","Provider routing","routing"],
+  ["model_routing","Model routing","routing"],
+  ["provider_secret_management","Provider secret management","providers"],
+  ["web_search_pricing","Web Search pricing","pricing"],
+  ["feature_rollouts","Feature rollout percentages","rollouts"],
+  ["admin_testing_mode","Admin testing mode","experiments"]
+];
+
+const BASE_DEFAULTS = {
+  enabled: true,
+  rolloutPercent: 100,
+  killSwitch: false,
+  requiresApproval: false,
+  creditCost: 0,
+  dailyLimit: null,
+  concurrencyLimit: null,
+  providerCapabilityId: null,
+  providerId: null,
+  modelId: null,
+  allowedPlanIds: [],
+  version: 1,
+  schedule: null,
+  alertThreshold: null
+};
+
+const CONFIG_DEFAULTS = {
+  responseMaxTokens: null,
+  contextWindowLimit: null,
+  maxToolCalls: 10,
+  maxExecutionSeconds: 120,
+  temperature: null,
+  confidenceRequired: false,
+  sourceVerificationRequired: false,
+  systemPromptVersion: null,
+  rateLimitPerMinute: null,
+  rateLimitPerDay: null,
+  maintenanceMode: false,
+  backgroundAllowed: false,
+  confirmationRequired: false,
+  permissionRequired: false,
+  dataRetentionDays: null,
+  fileRetentionHours: null,
+  domainAllowList: [],
+  domainDenyList: [],
+  fallbackEnabled: true,
+  fallbackProviderIds: [],
+  latencyBudgetMs: null,
+  errorThresholdPercent: null,
+  queueLimit: null,
+  maxFileSizeMb: null,
+  maxUploadConcurrency: null,
+  notificationEnabled: true,
+  auditRequired: true,
+  planOverrides: {}
+};
+
+function defaults(id, label, section) {
   return {
-    id, label, enabled: true, rolloutPercent: 100, killSwitch: false,
-    requiresApproval: false, creditCost: 0, dailyLimit: null, concurrencyLimit: null,
-    providerCapabilityId: id, providerId: null, modelId: null,
-    allowedPlanIds: [], version: 1, schedule: null,
-    alertThreshold: null, updatedAt: null
+    id,
+    label,
+    section,
+    ...BASE_DEFAULTS,
+    providerCapabilityId: id,
+    config: { ...CONFIG_DEFAULTS },
+    updatedAt: null,
+    updatedBy: null
+  };
+}
+
+function normalize(input, existing, adminUid, found) {
+  const base = defaults(found[0], found[1], found[2]);
+  const current = existing || {};
+  const incomingConfig = input.config && typeof input.config === "object" ? input.config : {};
+  const config = { ...CONFIG_DEFAULTS, ...(current.config || {}), ...incomingConfig };
+  return {
+    ...base,
+    ...current,
+    ...input,
+    id: found[0],
+    label: found[1],
+    section: found[2],
+    enabled: input.enabled == null ? current.enabled !== false : Boolean(input.enabled),
+    rolloutPercent: Math.min(100, Math.max(0, Number(input.rolloutPercent ?? current.rolloutPercent ?? 100))),
+    killSwitch: input.killSwitch == null ? Boolean(current.killSwitch) : Boolean(input.killSwitch),
+    requiresApproval: input.requiresApproval == null ? Boolean(current.requiresApproval) : Boolean(input.requiresApproval),
+    creditCost: Math.max(0, Number(input.creditCost ?? current.creditCost ?? 0)),
+    dailyLimit: input.dailyLimit == null ? (current.dailyLimit ?? null) : Math.max(0, Number(input.dailyLimit)),
+    concurrencyLimit: input.concurrencyLimit == null ? (current.concurrencyLimit ?? null) : Math.max(0, Number(input.concurrencyLimit)),
+    providerCapabilityId: input.providerCapabilityId ? String(input.providerCapabilityId) : (current.providerCapabilityId || found[0]),
+    providerId: input.providerId ? String(input.providerId) : (current.providerId || null),
+    modelId: input.modelId ? String(input.modelId) : (current.modelId || null),
+    allowedPlanIds: Array.isArray(input.allowedPlanIds) ? input.allowedPlanIds.map(String) : (Array.isArray(current.allowedPlanIds) ? current.allowedPlanIds : []),
+    version: Math.max(1, Number(input.version ?? current.version ?? 1)),
+    schedule: input.schedule == null ? (current.schedule ?? null) : String(input.schedule),
+    alertThreshold: input.alertThreshold == null ? (current.alertThreshold ?? null) : Math.max(0, Number(input.alertThreshold)),
+    config,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: adminUid
   };
 }
 
@@ -57,8 +170,13 @@ export async function listAdvancedAdminOptions() {
   const db = getFirestore();
   const snapshot = await db.collection("adminAdvancedOptions").get();
   const stored = new Map(snapshot.docs.map(d => [d.id, d.data()]));
-  return ADVANCED_ADMIN_OPTIONS.map(([id,label]) => ({
-    ...defaults(id,label), ...(stored.get(id) || {}), id, label
+  return ADVANCED_ADMIN_OPTIONS.map(([id, label, section]) => ({
+    ...defaults(id, label, section),
+    ...(stored.get(id) || {}),
+    id,
+    label,
+    section,
+    config: { ...CONFIG_DEFAULTS, ...((stored.get(id) || {}).config || {}) }
   }));
 }
 
@@ -66,25 +184,18 @@ export async function updateAdvancedAdminOption(input, adminUid) {
   const id = String(input.id || "");
   const found = ADVANCED_ADMIN_OPTIONS.find(x => x[0] === id);
   if (!found) throw new Error("Unknown advanced admin option: " + id);
-  const option = {
-    ...defaults(id, found[1]),
-    enabled: input.enabled !== false,
-    rolloutPercent: Math.min(100, Math.max(0, Number(input.rolloutPercent ?? 100))),
-    killSwitch: Boolean(input.killSwitch),
-    requiresApproval: Boolean(input.requiresApproval),
-    creditCost: Math.max(0, Number(input.creditCost ?? 0)),
-    dailyLimit: input.dailyLimit == null ? null : Math.max(0, Number(input.dailyLimit)),
-    concurrencyLimit: input.concurrencyLimit == null ? null : Math.max(0, Number(input.concurrencyLimit)),
-    providerCapabilityId: input.providerCapabilityId ? String(input.providerCapabilityId) : id,
-    providerId: input.providerId ? String(input.providerId) : null,
-    modelId: input.modelId ? String(input.modelId) : null,
-    allowedPlanIds: Array.isArray(input.allowedPlanIds) ? input.allowedPlanIds.map(String) : [],
-    version: Math.max(1, Number(input.version ?? 1)),
-    schedule: input.schedule == null ? null : String(input.schedule),
-    alertThreshold: input.alertThreshold == null ? null : Math.max(0, Number(input.alertThreshold)),
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: adminUid
+
+  const db = getFirestore();
+  const ref = db.collection("adminAdvancedOptions").doc(id);
+  const snap = await ref.get();
+  const option = normalize(input, snap.exists ? snap.data() : null, adminUid, found);
+  await ref.set(option, { merge: true });
+  return option;
+}
+
+export async function getAdminControlConfig() {
+  return {
+    sections: ADMIN_CONTROL_SECTIONS.map(([id, label]) => ({ id, label })),
+    options: await listAdvancedAdminOptions()
   };
-  await getFirestore().collection("adminAdvancedOptions").doc(id).set(option, { merge: true });
-  return { ...option, id, label: found[1] };
 }
