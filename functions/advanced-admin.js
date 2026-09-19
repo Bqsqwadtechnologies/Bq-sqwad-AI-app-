@@ -193,14 +193,17 @@ export async function listAdvancedAdminOptions() {
   const db = getFirestore();
   const snapshot = await db.collection("adminAdvancedOptions").get();
   const stored = new Map(snapshot.docs.map(d => [d.id, d.data()]));
-  return ALL_OPTIONS.map(([id, label, section]) => ({
-    ...defaults(id, label, section),
+  return ALL_OPTIONS.map(([id, label, section]) => {
+    const core = CORE_CAPABILITY_OPTIONS.find(x => x[0] === id);
+    return {
+    ...defaults(id, label, section, core?.[3] || null, core?.[4] || null, core?.[5] || []),
     ...(stored.get(id) || {}),
     id,
     label,
     section,
     config: { ...CONFIG_DEFAULTS, ...((stored.get(id) || {}).config || {}) }
-  }));
+  };
+  });
 }
 
 export async function updateAdvancedAdminOption(input, adminUid) {
