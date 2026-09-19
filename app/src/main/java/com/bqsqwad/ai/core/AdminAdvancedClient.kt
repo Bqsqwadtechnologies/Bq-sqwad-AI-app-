@@ -58,7 +58,12 @@ data class AdminOperationalConfig(
     val maxFileSizeMb: Long? = null,
     val maxUploadConcurrency: Long? = null,
     val notificationEnabled: Boolean = true,
-    val auditRequired: Boolean = true
+    val auditRequired: Boolean = true,
+    val creditsPerSearch: Double = 0.0,
+    val creditsPerDeepResearch: Double = 0.0,
+    val creditsPerResultPage: Double = 0.0,
+    val maxResults: Long = 10,
+    val dailyUserLimit: Long? = null
 )
 
 class AdminAdvancedClient(
@@ -140,7 +145,12 @@ class AdminAdvancedClient(
                 maxFileSizeMb = cLong(c, "maxFileSizeMb"),
                 maxUploadConcurrency = cLong(c, "maxUploadConcurrency"),
                 notificationEnabled = c.optBoolean("notificationEnabled", true),
-                auditRequired = c.optBoolean("auditRequired", true)
+                auditRequired = c.optBoolean("auditRequired", true),
+                creditsPerSearch = c.optDouble("creditsPerSearch", 0.0),
+                creditsPerDeepResearch = c.optDouble("creditsPerDeepResearch", 0.0),
+                creditsPerResultPage = c.optDouble("creditsPerResultPage", 0.0),
+                maxResults = c.optLong("maxResults", 10),
+                dailyUserLimit = cLong(c, "dailyUserLimit")
             )
         )
     }
@@ -183,6 +193,11 @@ class AdminAdvancedClient(
         putNullable("maxUploadConcurrency", maxUploadConcurrency)
         put("notificationEnabled", notificationEnabled)
         put("auditRequired", auditRequired)
+        put("creditsPerSearch", creditsPerSearch)
+        put("creditsPerDeepResearch", creditsPerDeepResearch)
+        put("creditsPerResultPage", creditsPerResultPage)
+        put("maxResults", maxResults)
+        putNullable("dailyUserLimit", dailyUserLimit)
     }
 
     private suspend fun request(method: String, path: String, body: JSONObject?): JSONObject = withContext(Dispatchers.IO) {
