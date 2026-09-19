@@ -52,7 +52,7 @@ interface FeatureRepository {
     suspend fun subscription(accountId:String):SubscriptionEntitlement?
 }
 interface NotificationRepository { suspend fun registerDeviceToken(token:String); suspend fun list():List<NotificationItem> }
-interface PaymentRepository { suspend fun plans():List<PlanSummary); suspend fun purchase(planId:String):String }
+interface PaymentRepository { suspend fun plans():List<PlanSummary>; suspend fun purchase(planId:String):String }
 interface AdminRepository {
     suspend fun setProviderEnabled(providerId:String,enabled:Boolean)
     suspend fun setFeatureEnabled(featureId:String,enabled:Boolean)
