@@ -63,3 +63,12 @@ Backend source is implemented in this repository, but it is not claimed to be de
 
 ### Build boundary
 Gradle/build/APK work remains Phase 50. No APK workflow was dispatched as part of this architecture change.
+
+
+## Post-audit hardening
+
+The runtime now applies the canonical capability control before AI, device-command and web-search execution. The gate enforces enable/kill-switch state, rollout, configured plan restrictions, daily limits and concurrency limits, while credit reservation remains atomic.
+
+Execution paths release concurrency reservations in success and failure cases. New runtime records for jobs, workflows, agents, evaluations and plugins have server-owned contracts and bounded audit metadata.
+
+These changes strengthen the Phase 43–49 boundary, but production status still requires passing backend tests and a real signed Android build.
