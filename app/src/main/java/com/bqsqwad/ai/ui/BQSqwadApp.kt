@@ -237,7 +237,7 @@ private fun AdminSurface() = AdminControlCenter()
 
 @Composable private fun SimpleSurface(text: String) = SurfaceCard("Workspace", text)
 
-@Composable private fun SurfaceCard(title: String, body: String) {
+@Composable fun SurfaceCard(title: String, body: String) {
     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
