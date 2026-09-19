@@ -72,12 +72,22 @@ jobs:
           gradle --no-daemon --stacktrace clean assembleRelease bundleRelease
 
       - name: Verify release artifacts
+        shell: bash
         run: |
           set -euo pipefail
-          test -s app/build/outputs/apk/release/app-release.apk
-          test -s app/build/outputs/bundle/release/app-release.aab
-          apksigner verify --verbose app/build/outputs/apk/release/app-release.apk
-          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+
+          test -s "$APK"
+          test -s "$AAB"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -perm -u+x -print -quit)"
+          test -n "$APKSIGNER"
+          echo "Using apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          jarsigner -verify "$AAB"
 
       - name: Rename release artifacts
         run: |
