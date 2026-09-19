@@ -1,6 +1,7 @@
 package com.bqsqwad.ai.core
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.google.android.gms.tasks.Tasks
@@ -22,7 +23,7 @@ data class AdvancedAdminOption(
 )
 
 class AdminAdvancedClient(
-    private val baseUrl: String = "https://europe-west1-bq-sqwad-ai.cloudfunctions.net/bqSqwadApi"
+    private val baseUrl: String = "https://europe-west1-${FirebaseApp.getInstance().options.projectId}.cloudfunctions.net/bqSqwadApi"
 ) {
     suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/advanced-options", null).let { root ->
         val array = root.optJSONArray("options") ?: JSONArray()
