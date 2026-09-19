@@ -40,7 +40,7 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: "15859902"
-          packages: "platform-tools"
+          packages: "platform-tools build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
