@@ -9,7 +9,31 @@ data class SubscriptionEntitlement(
     val capabilities:Set<String> = emptySet()
 )
 
-data class ProviderState(val providerId:String,val displayName:String,val enabled:Boolean,val primary:Boolean=false,val models:List<String> = emptyList())
+data class ProviderState(
+    val providerId:String,
+    val displayName:String,
+    val enabled:Boolean,
+    val primary:Boolean=false,
+    val models:List<String> = emptyList(),
+    val kind:String? = null,
+    val secretConfigured:Boolean = false,
+    val publicKeyConfigured:Boolean = false
+)
+data class ProviderRoutingState(
+    val capabilityId:String,
+    val primaryProviderId:String,
+    val primaryModelId:String? = null,
+    val fallbackProviderIds:List<String> = emptyList(),
+    val enabled:Boolean = true,
+    val creditCostId:String? = null
+)
+data class AdminProviderCredentialState(
+    val providerId:String,
+    val secretRef:String? = null,
+    val publicRef:String? = null,
+    val configured:Boolean = false,
+    val lastRotatedAt:String? = null
+)
 data class CreditBalance(val available:Long,val reserved:Long=0,val currency:String="credits")
 data class PlanSummary(val planId:String,val name:String,val active:Boolean,val limits:Map<String,Long> = emptyMap())
 data class NotificationItem(val id:String,val title:String,val body:String,val read:Boolean)
@@ -53,6 +77,18 @@ interface FeatureRepository {
 }
 interface NotificationRepository { suspend fun registerDeviceToken(token:String); suspend fun list():List<NotificationItem> }
 interface PaymentRepository { suspend fun plans():List<PlanSummary>; suspend fun purchase(planId:String):String }
+interface AdminProviderRepository {
+    suspend fun listProviders():List<ProviderState>
+    suspend fun listRoutes():List<ProviderRoutingState>
+    suspend fun setPrimaryProvider(capabilityId:String,providerId:String,modelId:String?=null):Boolean
+    suspend fun setFallbackProviders(capabilityId:String,providerIds:List<String>):Boolean
+    suspend fun setProviderEnabled(providerId:String,enabled:Boolean):Boolean
+    suspend fun listCredentialStatus():List<AdminProviderCredentialState>
+    suspend fun rotateProviderSecret(providerId:String,secretRef:String):Boolean
+    suspend fun setWebSearchPricing(pricing:WebSearchPricing):Boolean
+    suspend fun webSearchPricing():WebSearchPricing
+}
+
 interface AdminRepository {
     suspend fun setProviderEnabled(providerId:String,enabled:Boolean)
     suspend fun setFeatureEnabled(featureId:String,enabled:Boolean)
