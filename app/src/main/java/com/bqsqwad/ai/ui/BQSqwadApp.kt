@@ -11,7 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.res.painterResource\nimport com.bqsqwad.ai.R
 import androidx.navigation.compose.*
 import com.bqsqwad.ai.domain.Workspace
 
@@ -51,7 +51,7 @@ private fun MainChatCard(onClick: () -> Unit) {
     Card(onClick, shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Main Chat", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            Text("Fast conversation, voice-to-text, optional spoken replies and image generation.")
+            Text("Fast conversation, voice-to-text, optional spoken replies. Image, video and file analysis require a subscription.")
             OutlinedTextField("", {}, enabled = false, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message BQ Sqwad AI") }, trailingIcon = { Icon(Icons.Default.Mic, "Voice") })
         }
     }
@@ -175,7 +175,7 @@ private fun FloatingLogoSlot() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(Icons.Default.AutoAwesome, "BQ Sqwad AI logo slot", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
+            androidx.compose.foundation.Image(painterResource(com.bqsqwad.ai.R.drawable.bq_sqwad_logo), contentDescription = "BQ Sqwad AI", modifier = Modifier.size(72.dp))
             Text("BQ Sqwad AI", fontWeight = FontWeight.Bold)
         }
     }
