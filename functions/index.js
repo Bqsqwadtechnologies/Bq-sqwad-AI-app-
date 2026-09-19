@@ -119,6 +119,66 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await setAutoRenew({ uid: user.uid, enabled: Boolean(body.enabled) }));
       }
 
+      if (req.method === "GET" && path === "admin/controls") {
+        await adminFromRequest(req);
+        const db = getFirestore();
+        const snapshot = await db.collection("adminControls").get();
+        const saved = new Map(snapshot.docs.map(d => [d.id, d.data()]));
+        const ids = [
+          "provider_cost_optimizer","provider_health_monitor","model_version_management",
+          "evaluation_lab","prompt_config_versioning","capability_credit_pricing",
+          "search_domain_controls","device_approval_policies","ai_activity_timeline",
+          "action_preview","human_approval","undoable_ai_actions","agent_sandbox",
+          "plugin_marketplace","background_jobs","scheduled_tasks","monitoring_agents",
+          "usage_forecasting","automatic_quality_fallback","emergency_kill_switches",
+          "incident_replay","security_risk_monitoring","config_snapshots_rollback",
+          "regional_pricing_promos","subscription_lifecycle","business_ai_employees",
+          "agent_to_agent_workflows","cross_device_sync","secure_sensitive_vault",
+          "resumable_uploads","multilingual_ui_voice","accessibility_controls",
+          "passkeys_sessions_devices","data_export_deletion","provider_routing",
+          "model_routing","provider_secret_management","web_search_pricing",
+          "feature_rollouts","admin_testing_mode"
+        ];
+        return send(res, 200, {
+          controls: ids.map(id => ({
+            id,
+            enabled: saved.get(id)?.enabled !== false,
+            rolloutPercent: Math.max(0, Math.min(100, Number(saved.get(id)?.rolloutPercent ?? 100))),
+            killSwitch: saved.get(id)?.killSwitch === true,
+            config: saved.get(id)?.config || {}
+          }))
+        });
+      }
+
+      if (req.method === "POST" && path === "admin/control") {
+        const admin = await adminFromRequest(req);
+        const id = String(body.controlId || "").trim();
+        const allowed = new Set([
+          "provider_cost_optimizer","provider_health_monitor","model_version_management",
+          "evaluation_lab","prompt_config_versioning","capability_credit_pricing",
+          "search_domain_controls","device_approval_policies","ai_activity_timeline",
+          "action_preview","human_approval","undoable_ai_actions","agent_sandbox",
+          "plugin_marketplace","background_jobs","scheduled_tasks","monitoring_agents",
+          "usage_forecasting","automatic_quality_fallback","emergency_kill_switches",
+          "incident_replay","security_risk_monitoring","config_snapshots_rollback",
+          "regional_pricing_promos","subscription_lifecycle","business_ai_employees",
+          "agent_to_agent_workflows","cross_device_sync","secure_sensitive_vault",
+          "resumable_uploads","multilingual_ui_voice","accessibility_controls",
+          "passkeys_sessions_devices","data_export_deletion","provider_routing",
+          "model_routing","provider_secret_management","web_search_pricing",
+          "feature_rollouts","admin_testing_mode"
+        ]);
+        if (!allowed.has(id)) return send(res, 400, { error: "unsupported_admin_control" });
+        const enabled = body.enabled !== false;
+        const rolloutPercent = Math.max(0, Math.min(100, Number(body.rolloutPercent ?? 100)));
+        const killSwitch = Boolean(body.killSwitch);
+        await getFirestore().collection("adminControls").doc(id).set({
+          enabled, rolloutPercent, killSwitch, config: body.config || {},
+          updatedAt: FieldValue.serverTimestamp(), updatedBy: admin.uid
+        }, { merge: true });
+        return send(res, 200, { ok: true, controlId: id, enabled, rolloutPercent, killSwitch });
+      }
+
       if (req.method === "GET" && path === "admin/providers") {
         await adminFromRequest(req);
         const db = getFirestore();
