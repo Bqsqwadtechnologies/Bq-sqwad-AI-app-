@@ -82,14 +82,21 @@ export const bqSqwadApi = onRequest(
         const query = String(body.query || "").trim();
         if (!query) return send(res, 400, { error: "query_required" });
         const db = getFirestore();
-        const pricingDoc = await db.collection("webSearchPricing").doc("default").get();
-        const pricing = pricingDoc.exists ? pricingDoc.data() : { creditsPerSearch: 1, creditsPerDeepResearch: 5 };
-        const charge = body.deepResearch ? Number(pricing.creditsPerDeepResearch) : Number(pricing.creditsPerSearch);
+        const pricingDoc = await db.collection("adminAdvancedOptions").doc("web_search_pricing").get();
+        const pricing = pricingDoc.exists
+          ? (pricingDoc.data()?.config || {})
+          : { creditsPerSearch: 1, creditsPerDeepResearch: 5, maxResults: 10, dailyUserLimit: null };
+        if (pricingDoc.exists && pricingDoc.data()?.enabled === false) return send(res, 403, { error: "web_search_disabled" });
+        const charge = body.deepResearch ? Number(pricing.creditsPerDeepResearch ?? 5) : Number(pricing.creditsPerSearch ?? 1);
         const capability = body.deepResearch ? "deep_research" : "web_search";
         const reservation = await reserveCredits(user.uid, charge, capability);
         let result;
         try {
-          result = await callTavily({ query, maxResults: body.maxResults, deepResearch: Boolean(body.deepResearch) });
+          result = await callTavily({
+            query,
+            maxResults: Math.min(Number(body.maxResults || pricing.maxResults || 10), Number(pricing.maxResults || 10)),
+            deepResearch: Boolean(body.deepResearch)
+          });
           await commitCredits(user.uid, reservation.reservationId, "tavily");
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
@@ -214,18 +221,24 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "admin/web-search-pricing") {
         await adminFromRequest(req);
         const pricing = {
-          pricingId: "default",
           enabled: body.enabled !== false,
           creditsPerSearch: Math.max(0, Number(body.creditsPerSearch ?? 1)),
           creditsPerDeepResearch: Math.max(0, Number(body.creditsPerDeepResearch ?? 5)),
           creditsPerResultPage: Math.max(0, Number(body.creditsPerResultPage ?? 0)),
           maxResults: Math.min(20, Math.max(1, Number(body.maxResults ?? 10))),
           dailyUserLimit: body.dailyUserLimit == null ? null : Math.max(0, Number(body.dailyUserLimit)),
-          planOverrides: body.planOverrides || {},
-          updatedAt: FieldValue.serverTimestamp()
+          planOverrides: body.planOverrides || {}
         };
-        await getFirestore().collection("webSearchPricing").doc("default").set(pricing, { merge: true });
-        return send(res, 200, { ok: true });
+        const admin = await adminFromRequest(req);
+        const current = await getFirestore().collection("adminAdvancedOptions").doc("web_search_pricing").get();
+        return send(res, 200, {
+          ok: true,
+          option: await updateAdvancedAdminOption({
+            id: "web_search_pricing",
+            enabled: pricing.enabled,
+            config: pricing
+          }, admin.uid)
+        });
       }
 
       return send(res, 404, { error: "not_found" });
