@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -89,8 +90,125 @@ private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
 }
 
 @Composable private fun ChatSurface() {
-    SurfaceCard("Conversation", "Send a message through the configured AI gateway. Web search and image generation are separate capabilities.")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { AssistChip({ }, label = { Text("Voice input") }, leadingIcon = { Icon(Icons.Default.Mic, null) }); AssistChip({ }, label = { Text("Generate image") }, leadingIcon = { Icon(Icons.Default.Image, null) }) }
+    var message by remember { mutableStateOf("") }
+    var showAttachments by remember { mutableStateOf(false) }
+    val hasStarted = message.isNotBlank()
+
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                AnimatedVisibility(visible = !hasStarted, enter = fadeIn(), exit = fadeOut()) {
+                    FloatingLogoSlot()
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AnimatedVisibility(visible = message.length >= 1200) {
+                    SuggestionChip(
+                        onClick = { /* Connected to file creation layer later. */ },
+                        label = { Text("Turn this long message into a file") },
+                        icon = { Icon(Icons.Default.Description, null) }
+                    )
+                }
+
+                Box {
+                    AnimatedVisibility(visible = showAttachments, enter = fadeIn(), exit = fadeOut()) {
+                        AttachmentMenu(
+                            onDismiss = { showAttachments = false },
+                            onSelected = { showAttachments = false }
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconButton(onClick = { showAttachments = !showAttachments }) {
+                            Icon(
+                                if (showAttachments) Icons.Default.Close else Icons.Default.Add,
+                                if (showAttachments) "Close attachments" else "Add attachment"
+                            )
+                        }
+                        OutlinedTextField(
+                            value = message,
+                            onValueChange = { message = it },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp),
+                            placeholder = { Text("Message BQ Sqwad AI") },
+                            maxLines = 7,
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { /* Voice-to-text layer later. */ }) {
+                                        Icon(Icons.Default.Mic, "Voice to text")
+                                    }
+                                    IconButton(
+                                        enabled = message.isNotBlank(),
+                                        onClick = { /* AI gateway later. */ }
+                                    ) {
+                                        Icon(Icons.Default.ArrowUpward, "Send")
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+                Text(
+                    "AI responses can make mistakes. Check important information.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingLogoSlot() {
+    Surface(
+        shape = RoundedCornerShape(32.dp),
+        tonalElevation = 3.dp,
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Column(
+            Modifier.padding(horizontal = 28.dp, vertical = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Default.AutoAwesome, "BQ Sqwad AI logo slot", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
+            Text("BQ Sqwad AI", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentMenu(onDismiss: () -> Unit, onSelected: () -> Unit) {
+    Card(
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Column(Modifier.padding(8.dp)) {
+            AttachmentAction(Icons.Default.InsertDriveFile, "Upload files", onSelected)
+            AttachmentAction(Icons.Default.PhotoLibrary, "Photos & gallery", onSelected)
+            AttachmentAction(Icons.Default.CameraAlt, "Take a photo", onSelected)
+            AttachmentAction(Icons.Default.Person, "Choose a person/contact", onSelected)
+            AttachmentAction(Icons.Default.Close, "Close", onDismiss)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Icon(icon, null)
+        Spacer(Modifier.width(10.dp))
+        Text(label, modifier = Modifier.weight(1f))
+    }
 }
 @Composable private fun SearchSurface() {
     SurfaceCard("Search workspace", "Current-information requests can use the web-search capability when enabled by remote configuration. Sources remain attached to the result.")
