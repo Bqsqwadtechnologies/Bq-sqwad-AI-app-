@@ -156,7 +156,7 @@ private fun AdminOptionEditor(
                 local = local.copy(creditCost = it.toLongOrNull()?.coerceAtLeast(0) ?: local.creditCost)
             }
             AdminNumberField("Daily limit", local.dailyLimit?.toString() ?: "") {
-                local = local.copy(dailyLimit = it.toLongOrNull()?.coerceAtLeast(0))
+                local = local.copy(dailyLimit = it.toLongOrNull()?.coerceAtLeast(0.0))
             }
             AdminNumberField("Concurrency limit", local.concurrencyLimit?.toString() ?: "") {
                 local = local.copy(concurrencyLimit = it.toLongOrNull()?.coerceAtLeast(0))
