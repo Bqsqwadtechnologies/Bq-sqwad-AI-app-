@@ -8,6 +8,7 @@ import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handleP
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
 import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
 import { authorizeCapability } from "./capability-runtime.js";
+import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } from "./runtime-controls.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 
@@ -67,9 +68,11 @@ export const bqSqwadApi = onRequest(
             system: body.system ? String(body.system) : undefined
           });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0, incidentId: crypto.randomUUID() });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "error", metadata: { error: error?.message || "request_failed" } });
           throw error;
         } finally {
           await gate.release();
@@ -154,6 +157,22 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "payments/auto-renew") {
         return send(res, 200, await setAutoRenew({ uid: user.uid, enabled: Boolean(body.enabled) }));
+      }
+
+      if (req.method === "POST" && path.startsWith("runtime/")) {
+        const key = path.split("/")[1];
+        if (!["jobs","workflows","agents","evaluations","plugins"].includes(key)) return send(res, 404, { error: "unsupported_runtime" });
+        const record = await createManagedRecord(key === "jobs" ? "jobs" : key, user.uid, body);
+        return send(res, 200, { ok: true, record });
+      }
+
+      if (req.method === "PATCH" && path.startsWith("runtime/")) {
+        const parts = path.split("/");
+        const key = parts[1];
+        const id = parts[2];
+        if (!["jobs","workflows","agents","evaluations","plugins"].includes(key) || !id) return send(res, 400, { error: "invalid_runtime_record" });
+        const record = await updateManagedRecord(key, user.uid, id, body);
+        return send(res, 200, { ok: true, record });
       }
 
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
