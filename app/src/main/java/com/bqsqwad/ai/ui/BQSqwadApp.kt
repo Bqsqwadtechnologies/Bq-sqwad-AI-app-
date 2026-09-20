@@ -826,29 +826,89 @@ private fun VoiceWorkspace() {
 
 @Composable
 private fun PlansSheet(onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var serverPlans by remember { mutableStateOf(emptyList<PlanInfo>()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { try { serverPlans = WorkspaceApiClient().plans() } catch (t: Throwable) { error = t.message ?: "Unable to load server plans" } }
+    val activity = context as? android.app.Activity
+    var status by remember { mutableStateOf("Connecting to Google Play…") }
+    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
+    var products by remember { mutableStateOf(emptyList<com.android.billingclient.api.ProductDetails>()) }
+
+    DisposableEffect(activity) {
+        if (activity == null) {
+            status = "Google Play billing is unavailable in this context."
+            onDispose { }
+        } else {
+            val manager = PlayBillingClient(activity)
+            billing = manager
+            manager.start()
+            status = "Loading Play products…"
+            onDispose {
+                manager.close()
+                billing = null
+            }
+        }
+    }
+
+    LaunchedEffect(billing) {
+        repeat(12) {
+            kotlinx.coroutines.delay(500)
+            val current = billing
+            if (current?.isReady() == true) {
+                products = current.availableProducts()
+                status = if (products.isEmpty()) {
+                    "No approved Play products are configured yet."
+                } else {
+                    "Prices are supplied by Google Play."
+                }
+                if (products.isNotEmpty()) return@LaunchedEffect
+            }
+        }
+        if (products.isEmpty()) status = "Google Play is unavailable. Retry when connected."
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Credits & Plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            item { Text("Server pricing is authoritative; legacy plans are parity references.") }
-            error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            items(serverPlans) { p ->
+        LazyColumn(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item {
+                Text("Credits & Plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Google Play is the only native purchase path. The app never hard-codes a purchase price.")
+            }
+            item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+                OutlinedButton(
+                    onClick = {
+                        billing?.restorePurchases()
+                        status = "Restoring purchases…"
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = billing?.isReady() == true
+                ) { Text("Restore purchases") }
+            }
+            if (products.isEmpty()) {
+                item { SurfaceCard("Price unavailable", "Approved Play product mappings must be configured before native purchases can be offered.") }
+            }
+            items(products, key = { it.productId }) { product ->
+                val price = product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
+                    ?: product.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
                 Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(p.name, fontWeight = FontWeight.Bold)
-                        Text(p.amountMinor.toLong().toString() + " " + p.currency + " • " + p.billingPeriod)
-                        Button(onClick = {
-                            scope.launch {
-                                try {
-                                    val url = WorkspaceApiClient().paymentInitialize(p.id, "bqsqwad://paystack").optString("authorizationUrl")
-                                    if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                } catch (t: Throwable) { error = t.message ?: "Payment initialization failed" }
-                            }
-                        }) { Text("Continue to Paystack") }
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(product.name, fontWeight = FontWeight.Bold)
+                        Text(product.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(price ?: "Price unavailable", style = MaterialTheme.typography.titleMedium)
+                        Button(
+                            onClick = {
+                                val result = billing?.launchPurchase(product.productId)
+                                if (result == null) status = "This product is not currently available."
+                                else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                                    status = result.debugMessage.ifBlank { "Purchase could not be started." }
+                                } else {
+                                    status = "Purchase started. Access unlocks only after server verification."
+                                }
+                            },
+                            enabled = price != null && billing?.isReady() == true,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Purchase with Google Play") }
                     }
                 }
             }
