@@ -20,7 +20,7 @@ class ChatApiClient(
     private val baseUrl: String = "https://europe-west1-" +
         FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
-    suspend fun sendMessage(message: String): ChatReply = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(message: String, capability: String = "chat"): ChatReply = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
@@ -34,7 +34,7 @@ class ChatApiClient(
         }
         connection.outputStream.use {
             it.write(JSONObject().apply {
-                put("capability", "chat")
+                put("capability", capability)
                 put("message", message)
             }.toString().toByteArray())
         }
