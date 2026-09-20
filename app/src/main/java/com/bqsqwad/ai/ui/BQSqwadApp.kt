@@ -86,7 +86,7 @@ private fun MainChatScreen(modifier: Modifier) {
     val messages = remember { mutableStateListOf<Pair<Boolean,String>>() }
     if (showTools) ModalBottomSheet(onDismissRequest={showTools=false}) { Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Text("BQ Sqwad AI Workspaces",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold); Workspace.values().filter{it!=Workspace.CHAT}.forEach{w->TextButton(onClick={showTools=false;selectedWorkspace=w}){Text(w.title)}}; TextButton(onClick={showTools=false;showPlans=true}){Text("Credits & Plans")} } }
     if (showPlans) PlansSheet { showPlans=false }
-    selectedWorkspace?.let { workspace -> WorkspaceScreen(workspace) { selectedWorkspace = null }; return@Box }
+    if (selectedWorkspace != null) { WorkspaceScreen(selectedWorkspace!!) { selectedWorkspace = null }; return }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
         Column(Modifier.fillMaxSize().padding(14.dp)) {
