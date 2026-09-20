@@ -72,6 +72,7 @@ private fun MainChatScreen(modifier: Modifier) {
     var message by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var replyJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val messages = remember { mutableStateListOf<Pair<Boolean,String>>() }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
@@ -100,7 +101,14 @@ private fun MainChatScreen(modifier: Modifier) {
                 OutlinedTextField(message, { message = it }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
                 IconButton(enabled = message.isNotBlank() && !sending, onClick = {
                     val text = message.trim(); message = ""; error = null; messages.add(true to text); sending = true
-                    LaunchedEffect(Unit) {}
+                    replyJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                        try {
+                            val reply = ChatApiClient().sendMessage(text)
+                            messages.add(false to reply.text)
+                        } catch (t: Throwable) {
+                            error = t.message ?: "AI request failed"
+                        } finally { sending = false }
+                    }
                 }) { Icon(Icons.Default.Send, "Send") }
             }
         }
