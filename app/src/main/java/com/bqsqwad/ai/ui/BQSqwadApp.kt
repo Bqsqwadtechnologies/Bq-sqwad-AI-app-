@@ -49,7 +49,8 @@ private fun AuthGate(modifier: Modifier) {
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
-    if (user == null) SignInScreen() else MainShell(modifier, user.email.orEmpty())
+    val currentUser = user
+    if (currentUser == null) SignInScreen() else MainShell(modifier, currentUser.email.orEmpty())
 }
 
 @Composable
@@ -401,7 +402,7 @@ private fun SettingsScreen(onBack: () -> Unit) {
     Card(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)) { Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.Bold); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 
-@Composable private fun SurfaceCard(title: String, body: String) {
+@Composable fun SurfaceCard(title: String, body: String) {
     Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.Bold); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
 }
 
