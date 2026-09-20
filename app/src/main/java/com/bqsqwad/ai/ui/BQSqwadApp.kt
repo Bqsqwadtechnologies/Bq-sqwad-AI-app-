@@ -290,7 +290,7 @@ private fun PlansSheet(onDismiss: () -> Unit) {
                         Button(onClick = {
                             scope.launch {
                                 try {
-                                    val url = WorkspaceApiClient().paymentInitialize(p.id).optString("authorizationUrl")
+                                    val url = WorkspaceApiClient().paymentInitialize(p.id, "bqsqwad://paystack").optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 } catch (t: Throwable) { error = t.message ?: "Payment initialization failed" }
                             }
