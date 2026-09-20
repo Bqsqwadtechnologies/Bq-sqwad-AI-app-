@@ -268,6 +268,9 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit) {
                             .putBoolean("training_consent", trainingConsent)
                             .putString("account_name", name.trim())
                             .apply()
+                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                            runCatching { WorkspaceApiClient().saveConsent("2026-01", trainingConsent) }
+                        }
                         created?.sendEmailVerification()?.addOnCompleteListener {
                             busy = false
                         } ?: run { busy = false }
