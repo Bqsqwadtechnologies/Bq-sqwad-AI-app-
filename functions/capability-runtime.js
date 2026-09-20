@@ -71,23 +71,25 @@ export async function authorizeCapability(uid, controlId) {
         }, { merge: true });
       });
     } catch (error) {
-      if (dailyRef) {
-        await releaseDailyUsage(db, dailyRef, uid, controlId);
-      }
+      if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
       throw error;
     }
   }
 
   let released = false;
+  let committed = false;
   return {
     control,
     planId,
     creditCost: Math.max(0, Number(control.creditCost || 0)),
+    commit: () => { committed = true; },
     release: async () => {
       if (released) return;
       released = true;
       if (concurrencyRef) await releaseConcurrency(db, concurrencyRef);
-      if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
+      if (dailyRef && !committed) {
+        await releaseDailyUsage(db, dailyRef, uid, controlId);
+      }
     }
   };
 }
