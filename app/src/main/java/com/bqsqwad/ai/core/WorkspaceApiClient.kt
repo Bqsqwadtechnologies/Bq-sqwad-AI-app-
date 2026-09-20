@@ -45,7 +45,7 @@ class WorkspaceApiClient {
         return List(a.length()){i->val x=a.getJSONObject(i);val f=x.optJSONArray("features")?:JSONArray();PlanInfo(x.optString("id"),x.optString("name"),x.optDouble("amountMinor"),x.optString("currency","NGN"),x.optString("billingPeriod","monthly"),List(f.length()){j->f.optString(j)})}
     }
 
-    suspend fun paymentInitialize(planId:String):JSONObject=request("/payments/initialize",payload=JSONObject().put("planId",planId))
+    suspend fun paymentInitialize(planId:String, callbackUrl:String?=null):JSONObject=request("/payments/initialize",payload=JSONObject().apply { put("planId",planId); if(callbackUrl!=null) put("callbackUrl",callbackUrl) })
     suspend fun paymentVerify(reference:String):JSONObject=request("/payments/verify",payload=JSONObject().put("reference",reference))
     suspend fun setAutoRenew(enabled:Boolean):JSONObject=request("/payments/auto-renew",payload=JSONObject().put("enabled",enabled))
 }
