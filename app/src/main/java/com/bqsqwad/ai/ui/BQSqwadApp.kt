@@ -64,7 +64,7 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 @Composable
 private fun AuthGate(modifier: Modifier) {
     // Chat is always the entry surface. Authentication is requested only when a protected action is attempted.
-    MainShell(modifier, FirebaseAuth.getInstance().currentUser?.email.orEmpty())
+    MainShell(modifier)
 }
 
 @Composable
@@ -447,7 +447,8 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
 }
 
 @Composable
-private fun MainShell(modifier: Modifier, email: String) {
+private fun MainShell(modifier: Modifier) {
+    val email = FirebaseAuth.getInstance().currentUser?.email.orEmpty()
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     var hub by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
