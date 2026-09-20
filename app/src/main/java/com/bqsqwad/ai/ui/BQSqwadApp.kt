@@ -80,7 +80,11 @@ private fun MainChatScreen(modifier: Modifier) {
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var replyJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var showTools by remember { mutableStateOf(false) }
+    var showPlans by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<Pair<Boolean,String>>() }
+    if (showTools) ModalBottomSheet(onDismissRequest={showTools=false}) { Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Text("BQ Sqwad AI Workspaces",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold); Workspace.values().filter{it!=Workspace.CHAT}.forEach{w->TextButton(onClick={showTools=false}){Text(w.title)}}; TextButton(onClick={showTools=false;showPlans=true}){Text("Credits & Plans")} } }
+    if (showPlans) PlansSheet { showPlans=false }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
         Column(Modifier.fillMaxSize().padding(14.dp)) {
@@ -104,7 +108,7 @@ private fun MainChatScreen(modifier: Modifier) {
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) { Icon(Icons.Default.Add, "More") }
+                IconButton(onClick = { showTools = true }) { Icon(Icons.Default.Add, "AI workspaces") }
                 OutlinedTextField(message, { message = it }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
                 IconButton(enabled = message.isNotBlank() && !sending, onClick = {
                     val text = message.trim(); message = ""; error = null; messages.add(true to text); sending = true
@@ -207,3 +211,5 @@ private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(title,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant);SurfaceCard("Workspace ready","Use this dedicated AI workspace without mixing its controls into Main Chat.")}
 }
 
+
+@Composable private fun PlansSheet(onDismiss:()->Unit){ val scope=rememberCoroutineScope(); var busy by remember{mutableStateOf(true)}; var error by remember{mutableStateOf<String?>(null)}; val plans=remember{mutableStateListOf<com.bqsqwad.ai.core.PlanInfo>()}; LaunchedEffect(Unit){try{plans.addAll(WorkspaceApiClient().plans())}catch(t:Throwable){error=t.message?: "Unable to load plans"}finally{busy=false}}; ModalBottomSheet(onDismissRequest=onDismiss){Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text("Credits & Plans",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);if(busy)LinearProgressIndicator(Modifier.fillMaxWidth());error?.let{Text(it,color=MaterialTheme.colorScheme.error)};plans.forEach{p->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp)){Text(p.name,fontWeight=FontWeight.Bold);Text("Amount: "+p.amountMinor.toLong()+" "+p.currency+" • "+p.billingPeriod);if(p.features.isNotEmpty())Text(p.features.joinToString(" • "));Button(onClick={scope.launch{try{val response=WorkspaceApiClient().paymentInitialize(p.id);val url=response.optString("authorizationUrl");if(url.isNotBlank())LocalContext.current.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)))}catch(t:Throwable){error=t.message?: "Payment initialization failed"}}}){Text("Continue to Paystack")}}}};Text("Auto-renew is controlled separately and is off by default.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
