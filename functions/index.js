@@ -187,6 +187,25 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await getAdminControlConfig());
       }
 
+      if (req.method === "POST" && path === "admin/plan") {
+        const admin = await adminFromRequest(req);
+        const id = String(body.id || "").trim();
+        if (!id || !/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return send(res, 400, { error: "invalid_plan_id" });
+        const plan = {
+          name: String(body.name || "").trim().slice(0, 120),
+          active: body.active !== false,
+          amountMinor: Math.max(0, Number(body.amountMinor || 0)),
+          currency: String(body.currency || "NGN").toUpperCase().slice(0, 3),
+          billingPeriod: String(body.billingPeriod || "monthly").slice(0, 30),
+          features: Array.isArray(body.features) ? body.features.map(String).slice(0, 50) : [],
+          limits: body.limits && typeof body.limits === "object" ? body.limits : {},
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: admin.uid
+        };
+        await getFirestore().collection("plans").doc(id).set(plan, { merge: true });
+        return send(res, 200, { ok: true, plan: { id, ...plan } });
+      }
+
       if (req.method === "POST" && path === "admin/control") {
         const admin = await adminFromRequest(req);
         return send(res, 200, {
@@ -196,6 +215,11 @@ export const bqSqwadApi = onRequest(
             id: body.controlId || body.id
           }, admin.uid)
         });
+      }
+
+      if (req.method === "GET" && path === "plans") {
+        const snap = await getFirestore().collection("plans").where("active", "==", true).get();
+        return send(res, 200, { plans: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
       }
 
       if (req.method === "GET" && path === "admin/providers") {
