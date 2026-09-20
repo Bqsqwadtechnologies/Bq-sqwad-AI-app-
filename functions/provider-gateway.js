@@ -25,6 +25,7 @@ export async function getRoute(capability) {
       primaryProviderId: data.providerId || "openai",
       primaryModelId: data.modelId || DEFAULT_MODELS.openai,
       fallbackProviderIds: Array.isArray(config.fallbackProviderIds) ? config.fallbackProviderIds : [],
+      fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
       enabled: data.enabled !== false && data.killSwitch !== true
     };
   }
@@ -101,11 +102,14 @@ export async function runAi({ capability, message, system }) {
   const route = await getRoute(capability);
   if (route.enabled === false) throw new Error("Capability disabled: " + capability);
   const candidates = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
+  const modelFor = providerId => providerId === route.primaryProviderId
+    ? route.primaryModelId
+    : route.fallbackModels?.[providerId] || DEFAULT_MODELS[providerId] || null;
   let lastError;
   for (const providerId of candidates) {
     try {
-      if (providerId === "openai") return await callOpenAI({ model: route.primaryProviderId === "openai" ? route.primaryModelId : undefined, message, system });
-      if (providerId === "gemini") return await callGemini({ model: route.primaryProviderId === "gemini" ? route.primaryModelId : undefined, message, system });
+      if (providerId === "openai") return await callOpenAI({ model: modelFor(providerId), message, system });
+      if (providerId === "gemini") return await callGemini({ model: modelFor(providerId), message, system });
       throw new Error("Unsupported provider: " + providerId);
     } catch (error) {
       lastError = error;
