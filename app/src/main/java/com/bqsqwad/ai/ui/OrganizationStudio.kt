@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.ui
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.ChatApiClient
 import kotlinx.coroutines.launch
@@ -22,7 +24,9 @@ private data class ProductionSource(val id: Int, val name: String, val uri: Uri)
 
 @Composable
 fun OrganizationStudioWorkspace() {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var outputStatus by remember { mutableStateOf("Program output idle") }
     val sources = remember { mutableStateListOf<ProductionSource>() }
     var nextId by remember { mutableStateOf(1) }
     var directorPrompt by remember { mutableStateOf("") }
@@ -94,12 +98,33 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Production control", style = MaterialTheme.typography.titleLarge)
+                    Text(outputStatus, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {}, enabled = sources.isNotEmpty()) {
+                        Button(onClick = {
+                            val source = sources.firstOrNull()
+                            if (source == null) outputStatus = "Add a source first"
+                            else runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                })
+                                outputStatus = "Program preview opened"
+                            }.onFailure { outputStatus = "No compatible player is available" }
+                        }, enabled = sources.isNotEmpty()) {
                             Icon(Icons.Default.PlayArrow, null)
                             Text(" Preview program")
                         }
-                        Button(onClick = {}, enabled = sources.isNotEmpty()) {
+                        Button(onClick = {
+                            val source = sources.firstOrNull()
+                            if (source == null) outputStatus = "Add a source first"
+                            else runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                })
+                                outputStatus = "Display handoff opened; choose an available display/player"
+                            }.onFailure { outputStatus = "No compatible display route is available" }
+                        }, enabled = sources.isNotEmpty()) {
                             Icon(Icons.Default.Cast, null)
                             Text(" TV / display")
                         }
