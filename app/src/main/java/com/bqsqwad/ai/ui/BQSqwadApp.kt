@@ -43,6 +43,9 @@ import com.bqsqwad.ai.domain.Workspace
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 @Composable
 fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
@@ -74,6 +77,7 @@ private fun AuthGate(modifier: Modifier) {
 @Composable
 private fun SignInScreen(onOpenSignUp: () -> Unit) {
     val auth = remember { FirebaseAuth.getInstance() }
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -151,7 +155,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
                 notice = null
                 scope.launch {
                     try {
-                        performGoogleSignIn(LocalContext.current, auth)
+                        performGoogleSignIn(context, auth)
                         notice = "Google sign-in successful."
                     } catch (t: Throwable) {
                         error = friendlyGoogleAuthError(t)
@@ -387,7 +391,20 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
 
     val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
     val firebaseCredential = GoogleAuthProvider.getCredential(googleCredential.idToken, null)
-    val authResult = auth.signInWithCredential(firebaseCredential).await()
+    val authResult = suspendCancellableCoroutine<com.google.firebase.auth.AuthResult> { continuation ->
+        val task = auth.signInWithCredential(firebaseCredential)
+        task.addOnCompleteListener { completed ->
+            if (completed.isSuccessful) {
+                completed.result?.let(continuation::resume)
+                    ?: continuation.resumeWithException(IllegalStateException("Firebase did not return an authentication result."))
+            } else {
+                continuation.resumeWithException(
+                    completed.exception ?: IllegalStateException("Firebase Google authentication failed.")
+                )
+            }
+        }
+        continuation.invokeOnCancellation { task.cancel() }
+    }
     return authResult.user ?: throw IllegalStateException("Firebase did not return a signed-in user.")
 }
 
