@@ -28,6 +28,7 @@ fun OrganizationStudioWorkspace() {
     val scope = rememberCoroutineScope()
     var outputStatus by remember { mutableStateOf("Program output idle") }
     val sources = remember { mutableStateListOf<ProductionSource>() }
+    var selectedSourceId by remember { mutableStateOf<Int?>(null) }
     var nextId by remember { mutableStateOf(1) }
     var directorPrompt by remember { mutableStateOf("") }
     var directorResult by remember { mutableStateOf("") }
@@ -37,6 +38,7 @@ fun OrganizationStudioWorkspace() {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             sources.add(ProductionSource(nextId, "Media source $nextId", uri))
+            if (selectedSourceId == null) selectedSourceId = nextId
             nextId += 1
         }
     }
@@ -87,8 +89,10 @@ fun OrganizationStudioWorkspace() {
                     Column(Modifier.weight(1f)) {
                         Text(source.name, style = MaterialTheme.typography.titleMedium)
                         Text(source.uri.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (source.id == selectedSourceId) "Selected program source" else "Tap Select to make program source", style = MaterialTheme.typography.labelSmall)
                     }
-                    IconButton(onClick = { sources.remove(source) }) {
+                    TextButton(onClick = { selectedSourceId = source.id }) { Text("Select") }
+                    IconButton(onClick = { sources.remove(source); if (selectedSourceId == source.id) selectedSourceId = sources.firstOrNull()?.id }) {
                         Icon(Icons.Default.Delete, "Remove source")
                     }
                 }
@@ -101,7 +105,7 @@ fun OrganizationStudioWorkspace() {
                     Text(outputStatus, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            val source = sources.firstOrNull()
+                            val source = sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
                             if (source == null) outputStatus = "Add a source first"
                             else runCatching {
                                 context.startActivity(Intent(Intent.ACTION_VIEW).apply {
