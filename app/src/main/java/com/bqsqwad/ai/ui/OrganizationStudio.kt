@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.ChatApiClient
 import kotlinx.coroutines.launch
 
-private data class ProductionSource(val id: Int, val name: String, val uri: Uri)
+data class ProductionSource(val id: Int, val name: String, val uri: Uri)
 
 @Composable
 fun OrganizationStudioWorkspace() {
@@ -88,7 +88,7 @@ fun OrganizationStudioWorkspace() {
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(source.name, style = MaterialTheme.typography.titleMedium)
-                        Text(source.uri.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(source.uri.lastPathSegment ?: source.uri.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(if (source.id == selectedSourceId) "Selected program source" else "Tap Select to make program source", style = MaterialTheme.typography.labelSmall)
                     }
                     TextButton(onClick = { selectedSourceId = source.id }) { Text("Select") }
