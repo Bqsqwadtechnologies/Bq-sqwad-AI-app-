@@ -49,4 +49,15 @@ class WorkspaceApiClient {
     suspend fun paymentVerify(reference:String):JSONObject=request("/payments/verify",payload=JSONObject().put("reference",reference))
     suspend fun setAutoRenew(enabled:Boolean):JSONObject=request("/payments/auto-renew",payload=JSONObject().put("enabled",enabled))
     suspend fun reportMessage(message:String, category:String="response"):JSONObject=request("/feedback",payload=JSONObject().put("message",message).put("category",category))
+
+    suspend fun saveConsent(policyVersion:String, trainingConsent:Boolean):JSONObject =
+        request("/consent", payload=JSONObject()
+            .put("requiredAccepted", true)
+            .put("policyVersion", policyVersion)
+            .put("trainingConsent", trainingConsent))
+
+    suspend fun consent():JSONObject = request("/consent", "GET")
+
+    suspend fun updateTrainingConsent(trainingConsent:Boolean):JSONObject =
+        request("/consent/training", payload=JSONObject().put("trainingConsent", trainingConsent))
 }
