@@ -333,8 +333,6 @@ private fun PlansSheet(onDismiss: () -> Unit) {
                     }
                 }
             }
-            item { Text("Former website parity plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            items(NativeFeatureCatalog.plans) { p -> SurfaceCard(p.name, if (p.module == "credits") p.credits.toString() + " credits • " + p.period + " • " + p.displayUsd else p.module + " module • server-configured") }
         }
     }
 }
