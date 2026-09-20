@@ -66,7 +66,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken }) {
   const mapping = products.find(p => p.productId === productId && p.enabled === true);
   if (!mapping) throw new Error("play_product_not_configured");
 
-  const existingRef = db.collection("playPurchases").doc(purchaseToken);
+  const existingRef = db.collection("playPurchases").doc(crypto.createHash("sha256").update(purchaseToken).digest("hex"));
   const existing = await existingRef.get();
   if (existing.exists && existing.data()?.uid === uid && existing.data()?.verified === true) {
     return { ok: true, alreadyProcessed: true, state: existing.data()?.state || "verified" };
@@ -91,7 +91,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken }) {
     const fresh = await tx.get(existingRef);
     if (fresh.exists && fresh.data()?.verified === true) return;
 
-    const entitlementRef = db.collection("entitlements").doc(uid + "_" + String(mapping.planId));
+    const entitlementRef = db.collection("entitlements").doc(uid);
     const creditGrant = Math.max(0, Number(mapping.creditGrant || 0));
     const balanceRef = db.collection("creditBalances").doc(uid);
     const balanceSnap = await tx.get(balanceRef);
@@ -119,6 +119,11 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken }) {
         purchaseToken,
         state: mapping.productType === "subs" ? "active" : "active",
         renewalState: mapping.productType === "subs" ? subscriptionState : "non_renewing",
+        startDate: mapping.productType === "subs" && verified.startTime ? new Date(verified.startTime) : FieldValue.serverTimestamp(),
+        endDate: mapping.productType === "subs" && verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null,
+        allowance: mapping.allowance ?? null,
+        remainingAllowance: mapping.allowance ?? null,
+        creditBalance: creditGrant,
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
     }
@@ -149,4 +154,35 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken }) {
   }
 
   return { ok: true, alreadyProcessed: false, state: "verified" };
+}
+
+
+export async function processPlayRtdn(event) {
+  const message = event?.data?.message;
+  if (!message?.data) return { ok: true, ignored: true };
+  const eventId = String(event.id || message.messageId || "");
+  const db = getFirestore();
+  if (eventId) {
+    const eventRef = db.collection("playRtdnEvents").doc(eventId);
+    if ((await eventRef.get()).exists) return { ok: true, duplicate: true };
+    await eventRef.create({ receivedAt: FieldValue.serverTimestamp() });
+  }
+  const decoded = JSON.parse(Buffer.from(message.data, "base64").toString("utf8"));
+  const notification = decoded.subscriptionNotification;
+  if (!notification?.purchaseToken || !notification?.subscriptionId) return { ok: true, ignored: true };
+  const purchaseRef = db.collection("playPurchases").doc(crypto.createHash("sha256").update(String(notification.purchaseToken)).digest("hex"));
+  const purchase = await purchaseRef.get();
+  if (!purchase.exists || !purchase.data()?.uid) return { ok: true, pendingPurchase: true };
+  const verified = await playApi("purchases/subscriptionsv2/tokens/" + encodeURIComponent(notification.purchaseToken));
+  const state = String(verified.subscriptionState || "SUBSCRIPTION_STATE_UNSPECIFIED");
+  const normalized = state === "SUBSCRIPTION_STATE_ACTIVE" ? "active" : state === "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" ? "grace" : state === "SUBSCRIPTION_STATE_ON_HOLD" ? "on_hold" : state === "SUBSCRIPTION_STATE_PAUSED" ? "paused" : state === "SUBSCRIPTION_STATE_CANCELED" ? "cancelled" : state === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "pending";
+  await db.collection("entitlements").doc(String(purchase.data().uid)).set({
+    state: normalized,
+    renewalState: state,
+    source: "play",
+    providerReference: notification.purchaseToken,
+    endDate: verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  return { ok: true, state: normalized };
 }
