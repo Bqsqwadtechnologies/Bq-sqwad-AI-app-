@@ -21,8 +21,8 @@ class MainActivity : ComponentActivity() {
     private fun initializeFirebase() {
         if (FirebaseApp.getApps(this).isNotEmpty()) return
         val options = FirebaseOptions.Builder()
-            .setApiKey("AIzaSyDaVf8JR6fbgdtfg9cw6svPm1nfOzACEu8")
-            .setApplicationId("1:848359744340:web:a12167039c5c4cd9839ec1")
+            .setApiKey("AIzaSyBcbFDXG6IsKatj8DjpCOQjJJ4DHv536eo")
+            .setApplicationId("1:848359744340:android:11a35aa871b41ba8839ec1")
             .setProjectId("bqsqwadai")
             .setStorageBucket("bqsqwadai.firebasestorage.app")
             .build()
