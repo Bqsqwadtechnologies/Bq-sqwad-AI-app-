@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -87,21 +88,44 @@ fun AdminControlCenter() {
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (selectedSection == "all") "All controls" else sections.firstOrNull { it.first == selectedSection }?.second ?: selectedSection,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "${filtered.size} server-controlled option(s) • changes are saved through the admin backend",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    sections.take(9).forEach { (id, label) ->
-                        AssistChip(onClick = { selectedSection = id }, label = { Text(label) })
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(sections.take(9)) { (id, label) ->
+                        AssistChip(
+                            onClick = { selectedSection = id },
+                            label = { Text(label) },
+                            leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
+                        )
                     }
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    sections.drop(9).forEach { (id, label) ->
-                        AssistChip(onClick = { selectedSection = id }, label = { Text(label) })
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(sections.drop(9)) { (id, label) ->
+                        AssistChip(
+                            onClick = { selectedSection = id },
+                            label = { Text(label) },
+                            leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
+                        )
                     }
                 }
             }
