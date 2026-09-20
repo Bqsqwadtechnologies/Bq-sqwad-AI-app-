@@ -55,6 +55,43 @@ export const bqSqwadApi = onRequest(
 
       const user = await userFromRequest(req);
 
+      if (req.method === "POST" && path === "consent") {
+        const requiredAccepted = body.requiredAccepted === true;
+        if (!requiredAccepted) return send(res, 400, { error: "required_consent_missing" });
+        const policyVersion = String(body.policyVersion || "2026-01").slice(0, 40);
+        const trainingConsent = body.trainingConsent === true;
+        await getFirestore().collection("userConsents").doc(user.uid).set({
+          uid: user.uid,
+          requiredAccepted: true,
+          policyVersion,
+          requiredConsentAt: FieldValue.serverTimestamp(),
+          trainingConsent,
+          trainingConsentAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return send(res, 200, { ok: true, policyVersion, trainingConsent });
+      }
+
+      if (req.method === "GET" && path === "consent") {
+        const snap = await getFirestore().collection("userConsents").doc(user.uid).get();
+        return send(res, 200, {
+          requiredAccepted: snap.exists && snap.data()?.requiredAccepted === true,
+          policyVersion: snap.exists ? String(snap.data()?.policyVersion || "") : "",
+          trainingConsent: snap.exists && snap.data()?.trainingConsent === true
+        });
+      }
+
+      if (req.method === "POST" && path === "consent/training") {
+        const trainingConsent = body.trainingConsent === true;
+        await getFirestore().collection("userConsents").doc(user.uid).set({
+          uid: user.uid,
+          trainingConsent,
+          trainingConsentAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return send(res, 200, { ok: true, trainingConsent });
+      }
+
       if (req.method === "POST" && path === "ai") {
         const capability = String(body.capability || "chat").trim();
         if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
