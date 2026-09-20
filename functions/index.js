@@ -11,6 +11,7 @@ import { authorizeCapability } from "./capability-runtime.js";
 import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } from "./runtime-controls.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
+import { verifyPlayPurchase } from "./google-play.js";
 
 initializeApp();
 
@@ -275,6 +276,29 @@ export const bqSqwadApi = onRequest(
             id: body.controlId || body.id
           }, admin.uid)
         });
+      }
+
+      if (req.method === "GET" && path === "play/catalog") {
+        const snap = await getFirestore().collection("playCatalog").doc("config").get();
+        const products = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : [];
+        return send(res, 200, {
+          version: snap.exists ? Number(snap.data()?.version || 1) : 1,
+          products: products.map(p => ({
+            planId: String(p.planId || ""),
+            productId: String(p.productId || ""),
+            basePlanId: p.basePlanId ? String(p.basePlanId) : null,
+            productType: String(p.productType || ""),
+            enabled: p.enabled === true,
+            consumable: p.consumable === true
+          })).filter(p => p.productId && (p.productType === "subs" || p.productType === "inapp"))
+        });
+      }
+
+      if (req.method === "POST" && path === "play/verify") {
+        const productId = String(body.productId || "").trim();
+        const purchaseToken = String(body.purchaseToken || "").trim();
+        const result = await verifyPlayPurchase({ uid: user.uid, productId, purchaseToken });
+        return send(res, 200, result);
       }
 
       if (req.method === "GET" && path === "plans") {
