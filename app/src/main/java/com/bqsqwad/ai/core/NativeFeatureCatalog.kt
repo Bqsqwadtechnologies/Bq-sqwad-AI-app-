@@ -23,7 +23,7 @@ data class NativePlan(
 object NativeFeatureCatalog {
     val workspaces = listOf(
         "Main Chat", "Web Search", "Deep Research", "Live Camera", "Live Voice",
-        "Personal Intelligence", "Life Matters", "Learning Studio", "Business AI",
+        "Personal Intelligence", "Life Matters", "Learning Studio", "Business AI", "Organization Studio AI",
         "AI Creative Studio", "AI Companion", "Codron", "AI Agent", "Frontier Lab",
         "Documents & Files", "Image Generation", "Video Generation", "Music Generation",
         "Avatar Studio", "Device Intelligence", "Social & Automation", "Settings & Privacy",
