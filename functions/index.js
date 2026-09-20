@@ -11,7 +11,8 @@ import { authorizeCapability } from "./capability-runtime.js";
 import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } from "./runtime-controls.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
-import { verifyPlayPurchase } from "./google-play.js";
+import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
+import { onMessagePublished } from "firebase-functions/v2/pubsub";
 
 initializeApp();
 
@@ -406,3 +407,9 @@ export const bqSqwadApi = onRequest(
     }
   }
 );
+
+
+export const googlePlayRtdn = onMessagePublished({ topic: "google-play-rtdn", region: "europe-west1" }, async (event) => {
+  try { return await processPlayRtdn(event); }
+  catch (error) { console.error("Google Play RTDN error", error instanceof Error ? error.message : "notification_failed"); throw error; }
+});
