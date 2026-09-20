@@ -307,14 +307,53 @@ private fun PlansSheet(onDismiss: () -> Unit) {
 @Composable
 private fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
+    var accent by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+    val modes = listOf("system", "dark", "light", "amoled")
+    val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
+
+    fun saveTheme(value: String) {
+        themeMode = value
+        prefs.edit().putString("theme_mode", value).apply()
+        (context as? android.app.Activity)?.recreate()
+    }
+    fun saveAccent(value: String) {
+        accent = value
+        prefs.edit().putString("accent_palette", value).apply()
+        (context as? android.app.Activity)?.recreate()
+    }
+
     Scaffold(topBar = { TopAppBar(title = { Text("Settings & Privacy") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
-        LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Privacy and security", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            item { SurfaceCard("Account", FirebaseAuth.getInstance().currentUser?.email ?: "Signed in") }
+        LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { Text("Account", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { SurfaceCard("Signed-in account", FirebaseAuth.getInstance().currentUser?.email ?: "Signed in") }
+
+            item { Text("Appearance", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item {
+                SurfaceCard("Theme mode", "Current: $themeMode. Choose System, Dark, Light or AMOLED.")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    modes.forEach { mode ->
+                        FilterChip(selected = themeMode == mode, onClick = { saveTheme(mode) }, label = { Text(mode.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+            item {
+                SurfaceCard("Accent palette", "Current: $accent. Changes apply to native surfaces and controls.")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(accents) { name ->
+                        FilterChip(selected = accent == name, onClick = { saveAccent(name) }, label = { Text(name.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+
+            item { Text("Security & privacy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { FeatureCard("Android permissions", "Review camera, microphone and other permissions in Android settings.") { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName))) } }
             item { FeatureCard("Provider secrets", "AI provider credentials remain server-side and are never placed in the APK.") }
-            item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
+            item { FeatureCard("Privacy center", "Review the BQ Sqwad AI privacy policy in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy"))) } }
             item { FeatureCard("AI Birthday", "Account age is derived from the account creation date.") }
+            item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
+            item { Text("BQ Sqwad AI • © 2026 BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
