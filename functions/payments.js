@@ -112,7 +112,9 @@ export async function handlePaystackWebhook(rawBody, signature) {
   const secret = await getProviderSecret("paystack");
   if (!secret) throw new Error("Paystack is not configured");
   const expected = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(String(signature || "")))) {
+  const received = String(signature || "");
+  if (received.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) {
     throw new Error("Invalid Paystack webhook signature");
   }
   const event = JSON.parse(rawBody.toString("utf8"));
