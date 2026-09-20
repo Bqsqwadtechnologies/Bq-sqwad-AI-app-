@@ -32,6 +32,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.GoogleAuthProvider
 import com.bqsqwad.ai.core.*
 import com.bqsqwad.ai.domain.Workspace
 import com.google.firebase.auth.FirebaseAuth
@@ -137,12 +143,26 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
         HorizontalDivider()
         Text("or", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
+        val scope = rememberCoroutineScope()
         OutlinedButton(
             onClick = {
-                error = "Google sign-in requires the repository's Google Android identity dependency to be enabled. The existing Firebase provider is retained; no alternate authentication system was created."
+                busy = true
+                error = null
+                notice = null
+                scope.launch {
+                    try {
+                        performGoogleSignIn(LocalContext.current, auth)
+                        notice = "Google sign-in successful."
+                    } catch (t: Throwable) {
+                        error = friendlyGoogleAuthError(t)
+                    } finally {
+                        busy = false
+                    }
+                }
             },
+            enabled = !busy,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Continue with Google") }
+        ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
 
         TextButton(onClick = onOpenSignUp, enabled = !busy) {
             Text("Don't have an account? Sign up")
@@ -247,6 +267,39 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit) {
             )
         }
 
+        val googleScope = rememberCoroutineScope()
+
+        OutlinedButton(
+            onClick = {
+                if (!requiredConsent) {
+                    error = "Please accept the Terms & Conditions and Privacy Policy before continuing with Google."
+                    return@OutlinedButton
+                }
+                busy = true
+                error = null
+                googleScope.launch {
+                    try {
+                        val googleUser = performGoogleSignIn(context, auth)
+                        val consentPrefs = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
+                        consentPrefs.edit()
+                            .putString("policy_version", "2026-01")
+                            .putLong("required_consent_at", System.currentTimeMillis())
+                            .putBoolean("training_consent", trainingConsent)
+                            .putString("account_name", googleUser.displayName.orEmpty())
+                            .apply()
+                        runCatching { WorkspaceApiClient().saveConsent("2026-01", trainingConsent) }
+                            .onFailure { error = "Account signed in, but consent could not be saved to the server. Please try again." }
+                    } catch (t: Throwable) {
+                        error = friendlyGoogleAuthError(t)
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
+
         Button(
             enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 6 &&
                 password == confirmPassword && requiredConsent,
@@ -313,6 +366,37 @@ private fun friendlyAuthError(error: Exception?): String {
         is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with a different sign-in provider. Try the provider originally used."
         is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
         else -> error?.message ?: "Authentication failed. Please try again."
+    }
+}
+
+private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): com.google.firebase.auth.FirebaseUser {
+    val credentialManager = CredentialManager.create(context)
+    val googleIdOption = GetGoogleIdOption.Builder()
+        .setServerClientId("848359744340-etobns9cu6fjrqfo511kln2bape737cg.apps.googleusercontent.com")
+        .setFilterByAuthorizedAccounts(false)
+        .build()
+    val request = GetCredentialRequest.Builder()
+        .addCredentialOption(googleIdOption)
+        .build()
+
+    val result = credentialManager.getCredential(context, request)
+    val credential = result.credential
+    if (credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+        throw IllegalStateException("Google account credential was not returned.")
+    }
+
+    val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+    val firebaseCredential = GoogleAuthProvider.getCredential(googleCredential.idToken, null)
+    val authResult = auth.signInWithCredential(firebaseCredential).await()
+    return authResult.user ?: throw IllegalStateException("Firebase did not return a signed-in user.")
+}
+
+private fun friendlyGoogleAuthError(error: Throwable): String {
+    return when (error) {
+        is GetCredentialException -> "Google sign-in was cancelled or could not be completed. Please try again."
+        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with this email using a different sign-in provider. Sign in with that provider first."
+        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
+        else -> error.message ?: "Google sign-in failed. Please try again."
     }
 }
 
