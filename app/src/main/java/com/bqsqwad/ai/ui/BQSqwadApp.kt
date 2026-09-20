@@ -45,34 +45,271 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 private fun AuthGate(modifier: Modifier) {
     val auth = remember { FirebaseAuth.getInstance() }
     var user by remember { mutableStateOf(auth.currentUser) }
+    var showSignUp by remember { mutableStateOf(false) }
+
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { user = it.currentUser }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
+
     val currentUser = user
-    if (currentUser == null) SignInScreen() else MainShell(modifier, currentUser.email.orEmpty())
+    if (currentUser == null) {
+        if (showSignUp) {
+            SignUpScreen(onBackToSignIn = { showSignUp = false })
+        } else {
+            SignInScreen(onOpenSignUp = { showSignUp = true })
+        }
+    } else {
+        MainShell(modifier, currentUser.email.orEmpty())
+    }
 }
 
 @Composable
-private fun SignInScreen() {
+private fun SignInScreen(onOpenSignUp: () -> Unit) {
+    val auth = remember { FirebaseAuth.getInstance() }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(48.dp))
-        LogoBubble(Modifier.size(92.dp))
+    var notice by remember { mutableStateOf<String?>(null) }
+    var showForgot by remember { mutableStateOf(false) }
+
+    AuthSurface {
         Text("BQ Sqwad AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Sign in to continue", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth())
-        Button(enabled = !busy && email.isNotBlank() && password.isNotBlank(), onClick = {
-            busy = true
-            FirebaseAuth.getInstance().signInWithEmailAndPassword(email.trim(), password)
-                .addOnCompleteListener { busy = false; error = if (it.isSuccessful) null else it.exception?.message ?: "Sign-in failed" }
-        }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Signing in…" else "Sign in") }
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it; error = null },
+            label = { Text("Email") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            isError = email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+        )
+        if (email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) {
+            Text("Enter a valid email address.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it; error = null },
+            label = { Text("Password") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Text(if (passwordVisible) "Hide" else "Show")
+                }
+            }
+        )
+
+        TextButton(
+            onClick = { showForgot = true; notice = null; error = null },
+            enabled = !busy
+        ) { Text("Forgot password?") }
+
+        Button(
+            enabled = !busy && email.isNotBlank() && password.isNotBlank(),
+            onClick = {
+                busy = true
+                error = null
+                notice = null
+                auth.signInWithEmailAndPassword(email.trim(), password)
+                    .addOnCompleteListener { task ->
+                        busy = false
+                        if (task.isSuccessful) {
+                            val signedIn = auth.currentUser
+                            if (signedIn?.isEmailVerified == false) {
+                                notice = "Signed in. Please verify your email before using protected features."
+                                signedIn.sendEmailVerification()
+                            }
+                        } else {
+                            error = friendlyAuthError(task.exception)
+                        }
+                    }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "Signing in…" else "Sign in") }
+
+        HorizontalDivider()
+        Text("or", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        OutlinedButton(
+            onClick = {
+                error = "Google sign-in requires the repository's Google Android identity dependency to be enabled. The existing Firebase provider is retained; no alternate authentication system was created."
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Continue with Google") }
+
+        TextButton(onClick = onOpenSignUp, enabled = !busy) {
+            Text("Don't have an account? Sign up")
+        }
+
+        Text(
+            "By continuing, you agree to the BQ Sqwad AI Terms & Conditions and Privacy Policy.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+
+        notice?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+
+    if (showForgot) {
+        AlertDialog(
+            onDismissRequest = { showForgot = false },
+            title = { Text("Reset password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter your account email and Firebase will send a password reset link.")
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        auth.sendPasswordResetEmail(email.trim())
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    notice = "Password reset email sent. Check your inbox."
+                                    showForgot = false
+                                } else {
+                                    error = friendlyAuthError(task.exception)
+                                }
+                            }
+                    },
+                    enabled = email.trim().isNotBlank()
+                ) { Text("Send") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showForgot = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SignUpScreen(onBackToSignIn: () -> Unit) {
+    val auth = remember { FirebaseAuth.getInstance() }
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmVisible by remember { mutableStateOf(false) }
+    var requiredConsent by remember { mutableStateOf(false) }
+    var trainingConsent by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AuthSurface {
+        Text("Create your account", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Join BQ Sqwad AI", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        OutlinedTextField(name, { name = it; error = null }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            email, { email = it; error = null }, label = { Text("Email") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            isError = email.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+        )
+        OutlinedTextField(
+            password, { password = it; error = null }, label = { Text("Password") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            trailingIcon = { TextButton(onClick = { passwordVisible = !passwordVisible }) { Text(if (passwordVisible) "Hide" else "Show") } }
+        )
+        OutlinedTextField(
+            confirmPassword, { confirmPassword = it; error = null }, label = { Text("Confirm password") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            isError = confirmPassword.isNotEmpty() && confirmPassword != password,
+            visualTransformation = if (confirmVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            trailingIcon = { TextButton(onClick = { confirmVisible = !confirmVisible }) { Text(if (confirmVisible) "Hide" else "Show") } }
+        )
+
+        Row(verticalAlignment = Alignment.Top) {
+            Checkbox(checked = requiredConsent, onCheckedChange = { requiredConsent = it })
+            Text("I accept the Terms & Conditions and Privacy Policy.", modifier = Modifier.padding(top = 12.dp))
+        }
+        Row(verticalAlignment = Alignment.Top) {
+            Checkbox(checked = trainingConsent, onCheckedChange = { trainingConsent = it })
+            Text(
+                "Allow BQ Sqwad AI to use my agent training activity to improve the service. Private details, credentials, API keys, and personal content are never used. Only non-private training activity applies.",
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+
+        Button(
+            enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 6 &&
+                password == confirmPassword && requiredConsent,
+            onClick = {
+                busy = true
+                error = null
+                auth.createUserWithEmailAndPassword(email.trim(), password)
+                    .addOnCompleteListener { task ->
+                        if (!task.isSuccessful) {
+                            busy = false
+                            error = friendlyAuthError(task.exception)
+                            return@addOnCompleteListener
+                        }
+                        val created = auth.currentUser
+                        val consentPrefs = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
+                        consentPrefs.edit()
+                            .putString("policy_version", "2026-01")
+                            .putLong("required_consent_at", System.currentTimeMillis())
+                            .putBoolean("training_consent", trainingConsent)
+                            .putString("account_name", name.trim())
+                            .apply()
+                        created?.sendEmailVerification()?.addOnCompleteListener {
+                            busy = false
+                        } ?: run { busy = false }
+                    }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "Creating account…" else "Create account") }
+
+        TextButton(onClick = onBackToSignIn, enabled = !busy) {
+            Text("Already have an account? Sign in")
+        }
+
+        Text(
+            "Terms & Conditions and Privacy Policy are available on the existing BQ Sqwad AI website.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        content = {
+            Spacer(Modifier.height(28.dp))
+            LogoBubble(Modifier.size(92.dp))
+            content()
+        }
+    )
+}
+
+private fun friendlyAuthError(error: Exception?): String {
+    return when (error) {
+        is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException -> "The email or password is incorrect."
+        is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "No account was found for that email."
+        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with a different sign-in provider. Try the provider originally used."
+        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
+        else -> error?.message ?: "Authentication failed. Please try again."
     }
 }
 
