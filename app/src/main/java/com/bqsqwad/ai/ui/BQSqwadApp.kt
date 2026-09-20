@@ -30,6 +30,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.bqsqwad.ai.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -771,6 +774,20 @@ private fun shareText(context: Context, text: String) {
     Box(modifier.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF5FB7FF), Color(0xFF0A5DB8), Color.Transparent)))) { LogoBubble(Modifier.fillMaxSize().padding(8.dp)) }
 }
 
-@Composable private fun LogoBubble(modifier: Modifier) {
-    Box(modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) { Text("BQ", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary) }
+@Composable
+private fun LogoBubble(modifier: Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest
+    ) {
+        Image(
+            painter = painterResource(R.drawable.bq_sqwad_logo),
+            contentDescription = "BQ Sqwad AI logo",
+            modifier = Modifier.fillMaxSize().padding(6.dp).clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+    }
 }
