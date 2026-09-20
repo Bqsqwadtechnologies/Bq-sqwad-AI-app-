@@ -385,7 +385,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         content = {
             Spacer(Modifier.height(28.dp))
-            LogoBubble(Modifier.size(92.dp))
+            BqLogo(92.dp)
             content()
         }
     )
@@ -509,15 +509,51 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
         Column(Modifier.fillMaxSize().padding(14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                FloatingLogo(Modifier.size(54.dp))
-                Row {
-                    IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) { Icon(Icons.Default.Wallpaper, "Wallpaper") }
-                    IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, "Settings") }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                IconButton(onClick = openHub) {
+                    Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu")
+                }
+                BqLogo(46.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("The AI that grows with you", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) {
+                    Icon(Icons.Default.Wallpaper, contentDescription = "Change chat background")
+                }
+                IconButton(onClick = openSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }
             }
-            Text("Main Chat", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("The AI that grows with you", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            "General",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text("Ready for your next request", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(messages) { m ->
                     Column(Modifier.fillMaxWidth(if (m.mine) .88f else 1f).align(if (m.mine) Alignment.End else Alignment.Start)) {
