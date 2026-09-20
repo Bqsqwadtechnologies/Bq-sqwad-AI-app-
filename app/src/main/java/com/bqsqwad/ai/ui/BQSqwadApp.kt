@@ -252,7 +252,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
 
         Row(verticalAlignment = Alignment.Top) {
             Checkbox(checked = requiredConsent, onCheckedChange = { requiredConsent = it })
-            Text("I accept the Terms & Conditions and Privacy Policy.", modifier = Modifier.padding(top = 12.dp))
+            Text("I accept the Terms and Conditions and Privacy Policy.", modifier = Modifier.padding(top = 12.dp))
         }
         Row(verticalAlignment = Alignment.Top) {
             Checkbox(checked = trainingConsent, onCheckedChange = { trainingConsent = it })
@@ -267,7 +267,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
         OutlinedButton(
             onClick = {
                 if (!requiredConsent) {
-                    error = "Please accept the Terms & Conditions and Privacy Policy before continuing with Google."
+                    error = "Please accept the Terms and Conditions and Privacy Policy before continuing with Google."
                     return@OutlinedButton
                 }
                 busy = true
