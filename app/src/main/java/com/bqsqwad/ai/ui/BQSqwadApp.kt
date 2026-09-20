@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -257,25 +258,50 @@ private fun CameraWorkspace() {
 
 @Composable
 private fun VoiceWorkspace() {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var transcript by remember { mutableStateOf("") }
     var reply by remember { mutableStateOf("") }
+    var speaking by remember { mutableStateOf(false) }
+    val tts = remember {
+        TextToSpeech(context) { status ->
+            speaking = status == TextToSpeech.SUCCESS && speaking
+        }
+    }
+    DisposableEffect(tts) {
+        onDispose { tts.stop(); tts.shutdown() }
+    }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         transcript = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-        if (transcript.isNotBlank()) scope.launch { reply = runCatching { ChatApiClient().sendMessage(transcript).text }.getOrElse { it.message ?: "Voice request failed" } }
+        if (transcript.isNotBlank()) {
+            tts.stop()
+            speaking = false
+            scope.launch {
+                reply = runCatching { ChatApiClient().sendMessage(transcript).text }
+                    .getOrElse { it.message ?: "Voice request failed" }
+                if (reply.isNotBlank()) {
+                    speaking = true
+                    tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "bq_reply")
+                }
+            }
+        }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Live Voice AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Button(onClick = {
+            tts.stop()
+            speaking = false
             val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
             }
             launcher.launch(i)
-        }) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(8.dp)); Text("Speak") }
+        }) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(8.dp)); Text(if (speaking) "Speak again" else "Speak") }
+        if (speaking) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (transcript.isNotBlank()) SurfaceCard("You", transcript)
         if (reply.isNotBlank()) SurfaceCard("BQ Sqwad AI", reply)
-        SurfaceCard("Voice engine", "Saved voice preference, mute, interruption support and history remain workspace controls.")
+        OutlinedButton(onClick = { tts.stop(); speaking = false }, enabled = speaking) { Text("Stop speaking") }
+        SurfaceCard("Voice engine", "Native speech recognition and Android text-to-speech are active. The AI request remains authenticated through the native backend.")
     }
 }
 
