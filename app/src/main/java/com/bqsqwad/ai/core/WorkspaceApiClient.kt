@@ -48,7 +48,14 @@ class WorkspaceApiClient {
     suspend fun paymentInitialize(planId:String, callbackUrl:String?=null):JSONObject=request("/payments/initialize",payload=JSONObject().apply { put("planId",planId); if(callbackUrl!=null) put("callbackUrl",callbackUrl) })
     suspend fun paymentVerify(reference:String):JSONObject=request("/payments/verify",payload=JSONObject().put("reference",reference))
     suspend fun setAutoRenew(enabled:Boolean):JSONObject=request("/payments/auto-renew",payload=JSONObject().put("enabled",enabled))
-    suspend fun reportMessage(message:String, category:String="response"):JSONObject=request("/feedback",payload=JSONObject().put("message",message).put("category",category))
+    suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
+        put("message", message)
+        put("category", category)
+        if (messageId != null) put("messageId", messageId)
+        if (sentiment != null) put("sentiment", sentiment)
+        if (reason != null) put("reason", reason)
+        if (comment != null) put("comment", comment)
+    })
 
     suspend fun saveConsent(policyVersion:String, trainingConsent:Boolean):JSONObject =
         request("/consent", payload=JSONObject()
