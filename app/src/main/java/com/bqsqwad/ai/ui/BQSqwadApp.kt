@@ -34,6 +34,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,30 +60,12 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
 @Composable
 private fun AuthGate(modifier: Modifier) {
-    val auth = remember { FirebaseAuth.getInstance() }
-    var user by remember { mutableStateOf(auth.currentUser) }
-    var showSignUp by remember { mutableStateOf(false) }
-
-    DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { user = it.currentUser }
-        auth.addAuthStateListener(listener)
-        onDispose { auth.removeAuthStateListener(listener) }
-    }
-
-    val currentUser = user
-    if (currentUser == null) {
-        if (showSignUp) {
-            SignUpScreen(onBackToSignIn = { showSignUp = false })
-        } else {
-            SignInScreen(onOpenSignUp = { showSignUp = true })
-        }
-    } else {
-        MainShell(modifier, currentUser.email.orEmpty())
-    }
+    // Chat is always the entry surface. Authentication is requested only when a protected action is attempted.
+    MainShell(modifier, FirebaseAuth.getInstance().currentUser?.email.orEmpty())
 }
 
 @Composable
-private fun SignInScreen(onOpenSignUp: () -> Unit) {
+private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit = {}) {
     val auth = remember { FirebaseAuth.getInstance() }
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
@@ -136,6 +121,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
                     .addOnCompleteListener { task ->
                         busy = false
                         if (task.isSuccessful) {
+                            onAuthenticated()
                             val signedIn = auth.currentUser
                             if (signedIn?.isEmailVerified == false) {
                                 notice = "Signed in. Please verify your email before using protected features."
@@ -162,6 +148,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
                     try {
                         performGoogleSignIn(context, auth)
                         notice = "Google sign-in successful."
+                        onAuthenticated()
                     } catch (t: Throwable) {
                         error = friendlyGoogleAuthError(t)
                     } finally {
@@ -177,11 +164,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
             Text("Don't have an account? Sign up")
         }
 
-        Text(
-            "By continuing, you agree to the BQ Sqwad AI Terms & Conditions and Privacy Policy.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall
-        )
+        LegalConsentLinks()
 
         notice?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -226,7 +209,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit) {
 }
 
 @Composable
-private fun SignUpScreen(onBackToSignIn: () -> Unit) {
+private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit = {}) {
     val auth = remember { FirebaseAuth.getInstance() }
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
@@ -298,6 +281,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit) {
                             .apply()
                         runCatching { WorkspaceApiClient().saveConsent("2026-01", trainingConsent) }
                             .onFailure { error = "Account signed in, but consent could not be saved to the server. Please try again." }
+                        onAuthenticated()
                     } catch (t: Throwable) {
                         error = friendlyGoogleAuthError(t)
                     } finally {
@@ -335,7 +319,11 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit) {
                         }
                         created?.sendEmailVerification()?.addOnCompleteListener {
                             busy = false
-                        } ?: run { busy = false }
+                            onAuthenticated()
+                        } ?: run {
+                            busy = false
+                            onAuthenticated()
+                        }
                     }
             },
             modifier = Modifier.fillMaxWidth()
@@ -345,12 +333,44 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit) {
             Text("Already have an account? Sign in")
         }
 
+        LegalConsentLinks()
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun LegalConsentLinks() {
+    var browserUrl by remember { mutableStateOf<String?>(null) }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "Terms & Conditions and Privacy Policy are available on the existing BQ Sqwad AI website.",
+            "By continuing, you agree to the BQ Sqwad AI Terms and Conditions and Privacy Policy.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/terms" }) { Text("Terms and Conditions") }
+            Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/privacy-policy" }) { Text("Privacy Policy") }
+        }
+    }
+    browserUrl?.let { url ->
+        AlertDialog(
+            onDismissRequest = { browserUrl = null },
+            title = { Text("BQ Sqwad AI") },
+            text = {
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth().height(520.dp),
+                    factory = { context ->
+                        WebView(context).apply {
+                            webViewClient = WebViewClient()
+                            settings.javaScriptEnabled = true
+                            loadUrl(url)
+                        }
+                    }
+                )
+            },
+            confirmButton = { TextButton(onClick = { browserUrl = null }) { Text("Close") } }
+        )
     }
 }
 
@@ -449,6 +469,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showAuth by remember { mutableStateOf(false) }
+    var showSignUp by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
         if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). File upload/analysis is awaiting the configured secure file pipeline."
@@ -492,6 +514,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 OutlinedTextField(message, { message = it }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
                 IconButton(enabled = message.isNotBlank() && !busy, onClick = {
                     val text = message.trim()
+                    if (FirebaseAuth.getInstance().currentUser == null) {
+                        showAuth = true
+                        return@IconButton
+                    }
                     message = ""
                     messages.add(ChatMessage(true, text))
                     busy = true
@@ -507,6 +533,24 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
             }
         }
         FloatingLogo(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(62.dp))
+        if (showAuth) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
+            ) {
+                if (showSignUp) {
+                    SignUpScreen(
+                        onBackToSignIn = { showSignUp = false },
+                        onAuthenticated = { showAuth = false }
+                    )
+                } else {
+                    SignInScreen(
+                        onOpenSignUp = { showSignUp = true },
+                        onAuthenticated = { showAuth = false }
+                    )
+                }
+            }
+        }
     }
 }
 
