@@ -4,6 +4,11 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.Intent
+import android.speech.RecognizerIntent
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +27,8 @@ import androidx.navigation.compose.*
 import com.bqsqwad.ai.core.ChatApiClient
 import com.bqsqwad.ai.domain.Workspace
 import com.google.firebase.auth.FirebaseAuth
+import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.launch
 
 @Composable
 fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
@@ -144,43 +151,59 @@ private fun LogoBubble(modifier: Modifier) {
 
 @Composable
 private fun WorkspaceScreen(w: Workspace, onBack: () -> Unit) {
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(if (w == Workspace.BUSINESS) "Business AI" else w.title, fontWeight = FontWeight.Bold) },
-            navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } })
-    }) { p -> Column(Modifier.padding(p).padding(20.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Icon(iconFor(w), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-        when (w) {
-            Workspace.CHAT -> Text("Main Chat")
-            Workspace.SEARCH -> SurfaceCard("Web Search", "Server-side web search is connected to the backend.")
-            Workspace.CAMERA -> SurfaceCard("AI Live Camera", "Camera workspace.")
-            Workspace.VOICE -> SurfaceCard("Live Voice AI", "Voice workspace.")
-            Workspace.PERSONAL -> SurfaceCard("Personal Intelligence", "Personal workspace.")
-            Workspace.LIFE -> SurfaceCard("Life Matters", "Life workspace.")
-            Workspace.LEARNING -> SurfaceCard("Learning Studio", "Learning workspace.")
-            Workspace.BUSINESS -> SurfaceCard("Business AI", "Agents, knowledge, connections, workflows and intelligence.")
-            Workspace.ADMIN -> AdminControlCenter()
-        }
-    }}
-}
-
-@Composable private fun iconFor(w: Workspace) = when (w) {
-    Workspace.CHAT -> Icons.Default.AutoAwesome
-    Workspace.SEARCH -> Icons.Default.Language
-    Workspace.CAMERA -> Icons.Default.Videocam
-    Workspace.VOICE -> Icons.Default.GraphicEq
-    Workspace.PERSONAL -> Icons.Default.Person
-    Workspace.LIFE -> Icons.Default.FavoriteBorder
-    Workspace.LEARNING -> Icons.Default.School
-    Workspace.BUSINESS -> Icons.Default.Business
-    Workspace.ADMIN -> Icons.Default.AdminPanelSettings
-}
-
-@Composable
-fun SurfaceCard(title: String, body: String) {
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Scaffold(topBar={TopAppBar(title={Text(if(w==Workspace.BUSINESS)"Business AI" else w.title,fontWeight=FontWeight.Bold)},navigationIcon={IconButton(onBack){Icon(Icons.Default.ArrowBack,"Back")}})}){p->
+        Column(Modifier.padding(p).padding(16.dp).fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)){
+            when(w){
+                Workspace.CHAT->MainChatScreen(Modifier.fillMaxSize())
+                Workspace.SEARCH->SearchWorkspace()
+                Workspace.CAMERA->CameraWorkspace()
+                Workspace.VOICE->VoiceWorkspace()
+                Workspace.PERSONAL->AssistantWorkspace("Personal Intelligence","Plans, organizes and remembers your goals and preferences.")
+                Workspace.LIFE->AssistantWorkspace("Life Matters","A dedicated workspace for everyday planning, decisions and practical guidance.")
+                Workspace.LEARNING->AssistantWorkspace("Learning Studio","Lessons, explanations, practice and study support.")
+                Workspace.BUSINESS->AssistantWorkspace("Business AI","AI agents, knowledge, workflows, connections and business operations.")
+                Workspace.ADMIN->AdminControlCenter()
+            }
         }
     }
 }
+
+@Composable private fun SearchWorkspace(){
+    val scope=rememberCoroutineScope(); var q by remember{mutableStateOf("")}; var deep by remember{mutableStateOf(false)}; var busy by remember{mutableStateOf(false)}; var error by remember{mutableStateOf<String?>(null)}; val results=remember{mutableStateListOf<com.bqsqwad.ai.core.SearchSource>()}
+    Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Text("Search the web with current sources.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(q,{q=it},modifier=Modifier.fillMaxWidth(),label={Text("Search")})
+        Row(verticalAlignment=Alignment.CenterVertically){Switch(deep,{deep=it});Text("Deep Research")}
+        Button(enabled=q.isNotBlank()&&!busy,onClick={busy=true;error=null;scope.launch{try{results.clear();results.addAll(WorkspaceApiClient().search(q.trim(),deep).sources)}catch(t:Throwable){error=t.message?: "Search failed"}finally{busy=false}}}){Text(if(busy)"Searching…" else "Search")}
+        error?.let{Text(it,color=MaterialTheme.colorScheme.error)}
+        results.forEach{r->SurfaceCard(r.title,r.snippet ?: r.url)}
+    }
+}
+
+@Composable private fun CameraWorkspace(){
+    var granted by remember{mutableStateOf(false)}
+    val launcher=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted=it}
+    Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        Text("AI Live Camera",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Text("Camera access is permission-gated. Visual AI and device actions remain separate and require explicit user approval.")
+        Button(onClick={launcher.launch(Manifest.permission.CAMERA)}){Icon(Icons.Default.Videocam,null);Spacer(Modifier.width(8.dp));Text(if(granted)"Camera permission granted" else "Enable camera")}
+        SurfaceCard("Live vision controls","Object and scene understanding, visual questions, location assistance and approved device actions are designed for this workspace.")
+    }
+}
+
+@Composable private fun VoiceWorkspace(){
+    val context=LocalContext.current; var transcript by remember{mutableStateOf("")}; var listening by remember{mutableStateOf(false)}
+    val launcher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()){r->listening=false;transcript=r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?:transcript}
+    Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        Text("Live Voice AI",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Text("Voice input is handled by Android speech recognition; microphone permission is requested by the recognizer.")
+        Button(onClick={val i=Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply{putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);putExtra(RecognizerIntent.EXTRA_PROMPT,"Speak to BQ Sqwad AI")};listening=true;launcher.launch(i)}){Icon(Icons.Default.Mic,null);Spacer(Modifier.width(8.dp));Text(if(listening)"Listening…" else "Start voice input")}
+        if(transcript.isNotBlank())SurfaceCard("Transcript",transcript)
+        SurfaceCard("Voice controls","Barge-in, mute, voice selection and conversation history belong to this workspace and remain independently controllable.")
+    }
+}
+
+@Composable private fun AssistantWorkspace(title:String,body:String){
+    Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(title,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant);SurfaceCard("Workspace ready","Use this dedicated AI workspace without mixing its controls into Main Chat.")}
+}
+
