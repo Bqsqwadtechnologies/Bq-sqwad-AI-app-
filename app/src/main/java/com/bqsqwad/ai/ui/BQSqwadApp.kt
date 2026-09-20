@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -457,7 +458,7 @@ private fun MainShell(modifier: Modifier, email: String) {
     }
 }
 
-private data class ChatMessage(val mine: Boolean, val text: String)
+private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
 private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings: () -> Unit) {
@@ -471,6 +472,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var error by remember { mutableStateOf<String?>(null) }
     var showAuth by remember { mutableStateOf(false) }
     var showSignUp by remember { mutableStateOf(false) }
+    var feedbackTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var feedbackReason by remember { mutableStateOf("inaccurate") }
+    var feedbackComment by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     fun sendAuthenticatedMessage(text: String) {
@@ -483,7 +487,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
             try {
                 val reply = ChatApiClient().sendMessage(text).text
                 launch(Dispatchers.Main) {
-                    messages.add(ChatMessage(false, reply))
+                    messages.add(ChatMessage(false, reply, prompt = text))
                     busy = false
                 }
             } catch (t: Throwable) {
@@ -517,14 +521,31 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                         if (!m.mine) Row {
                             TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
                             TextButton({ shareText(context, m.text) }) { Text("Share") }
-                            TextButton({ message = m.text }) { Text("Resend") }
+                            TextButton({ message = m.prompt ?: m.text }) { Text("Resend") }
                             TextButton({
                                 scope.launch {
-                                    runCatching { WorkspaceApiClient().reportMessage(m.text) }
+                                    runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
                                         .onSuccess { error = "Report submitted for review." }
                                         .onFailure { error = it.message ?: "Report failed." }
                                 }
                             }) { Text("Report") }
+                            TextButton({
+                                scope.launch {
+                                    runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
+                                        .onSuccess { error = "Thanks for the feedback." }
+                                        .onFailure { error = it.message ?: "Feedback failed." }
+                                }
+                            }) { Text("👍") }
+                            TextButton({ feedbackTarget = m }) { Text("👎") }
+                            if (m.prompt != null) {
+                                TextButton({
+                                    message = m.prompt
+                                    val text = m.prompt
+                                    if (FirebaseAuth.getInstance().currentUser != null && !busy) {
+                                        sendAuthenticatedMessage(text)
+                                    }
+                                }) { Text("Regenerate") }
+                            }
                         }
                     }
                 }
@@ -546,6 +567,53 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
             }
         }
         FloatingLogo(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(62.dp))
+        feedbackTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { feedbackTarget = null },
+                title = { Text("What was wrong with this response?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("inaccurate", "unhelpful", "unsafe", "other").forEach { reason ->
+                            FilterChip(
+                                selected = feedbackReason == reason,
+                                onClick = { feedbackReason = reason },
+                                label = { Text(reason.replaceFirstChar { it.uppercase() }) }
+                            )
+                        }
+                        OutlinedTextField(
+                            value = feedbackComment,
+                            onValueChange = { feedbackComment = it },
+                            label = { Text("Optional comment") },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            runCatching {
+                                WorkspaceApiClient().reportMessage(
+                                    target.text,
+                                    "response",
+                                    target.id,
+                                    "down",
+                                    feedbackReason,
+                                    feedbackComment.trim().ifBlank { null }
+                                )
+                            }.onSuccess {
+                                error = "Thanks for the feedback."
+                            }.onFailure {
+                                error = it.message ?: "Feedback failed."
+                            }
+                            feedbackTarget = null
+                            feedbackComment = ""
+                        }
+                    }) { Text("Send") }
+                },
+                dismissButton = { TextButton(onClick = { feedbackTarget = null }) { Text("Cancel") } }
+            )
+        }
         if (showAuth) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
