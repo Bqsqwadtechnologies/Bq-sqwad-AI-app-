@@ -405,7 +405,7 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
                 )
             }
         }
-        continuation.invokeOnCancellation { task.cancel() }
+        continuation.invokeOnCancellation { /* Firebase Task cancellation is not supported; completion is ignored after cancellation. */ }
     }
     return authResult.user ?: throw IllegalStateException("Firebase did not return a signed-in user.")
 }
