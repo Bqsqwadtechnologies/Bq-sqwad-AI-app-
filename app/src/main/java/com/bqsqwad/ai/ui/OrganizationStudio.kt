@@ -157,7 +157,7 @@ fun OrganizationStudioWorkspace() {
                                 try {
                                     directorResult = ChatApiClient().sendMessage(
                                         "Organization Studio AI production director request:\n$directorPrompt"
-                                    ).text
+                                    , capability = "organization_studio").text
                                 } catch (t: Throwable) {
                                     error = t.message ?: "AI director request failed."
                                 } finally {
