@@ -77,13 +77,13 @@ object NativeFeatureCatalog {
         NativePlan("week-1000","Week 1,000",1000,"weekly","$59.99"),
         NativePlan("year-500","Yearly 500",500,"yearly","$59.99"),
         NativePlan("year-1000","Yearly 1,000",1000,"yearly","$119.99"),
-        NativePlan("learning-explorer","Learning — Explorer","0","module","Server-configured","education"),
-        NativePlan("learning-scholar","Learning — Scholar","0","module","Server-configured","education"),
-        NativePlan("learning-family","Learning — Family Academy","0","module","Server-configured","education"),
-        NativePlan("learning-school","Learning — School & Tutor","0","module","Server-configured","education"),
-        NativePlan("companion-basic","Companion — Basic","0","module","Server-configured","companion"),
-        NativePlan("companion-plus","Companion — Plus","0","module","Server-configured","companion"),
-        NativePlan("companion-premium","Companion — Premium","0","module","Server-configured","companion"),
-        NativePlan("companion-ultimate","Companion — Ultimate","0","module","Server-configured","companion")
+        NativePlan("learning-explorer","Learning — Explorer",0,"module","Server-configured","education"),
+        NativePlan("learning-scholar","Learning — Scholar",0,"module","Server-configured","education"),
+        NativePlan("learning-family","Learning — Family Academy",0,"module","Server-configured","education"),
+        NativePlan("learning-school","Learning — School & Tutor",0,"module","Server-configured","education"),
+        NativePlan("companion-basic","Companion — Basic",0,"module","Server-configured","companion"),
+        NativePlan("companion-plus","Companion — Plus",0,"module","Server-configured","companion"),
+        NativePlan("companion-premium","Companion — Premium",0,"module","Server-configured","companion"),
+        NativePlan("companion-ultimate","Companion — Ultimate",0,"module","Server-configured","companion")
     )
 }
