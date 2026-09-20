@@ -82,6 +82,8 @@ class PlayBillingClient(
 
     fun productDetails(productId: String): ProductDetails? = details[productId]
 
+    fun availableProducts(): List<ProductDetails> = details.values.toList()
+
     fun launchPurchase(productId: String): BillingResult? {
         val product = details[productId] ?: return null
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
