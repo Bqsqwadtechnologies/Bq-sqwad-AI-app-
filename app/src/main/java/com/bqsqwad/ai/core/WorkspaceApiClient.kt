@@ -12,7 +12,6 @@ import java.net.URL
 
 data class SearchSource(val title:String,val url:String,val snippet:String?)
 data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double)
-data class PlanInfo(val id:String,val name:String,val amountMinor:Double,val currency:String,val billingPeriod:String,val features:List<String>)
 
 class WorkspaceApiClient {
     private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
@@ -40,14 +39,6 @@ class WorkspaceApiClient {
         return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0))
     }
 
-    suspend fun plans():List<PlanInfo>{
-        val a=request("/plans","GET").optJSONArray("plans") ?: JSONArray()
-        return List(a.length()){i->val x=a.getJSONObject(i);val f=x.optJSONArray("features")?:JSONArray();PlanInfo(x.optString("id"),x.optString("name"),x.optDouble("amountMinor"),x.optString("currency","NGN"),x.optString("billingPeriod","monthly"),List(f.length()){j->f.optString(j)})}
-    }
-
-    suspend fun paymentInitialize(planId:String, callbackUrl:String?=null):JSONObject=request("/payments/initialize",payload=JSONObject().apply { put("planId",planId); if(callbackUrl!=null) put("callbackUrl",callbackUrl) })
-    suspend fun paymentVerify(reference:String):JSONObject=request("/payments/verify",payload=JSONObject().put("reference",reference))
-    suspend fun setAutoRenew(enabled:Boolean):JSONObject=request("/payments/auto-renew",payload=JSONObject().put("enabled",enabled))
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
