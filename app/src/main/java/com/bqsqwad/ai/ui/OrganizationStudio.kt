@@ -174,7 +174,8 @@ fun OrganizationStudioWorkspace() {
                     }
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (directorResult.isNotBlank()) SurfaceCard("AI Director", directorResult)
+                    if (directorResult.isNotBlank()) Text("AI Director", style = MaterialTheme.typography.titleMedium)
+                    Text(directorResult)
                 }
             }
         }
