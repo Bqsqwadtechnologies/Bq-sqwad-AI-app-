@@ -27,6 +27,7 @@ async function userFromRequest(req) {
 
 async function adminFromRequest(req) {
   const user = await userFromRequest(req);
+      // All capability endpoints below require a verified Firebase ID token.
   if (user.email !== ADMIN_EMAIL) throw new Error("Admin access required");
   return user;
 }
@@ -54,7 +55,8 @@ export const bqSqwadApi = onRequest(
       const user = await userFromRequest(req);
 
       if (req.method === "POST" && path === "ai") {
-        const capability = String(body.capability || "chat");
+        const capability = String(body.capability || "chat").trim();
+        if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
         const gate = await authorizeCapability(user.uid, "capability_" + capability);
         let reservation = null;
         try {
