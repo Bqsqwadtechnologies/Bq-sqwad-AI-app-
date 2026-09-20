@@ -53,6 +53,8 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -147,7 +149,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                 notice = null
                 scope.launch {
                     try {
-                        performGoogleSignIn(context, auth)
+                        withTimeout(30000) { performGoogleSignIn(context, auth) }
                         notice = "Google sign-in successful."
                         onAuthenticated()
                     } catch (t: Throwable) {
@@ -437,9 +439,10 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
 private fun friendlyGoogleAuthError(error: Throwable): String {
     return when (error) {
         is GetCredentialException -> "Google sign-in was cancelled or could not be completed. Please try again."
-        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with this email using a different sign-in provider. Sign in with that provider first."
-        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
-        else -> error.message ?: "Google sign-in failed. Please try again."
+        is TimeoutCancellationException -> "Google sign-in was cancelled or could not be completed. Please try again."
+        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "Google sign-in was cancelled or could not be completed. Please try again."
+        is com.google.firebase.FirebaseNetworkException -> "Google sign-in was cancelled or could not be completed. Please try again."
+        else -> "Google sign-in was cancelled or could not be completed. Please try again."
     }
 }
 
