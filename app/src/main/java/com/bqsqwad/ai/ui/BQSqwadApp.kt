@@ -125,7 +125,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                             TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
                             TextButton({ shareText(context, m.text) }) { Text("Share") }
                             TextButton({ message = m.text }) { Text("Resend") }
-                            TextButton({ error = "Report recorded for review." }) { Text("Report") }
+                            TextButton({
+                                scope.launch {
+                                    runCatching { WorkspaceApiClient().reportMessage(m.text) }
+                                        .onSuccess { error = "Report submitted for review." }
+                                        .onFailure { error = it.message ?: "Report failed." }
+                                }
+                            }) { Text("Report") }
                         }
                     }
                 }
