@@ -103,7 +103,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var error by remember { mutableStateOf<String?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
-        if (selected.isNotEmpty()) message = "Attached " + selected.size + " file(s). Please analyze them."
+        if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). File upload/analysis is awaiting the configured secure file pipeline."
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
