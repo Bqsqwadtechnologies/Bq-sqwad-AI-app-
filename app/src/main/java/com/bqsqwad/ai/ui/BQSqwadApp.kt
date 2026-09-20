@@ -241,8 +241,16 @@ private fun CameraWorkspace() {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Explicit camera permission. Visual analysis and device actions remain separately controlled.")
-        Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text(if (granted) "Camera permission granted" else "Enable camera") }
+        Text("Native Camera2 preview with explicit permission. Vision analysis and device actions remain separately controlled.")
+        Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+            Text(if (granted) "Camera permission granted" else "Enable camera")
+        }
+        if (granted) {
+            NativeCameraPreview()
+            SurfaceCard("Camera status", "Live camera preview is active on this device.")
+        } else {
+            SurfaceCard("Camera status", "Camera preview is paused until permission is granted.")
+        }
         SurfaceCard("AI capabilities", "Live vision, visual questions, object/scene understanding and approved device actions.")
     }
 }
