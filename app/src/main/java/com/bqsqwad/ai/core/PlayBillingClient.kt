@@ -32,7 +32,8 @@ data class PlayPurchaseState(
 )
 
 class PlayBillingClient(
-    private val activity: Activity
+    private val activity: Activity,
+    private val onPurchaseState: (PlayPurchaseState) -> Unit = {}
 ) : BillingClient.BillingClientStateListener, BillingClient.PurchasesUpdatedListener {
 
     private val baseUrl = "https://europe-west1-" +
@@ -71,10 +72,17 @@ class PlayBillingClient(
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
-        if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) return
+        if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
+            onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
+            return
+        }
         purchases.forEach { purchase ->
-            // Entitlement is granted only by the secure backend after token verification.
-            verifyWithBackend(purchase)
+            if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
+                onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan as soon as it is confirmed."))
+            } else {
+                onPurchaseState(PlayPurchaseState("verifying", "Purchase received. Verifying securely…"))
+                verifyWithBackend(purchase)
+            }
         }
     }
 
@@ -169,8 +177,11 @@ class PlayBillingClient(
                     setRequestProperty("Authorization", "Bearer $token")
                 }
                 connection.outputStream.use { it.write(payload.toString().toByteArray()) }
-                // Acknowledgement/consumption is performed by the backend only after verification.
-                connection.inputStream.bufferedReader().use { it.readText() }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val raw = stream.bufferedReader().use { it.readText() }
+                if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Purchase verification failed"))
+                onPurchaseState(PlayPurchaseState("success", "Purchase successful. Your entitlement is now active after server verification."))
             }
         }.start()
     }
