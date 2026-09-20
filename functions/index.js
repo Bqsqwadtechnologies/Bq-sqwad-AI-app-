@@ -141,6 +141,18 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "POST" && path === "feedback") {
+        const category = String(body.category || "general").trim().slice(0, 40);
+        const messageHash = crypto.createHash("sha256").update(String(body.message || "")).digest("hex");
+        await getFirestore().collection("aiFeedback").add({
+          uid: user.uid,
+          category,
+          messageHash,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true });
+      }
+
       if (req.method === "POST" && path === "payments/preview") {
         return send(res, 200, await paymentPreview({ uid: user.uid, planId: String(body.planId || "") }));
       }
