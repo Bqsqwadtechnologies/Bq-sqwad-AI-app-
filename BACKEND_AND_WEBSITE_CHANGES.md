@@ -46,3 +46,12 @@ Paystack remains available to the website/backend for legacy subscribers and web
 
 ## Important
 Until the approved Play catalogue and backend service-account configuration exist, the Android client must not claim a purchase is successful or grant entitlement locally.
+
+
+## Implementation notes added in the native migration pass
+- Verified Play purchases are keyed by a SHA-256 digest of the purchase token in `playPurchases`; the raw token is still stored only in the protected backend record for provider verification.
+- The canonical entitlement document is `entitlements/{uid}`, matching the existing capability authorization path. This prevents a verified Play purchase from being written to a plan-suffixed document that the runtime would not read.
+- A Pub/Sub RTDN handler `googlePlayRtdn` is exported from the existing Functions entry point. Configure the Google Play RTDN topic to `google-play-rtdn` in the same project/region before enabling it.
+- RTDN events are idempotent by event ID and re-read subscription state from Google before updating the canonical entitlement.
+- Native Paystack checkout/deep-link handling has been removed from the Android client. Existing backend Paystack functions remain for website/legacy use.
+- The native app only displays Google Play localized prices obtained from Play product details; no native NGN price source is used by the purchase UI.
