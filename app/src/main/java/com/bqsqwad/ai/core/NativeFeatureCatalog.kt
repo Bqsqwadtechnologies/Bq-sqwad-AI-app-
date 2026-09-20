@@ -62,7 +62,8 @@ object NativeFeatureCatalog {
         NativeFeature("codron","Codron","AI coding/project workspace with inspectable tasks.","Codron"),
         NativeFeature("plugins","Plugins & Tools","Admin-controlled tool and plugin permissions.","Admin Control Center"),
         NativeFeature("device-actions","Device Intelligence","Explicitly approved device actions and permission status.","Device Intelligence"),
-        NativeFeature("social-automation","Social & Automation","Approved social publishing and automation workflows.","Social & Automation")
+        NativeFeature("social-automation","Social & Automation","Approved social publishing and automation workflows.","Social & Automation"),
+        NativeFeature("organization-studio","Organization Studio AI","Multi-source production, camera coordination, AI direction and broadcast orchestration.","Organization Studio AI")
     )
 
     val plans = listOf(
