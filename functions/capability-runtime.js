@@ -1,40 +1,81 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { assertControlEnabled, assertPlanAllowed, getCapabilityControl } from "./runtime-controls.js";
 
-function requirementHash(value) {\n  let hash = 2166136261;\n  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);\n  return (hash >>> 0).toString(16);\n}\n\nfunction dayKey() {
+function requirementHash(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(16);
+}
+
+function dayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export async function authorizeCapability(uid, controlId) {
-  const control = assertControlEnabled(await getCapabilityControl(controlId), controlId);
-  const rollout = Math.min(100, Math.max(0, Number(control.rolloutPercent ?? 100)));
-  if (rollout < 100) {\n    const bucket = Number.parseInt(requirementHash(uid + ":" + controlId), 16) % 100;\n    if (bucket >= rollout) throw new Error("capability_not_rolled_out:" + controlId);\n  }
   const db = getFirestore();
+  const snap = await db.collection("adminAdvancedOptions").doc(controlId).get();
+  const control = snap.exists ? { id: controlId, ...snap.data() } : null;
+
+  if (!control) throw new Error("capability_not_configured:" + controlId);
+  if (control.enabled === false || control.killSwitch === true) {
+    throw new Error("capability_disabled:" + controlId);
+  }
+
+  const rollout = Math.min(100, Math.max(0, Number(control.rolloutPercent ?? 100)));
+  if (rollout <= 0) throw new Error("capability_not_rolled_out:" + controlId);
+  if (rollout < 100) {
+    const bucket = Number.parseInt(requirementHash(uid + ":" + controlId), 16) % 100;
+    if (bucket >= rollout) throw new Error("capability_not_rolled_out:" + controlId);
+  }
+
   const entitlement = await db.collection("entitlements").doc(uid).get();
   const planId = entitlement.exists ? String(entitlement.data()?.planId || "") : "";
-  assertPlanAllowed(control, planId);
+  const plans = Array.isArray(control.allowedPlanIds)
+    ? control.allowedPlanIds.map(String).filter(Boolean)
+    : [];
+  if (plans.length && !plans.includes(planId)) throw new Error("plan_not_entitled");
 
   const dailyLimit = control.dailyLimit == null ? null : Math.max(0, Number(control.dailyLimit));
+  let dailyRef = null;
   if (dailyLimit !== null) {
-    const ref = db.collection("capabilityUsage").doc(uid + "_" + controlId + "_" + dayKey());
+    dailyRef = db.collection("capabilityUsage").doc(uid + "_" + controlId + "_" + dayKey());
     await db.runTransaction(async tx => {
-      const snap = await tx.get(ref);
-      const used = Number(snap.exists ? snap.data()?.count || 0 : 0);
+      const usage = await tx.get(dailyRef);
+      const used = Number(usage.exists ? usage.data()?.count || 0 : 0);
       if (used >= dailyLimit) throw new Error("daily_capability_limit_reached");
-      tx.set(ref, { uid, capability: controlId, date: dayKey(), count: used + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.set(dailyRef, {
+        uid,
+        capability: controlId,
+        date: dayKey(),
+        count: used + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
     });
   }
 
-  const concurrencyLimit = control.concurrencyLimit == null ? null : Math.max(0, Number(control.concurrencyLimit));
+  const concurrencyLimit = control.concurrencyLimit == null
+    ? null
+    : Math.max(0, Number(control.concurrencyLimit));
   let concurrencyRef = null;
   if (concurrencyLimit !== null && concurrencyLimit > 0) {
     concurrencyRef = db.collection("capabilityConcurrency").doc(uid + "_" + controlId);
-    await db.runTransaction(async tx => {
-      const snap = await tx.get(concurrencyRef);
-      const active = Number(snap.exists ? snap.data()?.active || 0 : 0);
-      if (active >= concurrencyLimit) throw new Error("concurrency_limit_reached");
-      tx.set(concurrencyRef, { uid, capability: controlId, active: active + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    });
+    try {
+      await db.runTransaction(async tx => {
+        const usage = await tx.get(concurrencyRef);
+        const active = Number(usage.exists ? usage.data()?.active || 0 : 0);
+        if (active >= concurrencyLimit) throw new Error("concurrency_limit_reached");
+        tx.set(concurrencyRef, {
+          uid,
+          capability: controlId,
+          active: active + 1,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+    } catch (error) {
+      if (dailyRef) {
+        await releaseDailyUsage(db, dailyRef, uid, controlId);
+      }
+      throw error;
+    }
   }
 
   let released = false;
@@ -43,13 +84,40 @@ export async function authorizeCapability(uid, controlId) {
     planId,
     creditCost: Math.max(0, Number(control.creditCost || 0)),
     release: async () => {
-      if (released || !concurrencyRef) return;
+      if (released) return;
       released = true;
-      await db.runTransaction(async tx => {
-        const snap = await tx.get(concurrencyRef);
-        if (!snap.exists) return;
-        tx.update(concurrencyRef, { active: Math.max(0, Number(snap.data()?.active || 0) - 1), updatedAt: FieldValue.serverTimestamp() });
-      });
+      if (concurrencyRef) await releaseConcurrency(db, concurrencyRef);
+      if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
     }
   };
+}
+
+async function releaseConcurrency(db, ref) {
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    tx.update(ref, {
+      active: Math.max(0, Number(snap.data()?.active || 0) - 1),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+  });
+}
+
+async function releaseDailyUsage(db, ref, uid, controlId) {
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const current = Number(snap.data()?.count || 0);
+    if (current <= 1) {
+      tx.delete(ref);
+      return;
+    }
+    tx.update(ref, {
+      uid,
+      capability: controlId,
+      date: dayKey(),
+      count: current - 1,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+  });
 }
