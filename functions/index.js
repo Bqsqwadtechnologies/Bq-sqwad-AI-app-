@@ -68,6 +68,7 @@ export const bqSqwadApi = onRequest(
             system: body.system ? String(body.system) : undefined
           });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
           await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0, incidentId: crypto.randomUUID() });
         } catch (error) {
@@ -90,6 +91,7 @@ export const bqSqwadApi = onRequest(
             system: DEVICE_COMMAND_SYSTEM
           });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
           let parsed = { actions: [], message: "No supported device action." };
           try { parsed = JSON.parse(result.text); } catch {}
           return send(res, 200, {
@@ -129,6 +131,7 @@ export const bqSqwadApi = onRequest(
             deepResearch: Boolean(body.deepResearch)
           });
           await commitCredits(user.uid, reservation.reservationId, "tavily");
+          gate.commit();
           return send(res, 200, { ...result, creditsCharged: reservation.amount });
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
