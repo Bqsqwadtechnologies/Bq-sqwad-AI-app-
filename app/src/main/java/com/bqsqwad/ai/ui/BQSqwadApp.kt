@@ -472,6 +472,29 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var showAuth by remember { mutableStateOf(false) }
     var showSignUp by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+
+    fun sendAuthenticatedMessage(text: String) {
+        if (text.isBlank() || busy) return
+        message = ""
+        messages.add(ChatMessage(true, text))
+        busy = true
+        error = null
+        scope.launch(Dispatchers.IO) {
+            try {
+                val reply = ChatApiClient().sendMessage(text).text
+                launch(Dispatchers.Main) {
+                    messages.add(ChatMessage(false, reply))
+                    busy = false
+                }
+            } catch (t: Throwable) {
+                launch(Dispatchers.Main) {
+                    error = t.message ?: "AI request failed"
+                    busy = false
+                }
+            }
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
         if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). File upload/analysis is awaiting the configured secure file pipeline."
     }
@@ -518,17 +541,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                         showAuth = true
                         return@IconButton
                     }
-                    message = ""
-                    messages.add(ChatMessage(true, text))
-                    busy = true
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val reply = ChatApiClient().sendMessage(text).text
-                            launch(Dispatchers.Main) { messages.add(ChatMessage(false, reply)); busy = false }
-                        } catch (t: Throwable) {
-                            launch(Dispatchers.Main) { error = t.message ?: "AI request failed"; busy = false }
-                        }
-                    }
+                    sendAuthenticatedMessage(text)
                 }) { Icon(Icons.Default.Send, "Send") }
             }
         }
@@ -541,7 +554,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 if (showSignUp) {
                     SignUpScreen(
                         onBackToSignIn = { showSignUp = false },
-                        onAuthenticated = { showAuth = false }
+                        onAuthenticated = { showAuth = false; sendAuthenticatedMessage(message.trim()) }
                     )
                 } else {
                     SignInScreen(
