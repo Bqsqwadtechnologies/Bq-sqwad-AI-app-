@@ -39,6 +39,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /userConsents/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     match /creditLedger/{id} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
