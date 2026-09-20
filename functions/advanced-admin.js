@@ -39,7 +39,8 @@ export const CORE_CAPABILITY_OPTIONS = [
   ["capability_live_voice","AI Live Voice capability","capabilities","openai",null,["gemini"]],
   ["capability_image_generation","Image generation capability","capabilities","openai",null,["gemini"]],
   ["capability_video_generation","Video generation capability","capabilities","openai",null,["gemini"]],
-  ["capability_file_analysis","File analysis capability","capabilities","openai",null,["gemini"]]
+  ["capability_file_analysis","File analysis capability","capabilities","openai",null,["gemini"]],
+  ["capability_organization_studio","Organization Studio AI capability","capabilities","openai",null,["gemini"]]
 ];
 
 export const ADVANCED_ADMIN_OPTIONS = [
