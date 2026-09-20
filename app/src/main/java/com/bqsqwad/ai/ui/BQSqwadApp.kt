@@ -837,7 +837,14 @@ private fun PlansSheet(onDismiss: () -> Unit) {
             status = "Google Play billing is unavailable in this context."
             onDispose { }
         } else {
-            val manager = PlayBillingClient(activity)
+            val manager = PlayBillingClient(activity) { state ->
+                status = when (state.status) {
+                    "success" -> state.message
+                    "pending" -> state.message
+                    "verifying" -> state.message
+                    else -> state.message
+                }
+            }
             billing = manager
             manager.start()
             status = "Loading Play products…"
