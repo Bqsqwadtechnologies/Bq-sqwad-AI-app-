@@ -9,5 +9,6 @@ enum class Workspace(val title: String, val description: String) {
     LIFE("Life Matters", "Dedicated AI guidance workspace"),
     LEARNING("Learning Studio", "Subjects, lessons and custom learning"),
     BUSINESS("Business AI", "Agents, knowledge, connections and automation"),
+    ORGANIZATION_STUDIO("Organization Studio AI", "Professional live production, multi-camera coordination, broadcasting and organization intelligence"),
     ADMIN("Admin Control Center", "Remote configuration, providers, billing and testing")
 }
