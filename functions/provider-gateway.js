@@ -104,8 +104,8 @@ export async function runAi({ capability, message, system }) {
   let lastError;
   for (const providerId of candidates) {
     try {
-      if (providerId === "openai") return await callOpenAI({ model: route.primaryModelId, message, system });
-      if (providerId === "gemini") return await callGemini({ model: route.primaryModelId, message, system });
+      if (providerId === "openai") return await callOpenAI({ model: route.primaryProviderId === "openai" ? route.primaryModelId : undefined, message, system });
+      if (providerId === "gemini") return await callGemini({ model: route.primaryProviderId === "gemini" ? route.primaryModelId : undefined, message, system });
       throw new Error("Unsupported provider: " + providerId);
     } catch (error) {
       lastError = error;
