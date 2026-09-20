@@ -180,10 +180,18 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "feedback") {
         const category = String(body.category || "general").trim().slice(0, 40);
+        const sentiment = body.sentiment == null ? null : String(body.sentiment).trim().slice(0, 20);
+        const reason = body.reason == null ? null : String(body.reason).trim().slice(0, 80);
+        const comment = body.comment == null ? null : String(body.comment).trim().slice(0, 1000);
+        const messageId = body.messageId == null ? null : String(body.messageId).trim().slice(0, 120);
         const messageHash = crypto.createHash("sha256").update(String(body.message || "")).digest("hex");
         await getFirestore().collection("aiFeedback").add({
           uid: user.uid,
+          messageId,
           category,
+          sentiment,
+          reason,
+          comment,
           messageHash,
           createdAt: FieldValue.serverTimestamp()
         });
