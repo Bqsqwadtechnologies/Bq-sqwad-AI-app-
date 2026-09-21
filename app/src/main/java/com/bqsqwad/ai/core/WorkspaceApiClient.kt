@@ -47,6 +47,10 @@ class WorkspaceApiClient {
 
     suspend fun entitlement():JSONObject = request("/entitlement","GET")
 
+    suspend fun credits():JSONObject = request("/credits","GET")
+
+    suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
+
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
