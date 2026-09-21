@@ -122,6 +122,25 @@ class WorkspaceApiClient {
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
+    suspend fun createBusinessTrainingUpload(
+        type:String,
+        title:String,
+        purpose:String,
+        fileName:String,
+        contentType:String,
+        size:Long
+    ): JSONObject = request("/business/training-assets/upload-url", payload=JSONObject().apply {
+        put("type", type.take(40))
+        put("title", title.take(180))
+        put("purpose", purpose.take(1000))
+        put("fileName", fileName.take(160))
+        put("contentType", contentType.take(120))
+        put("size", size)
+    })
+
+    suspend fun finalizeBusinessTrainingUpload(assetId:String): JSONObject =
+        request("/business/training-assets/finalize", payload=JSONObject().put("assetId", assetId.take(120)))
+
     suspend fun addBusinessTrainingAsset(type:String, title:String, purpose:String): JSONObject =
         request("/business/training-assets", payload=JSONObject().apply {
             put("type", type.take(40)); put("title", title.take(180)); put("purpose", purpose.take(1000))
