@@ -55,6 +55,8 @@ class WorkspaceApiClient {
 
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
 
+    suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
+
     suspend fun entitlement():JSONObject = request("/entitlement","GET")
 
     suspend fun credits():JSONObject = request("/credits","GET")
