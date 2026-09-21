@@ -56,6 +56,11 @@ class WorkspaceApiClient {
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
+    suspend fun addBusinessTrainingAsset(type:String, title:String, purpose:String): JSONObject =
+        request("/business/training-assets", payload=JSONObject().apply {
+            put("type", type.take(40)); put("title", title.take(180)); put("purpose", purpose.take(1000))
+        })
+
     suspend fun addBusinessKnowledge(note:String): JSONObject =
         request("/business/knowledge", payload=JSONObject().put("text", note.take(12000)))
 
