@@ -457,7 +457,7 @@ private fun MainShell(modifier: Modifier) {
     var settings by remember { mutableStateOf(false) }
     when {
         hub -> FeatureHub({ hub = false }, { plans = true }) { workspace = it; hub = false }
-        plans -> PlansSheet { plans = false }
+        plans -> ProductCatalogScreen { plans = false }
         settings -> SettingsScreen { settings = false }
         workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
         else -> MainChatScreen(modifier, { hub = true }, { settings = true })
