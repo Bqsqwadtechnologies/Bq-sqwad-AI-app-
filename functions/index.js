@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
+import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 
 initializeApp();
@@ -242,6 +243,60 @@ export const bqSqwadApi = onRequest(
         } finally {
           await gate.release();
         }
+      }
+
+      if (req.method === "GET" && path === "organization/production") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await getProduction(user.uid); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/config") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await updateProductionConfig(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/source") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await upsertSource(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/source/remove") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await removeSource(user.uid, body.sourceId); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/scene") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await upsertScene(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/destination") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await upsertDestination(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/state") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await setProductionState(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/health") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await updateHealth(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/event") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await addProductionEvent(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
       }
 
       if (req.method === "GET" && path === "business/workspace") {
