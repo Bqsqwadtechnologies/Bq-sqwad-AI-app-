@@ -79,6 +79,9 @@ class WorkspaceApiClient {
             if(sharedKnowledgeEnabled!=null) put("sharedKnowledgeEnabled",sharedKnowledgeEnabled)
         })
 
+    suspend fun organizationAssistant(message:String):JSONObject =
+        request("/organization/assistant",payload=JSONObject().put("message",message.take(8000)))
+
     suspend fun addOrganizationKnowledge(text:String, source:String="manual"):JSONObject =
         request("/organization/knowledge",payload=JSONObject().put("text",text.take(12000)).put("source",source.take(80)))
 
