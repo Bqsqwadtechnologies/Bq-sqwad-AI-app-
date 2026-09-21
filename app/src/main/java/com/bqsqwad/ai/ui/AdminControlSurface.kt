@@ -40,6 +40,7 @@ fun AdminControlCenter() {
     var selectedSection by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showPlanCatalog by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
@@ -80,6 +81,11 @@ fun AdminControlCenter() {
         "system" to "System",
         "emergency" to "Emergency Controls"
     )
+
+    if (showPlanCatalog) {
+        AdminPlanCatalogScreen { showPlanCatalog = false }
+        return
+    }
 
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
