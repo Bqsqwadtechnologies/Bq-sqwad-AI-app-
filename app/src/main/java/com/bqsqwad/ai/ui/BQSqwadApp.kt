@@ -343,6 +343,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
 
 @Composable
 private fun LegalConsentLinks() {
+    val context = LocalContext.current
     var browserUrl by remember { mutableStateOf<String?>(null) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -684,7 +685,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 } else {
                     SignInScreen(
                         onOpenSignUp = { showSignUp = true },
-                        onAuthenticated = { showAuth = false }
+                        onAuthenticated = {
+                            showAuth = false
+                            val pending = message.trim()
+                            if (pending.isNotBlank()) sendAuthenticatedMessage(pending)
+                        }
                     )
                 }
             }
