@@ -43,6 +43,8 @@ class WorkspaceApiClient {
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
 
+    suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
+
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
