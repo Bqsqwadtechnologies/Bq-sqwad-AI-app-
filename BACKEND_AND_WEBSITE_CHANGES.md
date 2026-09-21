@@ -95,3 +95,12 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added authenticated `GET /entitlement` so the purchase surface can display backend-authoritative access state.
 - Removed the obsolete native `NativeFeatureCatalog.kt`, which contained hard-coded commercial plan prices and feature/catalog data that conflicted with the master prompt's runtime-configuration requirement.
 - The native catalog remains read-only: Android does not edit prices, feature bindings, quotas, add-ons, or Play mappings.
+
+## Continued native completion — September 21, 2026
+- Native product catalog now resolves feature states per plan-feature binding and displays live limits and coming-soon entries.
+- Authenticated `/credits` and `/usage` endpoints expose the backend credit balance and append-only usage ledger to the native client.
+- Native WorkspaceApiClient now reads the credit balance and usage history from those canonical endpoints.
+- Admin configuration writes now create append-only `adminConfigAudit` records with configuration version, actor, previous state, and submitted change.
+- Privileged admin APIs now require the configured super-admin email plus an existing server-side Firebase admin/super-admin role claim; client-side UI visibility is not treated as authorization.
+- Google Play purchase verification rejects a Play purchase owned by another account and prevents a new Play purchase from duplicating an active legacy entitlement for the same plan.
+- No GitHub Actions workflow was triggered during this work.
