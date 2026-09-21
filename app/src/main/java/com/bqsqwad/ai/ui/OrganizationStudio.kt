@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.ChatApiClient
+import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 
 data class ProductionSource(val id: Int, val name: String, val uri: Uri)
@@ -34,6 +35,8 @@ fun OrganizationStudioWorkspace() {
     var directorResult by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var organization by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var channelName by remember { mutableStateOf("") }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -41,6 +44,11 @@ fun OrganizationStudioWorkspace() {
             if (selectedSourceId == null) selectedSourceId = nextId
             nextId += 1
         }
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { organization = WorkspaceApiClient().organization() }
+            .onFailure { error = it.message ?: "Organization could not be loaded." }
     }
 
     LazyColumn(
@@ -60,6 +68,61 @@ fun OrganizationStudioWorkspace() {
                         SuggestionChip(onClick = {}, label = { Text("Production") })
                         SuggestionChip(onClick = {}, label = { Text("AI Director") })
                         SuggestionChip(onClick = {}, label = { Text("Broadcast") })
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Organization", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        organization?.optString("name").orEmpty().ifBlank { "My Organization" },
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Text(
+                        "Organization settings and channel state are stored server-side and remain available when a plan is renewed.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = channelName,
+                        onValueChange = { channelName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("New channel name") }
+                    )
+                    Button(
+                        enabled = channelName.isNotBlank(),
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    organization = WorkspaceApiClient().addOrganizationChannel(channelName)
+                                    channelName = ""
+                                }.onFailure { error = it.message ?: "Channel could not be added." }
+                            }
+                        }
+                    ) { Text("Add channel") }
+                    val channels = organization?.optJSONArray("channels")
+                    if (channels == null || channels.length() == 0) {
+                        Text("No organization channels configured.")
+                    } else {
+                        for (i in 0 until channels.length()) {
+                            val channel = channels.optJSONObject(i) ?: continue
+                            val id = channel.optString("id")
+                            val enabled = channel.optBoolean("enabled", false)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(channel.optString("name"))
+                                Switch(
+                                    checked = enabled,
+                                    onCheckedChange = { next ->
+                                        scope.launch {
+                                            runCatching {
+                                                organization = WorkspaceApiClient().setOrganizationChannel(id, next)
+                                            }.onFailure { error = it.message ?: "Channel state could not be changed." }
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
