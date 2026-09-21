@@ -362,6 +362,11 @@ export const bqSqwadApi = onRequest(
         });
       }
 
+      if (req.method === "GET" && path === "entitlement") {
+        const snap = await getFirestore().collection("entitlements").doc(user.uid).get();
+        return send(res, 200, snap.exists ? { exists: true, ...snap.data() } : { exists: false });
+      }
+
       if (req.method === "GET" && path === "native/catalog") {
         const db = getFirestore();
         const [plansSnap, playSnap, featureSnap, bindingSnap, addOnSnap, businessSnap] = await Promise.all([
