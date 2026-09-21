@@ -13,6 +13,7 @@ import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } 
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
+import { canonicalAdminCatalog } from "./play-catalog.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
@@ -765,7 +766,7 @@ export const bqSqwadApi = onRequest(
 
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
       // The legacy adminControls store and endpoints are intentionally removed.
-      if (req.method === "GET" && path === "admin/config") {
+      if (req.method === "GET" && path === "admin/play-catalog") {\n        await adminFromRequest(req);\n        return send(res, 200, canonicalAdminCatalog());\n      }\n\n      if (req.method === "GET" && path === "admin/config") {
         await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
       }
