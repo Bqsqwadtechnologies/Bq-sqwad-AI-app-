@@ -54,6 +54,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -561,6 +563,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                         if (!m.mine) Row {
                             TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
                             TextButton({ shareText(context, m.text) }) { Text("Share") }
+                            TextButton({ speakTextWhenReady(context, m.text) { error = it } }) { Text("Read aloud") }
                             TextButton({ message = m.prompt ?: m.text }) { Text("Resend") }
                             TextButton({
                                 scope.launch {
@@ -782,9 +785,12 @@ private fun VoiceWorkspace() {
     var transcript by remember { mutableStateOf("") }
     var reply by remember { mutableStateOf("") }
     var speaking by remember { mutableStateOf(false) }
+    var ttsReady by remember { mutableStateOf(false) }
+    var ttsFailed by remember { mutableStateOf(false) }
     val tts = remember {
         TextToSpeech(context) { status ->
-            speaking = status == TextToSpeech.SUCCESS && speaking
+            ttsReady = status == TextToSpeech.SUCCESS
+            ttsFailed = status != TextToSpeech.SUCCESS
         }
     }
     DisposableEffect(tts) {
@@ -799,8 +805,22 @@ private fun VoiceWorkspace() {
                 reply = runCatching { ChatApiClient().sendMessage(transcript).text }
                     .getOrElse { it.message ?: "Voice request failed" }
                 if (reply.isNotBlank()) {
+                    if (!ttsReady) {
+                        val ready = withTimeoutOrNull(5000) {
+                            while (!ttsReady && !ttsFailed) delay(50)
+                            ttsReady
+                        } == true
+                        if (!ready) {
+                            speaking = false
+                            return@launch
+                        }
+                    }
                     speaking = true
-                    tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "bq_reply")
+                    val result = tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "bq_reply")
+                    if (result == TextToSpeech.ERROR) {
+                        speaking = false
+                        ttsFailed = true
+                    }
                 }
             }
         }
@@ -820,7 +840,10 @@ private fun VoiceWorkspace() {
         if (transcript.isNotBlank()) SurfaceCard("You", transcript)
         if (reply.isNotBlank()) SurfaceCard("BQ Sqwad AI", reply)
         OutlinedButton(onClick = { tts.stop(); speaking = false }, enabled = speaking) { Text("Stop speaking") }
-        SurfaceCard("Voice engine", "Native speech recognition and Android text-to-speech are active. The AI request remains authenticated through the native backend.")
+        if (ttsFailed) {
+            Text("Android text-to-speech could not initialize. Try again after checking your device speech settings.", color = MaterialTheme.colorScheme.error)
+        }
+        SurfaceCard("Voice engine", if (ttsReady) "Android text-to-speech is ready. Cloud voice can fall back to native speech without speaking before initialization completes." else "Initializing Android text-to-speech…")
     }
 }
 
@@ -989,6 +1012,23 @@ private fun SettingsScreen(onBack: () -> Unit) {
 
 private fun shareText(context: Context, text: String) {
     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) }, "Share"))
+}
+
+private fun speakTextWhenReady(context: Context, text: String, onError: (String) -> Unit) {
+    if (text.isBlank()) return
+    val tts = TextToSpeech(context) { status ->
+        if (status != TextToSpeech.SUCCESS) {
+            onError("Text-to-speech could not initialize.")
+            return@TextToSpeech
+        }
+        val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bq_read_aloud")
+        if (result == TextToSpeech.ERROR) onError("Text-to-speech could not start.")
+    }
+    tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) = Unit
+        override fun onDone(utteranceId: String?) { tts.shutdown() }
+        override fun onError(utteranceId: String?) { onError("Text-to-speech playback failed."); tts.shutdown() }
+    })
 }
 
 @Composable private fun WallpaperBackground(index: Int) {
