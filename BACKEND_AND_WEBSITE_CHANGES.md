@@ -70,3 +70,19 @@ Implemented on the native Android app without changing the release workflow or c
 - No provider key, token, product price, or Play product ID was added to the APK.
 
 Not yet verified in this environment: signed APK/AAB build, physical-device camera/microphone QA, Play policy review, and production end-to-end streaming/vision latency. The release workflow was not modified.
+
+
+## Native product catalog UI integration — 2026-09-21
+- Added a professional native Products & Plans surface at `ProductCatalogScreen.kt`.
+- The screen reads active plan metadata from the existing authenticated `/plans` endpoint and approved Google Play mappings from `/play/catalog`; it does not create a second pricing or entitlement system.
+- Google Play `ProductDetails` remains the authoritative customer-facing price. The Android UI does not hard-code catalog prices or convert currencies.
+- The screen groups Business AI, AI Companion, Learning AI, TruthGuard AI, AI Life Mathis, and Credits/Add-ons and provides loading, empty, retry/error, and cached offline states.
+- Purchase actions are disabled when Google Play has no confirmed product price and report that access is granted only after backend verification.
+- Google Play base-plan selection is now explicit when a catalog entry supplies a base-plan ID; this prevents the UI from accidentally launching a different billing period.
+- Existing Paystack code remains backend/website/legacy-only. Native Android does not expose Paystack checkout.
+
+## Required backend/config follow-up for the master prompt
+- The native app now consumes the existing `playCatalog/config` and `plans` endpoints. The next catalog migration must extend the canonical configuration used by the website/admin rather than introducing another store.
+- The authoritative product schema still needs to expose feature registry records, plan-feature bindings, quotas, availability, add-on eligibility, credit/rate-card metadata, plan versions, effective dates, and change notices to the native app. Do not invent those values in Android.
+- The admin side must remain the writer of pricing/feature configuration; Android remains read-only for commercial configuration.
+- Business AI in the native app is intended to use Google Play Billing for eligible digital plans/add-ons under the master prompt. Any legacy website-payment wording in older documentation should not be copied into the Android UI.
