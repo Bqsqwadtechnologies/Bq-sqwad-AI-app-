@@ -206,6 +206,44 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "POST" && path === "organization/assistant") {
+        const message = String(body.message || "").trim().slice(0, 8000);
+        if (!message) return send(res, 400, { error: "organization_message_required" });
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        let reservation = null;
+        try {
+          const org = await getOrganization(user.uid);
+          const settings = org.settings || {};
+          const knowledge = Array.isArray(org.knowledge)
+            ? org.knowledge.slice(-50).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n")
+            : "";
+          const sharedMemory = settings.sharedMemoryEnabled === true ? await memoryContext(user.uid) : "";
+          reservation = await reserveCredits(user.uid, gate.creditCost, "organization_assistant");
+          const system = [
+            "You are the BQ Sqwad AI Organization Studio assistant.",
+            "Keep organization data isolated from unrelated personal workspace data.",
+            "Use the organization profile and organization knowledge below for organization-specific claims.",
+            "Do not invent organization facts. If the required information is missing, say so.",
+            "Organization: " + String(org.name || "My Organization"),
+            "Description: " + String(org.description || ""),
+            "Organization knowledge:",
+            knowledge || "(No organization knowledge has been added.)",
+            sharedMemory ? "Approved shared user memory:\n" + sharedMemory : ""
+          ].filter(Boolean).join("\n");
+          const result = await runAi({ capability: "chat", message, system });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
+          await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
+          return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0 });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "error", metadata: { error: error?.message || "organization_request_failed" } });
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "GET" && path === "business/workspace") {
         const db = getFirestore();
         const ref = db.collection("businessWorkspaces").doc(user.uid);
