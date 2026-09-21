@@ -36,8 +36,6 @@ import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -359,23 +357,10 @@ private fun LegalConsentLinks() {
         }
     }
     browserUrl?.let { url ->
-        AlertDialog(
-            onDismissRequest = { browserUrl = null },
-            title = { Text("BQ Sqwad AI") },
-            text = {
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(520.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            webViewClient = WebViewClient()
-                            settings.javaScriptEnabled = true
-                            loadUrl(url)
-                        }
-                    }
-                )
-            },
-            confirmButton = { TextButton(onClick = { browserUrl = null }) { Text("Close") } }
-        )
+        LaunchedEffect(url) {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        }
+        browserUrl = null
     }
 }
 
@@ -481,9 +466,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var feedbackTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var feedbackReason by remember { mutableStateOf("inaccurate") }
     var feedbackComment by remember { mutableStateOf("") }
+    var micError by remember { mutableStateOf<String?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        if (spoken.isNotBlank()) message = if (message.isBlank()) spoken else "$message $spoken"
+        else micError = "No speech was detected. Try again."
+    }
 
     fun sendAuthenticatedMessage(text: String) {
         if (text.isBlank() || busy) return
@@ -565,6 +556,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                     Text("Ready for your next request", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(messages) { m ->
                     Column(Modifier.fillMaxWidth(if (m.mine) .88f else 1f).align(if (m.mine) Alignment.End else Alignment.Start)) {
@@ -607,7 +599,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 IconButton(onClick = openHub) { Icon(Icons.Default.Add, "AI workspaces") }
                 IconButton(onClick = { picker.launch(arrayOf("*/*")) }) { Icon(Icons.Default.AttachFile, "Files") }
-                OutlinedTextField(message, { message = it }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
+                OutlinedTextField(message, { message = it; micError = null }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
+                IconButton(onClick = {
+                    micError = null
+                    speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
+                    })
+                }, enabled = !busy) { Icon(Icons.Default.Mic, contentDescription = "Voice input") }
                 if (busy) {
                     IconButton(onClick = { streamJob?.cancel() }) {
                         Icon(Icons.Default.Stop, contentDescription = "Stop generating")
@@ -697,8 +696,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
 private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Workspace) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = { IconButton(onPlans) { Icon(Icons.Default.CreditCard, "Plans") } }) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
