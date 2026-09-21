@@ -27,16 +27,46 @@ data class ProductionSource(val id: Int, val name: String, val uri: Uri)
 fun OrganizationStudioWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var outputStatus by remember { mutableStateOf("Program output idle") }
+    val api = remember { WorkspaceApiClient() }
     val sources = remember { mutableStateListOf<ProductionSource>() }
     var selectedSourceId by remember { mutableStateOf<Int?>(null) }
     var nextId by remember { mutableStateOf(1) }
+    var organization by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var channelName by remember { mutableStateOf("") }
+    var channelType by remember { mutableStateOf("chat") }
+    var knowledgeText by remember { mutableStateOf("") }
+    var memberId by remember { mutableStateOf("") }
+    var memberRole by remember { mutableStateOf("member") }
     var directorPrompt by remember { mutableStateOf("") }
     var directorResult by remember { mutableStateOf("") }
+    var outputStatus by remember { mutableStateOf("Program output idle") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var organization by remember { mutableStateOf<org.json.JSONObject?>(null) }
-    var channelName by remember { mutableStateOf("") }
+    var assistantEnabled by remember { mutableStateOf(true) }
+    var sharedMemory by remember { mutableStateOf(false) }
+    var sharedKnowledge by remember { mutableStateOf(false) }
+
+    fun applyOrganization(value: org.json.JSONObject) {
+        organization = value
+        name = value.optString("name").ifBlank { "My Organization" }
+        description = value.optString("description")
+        val settings = value.optJSONObject("settings")
+        assistantEnabled = settings?.optBoolean("assistantEnabled", true) ?: true
+        sharedMemory = settings?.optBoolean("sharedMemoryEnabled", false) ?: false
+        sharedKnowledge = settings?.optBoolean("sharedKnowledgeEnabled", false) ?: false
+    }
+
+    fun refresh() {
+        scope.launch {
+            runCatching { api.organization() }
+                .onSuccess { applyOrganization(it) }
+                .onFailure { error = it.message ?: "Organization could not be loaded." }
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -44,11 +74,6 @@ fun OrganizationStudioWorkspace() {
             if (selectedSourceId == null) selectedSourceId = nextId
             nextId += 1
         }
-    }
-
-    LaunchedEffect(Unit) {
-        runCatching { organization = WorkspaceApiClient().organization() }
-            .onFailure { error = it.message ?: "Organization could not be loaded." }
     }
 
     LazyColumn(
@@ -61,80 +86,187 @@ fun OrganizationStudioWorkspace() {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Organization Studio AI", style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        "Professional live-production control for organization events: sources, scenes, AI direction, captions and broadcast orchestration.",
+                        "Native organization control for production, shared knowledge, AI behavior, channels, members and broadcast orchestration.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SuggestionChip(onClick = {}, label = { Text("Production") })
                         SuggestionChip(onClick = {}, label = { Text("AI Director") })
-                        SuggestionChip(onClick = {}, label = { Text("Broadcast") })
+                        SuggestionChip(onClick = {}, label = { Text("Organization") })
                     }
                 }
             }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Organization", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        organization?.optString("name").orEmpty().ifBlank { "My Organization" },
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        "Organization settings and channel state are stored server-side and remain available when a plan is renewed.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Organization profile", style = MaterialTheme.typography.titleLarge)
+                    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Organization name") })
                     OutlinedTextField(
-                        value = channelName,
-                        onValueChange = { channelName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("New channel name") }
+                        description, { description = it }, Modifier.fillMaxWidth(),
+                        minLines = 3, label = { Text("Description") }
                     )
+                    Button(
+                        enabled = name.isNotBlank() && !busy,
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                runCatching { api.updateOrganization(name, description) }
+                                    .onSuccess { applyOrganization(it) }
+                                    .onFailure { error = it.message ?: "Organization could not be saved." }
+                                busy = false
+                            }
+                        }
+                    ) { Text(if (busy) "Saving…" else "Save organization") }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("AI & data controls", style = MaterialTheme.typography.titleLarge)
+                    Text("These controls are stored with the organization and do not erase personal memory.")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Organization AI enabled")
+                        Switch(assistantEnabled, onCheckedChange = {
+                            assistantEnabled = it
+                            scope.launch { runCatching { api.updateOrganizationSettings(assistantEnabled = it) }.onFailure { e -> error = e.message } }
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Shared organization memory")
+                        Switch(sharedMemory, onCheckedChange = {
+                            sharedMemory = it
+                            scope.launch { runCatching { api.updateOrganizationSettings(sharedMemoryEnabled = it) }.onFailure { e -> error = e.message } }
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Shared organization knowledge")
+                        Switch(sharedKnowledge, onCheckedChange = {
+                            sharedKnowledge = it
+                            scope.launch { runCatching { api.updateOrganizationSettings(sharedKnowledgeEnabled = it) }.onFailure { e -> error = e.message } }
+                        })
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Organization knowledge", style = MaterialTheme.typography.titleLarge)
+                    Text("Add persistent organization instructions, procedures and facts. This data stays scoped to the organization.")
+                    OutlinedTextField(
+                        knowledgeText, { knowledgeText = it }, Modifier.fillMaxWidth(),
+                        minLines = 4, label = { Text("Knowledge / instruction") }
+                    )
+                    Button(
+                        enabled = knowledgeText.isNotBlank() && !busy,
+                        onClick = {
+                            scope.launch {
+                                runCatching { api.addOrganizationKnowledge(knowledgeText) }
+                                    .onSuccess { applyOrganization(it); knowledgeText = "" }
+                                    .onFailure { e -> error = e.message ?: "Knowledge could not be saved." }
+                            }
+                        }
+                    ) { Text("Add knowledge") }
+                    val knowledge = organization?.optJSONArray("knowledge")
+                    Text("Stored items: ${knowledge?.length() ?: 0}")
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Members & roles", style = MaterialTheme.typography.titleLarge)
+                    Text("Owner, admin, editor, viewer and member roles are persisted server-side.")
+                    OutlinedTextField(memberId, { memberId = it }, Modifier.fillMaxWidth(), label = { Text("Member Firebase UID") })
+                    OutlinedTextField(memberRole, { memberRole = it }, Modifier.fillMaxWidth(), label = { Text("Role") })
+                    Button(
+                        enabled = memberId.isNotBlank(),
+                        onClick = {
+                            scope.launch {
+                                runCatching { api.upsertOrganizationMember(memberId, memberRole) }
+                                    .onSuccess { applyOrganization(it); memberId = "" }
+                                    .onFailure { e -> error = e.message ?: "Member could not be saved." }
+                            }
+                        }
+                    ) { Text("Add / update member") }
+                    val members = organization?.optJSONArray("members")
+                    if (members != null) {
+                        for (i in 0 until members.length()) {
+                            val m = members.optJSONObject(i) ?: continue
+                            val id = m.optString("id")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(id)
+                                    Text(m.optString("role") + " • " + m.optString("status", "active"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (m.optString("role") != "owner") {
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            runCatching { api.setOrganizationMemberStatus(id, if (m.optString("status") == "inactive") "active" else "inactive") }
+                                                .onSuccess { applyOrganization(it) }
+                                                .onFailure { e -> error = e.message }
+                                        }
+                                    }) { Text(if (m.optString("status") == "inactive") "Activate" else "Deactivate") }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Channels", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(channelName, { channelName = it }, Modifier.weight(1f), label = { Text("Channel name") })
+                        OutlinedTextField(channelType, { channelType = it }, Modifier.width(120.dp), label = { Text("Type") })
+                    }
                     Button(
                         enabled = channelName.isNotBlank(),
                         onClick = {
                             scope.launch {
-                                runCatching {
-                                    organization = WorkspaceApiClient().addOrganizationChannel(channelName)
-                                    channelName = ""
-                                }.onFailure { error = it.message ?: "Channel could not be added." }
+                                runCatching { api.addOrganizationChannel(channelName, channelType) }
+                                    .onSuccess { applyOrganization(it); channelName = "" }
+                                    .onFailure { e -> error = e.message ?: "Channel could not be added." }
                             }
                         }
                     ) { Text("Add channel") }
                     val channels = organization?.optJSONArray("channels")
-                    if (channels == null || channels.length() == 0) {
-                        Text("No organization channels configured.")
-                    } else {
-                        for (i in 0 until channels.length()) {
-                            val channel = channels.optJSONObject(i) ?: continue
-                            val id = channel.optString("id")
-                            val enabled = channel.optBoolean("enabled", false)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    if (channels == null || channels.length() == 0) Text("No channels configured.")
+                    else for (i in 0 until channels.length()) {
+                        val channel = channels.optJSONObject(i) ?: continue
+                        val id = channel.optString("id")
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
                                 Text(channel.optString("name"))
-                                Switch(
-                                    checked = enabled,
-                                    onCheckedChange = { next ->
-                                        scope.launch {
-                                            runCatching {
-                                                organization = WorkspaceApiClient().setOrganizationChannel(id, next)
-                                            }.onFailure { error = it.message ?: "Channel state could not be changed." }
-                                        }
-                                    }
-                                )
+                                Text(channel.optString("type") + " • " + if (channel.optBoolean("enabled")) "Enabled" else "Disabled")
                             }
+                            Switch(channel.optBoolean("enabled"), onCheckedChange = { next ->
+                                scope.launch {
+                                    runCatching { api.setOrganizationChannel(id, next) }
+                                        .onSuccess { applyOrganization(it) }
+                                        .onFailure { e -> error = e.message ?: "Channel state could not be changed." }
+                                }
+                            })
                         }
                     }
                 }
             }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Sources & cameras", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "Import a real media source now. Network camera/phone pairing and multi-platform broadcast are routed through the native backend integration when its provider endpoints are configured.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Production sources", style = MaterialTheme.typography.titleLarge)
+                    Text("Import real video or audio sources for local preview and display handoff.")
                     Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }) {
                         Icon(Icons.Default.Add, null)
                         Text(" Add media source")
@@ -143,77 +275,68 @@ fun OrganizationStudioWorkspace() {
                 }
             }
         }
+
         items(sources, key = { it.id }) { source ->
             Card(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text(source.name, style = MaterialTheme.typography.titleMedium)
                         Text(source.uri.lastPathSegment ?: source.uri.toString(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(if (source.id == selectedSourceId) "Selected program source" else "Tap Select to make program source", style = MaterialTheme.typography.labelSmall)
                     }
                     TextButton(onClick = { selectedSourceId = source.id }) { Text("Select") }
-                    IconButton(onClick = { sources.remove(source); if (selectedSourceId == source.id) selectedSourceId = sources.firstOrNull()?.id }) {
-                        Icon(Icons.Default.Delete, "Remove source")
-                    }
+                    IconButton(onClick = {
+                        sources.remove(source)
+                        if (selectedSourceId == source.id) selectedSourceId = sources.firstOrNull()?.id
+                    }) { Icon(Icons.Default.Delete, "Remove source") }
                 }
             }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Production control", style = MaterialTheme.typography.titleLarge)
                     Text(outputStatus, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            val source = sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
-                            if (source == null) outputStatus = "Add a source first"
-                            else runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                })
-                                outputStatus = "Program preview opened"
-                            }.onFailure { outputStatus = "No compatible player is available" }
-                        }, enabled = sources.isNotEmpty()) {
-                            Icon(Icons.Default.PlayArrow, null)
-                            Text(" Preview program")
-                        }
-                        Button(onClick = {
-                            val source = sources.firstOrNull()
-                            if (source == null) outputStatus = "Add a source first"
-                            else runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                                    setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                })
-                                outputStatus = "Display handoff opened; choose an available display/player"
-                            }.onFailure { outputStatus = "No compatible display route is available" }
-                        }, enabled = sources.isNotEmpty()) {
-                            Icon(Icons.Default.Cast, null)
-                            Text(" TV / display")
-                        }
+                        Button(
+                            enabled = sources.isNotEmpty(),
+                            onClick = {
+                                val source = sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
+                                if (source != null) runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    })
+                                    outputStatus = "Program preview opened"
+                                }.onFailure { outputStatus = "No compatible player is available" }
+                            }
+                        ) { Icon(Icons.Default.PlayArrow, null); Text(" Preview") }
+                        Button(
+                            enabled = sources.isNotEmpty(),
+                            onClick = {
+                                val source = sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
+                                if (source != null) runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(source.uri, context.contentResolver.getType(source.uri) ?: "video/*")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    })
+                                    outputStatus = "Display handoff opened"
+                                }.onFailure { outputStatus = "No compatible display route is available" }
+                            }
+                        ) { Icon(Icons.Default.Cast, null); Text(" Display") }
                     }
-                    Text(
-                        "Broadcast destinations, credentials and platform adapters remain server/admin controlled; credentials are never stored in the APK.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("AI production director", style = MaterialTheme.typography.titleLarge)
                     OutlinedTextField(
-                        value = directorPrompt,
-                        onValueChange = { directorPrompt = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3,
-                        label = { Text("Direct the production") },
-                        placeholder = { Text("Example: prepare a two-camera interview scene and draft live captions.") }
+                        directorPrompt, { directorPrompt = it }, Modifier.fillMaxWidth(),
+                        minLines = 3, label = { Text("Direct the production") },
+                        placeholder = { Text("Prepare a two-camera interview scene and draft live captions.") }
                     )
                     Button(
                         enabled = directorPrompt.isNotBlank() && !busy,
@@ -227,33 +350,32 @@ fun OrganizationStudioWorkspace() {
                                     ).text
                                 } catch (t: Throwable) {
                                     error = t.message ?: "AI director request failed."
-                                } finally {
-                                    busy = false
-                                }
+                                } finally { busy = false }
                             }
                         }
-                    ) {
-                        Text(if (busy) "AI is working…" else "Run AI director")
-                    }
+                    ) { Text(if (busy) "AI is working…" else "Run AI director") }
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (directorResult.isNotBlank()) Text("AI Director", style = MaterialTheme.typography.titleMedium)
-                    Text(directorResult)
+                    if (directorResult.isNotBlank()) {
+                        Text("AI Director", style = MaterialTheme.typography.titleMedium)
+                        Text(directorResult)
+                    }
                 }
             }
         }
+
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Integration readiness", style = MaterialTheme.typography.titleLarge)
-                    Text("AI routing: native backend gateway (admin/provider controlled)")
-                    Text("OpenAI / Gemini / other configured providers: routed by backend policy")
-                    Text("Live camera network transport: requires configured signaling/stream endpoint")
-                    Text("Multi-platform broadcast: requires configured platform adapter credentials")
-                    Text("QR device pairing: requires configured pairing service")
-                    Text("Live captions and post-broadcast intelligence: AI backend capability")
+                    Text("Integration status", style = MaterialTheme.typography.titleLarge)
+                    Text("Organization data: server-persisted and scoped")
+                    Text("Personal memory: separate from organization knowledge")
+                    Text("Channels: server-persisted with enable/disable state")
+                    Text("Broadcast adapters: admin/provider controlled; credentials are not stored in the APK")
+                    Text("Network cameras, QR pairing and platform broadcast require configured provider endpoints")
                 }
             }
         }
+        item { error?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
     }
 }
