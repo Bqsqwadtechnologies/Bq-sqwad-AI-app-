@@ -39,23 +39,24 @@ class WorkspaceApiClient {
         return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0))
     }
 
+    suspend fun plans():JSONObject = request("/plans","GET")
+
+    suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
+
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
-        if (messageId != null) put("messageId", messageId)
-        if (sentiment != null) put("sentiment", sentiment)
-        if (reason != null) put("reason", reason)
-        if (comment != null) put("comment", comment)
+        if(messageId!=null)put("messageId",messageId)
+        if(sentiment!=null)put("sentiment",sentiment)
+        if(reason!=null)put("reason",reason)
+        if(comment!=null)put("comment",comment)
     })
 
     suspend fun saveConsent(policyVersion:String, trainingConsent:Boolean):JSONObject =
-        request("/consent", payload=JSONObject()
-            .put("requiredAccepted", true)
-            .put("policyVersion", policyVersion)
-            .put("trainingConsent", trainingConsent))
+        request("/consent",payload=JSONObject().put("requiredAccepted",true).put("policyVersion",policyVersion).put("trainingConsent",trainingConsent))
 
-    suspend fun consent():JSONObject = request("/consent", "GET")
+    suspend fun consent():JSONObject = request("/consent","GET")
 
     suspend fun updateTrainingConsent(trainingConsent:Boolean):JSONObject =
-        request("/consent/training", payload=JSONObject().put("trainingConsent", trainingConsent))
+        request("/consent/training",payload=JSONObject().put("trainingConsent",trainingConsent))
 }
