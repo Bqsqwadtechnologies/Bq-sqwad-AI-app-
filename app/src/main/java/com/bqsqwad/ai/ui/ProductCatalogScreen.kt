@@ -159,6 +159,10 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
                 BqStatusBadge(if(entry.enabled)"Available" else "Unavailable")
             }
             plan?.features?.take(4)?.forEach{feature->Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.Top){Text("•",color=MaterialTheme.colorScheme.primary);Text(feature,Modifier.weight(1f))}}
+            if(plan?.limits?.isNotEmpty()==true){
+                Text("Limits",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold)
+                plan.limits.entries.take(5).forEach { (key,value) -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(key.replace('_',' '));Text(value,fontWeight=FontWeight.SemiBold)} }
+            }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                 Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId!=null)"Google Play • ${entry.basePlanId}" else "Google Play",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -185,7 +189,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
 
 private fun parseFeatures(body:JSONObject):List<CatalogFeature>{
     val a=body.optJSONArray("features")?:JSONArray()
-    return List(a.length()){i->{val x=a.getJSONObject(i);CatalogFeature(x.optString("id"),x.optString("name"),x.optString("description"),x.optString("group"),x.optBoolean("comingSoon",false))}}.filter{it.id.isNotBlank()&&!it.comingSoon}
+    return List(a.length()){i->{val x=a.getJSONObject(i);CatalogFeature(x.optString("id"),x.optString("name"),x.optString("description"),x.optString("group"),x.optBoolean("comingSoon",false))}}.filter{it.id.isNotBlank()}
 }
 private fun parseBindings(body:JSONObject):List<FeatureBinding>{
     val a=body.optJSONArray("bindings")?:JSONArray()
