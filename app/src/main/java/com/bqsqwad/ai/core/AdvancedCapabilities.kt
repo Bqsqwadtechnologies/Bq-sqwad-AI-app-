@@ -5,6 +5,12 @@ object AdvancedCapabilities {
     const val VIDEO_GENERATION = "video_generation"
     const val FILE_ANALYSIS = "file_analysis"
     const val CODRON = "codron"
+    const val BUSINESS_TRAINING_TEXT = "business_training_text"
+    const val BUSINESS_TRAINING_PHOTO = "business_training_photo"
+    const val BUSINESS_TRAINING_VOICE = "business_training_voice"
+    const val BUSINESS_TRAINING_VIDEO = "business_training_video"
+    const val BUSINESS_TRAINING_STEP_BY_STEP = "business_training_step_by_step"
+    const val BUSINESS_TRAINING_APPEARANCE = "business_training_appearance"
 
     val subscriptionOnly = setOf(IMAGE_GENERATION, VIDEO_GENERATION, FILE_ANALYSIS)
     const val CODRON_DEFAULT_ACTIVE = false
@@ -34,7 +40,8 @@ object AdvancedCapabilities {
         "live_camera_scene_understanding","live_voice_barge_in","voice_activity_detection",
         "learning_quizzes","document_to_course","business_crm","business_workflows",
         "business_analytics","business_knowledge","business_agents","business_channels",
-        "business_automation","agent_training","agent_evaluation","agent_versioning",
+        "business_automation","business_training_text","business_training_photo","business_training_voice",
+        "business_training_video","business_training_step_by_step","business_training_appearance","agent_training","agent_evaluation","agent_versioning",
         "agent_rollback","notifications","referrals","credit_reservation","credit_reversal",
         "rate_limiting","abuse_protection","incident_system","ai_evaluation_center",
         "secure_file_pipeline","offline_retry_queue"
