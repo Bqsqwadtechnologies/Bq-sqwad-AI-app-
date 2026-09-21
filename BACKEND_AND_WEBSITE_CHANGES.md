@@ -86,3 +86,12 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - The authoritative product schema still needs to expose feature registry records, plan-feature bindings, quotas, availability, add-on eligibility, credit/rate-card metadata, plan versions, effective dates, and change notices to the native app. Do not invent those values in Android.
 - The admin side must remain the writer of pricing/feature configuration; Android remains read-only for commercial configuration.
 - Business AI in the native app is intended to use Google Play Billing for eligible digital plans/add-ons under the master prompt. Any legacy website-payment wording in older documentation should not be copied into the Android UI.
+
+
+## Canonical catalog integration — continued
+- Added authenticated `GET /native/catalog` as the native read-only catalog contract.
+- The endpoint reads existing Firestore configuration without writing it and returns sanitized plan metadata, approved Play mappings, feature-registry records, plan-feature bindings, enabled add-ons, and whether `config/businessPricing` exists.
+- Native product UI now reads the canonical catalog rather than maintaining a second hard-coded product grouping.
+- Added authenticated `GET /entitlement` so the purchase surface can display backend-authoritative access state.
+- Removed the obsolete native `NativeFeatureCatalog.kt`, which contained hard-coded commercial plan prices and feature/catalog data that conflicted with the master prompt's runtime-configuration requirement.
+- The native catalog remains read-only: Android does not edit prices, feature bindings, quotas, add-ons, or Play mappings.
