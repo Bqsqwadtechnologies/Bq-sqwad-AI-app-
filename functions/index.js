@@ -18,6 +18,15 @@ initializeApp();
 
 const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
 
+async function assertSuperAdmin(user) {
+  const token = await getAuth().getUser(user.uid);
+  const claims = token.customClaims || {};
+  if (user.email !== ADMIN_EMAIL || (claims.admin !== true && claims.superAdmin !== true && claims.role !== "admin" && claims.role !== "super_admin")) {
+    throw new Error("Admin access required");
+  }
+  return user;
+}
+
 function send(res, status, value) {
   res.status(status).set("Cache-Control", "no-store").json(value);
 }
@@ -31,8 +40,7 @@ async function userFromRequest(req) {
 async function adminFromRequest(req) {
   const user = await userFromRequest(req);
       // All capability endpoints below require a verified Firebase ID token.
-  if (user.email !== ADMIN_EMAIL) throw new Error("Admin access required");
-  return user;
+  return assertSuperAdmin(user);
 }
 
 export const bqSqwadApi = onRequest(
