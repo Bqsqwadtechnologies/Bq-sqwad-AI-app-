@@ -102,6 +102,93 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, trainingConsent });
       }
 
+      if (req.method === "GET" && path === "business/workspace") {
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        if (!snap.exists) {
+          const initial = {
+            uid: user.uid,
+            name: "Business Workspace",
+            assistantName: "Business AI Assistant",
+            knowledge: [],
+            inbox: [],
+            leads: [],
+            automations: [],
+            analytics: { requests: 0, leads: 0, knowledge: 0 },
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          };
+          await ref.set(initial);
+          return send(res, 200, { ...initial, createdAt: null, updatedAt: null });
+        }
+        return send(res, 200, { exists: true, ...snap.data() });
+      }
+
+      if (req.method === "POST" && path === "business/knowledge") {
+        const text = String(body.text || "").trim().slice(0, 12000);
+        if (!text) return send(res, 400, { error: "knowledge_text_required" });
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data() : {};
+        const knowledge = Array.isArray(current.knowledge) ? current.knowledge : [];
+        const item = { id: crypto.randomUUID(), text, createdAt: new Date().toISOString() };
+        knowledge.push(item);
+        await ref.set({
+          uid: user.uid,
+          name: current.name || "Business Workspace",
+          assistantName: current.assistantName || "Business AI Assistant",
+          knowledge: knowledge.slice(-200),
+          inbox: Array.isArray(current.inbox) ? current.inbox : [],
+          leads: Array.isArray(current.leads) ? current.leads : [],
+          automations: Array.isArray(current.automations) ? current.automations : [],
+          analytics: { ...(current.analytics || {}), knowledge: knowledge.length },
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        const updated = await ref.get();
+        return send(res, 200, { exists: true, ...updated.data() });
+      }
+
+      if (req.method === "POST" && path === "business/assistant") {
+        const message = String(body.message || "").trim().slice(0, 8000);
+        if (!message) return send(res, 400, { error: "business_message_required" });
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        const data = snap.exists ? snap.data() : {};
+        const knowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
+        const knowledgeText = knowledge.slice(-30).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n");
+        const gate = await authorizeCapability(user.uid, "capability_chat");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          const system = [
+            "You are the BQ Sqwad AI Business Assistant.",
+            "Keep business workspace information isolated from personal workspace context.",
+            "Use only the business knowledge supplied below when making business-specific claims; if it is absent, say that the workspace does not contain that information.",
+            "Business knowledge:",
+            knowledgeText || "(No business knowledge has been added yet.)"
+          ].join("\n");
+          const result = await runAi({ capability: "chat", message, system });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
+          await ref.set({
+            uid: user.uid,
+            analytics: { ...(data.analytics || {}), requests: Number(data.analytics?.requests || 0) + 1 },
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
+          return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0 });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "error", metadata: { error: error?.message || "business_request_failed" } });
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "POST" && path === "ai") {
         const capability = String(body.capability || "chat").trim();
         if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
