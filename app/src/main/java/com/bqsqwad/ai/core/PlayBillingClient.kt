@@ -55,7 +55,10 @@ class PlayBillingClient(
 
     fun start() {
         if (!client.isReady) client.startConnection(this)
-        else queryCatalog()
+        else {
+            queryCatalog()
+            restorePurchases()
+        }
     }
 
     fun close() {
@@ -65,7 +68,10 @@ class PlayBillingClient(
 
     override fun onBillingSetupFinished(result: BillingResult) {
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
-        if (connected) queryCatalog()
+        if (connected) {
+            queryCatalog()
+            restorePurchases()
+        }
     }
 
     override fun onBillingServiceDisconnected() {
