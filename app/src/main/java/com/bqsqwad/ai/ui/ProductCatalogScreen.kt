@@ -65,7 +65,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 
     DisposableEffect(activity) {
         if(activity!=null){
-            val manager=PlayBillingClient(activity){state->status=state.message}
+            val manager=PlayBillingClient(activity){state->status=state.message; if(state.status=="success") load()}
             billing=manager; manager.start()
             onDispose{manager.close()}
         } else onDispose{}
