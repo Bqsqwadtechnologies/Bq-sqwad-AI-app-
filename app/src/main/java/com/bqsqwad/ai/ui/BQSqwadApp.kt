@@ -483,23 +483,32 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var feedbackComment by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
+    var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
     fun sendAuthenticatedMessage(text: String) {
         if (text.isBlank() || busy) return
         message = ""
         messages.add(ChatMessage(true, text))
+        val aiIndex = messages.size
+        messages.add(ChatMessage(false, "", prompt = text))
         busy = true
         error = null
-        scope.launch(Dispatchers.IO) {
+        streamJob = scope.launch(Dispatchers.IO) {
             try {
-                val reply = ChatApiClient().sendMessage(text).text
-                launch(Dispatchers.Main) {
-                    messages.add(ChatMessage(false, reply, prompt = text))
-                    busy = false
+                ChatApiClient().streamMessage(text) { delta ->
+                    launch(Dispatchers.Main) {
+                        val current = messages.getOrNull(aiIndex)
+                        if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
+                    }
                 }
+                launch(Dispatchers.Main) { busy = false; streamJob = null }
             } catch (t: Throwable) {
                 launch(Dispatchers.Main) {
-                    error = t.message ?: "AI request failed"
+                    val current = messages.getOrNull(aiIndex)
+                    if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
+                    if (t !is kotlinx.coroutines.CancellationException) error = t.message ?: "AI request failed"
                     busy = false
+                    streamJob = null
                 }
             }
         }
@@ -599,14 +608,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 IconButton(onClick = openHub) { Icon(Icons.Default.Add, "AI workspaces") }
                 IconButton(onClick = { picker.launch(arrayOf("*/*")) }) { Icon(Icons.Default.AttachFile, "Files") }
                 OutlinedTextField(message, { message = it }, placeholder = { Text("Message BQ Sqwad AI") }, modifier = Modifier.weight(1f), maxLines = 5)
-                IconButton(enabled = message.isNotBlank() && !busy, onClick = {
-                    val text = message.trim()
-                    if (FirebaseAuth.getInstance().currentUser == null) {
-                        showAuth = true
-                        return@IconButton
+                if (busy) {
+                    IconButton(onClick = { streamJob?.cancel() }) {
+                        Icon(Icons.Default.Stop, contentDescription = "Stop generating")
                     }
-                    sendAuthenticatedMessage(text)
-                }) { Icon(Icons.Default.Send, "Send") }
+                } else {
+                    IconButton(enabled = message.isNotBlank(), onClick = {
+                        val text = message.trim()
+                        if (FirebaseAuth.getInstance().currentUser == null) {
+                            showAuth = true
+                            return@IconButton
+                        }
+                        sendAuthenticatedMessage(text)
+                    }) { Icon(Icons.Default.Send, "Send") }
+                }
             }
         }
         FloatingLogo(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(62.dp))
@@ -760,21 +775,72 @@ private fun SearchWorkspace() {
 
 @Composable
 private fun CameraWorkspace() {
-    var granted by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
+    var active by remember { mutableStateOf(false) }
+    var analyzing by remember { mutableStateOf(false) }
+    var prompt by remember { mutableStateOf("What do you see in this camera view?") }
+    var answer by remember { mutableStateOf("") }
+    var lens by remember { mutableStateOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        granted = it
+        if (it) {
+            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA))
+            active = true
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { context.stopService(Intent(context, LiveMediaForegroundService::class.java)) }
+    }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Native Camera2 preview with explicit permission. Vision analysis and device actions remain separately controlled.")
-        Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
-            Text(if (granted) "Camera permission granted" else "Enable camera")
-        }
-        if (granted) {
-            NativeCameraPreview()
-            SurfaceCard("Camera status", "Live camera preview is active on this device.")
+        Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
+        if (!granted) {
+            Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Enable camera")
+            }
         } else {
-            SurfaceCard("Camera status", "Camera preview is paused until permission is granted.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    if (!active) context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA))
+                    else context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                    active = !active
+                }) { Text(if (active) "End live camera" else "Start live camera") }
+                OutlinedButton(onClick = {
+                    lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+                }, enabled = active) { Text("Flip") }
+            }
         }
-        SurfaceCard("AI capabilities", "Live vision, visual questions, object/scene understanding and approved device actions.")
+        if (granted && active) {
+            NativeCameraPreview(
+                Modifier.fillMaxWidth().height(280.dp),
+                lensFacing = lens,
+                onFrame = { frame ->
+                    if (!analyzing) {
+                        analyzing = true
+                        scope.launch {
+                            try {
+                                val encoded = android.util.Base64.encodeToString(frame, android.util.Base64.NO_WRAP)
+                                answer = ChatApiClient().analyzeCameraFrame(prompt, encoded).text
+                            } catch (t: Throwable) {
+                                answer = t.message ?: "Live camera analysis failed."
+                            } finally {
+                                analyzing = false
+                            }
+                        }
+                    }
+                }
+            )
+            SurfaceCard("Live indicator", "● Camera active • BQ Sqwad AI is viewing frames while this screen is active.")
+            OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about the camera view") }, maxLines = 2)
+            if (analyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (answer.isNotBlank()) SurfaceCard("BQ Sqwad AI", answer)
+        } else {
+            SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
+        }
     }
 }
 
@@ -784,6 +850,7 @@ private fun VoiceWorkspace() {
     val scope = rememberCoroutineScope()
     var transcript by remember { mutableStateOf("") }
     var reply by remember { mutableStateOf("") }
+    var listening by remember { mutableStateOf(false) }
     var speaking by remember { mutableStateOf(false) }
     var ttsReady by remember { mutableStateOf(false) }
     var ttsFailed by remember { mutableStateOf(false) }
@@ -793,57 +860,88 @@ private fun VoiceWorkspace() {
             ttsFailed = status != TextToSpeech.SUCCESS
         }
     }
-    DisposableEffect(tts) {
-        onDispose { tts.stop(); tts.shutdown() }
-    }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        transcript = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-        if (transcript.isNotBlank()) {
+    val recognizer = remember { android.speech.SpeechRecognizer.createSpeechRecognizer(context) }
+    DisposableEffect(tts, recognizer) {
+        onDispose {
+            recognizer.cancel()
+            recognizer.destroy()
             tts.stop()
-            speaking = false
-            scope.launch {
-                reply = runCatching { ChatApiClient().sendMessage(transcript).text }
-                    .getOrElse { it.message ?: "Voice request failed" }
-                if (reply.isNotBlank()) {
-                    if (!ttsReady) {
-                        val ready = withTimeoutOrNull(5000) {
-                            while (!ttsReady && !ttsFailed) delay(50)
-                            ttsReady
-                        } == true
-                        if (!ready) {
-                            speaking = false
-                            return@launch
+            tts.shutdown()
+            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+        }
+    }
+    val listener = remember {
+        object : android.speech.RecognitionListener {
+            override fun onReadyForSpeech(params: android.os.Bundle?) { listening = true }
+            override fun onBeginningOfSpeech() { listening = true }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() { listening = false }
+            override fun onError(error: Int) { listening = false }
+            override fun onResults(results: android.os.Bundle?) {
+                val text = results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                if (text.isBlank()) return
+                transcript = text
+                scope.launch {
+                    try {
+                        val generated = ChatApiClient().sendMessage(text).text
+                        reply = generated
+                        if (generated.isNotBlank() && ttsReady) {
+                            speaking = true
+                            tts.speak(generated, TextToSpeech.QUEUE_FLUSH, null, "bq_live_voice")
                         }
-                    }
-                    speaking = true
-                    val result = tts.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "bq_reply")
-                    if (result == TextToSpeech.ERROR) {
-                        speaking = false
-                        ttsFailed = true
+                    } catch (t: Throwable) {
+                        reply = t.message ?: "Voice request failed."
                     }
                 }
             }
+            override fun onPartialResults(partialResults: android.os.Bundle?) {
+                transcript = partialResults?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            }
+            override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
         }
     }
+    DisposableEffect(listener) {
+        recognizer.setRecognitionListener(listener)
+        onDispose { recognizer.setRecognitionListener(null) }
+    }
+    fun startListening() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE))
+        recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+        })
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) startListening() }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Live Voice AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Button(onClick = {
-            tts.stop()
-            speaking = false
-            val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
+        Text("Live microphone input, partial transcription, AI reply and spoken response with a visible session indicator.")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                tts.stop()
+                speaking = false
+                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) else startListening()
+            }) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (listening) "Listening…" else "Start live voice")
             }
-            launcher.launch(i)
-        }) { Icon(Icons.Default.Mic, null); Spacer(Modifier.width(8.dp)); Text(if (speaking) "Speak again" else "Speak") }
-        if (speaking) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (transcript.isNotBlank()) SurfaceCard("You", transcript)
+            OutlinedButton(onClick = {
+                recognizer.cancel()
+                listening = false
+                tts.stop()
+                speaking = false
+                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+            }) { Text("End") }
+        }
+        if (listening) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (transcript.isNotBlank()) SurfaceCard("Live transcript", transcript)
         if (reply.isNotBlank()) SurfaceCard("BQ Sqwad AI", reply)
         OutlinedButton(onClick = { tts.stop(); speaking = false }, enabled = speaking) { Text("Stop speaking") }
-        if (ttsFailed) {
-            Text("Android text-to-speech could not initialize. Try again after checking your device speech settings.", color = MaterialTheme.colorScheme.error)
-        }
-        SurfaceCard("Voice engine", if (ttsReady) "Android text-to-speech is ready. Cloud voice can fall back to native speech without speaking before initialization completes." else "Initializing Android text-to-speech…")
+        if (ttsFailed) Text("Android text-to-speech could not initialize. Check the device speech settings.", color = MaterialTheme.colorScheme.error)
+        SurfaceCard("Live status", if (listening) "● Microphone active" else "Microphone stopped")
     }
 }
 
