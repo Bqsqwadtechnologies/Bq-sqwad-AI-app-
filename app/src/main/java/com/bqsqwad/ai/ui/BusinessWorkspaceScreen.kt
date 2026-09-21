@@ -23,6 +23,11 @@ fun BusinessWorkspaceScreen() {
     var workspace by remember { mutableStateOf(JSONObject()) }
     var prompt by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
+    var leadName by remember { mutableStateOf("") }
+    var leadContact by remember { mutableStateOf("") }
+    var leadNote by remember { mutableStateOf("") }
+    var inboxMessage by remember { mutableStateOf("") }
+    var inboxContact by remember { mutableStateOf("") }
 
     fun load() {
         loading = true; error = null
@@ -81,11 +86,32 @@ fun BusinessWorkspaceScreen() {
             }
             "Inbox" -> {
                 SurfaceCard("Unified inbox", "Customer messages can be connected here through approved channels. Each conversation is scoped to this business.")
+                OutlinedTextField(inboxMessage, { inboxMessage = it }, label = { Text("Add customer message") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                OutlinedTextField(inboxContact, { inboxContact = it }, label = { Text("Customer contact (optional)") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = inboxMessage.isNotBlank() && !saving, onClick = {
+                    saving = true; error = null
+                    scope.launch {
+                        try { workspace = WorkspaceApiClient().addBusinessInboxMessage(inboxMessage.trim(), inboxContact.trim().ifBlank { null }); inboxMessage = ""; inboxContact = "" }
+                        catch (t: Throwable) { error = t.message ?: "Inbox message could not be saved." }
+                        finally { saving = false }
+                    }
+                }) { Text(if (saving) "Saving…" else "Add message") }
                 val inbox = workspace.optJSONArray("inbox")
                 if (inbox != null && inbox.length() > 0) itemsFromJson(inbox).forEach { SurfaceCard("Conversation", it) }
             }
             "Leads" -> {
                 SurfaceCard("Leads & CRM", "Track business prospects, status, notes and follow-up activity without mixing them with personal chat history.")
+                OutlinedTextField(leadName, { leadName = it }, label = { Text("Lead name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(leadContact, { leadContact = it }, label = { Text("Contact") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(leadNote, { leadNote = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                Button(enabled = leadName.isNotBlank() && !saving, onClick = {
+                    saving = true; error = null
+                    scope.launch {
+                        try { workspace = WorkspaceApiClient().addBusinessLead(leadName.trim(), leadContact.trim(), leadNote.trim()); leadName = ""; leadContact = ""; leadNote = "" }
+                        catch (t: Throwable) { error = t.message ?: "Lead could not be saved." }
+                        finally { saving = false }
+                    }
+                }) { Text(if (saving) "Saving…" else "Add lead") }
                 val leads = workspace.optJSONArray("leads")
                 if (leads != null && leads.length() > 0) itemsFromJson(leads).forEach { SurfaceCard("Lead", it) }
             }
