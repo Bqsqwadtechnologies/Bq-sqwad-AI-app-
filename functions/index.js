@@ -561,7 +561,7 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "GET" && path === "admin/config") {
         await adminFromRequest(req);
-        return send(res, 200, { options: await listAdvancedAdminOptions() });
+        return send(res, 200, await getAdminControlConfig());
       }
 
       if (req.method === "GET" && path === "admin/providers") {
