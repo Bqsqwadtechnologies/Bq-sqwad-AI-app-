@@ -732,7 +732,7 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
                 Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.")
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
-                Workspace.ADMIN -> if (admin) AdminConfigScreen() else AccessDenied()
+                Workspace.ADMIN -> if (admin) AdminControlCenter() else AccessDenied()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }
         }
