@@ -12,6 +12,7 @@ import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } 
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
+import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 
 initializeApp();
@@ -100,6 +101,23 @@ export const bqSqwadApi = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
         return send(res, 200, { ok: true, trainingConsent });
+      }
+
+      if (req.method === "GET" && path === "memory") {
+        return send(res, 200, await getUserMemory(user.uid));
+      }
+
+      if (req.method === "POST" && path === "memory") {
+        const item = await rememberUser(user.uid, body.text, body.source);
+        return send(res, 200, { ok: true, item });
+      }
+
+      if (req.method === "POST" && path === "memory/settings") {
+        return send(res, 200, await setMemoryEnabled(user.uid, body.enabled === true));
+      }
+
+      if (req.method === "DELETE" && path === "memory") {
+        return send(res, 200, await clearUserMemory(user.uid));
       }
 
       if (req.method === "GET" && path === "business/workspace") {
@@ -260,10 +278,15 @@ export const bqSqwadApi = onRequest(
         let reservation = null;
         try {
           reservation = await reserveCredits(user.uid, gate.creditCost, capability);
+          const remembered = await memoryContext(user.uid);
+          const suppliedSystem = body.system ? String(body.system) : "";
+          const system = remembered
+            ? [suppliedSystem, "Relevant user memory (use only when helpful and do not invent details):", remembered].filter(Boolean).join("\n")
+            : suppliedSystem || undefined;
           const result = await runAi({
             capability,
             message: String(body.message || ""),
-            system: body.system ? String(body.system) : undefined
+            system
           });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
           gate.commit();
@@ -297,7 +320,9 @@ export const bqSqwadApi = onRequest(
           await route.streamOpenAI({
             model: configured.primaryModelId,
             message: String(body.message || ""),
-            system: body.system ? String(body.system) : undefined,
+            system: (await memoryContext(user.uid))
+              ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", await memoryContext(user.uid)].filter(Boolean).join("\n")
+              : (body.system ? String(body.system) : undefined),
             onEvent: event => {
               if (event.type === "delta") {
                 res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "\n\n");
