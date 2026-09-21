@@ -2,6 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { runAi, callTavily } from "./provider-gateway.js";
 import { getProviderSecret, setProviderSecret, providerSecretStatus } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
@@ -320,6 +321,85 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, { ...initial, createdAt: null, updatedAt: null });
         }
         return send(res, 200, { exists: true, ...snap.data() });
+      }
+
+      if (req.method === "POST" && path === "business/training-assets/upload-url") {
+        const type = String(body.type || "").trim().toLowerCase();
+        const allowedTypes = new Set(["document", "photo", "voice", "video", "step_by_step", "appearance_hair"]);
+        if (!allowedTypes.has(type)) return send(res, 400, { error: "unsupported_training_asset_type" });
+        const title = String(body.title || "").trim().slice(0, 180);
+        const purpose = String(body.purpose || "").trim().slice(0, 1000);
+        const fileName = String(body.fileName || "training-asset").trim().slice(0, 160);
+        const contentType = String(body.contentType || "application/octet-stream").trim().slice(0, 120);
+        const size = Math.max(0, Number(body.size || 0));
+        if (!title || !purpose || !fileName || !size) return send(res, 400, { error: "training_asset_metadata_required" });
+        if (size > 500 * 1024 * 1024) return send(res, 413, { error: "training_asset_too_large" });
+        const assetId = crypto.randomUUID();
+        const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+        const objectPath = "business-training/" + user.uid + "/" + assetId + "-" + safeName;
+        const bucket = getStorage().bucket();
+        const file = bucket.file(objectPath);
+        const [uploadUrl] = await file.getSignedUrl({
+          version: "v4",
+          action: "write",
+          expires: Date.now() + 15 * 60 * 1000,
+          contentType
+        });
+        await getFirestore().collection("businessTrainingAssets").doc(assetId).set({
+          id: assetId,
+          uid: user.uid,
+          type,
+          title,
+          purpose,
+          fileName: safeName,
+          contentType,
+          size,
+          objectPath,
+          status: "upload_pending",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, assetId, uploadUrl, objectPath, expiresInSeconds: 900 });
+      }
+
+      if (req.method === "POST" && path === "business/training-assets/finalize") {
+        const assetId = String(body.assetId || "").trim();
+        if (!assetId) return send(res, 400, { error: "training_asset_id_required" });
+        const ref = getFirestore().collection("businessTrainingAssets").doc(assetId);
+        const snap = await ref.get();
+        if (!snap.exists || snap.data()?.uid !== user.uid) return send(res, 404, { error: "training_asset_not_found" });
+        const data = snap.data() || {};
+        const file = getStorage().bucket().file(String(data.objectPath || ""));
+        const [exists] = await file.exists();
+        if (!exists) return send(res, 409, { error: "training_asset_upload_missing" });
+        const [metadata] = await file.getMetadata();
+        const actualSize = Number(metadata.size || 0);
+        const expectedSize = Number(data.size || 0);
+        if (!actualSize || (expectedSize && actualSize !== expectedSize)) return send(res, 409, { error: "training_asset_size_mismatch" });
+        await ref.set({
+          status: "uploaded",
+          uploadedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        const workspaceRef = getFirestore().collection("businessWorkspaces").doc(user.uid);
+        const workspaceSnap = await workspaceRef.get();
+        const workspace = workspaceSnap.exists ? workspaceSnap.data() || {} : {};
+        const assets = Array.isArray(workspace.trainingAssets) ? workspace.trainingAssets : [];
+        const entry = {
+          id: assetId,
+          type: String(data.type || ""),
+          title: String(data.title || ""),
+          purpose: String(data.purpose || ""),
+          contentType: String(data.contentType || ""),
+          size: actualSize,
+          objectPath: String(data.objectPath || ""),
+          status: "uploaded",
+          createdAt: new Date().toISOString()
+        };
+        const without = assets.filter(item => String(item?.id || "") !== assetId);
+        without.push(entry);
+        await workspaceRef.set({ uid: user.uid, trainingAssets: without.slice(-500), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return send(res, 200, { ok: true, asset: entry });
       }
 
       if (req.method === "POST" && path === "business/training-assets") {
