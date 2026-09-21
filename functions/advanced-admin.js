@@ -219,6 +219,14 @@ export async function updateAdvancedAdminOption(input, adminUid) {
   const snap = await ref.get();
   const option = normalize(input, snap.exists ? snap.data() : null, adminUid, found);
   await ref.set(option, { merge: true });
+  await db.collection("adminConfigAudit").add({
+    targetId: id,
+    version: option.version,
+    uid: adminUid,
+    before: snap.exists ? snap.data() : null,
+    after: input,
+    createdAt: FieldValue.serverTimestamp()
+  });
   return option;
 }
 
