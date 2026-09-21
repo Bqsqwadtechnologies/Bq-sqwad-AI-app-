@@ -6,6 +6,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.bqsqwad.ai.core.BusinessTrainingUploader
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,7 +31,7 @@ fun BusinessWorkspaceScreen() {
     var leadContact by remember { mutableStateOf("") }
     var leadNote by remember { mutableStateOf("") }
     var inboxMessage by remember { mutableStateOf("") }
-    var inboxContact by remember { mutableStateOf("") }
+    var inboxContact by remember { mutableStateOf("") }\n    var trainingType by remember { mutableStateOf("document") }\n    var trainingTitle by remember { mutableStateOf("") }\n    var trainingPurpose by remember { mutableStateOf("") }\n    var trainingStatus by remember { mutableStateOf<String?>(null) }\n    val context = LocalContext.current\n    val trainingPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->\n        if (uri != null && trainingTitle.isNotBlank() && trainingPurpose.isNotBlank()) {\n            trainingStatus = "Uploading…"\n            scope.launch {\n                runCatching {\n                    BusinessTrainingUploader.upload(context.contentResolver, uri, trainingType, trainingTitle.trim(), trainingPurpose.trim())\n                }.onSuccess {\n                    trainingStatus = "Training asset uploaded and registered."\n                    trainingTitle = ""\n                    trainingPurpose = ""\n                    load()\n                }.onFailure {\n                    trainingStatus = it.message ?: "Training upload failed."\n                }\n            }\n        } else {\n            trainingStatus = "Enter a title and purpose before selecting a file."\n        }\n    }
 
     fun load() {
         loading = true; error = null
@@ -39,7 +43,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load() }
 
-    val tabs = listOf("Overview", "Assistant", "Knowledge", "Inbox", "Leads", "Automation", "Analytics")
+    val tabs = listOf("Overview", "Assistant", "Knowledge", "Training", "Inbox", "Leads", "Automation", "Analytics")
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("A native business workspace. Your business data stays scoped to your authenticated workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -83,6 +87,26 @@ fun BusinessWorkspaceScreen() {
                 }) { Text(if (saving) "Saving…" else "Save knowledge") }
                 val knowledge = workspace.optJSONArray("knowledge") 
                 if (knowledge != null) itemsFromJson(knowledge).forEach { SurfaceCard("Knowledge", it) }
+            }
+            "Training" -> {
+                SurfaceCard("Business AI training", "Upload approved business documents, photos, voice recordings, videos, step-by-step material, or appearance/hair references. Files are stored under your authenticated business workspace.")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("document", "photo", "voice", "video", "step_by_step", "appearance_hair").forEach { type ->
+                        FilterChip(selected = trainingType == type, onClick = { trainingType = type }, label = { Text(type.replace('_', ' ').replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+                OutlinedTextField(trainingTitle, { trainingTitle = it }, label = { Text("Training title") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(trainingPurpose, { trainingPurpose = it }, label = { Text("What should the AI learn from this?") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                Button(
+                    enabled = trainingTitle.isNotBlank() && trainingPurpose.isNotBlank(),
+                    onClick = { trainingPicker.launch("*/*") }
+                ) { Text("Select and upload training file") }
+                trainingStatus?.let { Text(it, color = if (it.contains("failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
+                val assets = workspace.optJSONArray("trainingAssets")
+                if (assets != null && assets.length() > 0) {
+                    Text("Registered training assets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    itemsFromJson(assets).takeLast(20).forEach { SurfaceCard("Training asset", it) }
+                }
             }
             "Inbox" -> {
                 SurfaceCard("Unified inbox", "Customer messages can be connected here through approved channels. Each conversation is scoped to this business.")
