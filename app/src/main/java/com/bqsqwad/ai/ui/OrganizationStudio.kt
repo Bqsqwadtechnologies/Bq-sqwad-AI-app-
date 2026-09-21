@@ -46,6 +46,15 @@ fun OrganizationStudioWorkspace() {
     var assistantEnabled by remember { mutableStateOf(true) }
     var sharedMemory by remember { mutableStateOf(false) }
     var sharedKnowledge by remember { mutableStateOf(false) }
+    var production by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var cameraName by remember { mutableStateOf("") }
+    var cameraEndpoint by remember { mutableStateOf("") }
+    var cameraRole by remember { mutableStateOf("wide") }
+    var destinationName by remember { mutableStateOf("") }
+    var destinationType by remember { mutableStateOf("youtube") }
+    var aiDirectorEnabled by remember { mutableStateOf(true) }
+    var autoSwitchEnabled by remember { mutableStateOf(false) }
+    var productionStatus by remember { mutableStateOf("idle") }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
@@ -65,7 +74,39 @@ fun OrganizationStudioWorkspace() {
         }
     }
 
-    LaunchedEffect(Unit) { refresh() }
+    fun refreshProduction() {
+        scope.launch {
+            runCatching { api.organizationProduction() }
+                .onSuccess {
+                    production = it
+                    val rules = it.optJSONObject("rules")
+                    aiDirectorEnabled = it.optBoolean("aiDirectorEnabled", true)
+                    autoSwitchEnabled = rules?.optBoolean("autoSwitchEnabled", false) ?: false
+                    productionStatus = it.optString("status", "idle")
+                }
+                .onFailure { error = it.message ?: "Production configuration could not be loaded." }
+        }
+    }
+
+    fun saveProductionConfig() {
+        scope.launch {
+            runCatching {
+                api.updateOrganizationProductionConfig(org.json.JSONObject()
+                    .put("autoSwitchEnabled", autoSwitchEnabled)
+                    .put("minimumConfidence", 0.8)
+                    .put("fallbackEnabled", true)
+                    .put("operatorOverride", true)
+                    .put("holdLastValidOutput", true)
+                )
+            }.onSuccess { production = it }
+             .onFailure { error = it.message ?: "Production rules could not be saved." }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refresh()
+        refreshProduction()
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
