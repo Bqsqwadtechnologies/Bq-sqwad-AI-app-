@@ -119,6 +119,41 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "POST" && path === "ai/vision") {
+        const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);
+        const imageBase64 = String(body.imageBase64 || "");
+        if (!imageBase64) return send(res, 400, { error: "image_required" });
+        if (imageBase64.length > 8_000_000) return send(res, 413, { error: "image_too_large" });
+        const gate = await authorizeCapability(user.uid, "capability_chat");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          const result = await (async () => {
+            const route = await import("./provider-gateway.js");
+            const configured = await route.getRoute("chat");
+            if (configured.primaryProviderId !== "openai") {
+              throw new Error("Live camera vision requires the configured OpenAI route.");
+            }
+            return route.callOpenAIVision({
+              model: configured.primaryModelId,
+              message,
+              imageBase64,
+              mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
+            });
+          })();
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
+          await writeActivity({ uid: user.uid, capability: "chat", action: "live_camera_vision", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
+          return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability: "chat", action: "live_camera_vision", status: "error", metadata: { error: error?.message || "vision_failed" } });
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "POST" && path === "device-command") {
         const gate = await authorizeCapability(user.uid, "capability_device_commands");
         let reservation = null;
