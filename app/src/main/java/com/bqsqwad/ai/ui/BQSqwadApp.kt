@@ -496,14 +496,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
         streamJob = scope.launch(Dispatchers.IO) {
             try {
                 ChatApiClient().streamMessage(text) { delta ->
-                    launch(Dispatchers.Main) {
+                    scope.launch(Dispatchers.Main) {
                         val current = messages.getOrNull(aiIndex)
                         if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
                     }
                 }
-                launch(Dispatchers.Main) { busy = false; streamJob = null }
+                scope.launch(Dispatchers.Main) { busy = false; streamJob = null }
             } catch (t: Throwable) {
-                launch(Dispatchers.Main) {
+                scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     if (t !is kotlinx.coroutines.CancellationException) error = t.message ?: "AI request failed"
