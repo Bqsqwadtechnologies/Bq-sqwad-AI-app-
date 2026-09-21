@@ -7,7 +7,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn() && request.auth.token.email == 'isaacoshiomole0@gmail.com';
+      return signedIn() &&
+        request.auth.token.email == 'isaacoshiomole0@gmail.com' &&
+        (request.auth.token.admin == true ||
+         request.auth.token.superAdmin == true ||
+         request.auth.token.role == 'admin' ||
+         request.auth.token.role == 'super_admin');
     }
 
     match /adminProviderSecrets/{id} {
@@ -21,6 +26,16 @@ service cloud.firestore {
 
     match /webSearchPricing/{id} {
       allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /adminAdvancedOptions/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminConfigAudit/{id} {
+      allow read: if isAdmin();
       allow write: if false;
     }
 
