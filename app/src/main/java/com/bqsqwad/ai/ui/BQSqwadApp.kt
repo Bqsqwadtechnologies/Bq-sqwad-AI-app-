@@ -699,12 +699,9 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Wo
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
-            item { Text("Extended parity workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(NativeFeatureCatalog.workspaces.filter { name -> Workspace.values().none { it.title == name } }) { name ->
-                FeatureCard(name, "Native feature surface from the former BQ Sqwad AI product.") { onWorkspace(Workspace.PERSONAL) }
-            }
-            item { Text("Capability catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(NativeFeatureCatalog.features) { f -> FeatureCard(f.title, f.description) }
+            item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
@@ -749,7 +746,7 @@ private fun AiTaskWorkspace(title: String, description: String) {
             }
         }) { Text(if (busy) "Working…" else "Run with BQ Sqwad AI") }
         if (result.isNotBlank()) SurfaceCard("Result", result)
-        SurfaceCard("Catalog capabilities", NativeFeatureCatalog.features.filter { it.workspace == title }.joinToString(" • ") { it.title }.ifBlank { "AI planning and conversation tools" })
+        SurfaceCard("Live catalog", "Feature availability, limits, and access are controlled by the backend configuration and verified entitlement state.")
     }
 }
 
