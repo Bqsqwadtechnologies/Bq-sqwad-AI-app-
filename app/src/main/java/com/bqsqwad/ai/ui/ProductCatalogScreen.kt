@@ -121,7 +121,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh,modifier=Modifier.fillMaxWidth()){
                             Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
                                 Text("Your access",fontWeight=FontWeight.Bold)
-                                Text(ent.optString("planId").ifBlank{"Current plan"})
+                                Text(plans.firstOrNull { it.id == ent.optString("planId") }?.name?.ifBlank { null } ?: "Current plan")
                                 Text(state.replace('_',' ').replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
                                 ent.optString("endDate").takeIf{it.isNotBlank()}?.let{Text("Access end: $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                             }
@@ -177,7 +177,7 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
     Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)){
         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top){
-                Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text(entry.planId,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)}
                 BqStatusBadge(if(entry.enabled)"Available" else "Unavailable")
             }
             plan?.features?.take(4)?.forEach{feature->Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.Top){Text("•",color=MaterialTheme.colorScheme.primary);Text(feature,Modifier.weight(1f))}}
@@ -187,7 +187,7 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
             }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId!=null)"Google Play • ${entry.basePlanId}" else "Google Play",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId=="yearly")"Google Play • Yearly" else "Google Play • Monthly",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 Button(onClick={
                     if(product==null||price==null||billing?.isReady()!=true)onStatus("This product is not currently available through Google Play.")
                     else{val result=billing.launchPurchase(product.productId, entry.basePlanId);onStatus(if(result.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result.debugMessage.ifBlank{"Purchase could not be started."})}
