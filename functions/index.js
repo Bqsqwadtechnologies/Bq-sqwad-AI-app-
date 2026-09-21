@@ -559,6 +559,11 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { plans: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
       }
 
+      if (req.method === "GET" && path === "admin/config") {
+        await adminFromRequest(req);
+        return send(res, 200, { options: await listAdvancedAdminOptions() });
+      }
+
       if (req.method === "GET" && path === "admin/providers") {
         await adminFromRequest(req);
         const db = getFirestore();
