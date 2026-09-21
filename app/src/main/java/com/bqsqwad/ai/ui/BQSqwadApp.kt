@@ -507,7 +507,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
-        if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). File upload/analysis is awaiting the configured secure file pipeline."
+        if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). Secure file attachment processing is not yet connected to the AI request pipeline."
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
