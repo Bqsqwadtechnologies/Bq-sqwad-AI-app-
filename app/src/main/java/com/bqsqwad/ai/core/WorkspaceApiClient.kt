@@ -39,6 +39,16 @@ class WorkspaceApiClient {
         return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0))
     }
 
+    suspend fun memory():JSONObject = request("/memory","GET")
+
+    suspend fun remember(text:String, source:String="chat"):JSONObject =
+        request("/memory",payload=JSONObject().put("text",text.take(4000)).put("source",source.take(40)))
+
+    suspend fun setMemoryEnabled(enabled:Boolean):JSONObject =
+        request("/memory/settings",payload=JSONObject().put("enabled",enabled))
+
+    suspend fun clearMemory():JSONObject = request("/memory","DELETE")
+
     suspend fun plans():JSONObject = request("/plans","GET")
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
