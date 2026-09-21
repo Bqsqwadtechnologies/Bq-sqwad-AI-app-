@@ -117,6 +117,7 @@ export async function authorizeCapability(uid, controlId) {
       });
     } catch (error) {
       if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
+      if (minuteRef) await releaseRateLimit(db, minuteRef);
       throw error;
     }
   }
