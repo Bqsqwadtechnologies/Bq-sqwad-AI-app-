@@ -90,6 +90,7 @@ fun AdminControlCenter() {
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
         SurfaceCard(
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
