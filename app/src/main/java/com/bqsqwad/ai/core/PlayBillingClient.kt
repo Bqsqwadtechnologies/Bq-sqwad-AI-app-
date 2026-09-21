@@ -172,6 +172,10 @@ class PlayBillingClient(
     }
 
     private fun verifyWithBackend(purchase: Purchase) {
+        if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
+            onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan after Google Play confirms it."))
+            return
+        }
         Thread {
             runCatching {
                 val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
@@ -196,6 +200,8 @@ class PlayBillingClient(
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                 val raw = stream.bufferedReader().use { it.readText() }
                 if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Purchase verification failed"))
+                val verified = runCatching { JSONObject(raw).optBoolean("ok", false) }.getOrDefault(false)
+                if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
                 onPurchaseState(PlayPurchaseState("success", "Purchase successful. Your entitlement is now active after server verification."))
             }
         }.start()
