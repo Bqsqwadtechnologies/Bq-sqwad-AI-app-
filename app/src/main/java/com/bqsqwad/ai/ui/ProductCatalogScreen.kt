@@ -23,7 +23,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean)
-private data class LivePlan(val id:String,val name:String,val features:List<String>,val limits:Map<String,String>)
+private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 
@@ -123,14 +123,9 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                val groups=listOf(
-                    "Business AI" to catalog.filter{it.planId.startsWith("business_")||it.productId.startsWith("biz_")},
-                    "AI Companion" to catalog.filter{it.planId.startsWith("companion_")||it.productId.startsWith("comp_")},
-                    "Learning AI" to catalog.filter{it.planId.startsWith("learn_")||it.productId.startsWith("learn_")},
-                    "TruthGuard AI" to catalog.filter{it.planId.startsWith("tg_")||it.productId.startsWith("tg_")},
-                    "AI Life Mathis" to catalog.filter{it.planId.startsWith("lm_")||it.productId.startsWith("lm_")},
-                    "Credits & Add-ons" to catalog.filter{it.productId.startsWith("cred_")||it.productId.startsWith("biz_ao_")}
-                )
+                val groups=catalog.groupBy { entry ->
+                    plans.firstOrNull { it.id==entry.planId }?.module?.ifBlank { null } ?: "Products"
+                }.toList()
                 groups.forEach{(title,entries)->
                     if(entries.isNotEmpty()){
                         item{Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
@@ -178,7 +173,7 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
 }
 private fun parsePlans(body:JSONObject):List<LivePlan>{
     val a=body.optJSONArray("plans")?:JSONArray()
-    return List(a.length()){i->{val p=a.getJSONObject(i);val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}}.filter{it.id.isNotBlank()}
+    return List(a.length()){i->{val p=a.getJSONObject(i);val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),p.optString("module"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}}.filter{it.id.isNotBlank()}
 }
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
 @Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
