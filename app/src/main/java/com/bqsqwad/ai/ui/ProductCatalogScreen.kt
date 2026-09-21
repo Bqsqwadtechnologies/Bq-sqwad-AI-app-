@@ -94,6 +94,16 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Choose what you need",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Features and limits come from the live catalog. Google Play supplies the purchase price shown below.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            billing?.restorePurchases()
+                            status = "Checking your Google Play purchases and restoring verified access…"
+                        },
+                        enabled = billing?.isReady() == true,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Restore purchases") }
+                }
                 credits?.let { balance ->
                     item {
                         Surface(shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh, modifier=Modifier.fillMaxWidth()) {
