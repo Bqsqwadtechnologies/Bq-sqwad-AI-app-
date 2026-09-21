@@ -476,12 +476,11 @@ export const bqSqwadApi = onRequest(
         const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
         const snap = await getFirestore().collection("creditLedger")
           .where("uid", "==", user.uid)
-          .orderBy("createdAt", "desc")
-          .limit(limit)
+          .limit(100)
           .get();
-        return send(res, 200, {
-          items: snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        });
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        return send(res, 200, { items: items.slice(0, limit) });
       }
 
       if (req.method === "GET" && path === "native/catalog") {
