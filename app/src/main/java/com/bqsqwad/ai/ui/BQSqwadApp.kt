@@ -604,11 +604,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                     message,
                     { value ->
                         micError = null
-                        if (value.length > 3000 && message.length <= 3000 && prefs.getBoolean("paste_long_text_as_file", true)) {
-                            val pasted = LongPasteAttachment.create(context, value, value.trimStart().startsWith("#"))
-                            error = "Long text converted to ${pasted.file.name} (${pasted.characterCount} characters)."
-                            message = "[Attached file: ${pasted.file.name}]"
-                        } else message = value
+                        message = value
                     },
                     placeholder = { Text("Message BQ Sqwad AI") },
                     modifier = Modifier.weight(1f),
