@@ -51,6 +51,14 @@ class WorkspaceApiClient {
 
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
 
+    suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
+
+    suspend fun businessAssistant(message:String): JSONObject =
+        request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
+
+    suspend fun addBusinessKnowledge(note:String): JSONObject =
+        request("/business/knowledge", payload=JSONObject().put("text", note.take(12000)))
+
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
