@@ -150,6 +150,46 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { exists: true, ...updated.data() });
       }
 
+      if (req.method === "POST" && path === "business/leads") {
+        const name = String(body.name || "").trim().slice(0, 160);
+        const contact = String(body.contact || "").trim().slice(0, 320);
+        const note = String(body.note || "").trim().slice(0, 2000);
+        if (!name) return send(res, 400, { error: "lead_name_required" });
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data() : {};
+        const leads = Array.isArray(current.leads) ? current.leads : [];
+        leads.push({ id: crypto.randomUUID(), name, contact, note, status: "new", createdAt: new Date().toISOString() });
+        await ref.set({
+          uid: user.uid,
+          leads: leads.slice(-500),
+          analytics: { ...(current.analytics || {}), leads: leads.length },
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        const updated = await ref.get();
+        return send(res, 200, { exists: true, ...updated.data() });
+      }
+
+      if (req.method === "POST" && path === "business/inbox") {
+        const message = String(body.message || "").trim().slice(0, 4000);
+        const contact = String(body.contact || "").trim().slice(0, 320);
+        if (!message) return send(res, 400, { error: "inbox_message_required" });
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data() : {};
+        const inbox = Array.isArray(current.inbox) ? current.inbox : [];
+        inbox.push({ id: crypto.randomUUID(), message, contact, status: "open", createdAt: new Date().toISOString() });
+        await ref.set({
+          uid: user.uid,
+          inbox: inbox.slice(-500),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        const updated = await ref.get();
+        return send(res, 200, { exists: true, ...updated.data() });
+      }
+
       if (req.method === "POST" && path === "business/assistant") {
         const message = String(body.message || "").trim().slice(0, 8000);
         if (!message) return send(res, 400, { error: "business_message_required" });
