@@ -1077,6 +1077,8 @@ private fun SettingsScreen(onBack: () -> Unit) {
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
     var accent by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+    var trainingConsent by remember { mutableStateOf(prefs.getBoolean("training_consent", false)) }
+    var consentStatus by remember { mutableStateOf<String?>(null) }
     val modes = listOf("system", "dark", "light", "amoled")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
 
@@ -1117,8 +1119,25 @@ private fun SettingsScreen(onBack: () -> Unit) {
             item { Text("Security & privacy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { FeatureCard("Android permissions", "Review camera, microphone and other permissions in Android settings.") { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName))) } }
             item { FeatureCard("Provider secrets", "AI provider credentials remain server-side and are never placed in the APK.") }
-            item { FeatureCard("Privacy center", "Review the BQ Sqwad AI privacy policy in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy"))) } }
-            item { FeatureCard("AI Birthday", "Account age is derived from the account creation date.") }
+            item {
+                SurfaceCard("AI training consent", if (trainingConsent) "Optional training consent is on." else "Optional training consent is off.")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = trainingConsent, onCheckedChange = { enabled ->
+                        trainingConsent = enabled
+                        prefs.edit().putBoolean("training_consent", enabled).apply()
+                        consentStatus = "Saving consent…"
+                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                            runCatching { WorkspaceApiClient().updateTrainingConsent(enabled) }
+                                .onSuccess { consentStatus = "Training consent updated." }
+                                .onFailure { consentStatus = "Could not update consent. Try again." }
+                        }
+                    })
+                    Text("Allow non-private training activity to be used to improve the service.")
+                }
+                consentStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            item { FeatureCard("Terms and Conditions", "Open the current BQ Sqwad AI terms in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) } }
+            item { FeatureCard("Privacy Policy", "Open the current BQ Sqwad AI privacy policy in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) } }
             item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
             item { Text("BQ Sqwad AI • © 2026 BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
