@@ -528,7 +528,7 @@ export const bqSqwadApi = onRequest(
           return { id: d.id, name: String(x.name || d.id), description: String(x.description || ""), type: String(x.type || ""), enabled: x.enabled !== false, eligiblePlanIds: Array.isArray(x.eligiblePlanIds) ? x.eligiblePlanIds.map(String) : [], quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : [] };
         });
         const business = businessSnap.exists ? businessSnap.data() : null;
-        return send(res, 200, { version: Math.max(1, Number(business?.version || playSnap.data()?.version || 1)), plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible), products, features: features.filter(x => x.visible), bindings, addOns, businessPricingConfigured: business !== null });
+        return send(res, 200, { version: Math.max(1, Number(business?.version || playSnap.data()?.version || 1)), plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible), products, features: features.filter(x => x.visible), bindings, addOns, businessPricingConfigured: business !== null, businessPricing: business || null });
       }
 
       if (req.method === "GET" && path === "play/catalog") {
