@@ -93,13 +93,15 @@ class PlayBillingClient(
 
     fun availableProducts(): List<ProductDetails> = details.values.toList()
 
-    fun launchPurchase(productId: String): BillingResult? {
+    fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null)
+
+    fun launchPurchase(productId: String, basePlanId: String?): BillingResult? {
         val product = details[productId] ?: return null
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
         val offerToken = when (product.productType) {
             ProductType.SUBS -> {
-                val preferredBasePlan = catalog[productId]?.basePlanId
+                val preferredBasePlan = basePlanId ?: catalog[productId]?.basePlanId
                 val offer = product.subscriptionOfferDetails?.firstOrNull { detail ->
                     preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
                 }
