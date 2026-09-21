@@ -1,6 +1,7 @@
 package com.bqsqwad.ai.ui
 
 import android.app.Activity
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,15 +44,14 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
-                val p=api.plans()
-                val c=api.playCatalog()
-                plans=parsePlans(p); catalog=parseCatalog(c)
+                val live=api.nativeCatalog()
+                plans=parsePlans(live); catalog=parseCatalog(live)
                 context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
-                    .putString("plans",p.toString()).putString("catalog",c.toString()).apply()
+                    .putString("catalog",live.toString()).apply()
             } catch(t:Throwable) {
                 val cache=context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE)
-                val p=cache.getString("plans",null); val c=cache.getString("catalog",null)
-                if(p!=null&&c!=null){plans=parsePlans(JSONObject(p));catalog=parseCatalog(JSONObject(c));offline=true}
+                val c=cache.getString("catalog",null)
+                if(c!=null){plans=parsePlans(JSONObject(c));catalog=parseCatalog(JSONObject(c));offline=true}
                 else error=t.message?:"Product configuration could not be loaded."
             } finally { loading=false }
         }
