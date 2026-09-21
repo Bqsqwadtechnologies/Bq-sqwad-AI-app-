@@ -72,6 +72,17 @@ class WorkspaceApiClient {
     suspend fun setOrganizationChannel(channelId:String, enabled:Boolean):JSONObject =
         request("/organization/channel-state",payload=JSONObject().put("channelId",channelId).put("enabled",enabled))
 
+    suspend fun organization(): JSONObject = request("/organization","GET")
+
+    suspend fun updateOrganization(name:String, description:String): JSONObject =
+        request("/organization", payload=JSONObject().put("name",name.take(160)).put("description",description.take(2000)))
+
+    suspend fun addOrganizationChannel(name:String, type:String="chat"): JSONObject =
+        request("/organization/channels", payload=JSONObject().put("name",name.take(120)).put("type",type.take(40)))
+
+    suspend fun setOrganizationChannel(channelId:String, enabled:Boolean): JSONObject =
+        request("/organization/channel-state", payload=JSONObject().put("channelId",channelId).put("enabled",enabled))
+
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
 
     suspend fun businessAssistant(message:String): JSONObject =
