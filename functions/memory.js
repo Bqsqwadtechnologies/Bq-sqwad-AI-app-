@@ -1,4 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import crypto from "node:crypto";
 
 const COLLECTION = "userMemory";
 
