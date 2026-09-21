@@ -362,6 +362,53 @@ export const bqSqwadApi = onRequest(
         });
       }
 
+      if (req.method === "GET" && path === "native/catalog") {
+        const db = getFirestore();
+        const [plansSnap, playSnap, featureSnap, bindingSnap, addOnSnap, businessSnap] = await Promise.all([
+          db.collection("plans").where("active", "==", true).get(),
+          db.collection("playCatalog").doc("config").get(),
+          db.collection("featureRegistry").get(),
+          db.collection("planFeatureBindings").get(),
+          db.collection("addOns").where("enabled", "==", true).get(),
+          db.collection("config").doc("businessPricing").get()
+        ]);
+        const safePlan = (id, data = {}) => ({
+          id,
+          name: String(data.name || ""),
+          description: String(data.description || ""),
+          features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
+          limits: data.limits && typeof data.limits === "object" ? data.limits : {},
+          badge: data.badge ? String(data.badge) : null,
+          highlighted: data.highlighted === true,
+          sortOrder: Number(data.sortOrder || 0),
+          visible: data.visible !== false,
+          version: Number(data.version || 1),
+          effectiveDate: data.effectiveDate || null
+        });
+        const products = playSnap.exists && Array.isArray(playSnap.data()?.products) ? playSnap.data().products.map(p => ({
+          planId: String(p.planId || ""),
+          productId: String(p.productId || ""),
+          basePlanId: p.basePlanId ? String(p.basePlanId) : null,
+          productType: String(p.productType || ""),
+          enabled: p.enabled === true,
+          consumable: p.consumable === true
+        })).filter(p => p.productId && (p.productType === "subs" || p.productType === "inapp")) : [];
+        const features = featureSnap.docs.map(d => {
+          const x = d.data();
+          return { id: d.id, name: String(x.name || x.title || d.id), description: String(x.description || ""), group: String(x.group || x.category || ""), product: String(x.product || ""), defaultState: String(x.defaultState || "unavailable"), visible: x.visible !== false, comingSoon: x.comingSoon === true };
+        });
+        const bindings = bindingSnap.docs.map(d => {
+          const x = d.data();
+          return { id: d.id, planId: String(x.planId || ""), featureId: String(x.featureId || ""), state: String(x.state || "unavailable"), quota: x.quota ?? null, creditCost: x.creditCost ?? null, note: x.note ? String(x.note) : null, version: Number(x.version || 1) };
+        });
+        const addOns = addOnSnap.docs.map(d => {
+          const x = d.data();
+          return { id: d.id, name: String(x.name || d.id), description: String(x.description || ""), type: String(x.type || ""), enabled: x.enabled !== false, eligiblePlanIds: Array.isArray(x.eligiblePlanIds) ? x.eligiblePlanIds.map(String) : [], quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : [] };
+        });
+        const business = businessSnap.exists ? businessSnap.data() : null;
+        return send(res, 200, { version: Math.max(1, Number(business?.version || playSnap.data()?.version || 1)), plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible), products, features: features.filter(x => x.visible), bindings, addOns, businessPricingConfigured: business !== null });
+      }
+
       if (req.method === "GET" && path === "play/catalog") {
         const snap = await getFirestore().collection("playCatalog").doc("config").get();
         const products = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : [];
