@@ -710,7 +710,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
 private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Workspace) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = { IconButton(onPlans) { Icon(Icons.Default.CreditCard, "Plans") } }) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT && (it != Workspace.ADMIN || FirebaseAuth.getInstance().currentUser?.email.equals("isaacoshiomole0@gmail.com", true)) }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
