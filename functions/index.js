@@ -13,7 +13,7 @@ import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlCon
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
-import { getOrganization, updateOrganization, addOrganizationChannel, setOrganizationChannel } from "./organization.js";
+import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 
 initializeApp();
@@ -142,6 +142,50 @@ export const bqSqwadApi = onRequest(
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
         try {
           const result = await addOrganizationChannel(user.uid, name, body.type);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/settings") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await updateOrganizationSettings(user.uid, body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/knowledge") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await addOrganizationKnowledge(user.uid, body.text, body.source);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/members") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await upsertOrganizationMember(user.uid, body.memberId, body.role);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/member-state") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await setOrganizationMemberStatus(user.uid, body.memberId, body.status);
           gate.commit();
           return send(res, 200, result);
         } finally {
