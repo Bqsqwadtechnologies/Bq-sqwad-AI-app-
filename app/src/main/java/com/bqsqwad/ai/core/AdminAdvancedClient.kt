@@ -66,11 +66,49 @@ data class AdminOperationalConfig(
     val dailyUserLimit: Long? = null
 )
 
+data class AdminPlayCatalogItem(
+    val module:String,
+    val name:String,
+    val planId:String,
+    val productId:String?,
+    val billingPeriod:String,
+    val basePlanId:String?,
+    val priceUsd:Double?,
+    val playEligible:Boolean,
+    val contactSales:Boolean,
+    val trialOfferId:String?,
+    val trialDays:Int?,
+    val limits:String,
+    val quantityTiers:String
+)
+
 class AdminAdvancedClient(
     private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
     suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/config", null).let { root ->
         parseOptions(root.optJSONArray("options") ?: JSONArray())
+    }
+
+    suspend fun playCatalog(): List<AdminPlayCatalogItem> = request("GET", "/admin/play-catalog", null).let { root ->
+        val array = root.optJSONArray("ids") ?: JSONArray()
+        (0 until array.length()).map { i ->
+            val x = array.getJSONObject(i)
+            AdminPlayCatalogItem(
+                module = x.optString("module"),
+                name = x.optString("name"),
+                planId = x.optString("planId"),
+                productId = x.optString("productId").takeIf { it.isNotBlank() },
+                billingPeriod = x.optString("billingPeriod"),
+                basePlanId = x.optString("basePlanId").takeIf { it.isNotBlank() },
+                priceUsd = if (x.isNull("priceUsd")) null else x.optDouble("priceUsd"),
+                playEligible = x.optBoolean("playEligible", false),
+                contactSales = x.optBoolean("contactSales", false),
+                trialOfferId = x.optString("trialOfferId").takeIf { it.isNotBlank() && it != "null" },
+                trialDays = if (x.isNull("trialDays")) null else x.optInt("trialDays"),
+                limits = x.optJSONObject("limits")?.toString() ?: "",
+                quantityTiers = x.optJSONArray("quantityTiers")?.toString() ?: ""
+            )
+        }
     }
 
     suspend fun update(option: AdvancedAdminOption): AdvancedAdminOption {
