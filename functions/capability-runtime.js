@@ -145,7 +145,7 @@ async function releaseDailyUsage(db, ref, uid, controlId) {
 }
 
 
-async function deactivateExpiredUserServices(db, uid) {
+export async function deactivateExpiredUserServices(db, uid) {
   const organizationRef = db.collection("organizationWorkspaces").doc(uid);
   const organization = await organizationRef.get();
   if (organization.exists) {
@@ -155,7 +155,7 @@ async function deactivateExpiredUserServices(db, uid) {
       : [];
     await organizationRef.set({
       channels,
-      settings: { ...(data.settings || {}), assistantEnabled: false },
+      settings: { ...(data.settings || {}), assistantEnabled: false, assistantDisabledByPlanExpiry: true },
       servicesDeactivatedAt: FieldValue.serverTimestamp(),
       servicesDeactivationReason: "plan_expired",
       updatedAt: FieldValue.serverTimestamp()
@@ -176,5 +176,53 @@ async function deactivateExpiredUserServices(db, uid) {
       servicesDeactivationReason: "plan_expired",
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
+  }
+}
+
+
+export async function restoreServicesAfterRenewal(db, uid) {
+  const organizationRef = db.collection("organizationWorkspaces").doc(uid);
+  const organization = await organizationRef.get();
+  if (organization.exists) {
+    const data = organization.data() || {};
+    const settings = { ...(data.settings || {}) };
+    if (settings.assistantDisabledByPlanExpiry === true) {
+      settings.assistantEnabled = true;
+      delete settings.assistantDisabledByPlanExpiry;
+    }
+    const channels = Array.isArray(data.channels)
+      ? data.channels.map(channel => channel.deactivatedByPlanExpiry === true
+          ? (() => { const next = { ...channel, enabled: true }; delete next.deactivatedByPlanExpiry; return next; })()
+          : channel)
+      : [];
+    await organizationRef.set({
+      channels,
+      settings,
+      servicesDeactivatedAt: null,
+      servicesDeactivationReason: null,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+
+  const businessRef = db.collection("businessWorkspaces").doc(uid);
+  const business = await businessRef.get();
+  if (business.exists) {
+    const data = business.data() || {};
+    const channels = Array.isArray(data.channels)
+      ? data.channels.map(channel => channel.deactivatedByPlanExpiry === true
+          ? (() => { const next = { ...channel, enabled: true }; delete next.deactivatedByPlanExpiry; return next; })()
+          : channel)
+      : [];
+    const patch = {
+      channels,
+      servicesDeactivatedAt: null,
+      servicesDeactivationReason: null,
+      updatedAt: FieldValue.serverTimestamp()
+    };
+    if (data.assistantDisabledByPlanExpiry === true) {
+      patch.assistantEnabled = true;
+      patch.assistantDisabledByPlanExpiry = null;
+    }
+    await businessRef.set(patch, { merge: true });
   }
 }
