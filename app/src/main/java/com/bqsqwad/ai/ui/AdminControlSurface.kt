@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminAdvancedClient
 import com.bqsqwad.ai.core.AdminOperationalConfig
+import com.bqsqwad.ai.core.AdminPlayCatalogItem
 import com.bqsqwad.ai.core.AdvancedAdminOption
 import kotlinx.coroutines.launch
 
@@ -39,12 +40,14 @@ fun AdminControlCenter() {
     var selectedSection by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
             .onSuccess { options = it; error = null }
             .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
         loading = false
+        runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
     }
 
     val sections = listOf(
@@ -85,6 +88,27 @@ fun AdminControlCenter() {
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
         )
+        if (playCatalog.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Google Play Plan Catalog", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Admin-only internal IDs. Customer screens do not display these IDs.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    playCatalog.forEach { item ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                            Text(item.name, fontWeight = FontWeight.SemiBold)
+                            Text("Plan ID: " + item.planId, style = MaterialTheme.typography.labelSmall)
+                            item.productId?.let { Text("Product ID: " + it, style = MaterialTheme.typography.labelSmall) }
+                            Text("Billing: " + item.billingPeriod + (item.basePlanId?.let { " • Base plan: " + it } ?: ""), style = MaterialTheme.typography.labelSmall)
+                            Text("Price: " + (item.priceUsd?.let { "USD %.2f".format(it) } ?: if (item.contactSales) "Contact Sales" else "Not priced"), style = MaterialTheme.typography.labelSmall)
+                            if (item.trialOfferId != null) Text("Trial: " + item.trialOfferId + " • " + (item.trialDays ?: 3) + " days", style = MaterialTheme.typography.labelSmall)
+                            if (item.quantityTiers.isNotBlank()) Text("Quantity tiers: " + item.quantityTiers, style = MaterialTheme.typography.labelSmall)
+                            if (item.limits.isNotBlank()) Text("Limits: " + item.limits, style = MaterialTheme.typography.labelSmall)
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+        }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
