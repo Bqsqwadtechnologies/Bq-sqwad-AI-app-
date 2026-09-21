@@ -1,3 +1,4 @@
+import { restoreServicesAfterRenewal, deactivateExpiredUserServices } from "./capability-runtime.js";
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
@@ -167,6 +168,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     await playApi("purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken) + ":acknowledge", "POST", {});
   }
 
+  await restoreServicesAfterRenewal(db, uid);
   return { ok: true, alreadyProcessed: false, state: "verified" };
 }
 
@@ -190,13 +192,20 @@ export async function processPlayRtdn(event) {
   const verified = await playApi("purchases/subscriptionsv2/tokens/" + encodeURIComponent(notification.purchaseToken));
   const state = String(verified.subscriptionState || "SUBSCRIPTION_STATE_UNSPECIFIED");
   const normalized = state === "SUBSCRIPTION_STATE_ACTIVE" ? "active" : state === "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" ? "grace" : state === "SUBSCRIPTION_STATE_ON_HOLD" ? "on_hold" : state === "SUBSCRIPTION_STATE_PAUSED" ? "paused" : state === "SUBSCRIPTION_STATE_CANCELED" ? "cancelled" : state === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "pending";
-  await db.collection("entitlements").doc(String(purchase.data().uid)).set({
+  const uid = String(purchase.data().uid);
+  const endDate = verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null;
+  await db.collection("entitlements").doc(uid).set({
     state: normalized,
     renewalState: state,
     source: "play",
     providerReference: notification.purchaseToken,
-    endDate: verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null,
+    endDate,
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
+  if (["active", "grace", "on_hold", "paused"].includes(normalized)) {
+    await restoreServicesAfterRenewal(db, uid);
+  } else if (normalized === "expired" || (normalized === "cancelled" && endDate && endDate.getTime() <= Date.now())) {
+    await deactivateExpiredUserServices(db, uid);
+  }
   return { ok: true, state: normalized };
 }
