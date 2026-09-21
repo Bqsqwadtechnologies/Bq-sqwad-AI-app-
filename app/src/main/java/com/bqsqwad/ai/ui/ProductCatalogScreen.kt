@@ -1,7 +1,6 @@
 package com.bqsqwad.ai.ui
 
 import android.app.Activity
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -131,7 +130,7 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
                 Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId!=null)"Google Play • ${entry.basePlanId}" else "Google Play",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 Button(onClick={
                     if(product==null||price==null||billing?.isReady()!=true)onStatus("This product is not currently available through Google Play.")
-                    else{val result=billing.launchPurchase(product.productId);onStatus(if(result.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result.debugMessage.ifBlank{"Purchase could not be started."})}
+                    else{val result=billing.launchPurchase(product.productId, entry.basePlanId);onStatus(if(result.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result.debugMessage.ifBlank{"Purchase could not be started."})}
                 },enabled=entry.enabled&&product!=null&&price!=null&&billing?.isReady()==true){Text(if(price==null)"Unavailable" else "Get")}
             }
         }
