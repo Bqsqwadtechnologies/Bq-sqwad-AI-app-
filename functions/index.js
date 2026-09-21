@@ -119,6 +119,54 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "POST" && path === "ai/stream") {
+        const capability = String(body.capability || "chat").trim();
+        if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
+        const gate = await authorizeCapability(user.uid, "capability_" + capability);
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, capability);
+          const route = await import("./provider-gateway.js");
+          const configured = await route.getRoute(capability);
+          if (configured.primaryProviderId !== "openai") throw new Error("Streaming requires the configured OpenAI route.");
+          res.status(200);
+          res.set("Cache-Control", "no-cache");
+          res.set("Connection", "keep-alive");
+          res.set("Content-Type", "text/event-stream");
+          res.flushHeaders?.();
+          let completed = false;
+          await route.streamOpenAI({
+            model: configured.primaryModelId,
+            message: String(body.message || ""),
+            system: body.system ? String(body.system) : undefined,
+            onEvent: event => {
+              if (event.type === "delta") {
+                res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "\n\n");
+              } else if (event.type === "completed") {
+                completed = true;
+                res.write("data: " + JSON.stringify({ type: "completed" }) + "\n\n");
+              } else if (event.type === "error") {
+                res.write("data: " + JSON.stringify({ type: "error", message: event.message }) + "\n\n");
+              }
+            }
+          });
+          if (!completed) throw new Error("The AI stream ended before completion.");
+          await commitCredits(user.uid, reservation?.reservationId, "openai");
+          gate.commit();
+          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "success", metadata: { provider: "openai", model: configured.primaryModelId || "" } });
+          res.write("data: [DONE]\n\n");
+          return res.end();
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "error", metadata: { error: error?.message || "stream_failed" } });
+          if (!res.headersSent) return send(res, 400, { error: error instanceof Error ? error.message : "stream_failed" });
+          res.write("data: " + JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "stream_failed" }) + "\n\n");
+          return res.end();
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "POST" && path === "ai/vision") {
         const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);
         const imageBase64 = String(body.imageBase64 || "");
