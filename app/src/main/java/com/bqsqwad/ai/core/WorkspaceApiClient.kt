@@ -61,17 +61,6 @@ class WorkspaceApiClient {
 
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
 
-    suspend fun organization():JSONObject = request("/organization","GET")
-
-    suspend fun updateOrganization(name:String, description:String):JSONObject =
-        request("/organization",payload=JSONObject().put("name",name.take(160)).put("description",description.take(2000)))
-
-    suspend fun addOrganizationChannel(name:String, type:String="chat"):JSONObject =
-        request("/organization/channels",payload=JSONObject().put("name",name.take(120)).put("type",type.take(40)))
-
-    suspend fun setOrganizationChannel(channelId:String, enabled:Boolean):JSONObject =
-        request("/organization/channel-state",payload=JSONObject().put("channelId",channelId).put("enabled",enabled))
-
     suspend fun organization(): JSONObject = request("/organization","GET")
 
     suspend fun updateOrganization(name:String, description:String): JSONObject =
@@ -82,6 +71,22 @@ class WorkspaceApiClient {
 
     suspend fun setOrganizationChannel(channelId:String, enabled:Boolean): JSONObject =
         request("/organization/channel-state", payload=JSONObject().put("channelId",channelId).put("enabled",enabled))
+
+    suspend fun updateOrganizationSettings(assistantEnabled:Boolean?=null, sharedMemoryEnabled:Boolean?=null, sharedKnowledgeEnabled:Boolean?=null):JSONObject =
+        request("/organization/settings",payload=JSONObject().apply {
+            if(assistantEnabled!=null) put("assistantEnabled",assistantEnabled)
+            if(sharedMemoryEnabled!=null) put("sharedMemoryEnabled",sharedMemoryEnabled)
+            if(sharedKnowledgeEnabled!=null) put("sharedKnowledgeEnabled",sharedKnowledgeEnabled)
+        })
+
+    suspend fun addOrganizationKnowledge(text:String, source:String="manual"):JSONObject =
+        request("/organization/knowledge",payload=JSONObject().put("text",text.take(12000)).put("source",source.take(80)))
+
+    suspend fun upsertOrganizationMember(memberId:String, role:String="member"):JSONObject =
+        request("/organization/members",payload=JSONObject().put("memberId",memberId.take(200)).put("role",role.take(30)))
+
+    suspend fun setOrganizationMemberStatus(memberId:String, status:String):JSONObject =
+        request("/organization/member-state",payload=JSONObject().put("memberId",memberId.take(200)).put("status",status.take(20)))
 
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
 
