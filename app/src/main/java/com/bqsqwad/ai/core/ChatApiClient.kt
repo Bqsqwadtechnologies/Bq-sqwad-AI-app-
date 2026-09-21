@@ -89,27 +89,32 @@ class ChatApiClient(
             val raw = (connection.errorStream ?: connection.inputStream).bufferedReader().use { it.readText() }
             throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("AI streaming request failed"))
         }
-        val reader: BufferedReader = connection.inputStream.bufferedReader()
-        val text = StringBuilder()
-        reader.useLines { lines ->
-            for (line in lines) {
-                if (!line.startsWith("data:")) continue
-                val payload = line.removePrefix("data:").trim()
-                if (payload == "[DONE]") break
-                val event = runCatching { JSONObject(payload) }.getOrNull() ?: continue
-                when (event.optString("type")) {
-                    "delta" -> {
-                        val delta = event.optString("text")
-                        if (delta.isNotEmpty()) {
-                            text.append(delta)
-                            onDelta(delta)
+        try {
+            val reader: BufferedReader = connection.inputStream.bufferedReader()
+            val text = StringBuilder()
+            reader.useLines { lines ->
+                for (line in lines) {
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    if (!line.startsWith("data:")) continue
+                    val payload = line.removePrefix("data:").trim()
+                    if (payload == "[DONE]") break
+                    val event = runCatching { JSONObject(payload) }.getOrNull() ?: continue
+                    when (event.optString("type")) {
+                        "delta" -> {
+                            val delta = event.optString("text")
+                            if (delta.isNotEmpty()) {
+                                text.append(delta)
+                                onDelta(delta)
+                            }
                         }
+                        "error" -> throw IllegalStateException(event.optString("message", "AI streaming request failed"))
                     }
-                    "error" -> throw IllegalStateException(event.optString("message", "AI streaming request failed"))
                 }
             }
+            ChatReply(text.toString(), "openai", null, 0.0)
+        } finally {
+            connection.disconnect()
         }
-        ChatReply(text.toString(), "openai", null, 0.0)
     } }
 
     suspend fun analyzeCameraFrame(
