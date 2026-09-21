@@ -78,6 +78,46 @@ export async function callOpenAIVision({ model, message, imageBase64, mimeType =
   return { text, providerId: "openai", modelId: body.model, rawUsage: result.usage || {} };
 }
 
+
+export async function streamOpenAI({ model, message, system, onEvent }) {
+  const apiKey = await getProviderSecret("openai");
+  if (!apiKey) throw new Error("OpenAI provider is not configured");
+  const body = { model: model || DEFAULT_MODELS.openai, input: message, stream: true };
+  if (system) body.instructions = system;
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok || !response.body) {
+    const raw = await response.text();
+    throw new Error("Provider HTTP " + response.status + ": " + raw.slice(0, 1000));
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const data = event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+        if (!data || data === "[DONE]") continue;
+        let parsed;
+        try { parsed = JSON.parse(data); } catch { continue; }
+        if (parsed.type === "response.output_text.delta" && parsed.delta) onEvent({ type: "delta", text: String(parsed.delta) });
+        if (parsed.type === "response.completed") onEvent({ type: "completed", response: parsed.response || null });
+        if (parsed.type === "error") onEvent({ type: "error", message: parsed.error?.message || "Streaming request failed" });
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function callGemini({ model, message, system }) {
   const apiKey = await getProviderSecret("gemini");
   if (!apiKey) throw new Error("Gemini provider is not configured");
