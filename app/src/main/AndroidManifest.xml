@@ -14,6 +14,10 @@
         android:label="BQ Sqwad AI"
         android:supportsRtl="true"
         android:theme="@style/Theme.BQSqwadAI">
+        <service
+            android:name=".core.LiveMediaForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
