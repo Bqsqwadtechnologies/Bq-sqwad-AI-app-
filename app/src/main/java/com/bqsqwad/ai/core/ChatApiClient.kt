@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,7 +21,7 @@ class ChatApiClient(
     private val baseUrl: String = "https://europe-west1-" +
         FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
-    suspend fun sendMessage(message: String, capability: String = "chat"): ChatReply = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(message: String, capability: String = "chat"): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
@@ -54,4 +55,4 @@ class ChatApiClient(
             creditsCharged = body.optDouble("creditsCharged", 0.0)
         )
     }
-}
+} }
