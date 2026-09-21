@@ -125,6 +125,30 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { exists: true, ...snap.data() });
       }
 
+      if (req.method === "POST" && path === "business/training-assets") {
+        const type = String(body.type || "").trim().toLowerCase();
+        const allowedTypes = new Set(["text", "document", "photo", "voice", "video", "step_by_step", "appearance_hair"]);
+        if (!allowedTypes.has(type)) return send(res, 400, { error: "unsupported_training_asset_type" });
+        const purpose = String(body.purpose || "").trim().slice(0, 1000);
+        const title = String(body.title || "").trim().slice(0, 180);
+        if (!title || !purpose) return send(res, 400, { error: "training_asset_title_and_purpose_required" });
+        const db = getFirestore();
+        const ref = db.collection("businessWorkspaces").doc(user.uid);
+        const snap = await ref.get();
+        const current = snap.exists ? snap.data() : {};
+        const trainingAssets = Array.isArray(current.trainingAssets) ? current.trainingAssets : [];
+        trainingAssets.push({
+          id: crypto.randomUUID(),
+          type,
+          title,
+          purpose,
+          status: "metadata_saved",
+          createdAt: new Date().toISOString()
+        });
+        await ref.set({ uid: user.uid, trainingAssets: trainingAssets.slice(-500), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return send(res, 200, { ok: true, trainingAssets });
+      }
+
       if (req.method === "POST" && path === "business/knowledge") {
         const text = String(body.text || "").trim().slice(0, 12000);
         if (!text) return send(res, 400, { error: "knowledge_text_required" });
