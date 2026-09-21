@@ -780,6 +780,8 @@ private fun CameraWorkspace() {
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
     var analyzing by remember { mutableStateOf(false) }
+    var permissionExplanation by remember { mutableStateOf(false) }
+    var lastAnalysisAt by remember { mutableLongStateOf(0L) }
     var prompt by remember { mutableStateOf("What do you see in this camera view?") }
     var answer by remember { mutableStateOf("") }
     var lens by remember { mutableStateOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) }
@@ -797,7 +799,7 @@ private fun CameraWorkspace() {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
         if (!granted) {
-            Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+            Button(onClick = { permissionExplanation = true }) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Enable camera")
@@ -819,7 +821,9 @@ private fun CameraWorkspace() {
                 Modifier.fillMaxWidth().height(280.dp),
                 lensFacing = lens,
                 onFrame = { frame ->
-                    if (!analyzing) {
+                    val now = System.currentTimeMillis()
+                    if (!analyzing && now - lastAnalysisAt >= 1500L) {
+                        lastAnalysisAt = now
                         analyzing = true
                         scope.launch {
                             try {
@@ -842,6 +846,17 @@ private fun CameraWorkspace() {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
     }
+    if (permissionExplanation) {
+        AlertDialog(
+            onDismissRequest = { permissionExplanation = false },
+            title = { Text("Camera access") },
+            text = { Text("BQ Sqwad AI needs camera access only while you use Live Camera. A visible Android live-session indicator stays on while the camera is active.") },
+            confirmButton = {
+                TextButton(onClick = { permissionExplanation = false; launcher.launch(Manifest.permission.CAMERA) }) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { permissionExplanation = false }) { Text("Not now") } }
+        )
+    }
 }
 
 @Composable
@@ -854,6 +869,7 @@ private fun VoiceWorkspace() {
     var speaking by remember { mutableStateOf(false) }
     var ttsReady by remember { mutableStateOf(false) }
     var ttsFailed by remember { mutableStateOf(false) }
+    var permissionExplanation by remember { mutableStateOf(false) }
     val tts = remember {
         TextToSpeech(context) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -922,7 +938,7 @@ private fun VoiceWorkspace() {
             Button(onClick = {
                 tts.stop()
                 speaking = false
-                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) else startListening()
+                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) permissionExplanation = true else startListening()
             }) {
                 Icon(Icons.Default.Mic, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -942,6 +958,17 @@ private fun VoiceWorkspace() {
         OutlinedButton(onClick = { tts.stop(); speaking = false }, enabled = speaking) { Text("Stop speaking") }
         if (ttsFailed) Text("Android text-to-speech could not initialize. Check the device speech settings.", color = MaterialTheme.colorScheme.error)
         SurfaceCard("Live status", if (listening) "● Microphone active" else "Microphone stopped")
+    }
+    if (permissionExplanation) {
+        AlertDialog(
+            onDismissRequest = { permissionExplanation = false },
+            title = { Text("Microphone access") },
+            text = { Text("BQ Sqwad AI needs microphone access only while you use Live Voice. A visible Android live-session indicator stays on while the microphone session is active.") },
+            confirmButton = {
+                TextButton(onClick = { permissionExplanation = false; permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { permissionExplanation = false }) { Text("Not now") } }
+        )
     }
 }
 
