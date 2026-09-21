@@ -42,6 +42,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
+    var entitlement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -49,7 +50,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             try {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
-                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live)
+                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); entitlement=runCatching{api.entitlement()}.getOrNull()
                 context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                     .putString("catalog",live.toString()).apply()
             } catch(t:Throwable) {
@@ -92,6 +93,19 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Choose what you need",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Features and limits come from the live catalog. Google Play supplies the purchase price shown below.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                entitlement?.let { ent ->
+                    if (ent.optBoolean("exists", false)) item {
+                        val state=ent.optString("status").ifBlank{if(ent.optBoolean("active",false))"active" else "unknown"}
+                        Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh,modifier=Modifier.fillMaxWidth()){
+                            Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                                Text("Your access",fontWeight=FontWeight.Bold)
+                                Text(ent.optString("planId").ifBlank{"Current plan"})
+                                Text(state.replace('_',' ').replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                                ent.optString("endDate").takeIf{it.isNotBlank()}?.let{Text("Access end: $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                            }
+                        }
+                    }
+                }
                 if(features.isNotEmpty()) item {
                     Surface(shape=RoundedCornerShape(18.dp),tonalElevation=2.dp,modifier=Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
