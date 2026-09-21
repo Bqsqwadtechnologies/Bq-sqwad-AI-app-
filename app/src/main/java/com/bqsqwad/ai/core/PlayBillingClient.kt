@@ -50,6 +50,7 @@ class PlayBillingClient(
         .build()
 
     private val details = mutableMapOf<String, ProductDetails>()
+    private val catalog = mutableMapOf<String, PlayCatalogItem>()
     private var connected = false
 
     fun start() {
@@ -97,7 +98,13 @@ class PlayBillingClient(
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
         val offerToken = when (product.productType) {
-            ProductType.SUBS -> product.subscriptionOfferDetails?.firstOrNull()?.offerToken
+            ProductType.SUBS -> {
+                val preferredBasePlan = catalog[productId]?.basePlanId
+                val offer = product.subscriptionOfferDetails?.firstOrNull { detail ->
+                    preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
+                }
+                offer?.offerToken
+            }
             ProductType.INAPP -> product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
             else -> null
         }
@@ -139,6 +146,14 @@ class PlayBillingClient(
                     val id = item.optString("productId")
                     val type = item.optString("productType")
                     if (id.isBlank() || (type != ProductType.SUBS && type != ProductType.INAPP)) continue
+                    catalog[id] = PlayCatalogItem(
+                        planId = item.optString("planId"),
+                        productId = id,
+                        basePlanId = item.optString("basePlanId").ifBlank { null },
+                        productType = type,
+                        enabled = item.optBoolean("enabled", false),
+                        consumable = item.optBoolean("consumable", false)
+                    )
                     products += QueryProductDetailsParams.Product.newBuilder()
                         .setProductId(id)
                         .setProductType(type)
