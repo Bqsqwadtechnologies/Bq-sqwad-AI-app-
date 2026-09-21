@@ -721,7 +721,7 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
                 Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.")
                 Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")
                 Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.")
-                Workspace.BUSINESS -> AiTaskWorkspace("Business AI", "AI employees, agents, knowledge, connections, workflows and analytics.")
+                Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> if (admin) AdminControlCenter() else AccessDenied()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
