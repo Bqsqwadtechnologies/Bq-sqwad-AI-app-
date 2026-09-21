@@ -1,6 +1,7 @@
 import { restoreServicesAfterRenewal, deactivateExpiredUserServices } from "./capability-runtime.js";
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { canonicalPlayProducts } from "./play-catalog.js";
 
 const PACKAGE_NAME = "com.bqsqwad.ai";
 
@@ -65,9 +66,9 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   }
   const db = getFirestore();
   const catalogSnap = await db.collection("playCatalog").doc("config").get();
-  const products = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products)
+  const products = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products) && catalogSnap.data().products.length
     ? catalogSnap.data().products
-    : [];
+    : canonicalPlayProducts();
   const mapping = products.find(p => p.productId === productId && p.enabled === true);
   if (!mapping) throw new Error("play_product_not_configured");
 
