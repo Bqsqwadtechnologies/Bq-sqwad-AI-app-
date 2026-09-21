@@ -72,8 +72,18 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
 
   const existingRef = db.collection("playPurchases").doc(crypto.createHash("sha256").update(purchaseToken).digest("hex"));
   const existing = await existingRef.get();
+  if (existing.exists && existing.data()?.uid !== uid) throw new Error("play_purchase_owned_by_another_account");
   if (existing.exists && existing.data()?.uid === uid && existing.data()?.verified === true) {
     return { ok: true, alreadyProcessed: true, state: existing.data()?.state || "verified" };
+  }
+  if (mapping.planId) {
+    const entitlementSnap = await db.collection("entitlements").doc(uid).get();
+    const entitlement = entitlementSnap.exists ? entitlementSnap.data() : null;
+    const existingPlan = entitlement?.planId ? String(entitlement.planId) : "";
+    const existingState = entitlement?.state ? String(entitlement.state) : "";
+    if (existingPlan && existingPlan === String(mapping.planId) && ["active","grace","on_hold","paused"].includes(existingState) && entitlement?.source === "legacy") {
+      throw new Error("legacy_entitlement_already_active");
+    }
   }
 
   const verified = mapping.productType === "subs"
