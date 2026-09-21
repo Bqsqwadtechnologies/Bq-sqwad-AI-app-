@@ -520,9 +520,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 IconButton(onClick = openHub) {
                     Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu")
                 }
-                BqLogo(46.dp)
                 Column(Modifier.weight(1f)) {
-                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    BqLogo(46.dp)
+                    Spacer(Modifier.height(2.dp))
                     Text("The AI that grows with you", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) {
