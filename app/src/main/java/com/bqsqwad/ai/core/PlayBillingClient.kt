@@ -138,10 +138,10 @@ class PlayBillingClient(
                     setRequestProperty("Authorization", "Bearer $token")
                 }
                 val raw = connection.inputStream.bufferedReader().use { it.readText() }
-                val catalog = JSONObject(raw).optJSONArray("products") ?: JSONArray()
+                val catalogJson = JSONObject(raw).optJSONArray("products") ?: JSONArray()
                 val products = mutableListOf<QueryProductDetailsParams.Product>()
-                for (i in 0 until catalog.length()) {
-                    val item = catalog.getJSONObject(i)
+                for (i in 0 until catalogJson.length()) {
+                    val item = catalogJson.getJSONObject(i)
                     if (!item.optBoolean("enabled", false)) continue
                     val id = item.optString("productId")
                     val type = item.optString("productType")
