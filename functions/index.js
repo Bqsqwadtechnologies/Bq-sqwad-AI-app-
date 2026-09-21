@@ -37,7 +37,7 @@ function send(res, status, value) {
 async function userFromRequest(req) {
   const header = req.headers.authorization || "";
   if (!header.startsWith("Bearer ")) throw new Error("Authentication required");
-  return getAuth().verifyIdToken(header.slice(7));
+  return getAuth().verifyIdToken(header.slice(7), true);
 }
 
 async function adminFromRequest(req) {
