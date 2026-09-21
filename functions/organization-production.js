@@ -57,6 +57,8 @@ export async function updateProductionConfig(uid, patch = {}) {
   const ref = refFor(uid);
   const current = await getProduction(uid);
   const rules = { ...(current.rules || {}) };
+  let aiDirectorEnabled = current.aiDirectorEnabled !== false;
+  if (patch.aiDirectorEnabled != null) aiDirectorEnabled = patch.aiDirectorEnabled === true;
   if (patch.autoSwitchEnabled != null) rules.autoSwitchEnabled = patch.autoSwitchEnabled === true;
   if (patch.minimumConfidence != null) rules.minimumConfidence = Math.min(1, Math.max(0, Number(patch.minimumConfidence)));
   if (patch.fallbackEnabled != null) rules.fallbackEnabled = patch.fallbackEnabled === true;
@@ -69,7 +71,7 @@ export async function updateProductionConfig(uid, patch = {}) {
     if (Array.isArray(patch[key])) training[key] = patch[key].map(x => clean(x, 2000)).filter(Boolean).slice(-100);
   }
 
-  await ref.set({ rules, training, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await ref.set({ aiDirectorEnabled, rules, training, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return getProduction(uid);
 }
 
