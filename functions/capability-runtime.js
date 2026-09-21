@@ -20,6 +20,11 @@ export async function authorizeCapability(uid, controlId) {
     throw new Error("capability_disabled:" + controlId);
   }
 
+  const operational = control.config && typeof control.config === "object" ? control.config : {};
+  if (operational.maintenanceMode === true) {
+    throw new Error("capability_maintenance:" + controlId);
+  }
+
   const rollout = Math.min(100, Math.max(0, Number(control.rolloutPercent ?? 100)));
   if (rollout <= 0) throw new Error("capability_not_rolled_out:" + controlId);
   if (rollout < 100) {
@@ -72,6 +77,26 @@ export async function authorizeCapability(uid, controlId) {
     });
   }
 
+  const minuteLimit = operational.rateLimitPerMinute == null
+    ? null
+    : Math.max(0, Number(operational.rateLimitPerMinute));
+  let minuteRef = null;
+  if (minuteLimit !== null && minuteLimit > 0) {
+    const minuteKey = new Date().toISOString().slice(0, 16).replace(/[:]/g, "-");
+    minuteRef = db.collection("capabilityRateLimits").doc(uid + "_" + controlId + "_" + minuteKey);
+    try {
+      await db.runTransaction(async tx => {
+        const usage = await tx.get(minuteRef);
+        const used = Number(usage.exists ? usage.data()?.count || 0 : 0);
+        if (used >= minuteLimit) throw new Error("rate_limit_per_minute_reached");
+        tx.set(minuteRef, { uid, capability: controlId, minute: minuteKey, count: used + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      });
+    } catch (error) {
+      if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
+      throw error;
+    }
+  }
+
   const concurrencyLimit = control.concurrencyLimit == null
     ? null
     : Math.max(0, Number(control.concurrencyLimit));
@@ -110,6 +135,9 @@ export async function authorizeCapability(uid, controlId) {
       if (dailyRef && !committed) {
         await releaseDailyUsage(db, dailyRef, uid, controlId);
       }
+      if (minuteRef && !committed) {
+        await releaseRateLimit(db, minuteRef);
+      }
     }
   };
 }
@@ -125,7 +153,17 @@ async function releaseConcurrency(db, ref) {
   });
 }
 
-async function releaseRateLimit(db, ref) {\n  await db.runTransaction(async tx => {\n    const snap = await tx.get(ref);\n    if (!snap.exists) return;\n    const current = Number(snap.data()?.count || 0);\n    if (current <= 1) tx.delete(ref);\n    else tx.update(ref, { count: current - 1, updatedAt: FieldValue.serverTimestamp() });\n  });\n}\n\nasync function releaseDailyUsage(db, ref, uid, controlId) {
+async function releaseRateLimit(db, ref) {\n  await db.runTransaction(async tx => {\n    const snap = await tx.get(ref);\n    if (!snap.exists) return;\n    const current = Number(snap.data()?.count || 0);\n    if (current <= 1) tx.delete(ref);\n    else tx.update(ref, { count: current - 1, updatedAt: FieldValue.serverTimestamp() });\n  });\n}\n\nasync function releaseRateLimit(db, ref) {
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const current = Number(snap.data()?.count || 0);
+    if (current <= 1) tx.delete(ref);
+    else tx.update(ref, { count: current - 1, updatedAt: FieldValue.serverTimestamp() });
+  });
+}
+
+async function releaseDailyUsage(db, ref, uid, controlId) {
   await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (!snap.exists) return;
