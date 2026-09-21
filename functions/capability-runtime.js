@@ -45,6 +45,7 @@ export async function authorizeCapability(uid, controlId) {
     const cancelledButStillPaid = state === "cancelled" && hasFutureEndDate;
     const validByEndDate = !Number.isFinite(endMillis) || hasFutureEndDate;
     if ((!activeStates.has(state) && !cancelledButStillPaid) || !validByEndDate) {
+      await deactivateExpiredUserServices(db, uid);
       throw new Error("plan_expired");
     }
   }
@@ -141,4 +142,39 @@ async function releaseDailyUsage(db, ref, uid, controlId) {
       updatedAt: FieldValue.serverTimestamp()
     });
   });
+}
+
+
+async function deactivateExpiredUserServices(db, uid) {
+  const organizationRef = db.collection("organizationWorkspaces").doc(uid);
+  const organization = await organizationRef.get();
+  if (organization.exists) {
+    const data = organization.data() || {};
+    const channels = Array.isArray(data.channels)
+      ? data.channels.map(channel => ({ ...channel, enabled: false, deactivatedByPlanExpiry: true }))
+      : [];
+    await organizationRef.set({
+      channels,
+      settings: { ...(data.settings || {}), assistantEnabled: false },
+      servicesDeactivatedAt: FieldValue.serverTimestamp(),
+      servicesDeactivationReason: "plan_expired",
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+
+  const businessRef = db.collection("businessWorkspaces").doc(uid);
+  const business = await businessRef.get();
+  if (business.exists) {
+    const data = business.data() || {};
+    const channels = Array.isArray(data.channels)
+      ? data.channels.map(channel => ({ ...channel, enabled: false, deactivatedByPlanExpiry: true }))
+      : [];
+    await businessRef.set({
+      channels,
+      assistantEnabled: false,
+      servicesDeactivatedAt: FieldValue.serverTimestamp(),
+      servicesDeactivationReason: "plan_expired",
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
 }
