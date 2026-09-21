@@ -375,6 +375,28 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, snap.exists ? { exists: true, ...snap.data() } : { exists: false });
       }
 
+      if (req.method === "GET" && path === "credits") {
+        const snap = await getFirestore().collection("creditBalances").doc(user.uid).get();
+        const data = snap.exists ? snap.data() : {};
+        return send(res, 200, {
+          available: Number(data.available || 0),
+          reserved: Number(data.reserved || 0),
+          updatedAt: data.updatedAt || null
+        });
+      }
+
+      if (req.method === "GET" && path === "usage") {
+        const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 50)));
+        const snap = await getFirestore().collection("creditLedger")
+          .where("uid", "==", user.uid)
+          .orderBy("createdAt", "desc")
+          .limit(limit)
+          .get();
+        return send(res, 200, {
+          items: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        });
+      }
+
       if (req.method === "GET" && path === "native/catalog") {
         const db = getFirestore();
         const [plansSnap, playSnap, featureSnap, bindingSnap, addOnSnap, businessSnap] = await Promise.all([
