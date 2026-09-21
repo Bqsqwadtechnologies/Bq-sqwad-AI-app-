@@ -406,6 +406,115 @@ fun OrganizationStudioWorkspace() {
 
         item {
             Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Professional AI Production Control", style = MaterialTheme.typography.titleLarge)
+                    Text("Organization-scoped production policy. Real camera/platform connectivity is reported only after a provider connection actually succeeds.")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("AI Production Director")
+                        Switch(aiDirectorEnabled, onCheckedChange = { next ->
+                            aiDirectorEnabled = next
+                            scope.launch {
+                                runCatching {
+                                    api.updateOrganizationProductionConfig(
+                                        org.json.JSONObject().put("aiDirectorEnabled", next)
+                                    )
+                                }.onSuccess { production = it }
+                                 .onFailure { e -> error = e.message }
+                            }
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Automatic camera switching")
+                        Switch(autoSwitchEnabled, onCheckedChange = { next ->
+                            autoSwitchEnabled = next
+                            saveProductionConfig()
+                        })
+                    }
+                    Text("Production state: $productionStatus")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            scope.launch {
+                                runCatching { api.setOrganizationProductionState(org.json.JSONObject().put("status", "ready")) }
+                                    .onSuccess { production = it; productionStatus = "ready" }
+                                    .onFailure { e -> error = e.message }
+                            }
+                        }) { Text("Prepare") }
+                        Button(onClick = {
+                            scope.launch {
+                                runCatching { api.setOrganizationProductionState(org.json.JSONObject().put("status", "idle")) }
+                                    .onSuccess { production = it; productionStatus = "idle" }
+                                    .onFailure { e -> error = e.message }
+                            }
+                        }) { Text("Safe stop") }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Camera & source registry", style = MaterialTheme.typography.titleLarge)
+                    Text("Register real camera/source metadata. Registration itself never claims that a source is connected.")
+                    OutlinedTextField(cameraName, { cameraName = it }, Modifier.fillMaxWidth(), label = { Text("Camera/source name") })
+                    OutlinedTextField(cameraEndpoint, { cameraEndpoint = it }, Modifier.fillMaxWidth(), label = { Text("Endpoint / pairing reference") })
+                    OutlinedTextField(cameraRole, { cameraRole = it }, Modifier.fillMaxWidth(), label = { Text("Production role") })
+                    Button(enabled = cameraName.isNotBlank(), onClick = {
+                        scope.launch {
+                            runCatching {
+                                api.upsertOrganizationProductionSource(org.json.JSONObject()
+                                    .put("name", cameraName)
+                                    .put("endpoint", cameraEndpoint)
+                                    .put("role", cameraRole)
+                                    .put("type", "camera")
+                                    .put("enabled", true))
+                            }.onSuccess { production = it; cameraName = ""; cameraEndpoint = "" }
+                             .onFailure { e -> error = e.message }
+                        }
+                    }) { Text("Register camera/source") }
+                    val sourceArray = production?.optJSONArray("sources")
+                    if (sourceArray == null || sourceArray.length() == 0) Text("No registered camera sources.")
+                    else for (i in 0 until sourceArray.length()) {
+                        val source = sourceArray.optJSONObject(i) ?: continue
+                        Text(source.optString("name") + " • " + source.optString("role") + " • health: " + source.optString("health", "unknown"))
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Streaming destinations", style = MaterialTheme.typography.titleLarge)
+                    Text("Configure YouTube, Facebook, TikTok, Instagram or professional broadcast destination metadata. Credentials are not stored in the APK.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(destinationName, { destinationName = it }, Modifier.weight(1f), label = { Text("Destination name") })
+                        OutlinedTextField(destinationType, { destinationType = it }, Modifier.width(120.dp), label = { Text("Platform") })
+                    }
+                    Button(enabled = destinationName.isNotBlank(), onClick = {
+                        scope.launch {
+                            runCatching {
+                                api.upsertOrganizationProductionDestination(org.json.JSONObject()
+                                    .put("name", destinationName)
+                                    .put("type", destinationType.lowercase())
+                                    .put("enabled", false)
+                                    .put("authentication", "not_connected"))
+                            }.onSuccess { production = it; destinationName = "" }
+                             .onFailure { e -> error = e.message }
+                        }
+                    }) { Text("Add destination") }
+                    val destinations = production?.optJSONArray("destinations")
+                    if (destinations == null || destinations.length() == 0) Text("No streaming destinations configured.")
+                    else for (i in 0 until destinations.length()) {
+                        val d = destinations.optJSONObject(i) ?: continue
+                        Text(d.optString("name") + " • " + d.optString("platform") + " • " + d.optString("authentication", "not_connected") + " • output: " + d.optString("outputState", "idle"))
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Integration status", style = MaterialTheme.typography.titleLarge)
                     Text("Organization data: server-persisted and scoped")
