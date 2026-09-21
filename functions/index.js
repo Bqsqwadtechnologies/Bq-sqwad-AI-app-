@@ -13,6 +13,7 @@ import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlCon
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
+import { getOrganization, updateOrganization, addOrganizationChannel, setOrganizationChannel } from "./organization.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 
 initializeApp();
@@ -118,6 +119,47 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "DELETE" && path === "memory") {
         return send(res, 200, await clearUserMemory(user.uid));
+      }
+
+      if (req.method === "GET" && path === "organization") {
+        return send(res, 200, await getOrganization(user.uid));
+      }
+
+      if (req.method === "POST" && path === "organization") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await updateOrganization(user.uid, body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/channels") {
+        const name = String(body.name || "").trim();
+        if (!name) return send(res, 400, { error: "channel_name_required" });
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await addOrganizationChannel(user.uid, name, body.type);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "organization/channel-state") {
+        const channelId = String(body.channelId || "").trim();
+        if (!channelId) return send(res, 400, { error: "channel_id_required" });
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await setOrganizationChannel(user.uid, channelId, body.enabled === true);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
       }
 
       if (req.method === "GET" && path === "business/workspace") {
