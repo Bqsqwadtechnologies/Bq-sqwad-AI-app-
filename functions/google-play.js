@@ -56,8 +56,12 @@ async function playApi(path, method = "GET", body = undefined) {
   return payload;
 }
 
-export async function verifyPlayPurchase({ uid, productId, purchaseToken }) {
+export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfuscatedAccountId }) {
   if (!uid || !productId || !purchaseToken) throw new Error("play_purchase_fields_required");
+  if (obfuscatedAccountId) {
+    const expected = crypto.createHash("sha256").update(String(uid)).digest("hex");
+    if (String(obfuscatedAccountId) !== expected) throw new Error("play_account_mismatch");
+  }
   const db = getFirestore();
   const catalogSnap = await db.collection("playCatalog").doc("config").get();
   const products = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products)
