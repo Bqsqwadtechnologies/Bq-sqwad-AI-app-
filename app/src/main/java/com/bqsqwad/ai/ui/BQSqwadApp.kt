@@ -1016,18 +1016,23 @@ private fun shareText(context: Context, text: String) {
 
 private fun speakTextWhenReady(context: Context, text: String, onError: (String) -> Unit) {
     if (text.isBlank()) return
-    val tts = TextToSpeech(context) { status ->
+    lateinit var engine: TextToSpeech
+    engine = TextToSpeech(context) { status ->
         if (status != TextToSpeech.SUCCESS) {
             onError("Text-to-speech could not initialize.")
+            engine.shutdown()
             return@TextToSpeech
         }
-        val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bq_read_aloud")
-        if (result == TextToSpeech.ERROR) onError("Text-to-speech could not start.")
+        val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bq_read_aloud")
+        if (result == TextToSpeech.ERROR) {
+            onError("Text-to-speech could not start.")
+            engine.shutdown()
+        }
     }
-    tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+    engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) = Unit
-        override fun onDone(utteranceId: String?) { tts.shutdown() }
-        override fun onError(utteranceId: String?) { onError("Text-to-speech playback failed."); tts.shutdown() }
+        override fun onDone(utteranceId: String?) { engine.shutdown() }
+        override fun onError(utteranceId: String?) { onError("Text-to-speech playback failed."); engine.shutdown() }
     })
 }
 
