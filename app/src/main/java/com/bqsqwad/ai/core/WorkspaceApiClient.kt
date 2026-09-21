@@ -91,6 +91,32 @@ class WorkspaceApiClient {
     suspend fun setOrganizationMemberStatus(memberId:String, status:String):JSONObject =
         request("/organization/member-state",payload=JSONObject().put("memberId",memberId.take(200)).put("status",status.take(20)))
 
+    suspend fun organizationProduction(): JSONObject = request("/organization/production","GET")
+
+    suspend fun updateOrganizationProductionConfig(payload: JSONObject): JSONObject =
+        request("/organization/production/config", payload=payload)
+
+    suspend fun upsertOrganizationProductionSource(payload: JSONObject): JSONObject =
+        request("/organization/production/source", payload=payload)
+
+    suspend fun removeOrganizationProductionSource(sourceId: String): JSONObject =
+        request("/organization/production/source/remove", payload=JSONObject().put("sourceId", sourceId.take(120)))
+
+    suspend fun upsertOrganizationProductionScene(payload: JSONObject): JSONObject =
+        request("/organization/production/scene", payload=payload)
+
+    suspend fun upsertOrganizationProductionDestination(payload: JSONObject): JSONObject =
+        request("/organization/production/destination", payload=payload)
+
+    suspend fun setOrganizationProductionState(payload: JSONObject): JSONObject =
+        request("/organization/production/state", payload=payload)
+
+    suspend fun updateOrganizationProductionHealth(payload: JSONObject): JSONObject =
+        request("/organization/production/health", payload=payload)
+
+    suspend fun addOrganizationProductionEvent(payload: JSONObject): JSONObject =
+        request("/organization/production/event", payload=payload)
+
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
 
     suspend fun businessAssistant(message:String): JSONObject =
