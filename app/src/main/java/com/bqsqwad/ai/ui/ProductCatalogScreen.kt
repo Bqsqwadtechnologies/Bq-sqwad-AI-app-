@@ -106,18 +106,22 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                if(features.isNotEmpty()) item {
+                if(features.isNotEmpty() && plans.isNotEmpty()) item {
                     Surface(shape=RoundedCornerShape(18.dp),tonalElevation=2.dp,modifier=Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                            Text("What is included",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                            Text("Feature availability is read from the backend configuration and entitlement matrix.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            features.take(40).forEach { feature ->
-                                val state=bindings.firstOrNull{it.featureId==feature.id}?.state ?: "unavailable"
-                                val label=when(state){"included"->"Included";"add-on"->"Add-on";"coming_soon"->"Coming soon";else->"Unavailable"}
-                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-                                    Text(if(state=="included")"✓" else "•",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
-                                    Column(Modifier.weight(1f)){Text(feature.name,fontWeight=FontWeight.SemiBold);if(feature.description.isNotBlank())Text(feature.description,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2)}
-                                    Text(label,style=MaterialTheme.typography.labelMedium)
+                        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            Text("Feature matrix",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                            Text("Every row is resolved against the live plan-feature bindings. No plan is treated as included unless its backend binding says so.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            plans.take(8).forEach { plan ->
+                                Text(plan.name.ifBlank { plan.id },style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                                features.take(24).forEach { feature ->
+                                    val binding=bindings.firstOrNull{it.planId==plan.id && it.featureId==feature.id}
+                                    val state=binding?.state ?: if(feature.comingSoon) "coming_soon" else "unavailable"
+                                    val label=when(state){"included"->"Included";"add-on"->"Add-on";"coming_soon"->"Coming soon";else->"Unavailable"}
+                                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                                        Text(if(state=="included")"✓" else "•",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
+                                        Column(Modifier.weight(1f)){Text(feature.name,fontWeight=FontWeight.SemiBold);binding?.quota?.takeIf{it.isNotBlank()}?.let{Text("Quota: $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+                                        Text(label,style=MaterialTheme.typography.labelMedium)
+                                    }
                                 }
                             }
                         }
