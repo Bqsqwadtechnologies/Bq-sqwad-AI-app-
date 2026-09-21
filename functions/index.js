@@ -381,6 +381,7 @@ export const bqSqwadApi = onRequest(
           id,
           name: String(data.name || ""),
           description: String(data.description || ""),
+          module: String(data.module || data.product || ""),
           features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
           limits: data.limits && typeof data.limits === "object" ? data.limits : {},
           badge: data.badge ? String(data.badge) : null,
