@@ -42,7 +42,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
-    var entitlement by remember { mutableStateOf<JSONObject?>(null) }\n    var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var entitlement by remember { mutableStateOf<JSONObject?>(null) }
+    var credits by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
