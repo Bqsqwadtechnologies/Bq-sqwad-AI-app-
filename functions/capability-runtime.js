@@ -28,7 +28,26 @@ export async function authorizeCapability(uid, controlId) {
   }
 
   const entitlement = await db.collection("entitlements").doc(uid).get();
-  const planId = entitlement.exists ? String(entitlement.data()?.planId || "") : "";
+  const entitlementData = entitlement.exists ? (entitlement.data() || {}) : {};
+  const planId = entitlement.exists ? String(entitlementData.planId || "") : "";
+  if (planId) {
+    const state = String(entitlementData.state || "");
+    const endDateRaw = entitlementData.endDate;
+    const endMillis = typeof endDateRaw?.toMillis === "function"
+      ? endDateRaw.toMillis()
+      : endDateRaw instanceof Date
+        ? endDateRaw.getTime()
+        : endDateRaw
+          ? Date.parse(String(endDateRaw))
+          : NaN;
+    const hasFutureEndDate = Number.isFinite(endMillis) && endMillis > Date.now();
+    const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
+    const cancelledButStillPaid = state === "cancelled" && hasFutureEndDate;
+    const validByEndDate = !Number.isFinite(endMillis) || hasFutureEndDate;
+    if ((!activeStates.has(state) && !cancelledButStillPaid) || !validByEndDate) {
+      throw new Error("plan_expired");
+    }
+  }
   const plans = Array.isArray(control.allowedPlanIds)
     ? control.allowedPlanIds.map(String).filter(Boolean)
     : [];
