@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.app.ServiceCompat
 
 class LiveMediaForegroundService : Service() {
     companion object {
@@ -52,12 +51,12 @@ class LiveMediaForegroundService : Service() {
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             else -> 0
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, type) else startForeground(NOTIFICATION_ID, notification)
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopForeground(true)
         super.onDestroy()
     }
 
