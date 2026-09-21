@@ -52,6 +52,32 @@ export async function callOpenAI({ model, message, system }) {
   return { text, providerId: "openai", modelId: body.model, rawUsage: result.usage || {} };
 }
 
+
+export async function callOpenAIVision({ model, message, imageBase64, mimeType = "image/jpeg", system }) {
+  const apiKey = await getProviderSecret("openai");
+  if (!apiKey) throw new Error("OpenAI provider is not configured");
+  if (!imageBase64) throw new Error("Camera frame is required");
+  const body = {
+    model: model || DEFAULT_MODELS.openai,
+    input: [{
+      role: "user",
+      content: [
+        { type: "input_text", text: message || "Describe what is visible in this camera frame." },
+        { type: "input_image", image_url: "data:" + mimeType + ";base64," + imageBase64 }
+      ]
+    }]
+  };
+  if (system) body.instructions = system;
+  const result = await jsonFetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const text = result.output_text ||
+    result.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
+  return { text, providerId: "openai", modelId: body.model, rawUsage: result.usage || {} };
+}
+
 export async function callGemini({ model, message, system }) {
   const apiKey = await getProviderSecret("gemini");
   if (!apiKey) throw new Error("Gemini provider is not configured");
