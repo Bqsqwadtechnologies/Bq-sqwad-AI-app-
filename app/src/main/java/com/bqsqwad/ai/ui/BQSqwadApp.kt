@@ -921,7 +921,20 @@ private fun SearchWorkspace() {
             scope.launch { try { results.clear(); results.addAll(WorkspaceApiClient().search(query.trim(), deep).sources) } catch (t: Throwable) { error = t.message ?: "Search failed" } }
         }) { Text("Search") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(results) { r -> SurfaceCard(r.title, r.snippet ?: r.url) } }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(results) { r ->
+                Card(Modifier.fillMaxWidth().clickable {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.url))) }
+                        .onFailure { error = "No browser is available to open this result." }
+                }) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(r.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        r.snippet?.takeIf { it.isNotBlank() }?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Text(r.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -942,11 +955,16 @@ private fun CameraWorkspace() {
     var screenAnswer by remember { mutableStateOf("") }
     var screenPrompt by remember { mutableStateOf("What is happening on my screen?") }
     var screenLastAnalysisAt by remember { mutableLongStateOf(0L) }
-    var screenSession by remember { mutableStateOf<ScreenCaptureSession?>(null) }
+    var liveServiceActive by remember { mutableStateOf(false) }
+    var liveServiceMode by remember { mutableStateOf("") }
+    var liveAnswer by remember { mutableStateOf("") }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (it) {
-            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA))
+            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
             active = true
         }
     }
@@ -957,54 +975,42 @@ private fun CameraWorkspace() {
             return@rememberLauncherForActivityResult
         }
         runCatching {
-            active = false
-            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+            val metrics = context.resources.displayMetrics
             context.startForegroundService(
                 Intent(context, LiveMediaForegroundService::class.java)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_SCREEN)
-            )
-            val metrics = context.resources.displayMetrics
-            val session = ScreenCaptureSession(context, onFrame = { frame ->
-                val now = System.currentTimeMillis()
-                if (!screenAnalyzing && now - screenLastAnalysisAt >= 1500L) {
-                    screenLastAnalysisAt = now
-                    screenAnalyzing = true
-                    scope.launch {
-                        try {
-                            val encoded = android.util.Base64.encodeToString(frame, android.util.Base64.NO_WRAP)
-                            screenAnswer = ChatApiClient().analyzeCameraFrame(screenPrompt, encoded).text
-                        } catch (t: Throwable) {
-                            screenAnswer = t.message ?: "Screen analysis failed."
-                        } finally {
-                            screenAnalyzing = false
-                        }
-                    }
-                }
-            })
-            screenSession = session
-            session.start(
-                data,
-                metrics.widthPixels,
-                metrics.heightPixels,
-                metrics.densityDpi
+                    .putExtra(LiveMediaForegroundService.EXTRA_PROJECTION_DATA, data)
+                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, screenPrompt)
+                    .putExtra(LiveMediaForegroundService.EXTRA_WIDTH, metrics.widthPixels)
+                    .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
+                    .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
             )
             screenActive = true
-            screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames only for this session."
+            screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames through the foreground service."
         }.onFailure { t ->
-            screenSession?.stop()
-            screenSession = null
             context.stopService(Intent(context, LiveMediaForegroundService::class.java))
             screenActive = false
             screenAnswer = t.message ?: "Could not start screen sharing."
         }
     }
-    DisposableEffect(Unit) {
-        onDispose {
-            screenSession?.stop()
-            screenSession = null
-            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val prefs = context.getSharedPreferences("bq_live_media", Context.MODE_PRIVATE)
+            liveServiceActive = prefs.getBoolean("active", false)
+            liveServiceMode = prefs.getString("mode", "") ?: ""
+            liveAnswer = prefs.getString("answer", "") ?: ""
+            if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
+                screenActive = liveServiceActive
+                if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
+            } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
+                active = liveServiceActive
+                if (liveAnswer.isNotBlank()) answer = liveAnswer
+            }
+            kotlinx.coroutines.delay(750)
         }
     }
+
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
@@ -1017,19 +1023,31 @@ private fun CameraWorkspace() {
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
-                    if (!active) context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA))
-                    else context.stopService(Intent(context, LiveMediaForegroundService::class.java))
-                    active = !active
+                    if (!active) {
+                        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                            .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                            .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                        active = true
+                    } else {
+                        context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                        active = false
+                    }
                 }) { Text(if (active) "End live camera" else "Start live camera") }
                 OutlinedButton(onClick = {
                     lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+                    if (active) {
+                        context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                            .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                            .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                    }
                 }, enabled = active) { Text("Flip") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
                     if (screenActive) {
-                        screenSession?.stop()
-                        screenSession = null
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         screenActive = false
                     } else {
@@ -1052,40 +1070,46 @@ private fun CameraWorkspace() {
                 label = { Text("Ask about the screen") },
                 maxLines = 2
             )
+            if (screenActive) {
+                TextButton(onClick = {
+                    val metrics = context.resources.displayMetrics
+                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_SCREEN)
+                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, screenPrompt)
+                        .putExtra(LiveMediaForegroundService.EXTRA_WIDTH, metrics.widthPixels)
+                        .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
+                        .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi))
+                }) { Text("Apply screen question") }
+            }
             if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (screenAnswer.isNotBlank()) SurfaceCard("BQ Sqwad AI", screenAnswer)
         } else if (granted && active) {
-            NativeCameraPreview(
+            Surface(
                 Modifier.fillMaxWidth().height(280.dp),
-                lensFacing = lens,
-                onFrame = { frame ->
-                    val now = System.currentTimeMillis()
-                    if (!analyzing && now - lastAnalysisAt >= 1500L) {
-                        lastAnalysisAt = now
-                        analyzing = true
-                        scope.launch {
-                            try {
-                                val encoded = android.util.Base64.encodeToString(frame, android.util.Base64.NO_WRAP)
-                                answer = ChatApiClient().analyzeCameraFrame(prompt, encoded).text
-                            } catch (t: Throwable) {
-                                answer = t.message ?: "Live camera analysis failed."
-                            } finally {
-                                analyzing = false
-                            }
-                        }
-                    }
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
+                    Text("● Live camera foreground session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("BQ Sqwad AI is capturing camera frames through Android's visible foreground service. The session can continue while you leave the app.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (liveServiceActive) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
                 }
-            )
-            SurfaceCard("Live indicator", "● Camera active • BQ Sqwad AI is viewing frames while this screen is active.")
+            }
+            SurfaceCard("Live indicator", "● Camera active • Android foreground service is running and BQ Sqwad AI is receiving sampled camera frames.")
             OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about the camera view") }, maxLines = 2)
+            if (active) {
+                TextButton(onClick = {
+                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                        .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                }) { Text("Apply camera question") }
+            }
             if (analyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (answer.isNotBlank()) SurfaceCard("BQ Sqwad AI", answer)
         } else {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
-    }
-    if (screenActive && active) {
-        active = false
     }
     if (permissionExplanation) {
         AlertDialog(
