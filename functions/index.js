@@ -13,6 +13,7 @@ import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } 
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
+import { PLAN_CATALOG, PLAN_CATALOG_VERSION } from "./plan-catalog.js";
 import { canonicalAdminCatalog } from "./play-catalog.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
@@ -786,6 +787,11 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "admin/play-catalog") {
         await adminFromRequest(req);
         return send(res, 200, canonicalAdminCatalog());
+      }
+
+      if (req.method === "GET" && path === "admin/plan-catalog") {
+        await adminFromRequest(req);
+        return send(res, 200, { version: PLAN_CATALOG_VERSION, catalog: PLAN_CATALOG });
       }
 
       if (req.method === "GET" && path === "admin/config") {
