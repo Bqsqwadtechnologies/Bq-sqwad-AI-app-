@@ -38,6 +38,8 @@ fun OrganizationStudioWorkspace() {
     var knowledgeText by remember { mutableStateOf("") }
     var memberId by remember { mutableStateOf("") }
     var memberRole by remember { mutableStateOf("member") }
+    var assistantPrompt by remember { mutableStateOf("") }
+    var assistantResult by remember { mutableStateOf("") }
     var directorPrompt by remember { mutableStateOf("") }
     var directorResult by remember { mutableStateOf("") }
     var outputStatus by remember { mutableStateOf("Program output idle") }
@@ -188,6 +190,39 @@ fun OrganizationStudioWorkspace() {
                             sharedKnowledge = it
                             scope.launch { runCatching { api.updateOrganizationSettings(sharedKnowledgeEnabled = it) }.onFailure { e -> error = e.message } }
                         })
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Organization AI assistant", style = MaterialTheme.typography.titleLarge)
+                    Text("Ask the organization AI about approved organization knowledge, settings and workflows. Personal memory is used only when the shared-memory control is enabled.")
+                    OutlinedTextField(
+                        assistantPrompt, { assistantPrompt = it }, Modifier.fillMaxWidth(),
+                        minLines = 3, label = { Text("Ask Organization AI") }
+                    )
+                    Button(
+                        enabled = assistantPrompt.isNotBlank() && assistantEnabled && !busy,
+                        onClick = {
+                            busy = true
+                            error = null
+                            scope.launch {
+                                runCatching { api.organizationAssistant(assistantPrompt) }
+                                    .onSuccess {
+                                        assistantResult = it.optString("answer")
+                                        assistantPrompt = ""
+                                    }
+                                    .onFailure { e -> error = e.message ?: "Organization AI request failed." }
+                                busy = false
+                            }
+                        }
+                    ) { Text(if (busy) "Working…" else "Ask Organization AI") }
+                    if (assistantResult.isNotBlank()) {
+                        Text("Organization AI", style = MaterialTheme.typography.titleMedium)
+                        Text(assistantResult)
                     }
                 }
             }
