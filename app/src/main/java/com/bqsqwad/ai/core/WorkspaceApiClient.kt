@@ -59,10 +59,11 @@ class WorkspaceApiClient {
     suspend fun saveAdminPlanCatalog(version:Int, catalog:JSONObject):JSONObject =
         request("/admin/plan-catalog", payload=JSONObject().put("version", version).put("catalog", catalog))
 
-    suspend fun submitContactSales(email:String, companyName:String, companyEmail:String, planId:String, planName:String, features:List<String>, message:String):JSONObject =
+    suspend fun submitContactSales(email:String, companyName:String, companyEmail:String, planId:String, planName:String, features:List<String>, message:String, billingPeriod:String=""):JSONObject =
         request("/contact-sales", payload=JSONObject().apply {
             put("email", email); put("companyName", companyName); put("companyEmail", companyEmail)
-            put("planId", planId); put("planName", planName); put("features", JSONArray(features)); put("message", message)
+            put("planId", planId); put("planName", planName); put("billingPeriod", billingPeriod)
+            put("features", JSONArray(features)); put("message", message)
         })
 
     suspend fun contactSalesStatus():JSONObject = request("/contact-sales/status","GET")
