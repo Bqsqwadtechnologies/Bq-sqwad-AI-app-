@@ -202,6 +202,8 @@ class PlayBillingClient(
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
                     .put("purchaseTime", purchase.purchaseTime)
+                    .put("basePlanId", purchase.products.firstOrNull()?.let { productId -> catalog[productId]?.basePlanId } ?: "")
+                    .put("offerId", purchase.products.firstOrNull()?.let { productId -> catalog[productId]?.offerId } ?: "")
                     .put("obfuscatedAccountId", purchase.accountIdentifiers?.obfuscatedAccountId ?: "")
                 val connection = (URL("$baseUrl/play/verify").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
