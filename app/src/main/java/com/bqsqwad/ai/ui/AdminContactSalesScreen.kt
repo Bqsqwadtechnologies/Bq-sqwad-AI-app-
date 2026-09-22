@@ -17,7 +17,8 @@ import org.json.JSONObject
 
 @Composable
 fun AdminContactSalesScreen(onBack:()->Unit){
-    val scope=rememberCoroutineScope()\n    val context=androidx.compose.ui.platform.LocalContext.current
+    val scope=rememberCoroutineScope()
+    val context=androidx.compose.ui.platform.LocalContext.current
     var requests by remember { mutableStateOf(emptyList<JSONObject>()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
