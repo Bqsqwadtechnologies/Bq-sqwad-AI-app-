@@ -14,6 +14,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_MODE = "mode"
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
+        const val MODE_SCREEN = "screen"
         private const val CHANNEL_ID = "bq_live_media"
         private const val NOTIFICATION_ID = 4101
     }
@@ -35,10 +36,11 @@ class LiveMediaForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val mode = intent?.getStringExtra(EXTRA_MODE).orEmpty()
         val camera = mode == MODE_CAMERA
+        val screen = mode == MODE_SCREEN
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
             .setContentTitle("BQ Sqwad AI")
-            .setContentText(if (camera) "Live camera is active" else "Live voice is active")
+            .setContentText(when { camera -> "Live camera is active"; screen -> "Screen viewer is active"; else -> "Live voice is active" })
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -47,6 +49,8 @@ class LiveMediaForegroundService : Service() {
         val type = when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && camera ->
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && screen ->
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             else -> 0
