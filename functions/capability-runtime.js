@@ -1,4 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 function requirementHash(value) {
   let hash = 2166136261;
@@ -19,7 +20,7 @@ export async function authorizeCapability(uid, controlId) {
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
   if (!control && !isSuperAdmin) throw new Error("capability_not_configured:" + controlId);
-  if (!control && isSuperAdmin) return { control: null, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
+  if (isSuperAdmin) return { control, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
 
   if (control.enabled === false || control.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
