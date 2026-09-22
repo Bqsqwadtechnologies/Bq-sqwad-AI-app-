@@ -77,6 +77,22 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, result);
       }
 
+      if (req.method === "GET" && path === "social/oauth/callback") {
+        const state = String(req.query.state || "");
+        const code = String(req.query.code || "");
+        if (!state || !code) return send(res, 400, { error: "oauth_callback_parameters_required" });
+        const stateRef = getFirestore().collection("socialOAuthStates").doc(state);
+        const snap = await stateRef.get();
+        if (!snap.exists) return send(res, 400, { error: "oauth_state_invalid" });
+        const stateData = snap.data() || {};
+        const expires = stateData.expiresAt?.toDate?.()?.getTime?.() || Date.parse(String(stateData.expiresAt || ""));
+        if (!Number.isFinite(expires) || expires < Date.now()) return send(res, 400, { error: "oauth_state_expired" });
+        const tokens = await exchangeSocialOAuth(String(stateData.platform), code, String(stateData.redirectUri || ""), stateData.codeVerifier || null);
+        const account = await saveSocialAccount(String(stateData.platform), tokens, { providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
+        await stateRef.delete();
+        return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
+      }
+
       const user = await userFromRequest(req);
       if (path !== "consent" && path !== "consent/training") {
         await requireRequiredConsent(user.uid);
@@ -1262,21 +1278,6 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { authorizationUrl, state, testMode: config.testMode });
       }
 
-      if (req.method === "GET" && path === "social/oauth/callback") {
-        const state = String(req.query.state || "");
-        const code = String(req.query.code || "");
-        if (!state || !code) return send(res, 400, { error: "oauth_callback_parameters_required" });
-        const stateRef = getFirestore().collection("socialOAuthStates").doc(state);
-        const snap = await stateRef.get();
-        if (!snap.exists) return send(res, 400, { error: "oauth_state_invalid" });
-        const stateData = snap.data() || {};
-        const expires = stateData.expiresAt?.toDate?.()?.getTime?.() || Date.parse(String(stateData.expiresAt || ""));
-        if (!Number.isFinite(expires) || expires < Date.now()) return send(res, 400, { error: "oauth_state_expired" });
-        const tokens = await exchangeSocialOAuth(String(stateData.platform), code, String(stateData.redirectUri || ""), stateData.codeVerifier || null);
-        const account = await saveSocialAccount(String(stateData.platform), tokens, { providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
-        await stateRef.delete();
-        return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
-      }
 
       if (req.method === "GET" && path === "admin/providers") {
         await adminFromRequest(req);
