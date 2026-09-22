@@ -56,6 +56,9 @@ class WorkspaceApiClient {
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
     suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
 
+    suspend fun saveAdminPlanCatalog(version:Int, catalog:JSONObject):JSONObject =
+        request("/admin/plan-catalog", payload=JSONObject().put("version", version).put("catalog", catalog))
+
     suspend fun submitContactSales(email:String, companyName:String, companyEmail:String, planId:String, planName:String, features:List<String>, message:String):JSONObject =
         request("/contact-sales", payload=JSONObject().apply {
             put("email", email); put("companyName", companyName); put("companyEmail", companyEmail)
