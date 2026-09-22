@@ -20,6 +20,9 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.bqsqwad.ai.core.PasskeyClient
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.tasks.await
 
 @Composable
@@ -133,7 +136,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         try {
                                             val user = auth.currentUser ?: error("Sign in is required")
                                             val email = user.email ?: error("This account has no email address")
-                                            user.linkWithCredential(com.google.firebase.auth.EmailAuthProvider.getCredential(email, password)).await()
+                                            withContext(Dispatchers.IO) { Tasks.await(user.linkWithCredential(com.google.firebase.auth.EmailAuthProvider.getCredential(email, password))) }
                                             password = ""; confirmPassword = ""
                                             message = "Email and password connected."
                                             refresh()
@@ -149,7 +152,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                     busy = true; message = null
                                     scope.launch {
                                         try {
-                                            auth.currentUser?.unlink("password")?.await()
+                                            withContext(Dispatchers.IO) { Tasks.await(auth.currentUser?.unlink("password") ?: error("Sign in is required")) }
                                             message = "Password sign-in disconnected."
                                             refresh()
                                         } catch (t: Throwable) { message = t.message ?: "Could not disconnect password." }
@@ -186,7 +189,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         val credential = GoogleIdTokenCredential.createFrom(result.credential.data)
                                         val firebaseCredential = GoogleAuthProvider.getCredential(credential.idToken, null)
                                         val user = auth.currentUser ?: error("Sign in is required")
-                                        user.linkWithCredential(firebaseCredential).await()
+                                        withContext(Dispatchers.IO) { Tasks.await(user.linkWithCredential(firebaseCredential)) }
                                         message = "Google connected to this account."
                                         refresh()
                                     } catch (t: Throwable) {
@@ -201,7 +204,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                 busy = true; message = null
                                 scope.launch {
                                     try {
-                                        auth.currentUser?.unlink("google.com")?.await()
+                                        withContext(Dispatchers.IO) { Tasks.await(auth.currentUser?.unlink("google.com") ?: error("Sign in is required")) }
                                         message = "Google disconnected."
                                         refresh()
                                     } catch (t: Throwable) { message = t.message ?: "Could not disconnect Google." }
