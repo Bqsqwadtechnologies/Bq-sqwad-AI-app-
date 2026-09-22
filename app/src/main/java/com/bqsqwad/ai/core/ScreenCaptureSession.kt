@@ -32,6 +32,7 @@ class ScreenCaptureSession(
     private var display: VirtualDisplay? = null
     private var reader: ImageReader? = null
     private var stopped = false
+    private var callback: MediaProjection.Callback? = null
 
     fun start(resultData: Intent, width: Int, height: Int, densityDpi: Int) {
         check(!stopped) { "Screen capture session is already stopped." }
@@ -44,11 +45,12 @@ class ScreenCaptureSession(
             ?: error("Android did not grant screen capture access.")
 
         projection = mediaProjection
-        mediaProjection.registerCallback(object : MediaProjection.Callback() {
+        callback = object : MediaProjection.Callback() {
             override fun onStop() {
                 handler.post { stopInternal(notify = true) }
             }
-        }, handler)
+        }
+        mediaProjection.registerCallback(callback!!, handler)
 
         val safeWidth = width.coerceIn(320, 1920)
         val safeHeight = height.coerceIn(320, 1080)
@@ -104,15 +106,15 @@ class ScreenCaptureSession(
         display = null
         reader?.close()
         reader = null
-        projection?.unregisterCallback(stopCallback)
-        projection?.stop()
+        val currentProjection = projection
+        callback?.let { cb -> runCatching { currentProjection?.unregisterCallback(cb) } }
+        callback = null
         projection = null
-        if (notify && !stopped) onStopped()
-    }
-
-    private val stopCallback = object : MediaProjection.Callback() {
-        override fun onStop() {
-            handler.post { stopInternal(notify = true) }
+        if (currentProjection != null && notify) {
+            onStopped()
+        }
+        if (currentProjection != null && !notify) {
+            runCatching { currentProjection.stop() }
         }
     }
 }
