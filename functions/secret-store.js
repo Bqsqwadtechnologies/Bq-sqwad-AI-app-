@@ -68,7 +68,7 @@ export async function providerSecretStatus(providerId) {
   return {
     providerId,
     configured: doc.exists || Boolean(envName && process.env[envName]),
-    source: doc.exists ? "encrypted_firestore" : "runtime_secret",
+    source: doc.exists ? "encrypted_firestore" : (envName && process.env[envName] ? "runtime_secret" : "none"),
     updatedAt: doc.data()?.updatedAt?.toDate?.()?.toISOString() || null
   };
 }
