@@ -3,7 +3,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { runAi, callTavily, callGemini, getRoute } from "./provider-gateway.js";
+import { runAi, callTavily, callGeminiDeviceCommand, getRoute } from "./provider-gateway.js";
 import { getProviderSecret, setProviderSecret, deleteProviderSecret, providerSecretStatus, listProviderSecretStatuses } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
@@ -755,7 +755,7 @@ export const bqSqwadApi = onRequest(
         try {
           reservation = await reserveCredits(user.uid, gate.creditCost, "device_commands");
           const deviceRoute = await getRoute("device_commands");
-          const result = await callGemini({
+          const result = await callGeminiDeviceCommand({
             model: deviceRoute.primaryModelId,
             message: String(body.message || ""),
             system: DEVICE_COMMAND_SYSTEM
