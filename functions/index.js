@@ -122,11 +122,15 @@ export const bqSqwadApi = onRequest(
         const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
         const snap = await getFirestore().collection("chatHistory")
           .where("uid", "==", user.uid)
-          .orderBy("updatedAt", "desc")
-          .limit(limit)
+          .limit(100)
           .get();
+        const docs = snap.docs.sort((a, b) => {
+          const am = a.data()?.updatedAt?.toMillis?.() || 0;
+          const bm = b.data()?.updatedAt?.toMillis?.() || 0;
+          return bm - am;
+        }).slice(0, limit);
         return send(res, 200, {
-          items: snap.docs.map(doc => {
+          items: docs.map(doc => {
             const data = doc.data() || {};
             return {
               id: doc.id,
