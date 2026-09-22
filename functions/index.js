@@ -13,7 +13,7 @@ import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } 
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
-import { PLAN_CATALOG, PLAN_CATALOG_VERSION } from "./plan-catalog.js";
+import { COMMERCIAL_CATALOG, PLAN_CATALOG, PLAN_CATALOG_VERSION } from "./plan-catalog.js";
 import { canonicalAdminCatalog, canonicalPlayProducts } from "./play-catalog.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
@@ -791,13 +791,18 @@ export const bqSqwadApi = onRequest(
         const email = String(body.email || user.email || "").trim().slice(0, 320);
         const companyName = String(body.companyName || "").trim().slice(0, 180);
         const companyEmail = String(body.companyEmail || "").trim().slice(0, 320);
-        const planId = String(body.planId || "").trim().slice(0, 100);
+        let planId = String(body.planId || "").trim().slice(0, 100);
         const planName = String(body.planName || "").trim().slice(0, 180);
+        const billingPeriod = String(body.billingPeriod || "").trim().slice(0, 40);
         const message = String(body.message || "").trim().slice(0, 6000);
+        if (!planId && planName) {
+          const match = Object.values(COMMERCIAL_CATALOG.sections).flat().find(item => String(item.name || "") === planName);
+          if (match) planId = String(match.id);
+        }
         const features = Array.isArray(body.features) ? body.features.map(x => String(x).slice(0, 180)).slice(0, 100) : [];
         if (!email || !planId || !message) return send(res, 400, { error: "email_plan_and_message_required" });
         const ref = await getFirestore().collection("contactSalesRequests").add({
-          uid: user.uid, email, companyName, companyEmail, planId, planName, features, message,
+          uid: user.uid, email, companyName, companyEmail, planId, planName, billingPeriod, features, message,
           status: "new", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
         });
         return send(res, 200, { ok: true, requestId: ref.id, status: "new" });
@@ -1012,7 +1017,27 @@ export const bqSqwadApi = onRequest(
           return { id: d.id, name: String(x.name || d.id), description: String(x.description || ""), type: String(x.type || ""), enabled: x.enabled !== false, eligiblePlanIds: Array.isArray(x.eligiblePlanIds) ? x.eligiblePlanIds.map(String) : [], quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : [] };
         });
         const business = businessSnap.exists ? businessSnap.data() : null;
-        return send(res, 200, { version: Math.max(1, Number(business?.version || playSnap.data()?.version || 1)), plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible), products, features: features.filter(x => x.visible), bindings, addOns, businessPricingConfigured: business !== null, businessPricing: business || null });
+        const publicContactSales = Object.values(COMMERCIAL_CATALOG.sections).flat().flatMap(item => {
+          const periods = item.billingPeriods || [];
+          const blockedPeriods = Array.isArray(item.playEligiblePeriods)
+            ? periods.filter(period => !item.playEligiblePeriods.includes(period))
+            : [];
+          const rows = item.contactSales
+            ? [{name:item.name,billingPeriod:"custom",price:"Contact Sales",features:item.features || [],limits:item.limits || {}}]
+            : blockedPeriods.map(period => ({name:item.name,billingPeriod:period,price:"Contact Sales",features:item.features || [],limits:item.limits || {}}));
+          return rows.map(row => ({...row,module:item.module,contactSales:true}));
+        });
+        return send(res, 200, {
+          version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
+          plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible),
+          products,
+          publicContactSales,
+          features: features.filter(x => x.visible),
+          bindings,
+          addOns,
+          businessPricingConfigured: business !== null,
+          businessPricing: business || null
+        });
       }
 
       if (req.method === "GET" && path === "play/catalog") {
