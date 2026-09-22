@@ -19,6 +19,7 @@ import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryC
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
 
 initializeApp();
 
@@ -1200,6 +1201,63 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "admin/config") {
         await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
+      }
+
+      if (req.method === "GET" && path === "admin/social-integrations") {
+        await adminFromRequest(req);
+        return send(res, 200, { config: await getSocialConfig(), platforms: listSocialPlatforms() });
+      }
+
+      if (req.method === "POST" && path === "admin/social-integrations") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, { ok: true, config: await updateSocialConfig(body, admin.uid), platforms: listSocialPlatforms() });
+      }
+
+      if (req.method === "POST" && path === "admin/social-secret") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await saveSocialClientSecret(String(body.platform || ""), String(body.secretValue || ""), admin.uid));
+      }
+
+      if (req.method === "GET" && path === "admin/social-accounts") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, { accounts: await listSocialAccounts(admin.uid) });
+      }
+
+      if (req.method === "POST" && path === "admin/social-oauth/start") {
+        const admin = await adminFromRequest(req);
+        const platform = String(body.platform || "");
+        const config = await getSocialConfig();
+        const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "");
+        if (!redirectUri) return send(res, 400, { error: "callback_url_required" });
+        const state = crypto.randomUUID();
+        let codeVerifier = null;
+        let codeChallenge = null;
+        if (platform === "x") {
+          codeVerifier = crypto.randomBytes(32).toString("base64url");
+          codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+        }
+        await getFirestore().collection("socialOAuthStates").doc(state).set({
+          uid: admin.uid, platform, redirectUri, codeVerifier, createdAt: FieldValue.serverTimestamp(),
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+        });
+        const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeChallenge);
+        return send(res, 200, { authorizationUrl, state, testMode: config.testMode });
+      }
+
+      if (req.method === "GET" && path === "social/oauth/callback") {
+        const state = String(req.query.state || "");
+        const code = String(req.query.code || "");
+        if (!state || !code) return send(res, 400, { error: "oauth_callback_parameters_required" });
+        const stateRef = getFirestore().collection("socialOAuthStates").doc(state);
+        const snap = await stateRef.get();
+        if (!snap.exists) return send(res, 400, { error: "oauth_state_invalid" });
+        const stateData = snap.data() || {};
+        const expires = stateData.expiresAt?.toDate?.()?.getTime?.() || Date.parse(String(stateData.expiresAt || ""));
+        if (!Number.isFinite(expires) || expires < Date.now()) return send(res, 400, { error: "oauth_state_expired" });
+        const tokens = await exchangeSocialOAuth(String(stateData.platform), code, String(stateData.redirectUri || ""), stateData.codeVerifier || null);
+        const account = await saveSocialAccount(String(stateData.platform), tokens, { providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
+        await stateRef.delete();
+        return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
       }
 
       if (req.method === "GET" && path === "admin/providers") {
