@@ -35,6 +35,7 @@ class LiveMediaForegroundService : Service() {
     private var mode = ""
     private var prompt = "Describe what is visible."
     private var lens = android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+    private var realtimeVoice: RealtimeVoiceSession? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -85,8 +86,38 @@ class LiveMediaForegroundService : Service() {
         when (mode) {
             MODE_CAMERA -> startCamera()
             MODE_SCREEN -> startScreen(intent)
+            MODE_VOICE -> startVoice()
         }
         return START_NOT_STICKY
+    }
+
+    private fun startVoice() {
+        if (realtimeVoice != null) return
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            writeError("Microphone permission is required.")
+            stopSelf()
+            return
+        }
+        serviceScope.launch {
+            try {
+                val config = WorkspaceApiClient().realtimeSession()
+                val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException(config.optString("error", "Realtime voice session could not be created."))
+                val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
+                withContext(Dispatchers.Main) {
+                    realtimeVoice = RealtimeVoiceSession(
+                        clientSecret = secret,
+                        model = model,
+                        onState = { state -> writeState(true, state) },
+                        onError = { error -> writeError(error) }
+                    ).also { it.start() }
+                }
+            } catch (t: Throwable) {
+                writeError(t.message ?: "Realtime voice could not start.")
+                stopSelf()
+            }
+        }
+        writeState(true, "connecting")
     }
 
     private fun createNotificationChannel() {
@@ -168,6 +199,8 @@ class LiveMediaForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        realtimeVoice?.stop()
+        realtimeVoice = null
         cameraSession?.stop()
         cameraSession = null
         screenSession?.stop()
