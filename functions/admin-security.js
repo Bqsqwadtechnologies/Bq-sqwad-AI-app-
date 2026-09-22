@@ -5,6 +5,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 const REF = "adminSecurity/global";
 const ISSUER = "BQ Sqwad AI";
 const ACCOUNT = "BQ Sqwad Admin";
+const BIOMETRIC_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 function base32Encode(buffer) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -148,10 +149,12 @@ export async function unlockAdmin(uid, password, code) {
 
 export async function requireStepUp(uid) {
   const status = await securityStatus();
-  if (!status.passwordConfigured && !status.totpConfigured) return;
   const user = await getAuth().getUser(uid);
-  const verifiedAt = Number(user.customClaims?.admin2faVerifiedAt || 0);
-  if (!verifiedAt || Date.now() - verifiedAt > status.verifiedWindowSeconds * 1000) {
+  const passwordTotpVerifiedAt = Number(user.customClaims?.admin2faVerifiedAt || 0);
+  const biometricVerifiedAt = Number(user.customClaims?.adminBiometricVerifiedAt || 0);
+  const windowMs = status.verifiedWindowSeconds * 1000;
+  if (status.passwordConfigured || status.totpConfigured || (await biometricStatus()).configured) {
+    if ((passwordTotpVerifiedAt && Date.now() - passwordTotpVerifiedAt <= windowMs) || (biometricVerifiedAt && Date.now() - biometricVerifiedAt <= windowMs)) return;
     throw new Error("admin_step_up_required");
   }
 }
@@ -160,4 +163,63 @@ async function audit(uid, action) {
   await getFirestore().collection("adminSecurityAudit").add({
     uid, action, createdAt: FieldValue.serverTimestamp()
   });
+}
+
+
+export async function biometricStatus() {
+  const snap = await (await ref()).get();
+  return { configured: Boolean(snap.data()?.biometric?.publicKey) };
+}
+
+export async function registerBiometric(uid, publicKeyBase64) {
+  if (!publicKeyBase64 || String(publicKeyBase64).length > 10000) throw new Error("biometric_public_key_required");
+  await (await ref()).set({
+    biometric: {
+      publicKey: String(publicKeyBase64),
+      registeredAt: FieldValue.serverTimestamp(),
+      registeredBy: uid
+    }
+  }, { merge: true });
+  await audit(uid, "biometric_configured");
+  return biometricStatus();
+}
+
+export async function beginBiometricChallenge(uid) {
+  const challengeId = crypto.randomBytes(24).toString("base64url");
+  const challenge = crypto.randomBytes(32);
+  await getFirestore().collection("adminBiometricChallenges").doc(challengeId).set({
+    uid,
+    challenge: challenge.toString("base64"),
+    expiresAt: new Date(Date.now() + BIOMETRIC_CHALLENGE_TTL_MS),
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { challengeId, challenge: challenge.toString("base64") };
+}
+
+export async function verifyBiometric(uid, challengeId, signatureBase64) {
+  const snap = await getFirestore().collection("adminBiometricChallenges").doc(String(challengeId || "")).get();
+  if (!snap.exists || snap.data()?.uid !== uid) throw new Error("biometric_challenge_invalid");
+  const expires = snap.data()?.expiresAt?.toDate?.()?.getTime?.() || 0;
+  if (!expires || expires < Date.now()) throw new Error("biometric_challenge_expired");
+  const security = await (await ref()).get();
+  const publicKey = security.data()?.biometric?.publicKey;
+  if (!publicKey) throw new Error("biometric_not_configured");
+  const verify = crypto.createVerify("SHA256");
+  verify.update(Buffer.from(String(snap.data()?.challenge || ""), "base64"));
+  verify.end();
+  const ok = verify.verify({ key: Buffer.from(String(publicKey), "base64"), format: "der", type: "spki" }, Buffer.from(String(signatureBase64 || ""), "base64"));
+  if (!ok) throw new Error("biometric_verification_failed");
+  await getAuth().setCustomUserClaims(uid, {
+    ...(await getAuth().getUser(uid)).customClaims,
+    adminBiometricVerifiedAt: Date.now()
+  });
+  await snap.ref.delete();
+  await audit(uid, "biometric_unlocked");
+  return { ok: true, verifiedAt: Date.now() };
+}
+
+export async function removeBiometric(uid) {
+  await (await ref()).set({ biometric: null, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
+  await audit(uid, "biometric_removed");
+  return biometricStatus();
 }
