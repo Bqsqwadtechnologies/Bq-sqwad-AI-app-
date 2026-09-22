@@ -31,6 +31,8 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
     var providers by remember { mutableStateOf(auth.currentUser?.providerData?.map { it.providerId } ?: emptyList()) }
     var passkeys by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var biometricEnabled by remember {
         mutableStateOf(context.getSharedPreferences("bq_account_protection", Context.MODE_PRIVATE).getBoolean("biometric_enabled", false))
@@ -103,6 +105,64 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Email & password", fontWeight = FontWeight.Bold)
+                        Text(if ("password" in providers) "Connected" else "Not connected")
+                        if ("password" !in providers) {
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text("New password") },
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = confirmPassword,
+                                onValueChange = { confirmPassword = it },
+                                label = { Text("Confirm password") },
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(
+                                enabled = !busy && password.length >= 6 && password == confirmPassword,
+                                onClick = {
+                                    busy = true; message = null
+                                    scope.launch {
+                                        try {
+                                            val user = auth.currentUser ?: error("Sign in is required")
+                                            val email = user.email ?: error("This account has no email address")
+                                            user.linkWithCredential(com.google.firebase.auth.EmailAuthProvider.getCredential(email, password)).await()
+                                            password = ""; confirmPassword = ""
+                                            message = "Email and password connected."
+                                            refresh()
+                                        } catch (t: Throwable) { message = t.message ?: "Could not connect password." }
+                                        finally { busy = false }
+                                    }
+                                }
+                            ) { Text("Connect password") }
+                        } else {
+                            OutlinedButton(
+                                enabled = !busy && providers.size > 1,
+                                onClick = {
+                                    busy = true; message = null
+                                    scope.launch {
+                                        try {
+                                            auth.currentUser?.unlink("password")?.await()
+                                            message = "Password sign-in disconnected."
+                                            refresh()
+                                        } catch (t: Throwable) { message = t.message ?: "Could not disconnect password." }
+                                        finally { busy = false }
+                                    }
+                                }
+                            ) { Text("Disconnect password") }
+                            if (providers.size <= 1) Text("Connect Google or a passkey before disconnecting your only Firebase sign-in provider.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
