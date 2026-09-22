@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.bqsqwad.ai.core.AdminSecurityClient
 import com.bqsqwad.ai.core.AdminBiometricClient
+import com.bqsqwad.ai.core.PasskeyClient
 import com.google.firebase.auth.FirebaseAuth
 import androidx.biometric.BiometricManager
 import kotlinx.coroutines.launch
@@ -62,6 +63,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val client = remember { AdminSecurityClient() }
     val biometricClient = remember { AdminBiometricClient(context) }
+    val passkeyClient = remember { PasskeyClient(context) }
+    var passkeyIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var setupSecret by remember { mutableStateOf("") }
@@ -87,6 +90,11 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 " • Authenticator: " + if (it.totpConfigured) "configured" else "not configured" +
                 " • Fingerprint: " + if (it.biometricConfigured) "configured" else "not configured" }
             .onFailure { error = it.message }
+        runCatching { passkeyClient.status() }
+            .onSuccess { json ->
+                val items = json.optJSONArray("items")
+                passkeyIds = List(items?.length() ?: 0) { i -> items!!.getJSONObject(i).optString("id") }
+            }
     }
 
     Scaffold(
@@ -155,6 +163,34 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     ) { Text("Confirm Authenticator") }
                 }
             }
+            item {
+                Text("Admin passkeys", style = MaterialTheme.typography.titleLarge)
+                Text("Create or disconnect passkeys for this admin account. A passkey uses the device credential provider and can be used without the password + authenticator flow.")
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        run({
+                            passkeyClient.createPasskey()
+                            val items = passkeyClient.status().optJSONArray("items")
+                            passkeyIds = List(items?.length() ?: 0) { i -> items!!.getJSONObject(i).optString("id") }
+                        }, "Admin passkey created.")
+                    }
+                ) { Text("Create admin passkey") }
+                passkeyIds.forEach { id ->
+                    OutlinedButton(
+                        enabled = !busy,
+                        onClick = {
+                            run({
+                                passkeyClient.removePasskey(id)
+                                passkeyIds = passkeyIds.filterNot { it == id }
+                            }, "Admin passkey disconnected.")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Disconnect passkey") }
+                }
+                if (passkeyIds.isEmpty()) Text("No admin passkey is connected.", style = MaterialTheme.typography.bodySmall)
+            }
+
             item {
                 Text("Fingerprint / biometric unlock", style = MaterialTheme.typography.titleLarge)
                 Text("Enroll a device-bound biometric key for direct admin unlock. Password + authenticator remains available as the recovery path.")
