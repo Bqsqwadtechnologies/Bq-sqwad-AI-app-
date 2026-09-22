@@ -1143,6 +1143,55 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, result);
       }
 
+      if (req.method === "POST" && path === "realtime/session") {
+        const gate = await authorizeCapability(user.uid, "voice");
+        try {
+          const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
+          const cfg = option.exists ? (option.data()?.config || {}) : {};
+          if (option.exists && option.data()?.enabled === false) return send(res, 403, { error: "live_voice_disabled" });
+          const model = String(cfg.modelId || "gpt-realtime-2.1");
+          const openaiKey = await getProviderSecret("openai");
+          if (!openaiKey) return send(res, 503, { error: "openai_provider_not_configured" });
+          const safetyId = crypto.createHash("sha256").update(String(user.uid)).digest("hex").slice(0, 64);
+          const upstream = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+            method: "POST",
+            headers: {
+              "Authorization": "Bearer " + openaiKey,
+              "Content-Type": "application/json",
+              "OpenAI-Safety-Identifier": safetyId
+            },
+            body: JSON.stringify({
+              session: {
+                type: "realtime",
+                model,
+                output_modalities: ["audio"],
+                audio: {
+                  input: { format: { type: "audio/pcm" }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+                  output: { format: { type: "audio/pcm" } }
+                }
+              }
+            })
+          });
+          const raw = await upstream.text();
+          const bodyJson = (() => { try { return JSON.parse(raw); } catch { return {}; } })();
+          if (!upstream.ok) return send(res, upstream.status, { error: bodyJson?.error?.message || "realtime_session_failed" });
+          const secret = bodyJson?.value || bodyJson?.client_secret?.value;
+          if (!secret) return send(res, 502, { error: "realtime_client_secret_missing" });
+          gate.commit();
+          return send(res, 200, {
+            clientSecret: String(secret),
+            model,
+            pricing: {
+              creditsPerMinute: cfg.creditsPerMinute == null ? null : Number(cfg.creditsPerMinute),
+              minimumMinutes: cfg.minimumMinutes == null ? null : Number(cfg.minimumMinutes),
+              maxSessionMinutes: cfg.maxSessionMinutes == null ? null : Number(cfg.maxSessionMinutes)
+            }
+          });
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "GET" && path === "plans") {
         const snap = await getFirestore().collection("plans").where("active", "==", true).get();
         return send(res, 200, { plans: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
