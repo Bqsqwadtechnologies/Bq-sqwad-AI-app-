@@ -441,10 +441,12 @@ private fun MainShell(modifier: Modifier) {
     var hub by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
+    var history by remember { mutableStateOf(false) }
     when {
-        hub -> FeatureHub({ hub = false }, { plans = true }) { workspace = it; hub = false }
+        hub -> FeatureHub({ hub = false }, { plans = true }, { history = true }) { workspace = it; hub = false }
         plans -> ProductCatalogScreen { plans = false }
         settings -> SettingsScreen { settings = false }
+        history -> HistoryScreen { history = false }
         workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
         else -> MainChatScreen(modifier, { hub = true }, { settings = true })
     }
@@ -468,6 +470,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     var feedbackReason by remember { mutableStateOf("inaccurate") }
     var feedbackComment by remember { mutableStateOf("") }
     var micError by remember { mutableStateOf<String?>(null) }
+    var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    var historyId by remember { mutableStateOf<String?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -478,26 +482,53 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     }
 
     fun sendAuthenticatedMessage(text: String) {
-        if (text.isBlank() || busy) return
+        if ((text.isBlank() && attachments.isEmpty()) || busy) return
+        val selectedAttachments = attachments
+        attachments = emptyList()
         message = ""
-        messages.add(ChatMessage(true, text))
+        val attachmentNames = selectedAttachments.joinToString(", ") { it.name }
+        val displayText = if (attachmentNames.isBlank()) text else (text.ifBlank { "Please analyze these attachments." } + "\n📎 " + attachmentNames)
+        val textParts = selectedAttachments.mapNotNull { a -> a.text?.let { "Attachment: " + a.name + "\n" + it } }
+        val imageParts = selectedAttachments.filter { it.imageBase64 != null }
+        if (imageParts.size > 1) {
+            error = "Please attach one image at a time. Multiple text attachments are supported."
+            attachments = selectedAttachments
+            return
+        }
+        val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
+        messages.add(ChatMessage(true, displayText))
         val aiIndex = messages.size
-        messages.add(ChatMessage(false, "", prompt = text))
+        messages.add(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
         error = null
         streamJob = scope.launch(Dispatchers.IO) {
             try {
-                ChatApiClient().streamMessage(text) { delta ->
-                    scope.launch(Dispatchers.Main) {
-                        val current = messages.getOrNull(aiIndex)
-                        if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
+                val reply = if (imageParts.isNotEmpty()) {
+                    val image = imageParts.first()
+                    ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType)
+                } else {
+                    ChatApiClient().streamMessage(actualPrompt) { delta ->
+                        scope.launch(Dispatchers.Main) {
+                            val current = messages.getOrNull(aiIndex)
+                            if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
+                        }
                     }
                 }
-                scope.launch(Dispatchers.Main) { busy = false; streamJob = null }
+                scope.launch(Dispatchers.Main) {
+                    val current = messages.getOrNull(aiIndex)
+                    if (current != null) messages[aiIndex] = current.copy(text = reply.text)
+                    busy = false
+                    streamJob = null
+                    val snapshot = messages.map { HistoryMessage(it.mine, it.text, it.id, it.prompt) }
+                    runCatching {
+                        historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
+                    }.onFailure { error = "The response was generated, but chat history could not be saved." }
+                }
             } catch (t: Throwable) {
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
+                    attachments = selectedAttachments
                     if (t !is kotlinx.coroutines.CancellationException) error = t.message ?: "AI request failed"
                     busy = false
                     streamJob = null
@@ -507,7 +538,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selected ->
-        if (selected.isNotEmpty()) message = "Selected " + selected.size + " file(s). Secure file attachment processing is not yet connected to the AI request pipeline."
+        if (selected.isNotEmpty()) {
+            scope.launch(Dispatchers.IO) {
+                val prepared = mutableListOf<PreparedChatAttachment>()
+                var failure: String? = null
+                for (uri in selected) {
+                    runCatching { ChatAttachmentReader.read(context, uri) }
+                        .onSuccess { prepared += it }
+                        .onFailure { failure = it.message ?: "Could not read attachment." }
+                }
+                scope.launch(Dispatchers.Main) {
+                    if (failure != null) error = failure
+                    attachments = prepared
+                }
+            }
+        }
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
@@ -597,6 +642,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
             }
+            if (attachments.isNotEmpty()) {
+                LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(attachments, key = { it.name + it.mimeType }) { attachment ->
+                        InputChip(
+                            selected = true,
+                            onClick = { attachments = attachments.filterNot { it === attachment } },
+                            label = { Text(attachment.name, maxLines = 1) },
+                            trailingIcon = { Icon(Icons.Default.Close, "Remove attachment") }
+                        )
+                    }
+                }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 IconButton(onClick = openHub) { Icon(Icons.Default.Add, "AI workspaces") }
                 IconButton(onClick = { picker.launch(arrayOf("*/*")) }) { Icon(Icons.Default.AttachFile, "Files") }
@@ -622,7 +679,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                         Icon(Icons.Default.Stop, contentDescription = "Stop generating")
                     }
                 } else {
-                    IconButton(enabled = message.isNotBlank(), onClick = {
+                    IconButton(enabled = message.isNotBlank() || attachments.isNotEmpty(), onClick = {
                         val text = message.trim()
                         if (FirebaseAuth.getInstance().currentUser == null) {
                             showAuth = true
@@ -707,8 +764,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
 }
 
 @Composable
-private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Workspace) -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = { IconButton(onPlans) { Icon(Icons.Default.CreditCard, "Plans") } }) }) { p ->
+private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit) {
+    Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = {
+    IconButton(onClick = onHistory) { Icon(Icons.Default.History, "Chat history") }
+    IconButton(onClick = onPlans) { Icon(Icons.Default.CreditCard, "Plans") }
+}) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
