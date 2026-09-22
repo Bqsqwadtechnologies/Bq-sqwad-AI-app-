@@ -104,3 +104,18 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Privileged admin APIs now require the configured super-admin email plus an existing server-side Firebase admin/super-admin role claim; client-side UI visibility is not treated as authorization.
 - Google Play purchase verification rejects a Play purchase owned by another account and prevents a new Play purchase from duplicating an active legacy entitlement for the same plan.
 - No GitHub Actions workflow was triggered during this work.
+
+
+## Complete commercial catalog migration — September 22, 2026
+
+- Replaced the code-defined commercial fallback with a single canonical catalog in `functions/plan-catalog.js`, version 3.
+- All commercial plan/product IDs in the canonical catalog use lowercase letters, numbers and hyphens only; underscore IDs are rejected by validation and by the admin save endpoint.
+- The catalog now carries product type, recurring/one-time behavior, billing periods, base-plan IDs, offer IDs, USD list prices, proposed-price status, Play eligibility by billing period, 3-day trial eligibility, 7-day grace period, Google-controlled account hold, resubscribe behavior, plan-change behavior, country availability, limits, features, entitlements, quantity tiers, add-on quantity rules, Contact Sales state and active state.
+- Added the admin-only `GET /admin/plan-catalog` read contract backed by `planCatalog/config` with code-catalog fallback.
+- Added the admin-only `POST /admin/plan-catalog` configuration contract. Writes are versioned and audited in `adminConfigAudit`. Server-side validation rejects invalid/duplicate commercial IDs, product IDs containing underscores, and invalid tier IDs.
+- Native `/play/catalog` and `/native/catalog` now fall back to the canonical Play projection when Firestore Play configuration has not yet been populated. Firestore configuration remains authoritative once present.
+- Google Play projection uses one subscription product ID with multiple base plans where configured; yearly Business Professional, Business, and Business Enterprise are Contact Sales in the catalog projection, while proposed TruthGuard and Life Mathis yearly prices are not silently published to Play.
+- Native Play purchase selection now respects the configured base plan and available configured trial offer. The 3-day offer is not applied to add-ons or exam add-ons.
+- Verified Play entitlements now retain product ID, plan ID, base-plan ID, offer ID, tier ID, quantity, purchase token/reference, source, subscription state, start/end information and active state. A per-purchase `playEntitlements` record is also stored while the existing canonical `entitlements/{uid}` compatibility record remains intact.
+- Legacy Paystack backend functionality remains untouched and is not used by native Android checkout.
+- No GitHub Actions workflow was modified or triggered by this catalog migration.
