@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { encryptSecret, decryptSecret } from "./secret-store.js";
 
 const REF = "adminSecurity/global";
 const ISSUER = "BQ Sqwad AI";
@@ -85,7 +86,7 @@ export async function securityStatus() {
   const data = snap.exists ? snap.data() || {} : {};
   return {
     passwordConfigured: Boolean(data.password?.hash),
-    totpConfigured: Boolean(data.totpSecret),
+    totpConfigured: Boolean(data.totpSecretEncrypted || data.totpSecret),
     verifiedWindowSeconds: 12 * 60 * 60,
     issuer: ISSUER,
     account: ACCOUNT,
@@ -113,7 +114,8 @@ export async function beginTotpSetup(actorUid) {
     "&issuer=" + encodeURIComponent(ISSUER) +
     "&algorithm=SHA1&digits=6&period=30";
   await (await ref()).set({
-    pendingTotpSecret: secret,
+    pendingTotpSecretEncrypted: encryptSecret(secret),
+    pendingTotpSecret: null,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: actorUid
   }, { merge: true });
@@ -122,10 +124,15 @@ export async function beginTotpSetup(actorUid) {
 
 export async function confirmTotpSetup(code, actorUid) {
   const snap = await (await ref()).get();
-  const pending = snap.data()?.pendingTotpSecret;
+  const data = snap.data() || {};
+  const pending = data.pendingTotpSecretEncrypted
+    ? decryptSecret(data.pendingTotpSecretEncrypted)
+    : data.pendingTotpSecret;
   if (!pending || !verifyTotp(pending, code)) throw new Error("Invalid authenticator code");
   await (await ref()).set({
-    totpSecret: pending,
+    totpSecretEncrypted: encryptSecret(pending),
+    totpSecret: null,
+    pendingTotpSecretEncrypted: null,
     pendingTotpSecret: null,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: actorUid
@@ -137,11 +144,12 @@ export async function confirmTotpSetup(code, actorUid) {
 export async function unlockAdmin(uid, password, code) {
   const snap = await (await ref()).get();
   const data = snap.exists ? snap.data() || {} : {};
+  const totpSecret = data.totpSecretEncrypted ? decryptSecret(data.totpSecretEncrypted) : data.totpSecret;
   if (data.password?.hash) {
-    if (!data.totpSecret) throw new Error("Configure the authenticator before password-based admin login");
+    if (!totpSecret) throw new Error("Configure the authenticator before password-based admin login");
     if (!verifyPassword(password, data.password)) throw new Error("Invalid admin password");
-    if (!verifyTotp(data.totpSecret, code)) throw new Error("Invalid authenticator code");
-  } else if (data.totpSecret && !verifyTotp(data.totpSecret, code)) {
+    if (!verifyTotp(totpSecret, code)) throw new Error("Invalid authenticator code");
+  } else if (totpSecret && !verifyTotp(totpSecret, code)) {
     throw new Error("Invalid authenticator code");
   }
   const user = await getAuth().getUser(uid);
