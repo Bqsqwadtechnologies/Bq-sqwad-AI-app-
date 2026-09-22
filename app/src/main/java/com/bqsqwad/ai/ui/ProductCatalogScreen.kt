@@ -58,8 +58,11 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 credits=runCatching{api.credits()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
-                    val contacted=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) }.firstOrNull { x -> x.optString("status") == "contacted" } }
-                    contacted?.let { "Sales has contacted you about ${it.optString("planName").ifBlank{"your request"}}. Check your email." }
+                    val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
+                    val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
+                    val seen=rows.firstOrNull { it.optString("status")=="seen" }
+                    contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
+                        ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by the admin team." }
                 }.getOrNull()
                 context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                     .putString("catalog",live.toString()).apply()
