@@ -546,12 +546,14 @@ private fun MainShell(modifier: Modifier) {
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     var accountProtection by remember { mutableStateOf(false) }
+    var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
     when {
         hub -> FeatureHub({ hub = false }, { plans = true }, { history = true }) { workspace = it; hub = false }
         plans -> ProductCatalogScreen { plans = false }
-        settings -> SettingsScreen(onBack = { settings = false }, onOpenAccountProtection = { accountProtection = true })
+        settings -> SettingsScreen(onBack = { settings = false }, onOpenAccountProtection = { accountProtection = true }, onOpenLegalCenter = { legalCenter = true })
         accountProtection -> AccountProtectionScreen { accountProtection = false }
+        legalCenter -> LegalCenterScreen { legalCenter = false }
         history -> HistoryScreen { history = false }
         workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
         else -> MainChatScreen(modifier, { hub = true }, { settings = true })
@@ -1410,7 +1412,7 @@ private fun PlansSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
@@ -1475,8 +1477,9 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                 }
                 consentStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            item { FeatureCard("Terms and Conditions", "Open the current BQ Sqwad AI terms in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) } }
-            item { FeatureCard("Privacy Policy", "Open the current BQ Sqwad AI privacy policy in your browser.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) } }
+            item { FeatureCard("Privacy & Legal Center", "Review privacy topics and open each matching section of the current policy or Terms & Conditions.") { onOpenLegalCenter() } }
+            item { FeatureCard("Privacy Policy", "Open the complete BQ Sqwad AI Privacy Policy.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) } }
+            item { FeatureCard("Terms & Conditions", "Open the complete BQ Sqwad AI Terms & Conditions.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) } }
             item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
             item { Text("BQ Sqwad AI • © 2026 BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
