@@ -137,8 +137,13 @@ export async function confirmTotpSetup(code, actorUid) {
 export async function unlockAdmin(uid, password, code) {
   const snap = await (await ref()).get();
   const data = snap.exists ? snap.data() || {} : {};
-  if (data.password?.hash && !verifyPassword(password, data.password)) throw new Error("Invalid admin password");
-  if (data.totpSecret && !verifyTotp(data.totpSecret, code)) throw new Error("Invalid authenticator code");
+  if (data.password?.hash) {
+    if (!data.totpSecret) throw new Error("Configure the authenticator before password-based admin login");
+    if (!verifyPassword(password, data.password)) throw new Error("Invalid admin password");
+    if (!verifyTotp(data.totpSecret, code)) throw new Error("Invalid authenticator code");
+  } else if (data.totpSecret && !verifyTotp(data.totpSecret, code)) {
+    throw new Error("Invalid authenticator code");
+  }
   const user = await getAuth().getUser(uid);
   await getAuth().setCustomUserClaims(uid, {
     ...(user.customClaims || {}),
