@@ -15,7 +15,7 @@ data class PreparedChatAttachment(
 )
 
 object ChatAttachmentReader {
-    private const val MAX_BYTES = 6L * 1024L * 1024L
+    private const val MAX_BYTES = 5L * 1024L * 1024L
     private val TEXT_MIMES = setOf("text/plain", "text/markdown", "text/csv", "text/html", "application/json", "application/xml", "text/xml", "application/javascript", "text/javascript")
 
     fun read(context: Context, uri: Uri): PreparedChatAttachment {
@@ -32,7 +32,7 @@ object ChatAttachmentReader {
                 val count = input.read(buffer)
                 if (count < 0) break
                 total += count
-                if (total > MAX_BYTES) error("Attachment '" + name + "' is larger than 6 MB.")
+                if (total > MAX_BYTES) error("Attachment '" + name + "' is larger than 5 MB.")
                 out.write(buffer, 0, count)
             }
             out.toByteArray()
