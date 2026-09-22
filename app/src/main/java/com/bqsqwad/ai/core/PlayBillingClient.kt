@@ -21,6 +21,8 @@ data class PlayCatalogItem(
     val planId: String,
     val productId: String,
     val basePlanId: String?,
+    val offerId: String?,
+    val trialOfferId: String?,
     val productType: String,
     val enabled: Boolean,
     val consumable: Boolean
@@ -99,18 +101,22 @@ class PlayBillingClient(
 
     fun availableProducts(): List<ProductDetails> = details.values.toList()
 
-    fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null)
+    fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null, null)
 
-    fun launchPurchase(productId: String, basePlanId: String?): BillingResult? {
+    fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
         val product = details[productId] ?: return null
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
         val offerToken = when (product.productType) {
             ProductType.SUBS -> {
                 val preferredBasePlan = basePlanId ?: catalog[productId]?.basePlanId
-                val offer = product.subscriptionOfferDetails?.firstOrNull { detail ->
+                val preferredOfferId = offerId ?: catalog[productId]?.offerId ?: catalog[productId]?.trialOfferId
+                val offersForBasePlan = product.subscriptionOfferDetails?.filter { detail ->
                     preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
-                }
+                }.orEmpty()
+                val offer = offersForBasePlan.firstOrNull { detail ->
+                    !preferredOfferId.isNullOrBlank() && detail.offerId == preferredOfferId
+                } ?: offersForBasePlan.firstOrNull()
                 offer?.offerToken
             }
             ProductType.INAPP -> product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
@@ -158,6 +164,8 @@ class PlayBillingClient(
                         planId = item.optString("planId"),
                         productId = id,
                         basePlanId = item.optString("basePlanId").ifBlank { null },
+                        offerId = item.optString("offerId").ifBlank { null },
+                        trialOfferId = item.optString("trialOfferId").ifBlank { null },
                         productType = type,
                         enabled = item.optBoolean("enabled", false),
                         consumable = item.optBoolean("consumable", false)
