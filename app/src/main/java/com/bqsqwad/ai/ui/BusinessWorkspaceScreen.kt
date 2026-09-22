@@ -31,7 +31,31 @@ fun BusinessWorkspaceScreen() {
     var leadContact by remember { mutableStateOf("") }
     var leadNote by remember { mutableStateOf("") }
     var inboxMessage by remember { mutableStateOf("") }
-    var inboxContact by remember { mutableStateOf("") }\n    var trainingType by remember { mutableStateOf("document") }\n    var trainingTitle by remember { mutableStateOf("") }\n    var trainingPurpose by remember { mutableStateOf("") }\n    var trainingStatus by remember { mutableStateOf<String?>(null) }\n    val context = LocalContext.current\n    val trainingPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->\n        if (uri != null && trainingTitle.isNotBlank() && trainingPurpose.isNotBlank()) {\n            trainingStatus = "Uploading…"\n            scope.launch {\n                runCatching {\n                    BusinessTrainingUploader.upload(context.contentResolver, uri, trainingType, trainingTitle.trim(), trainingPurpose.trim())\n                }.onSuccess {\n                    trainingStatus = "Training asset uploaded and registered."\n                    trainingTitle = ""\n                    trainingPurpose = ""\n                    load()\n                }.onFailure {\n                    trainingStatus = it.message ?: "Training upload failed."\n                }\n            }\n        } else {\n            trainingStatus = "Enter a title and purpose before selecting a file."\n        }\n    }
+    var inboxContact by remember { mutableStateOf("") }
+    var trainingType by remember { mutableStateOf("document") }
+    var trainingTitle by remember { mutableStateOf("") }
+    var trainingPurpose by remember { mutableStateOf("") }
+    var trainingStatus by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val trainingPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && trainingTitle.isNotBlank() && trainingPurpose.isNotBlank()) {
+            trainingStatus = "Uploading…"
+            scope.launch {
+                runCatching {
+                    BusinessTrainingUploader.upload(context.contentResolver, uri, trainingType, trainingTitle.trim(), trainingPurpose.trim())
+                }.onSuccess {
+                    trainingStatus = "Training asset uploaded and registered."
+                    trainingTitle = ""
+                    trainingPurpose = ""
+                    load()
+                }.onFailure {
+                    trainingStatus = it.message ?: "Training upload failed."
+                }
+            }
+        } else {
+            trainingStatus = "Enter a title and purpose before selecting a file."
+        }
+    }
 
     fun load() {
         loading = true; error = null
