@@ -43,6 +43,13 @@ async function userFromRequest(req) {
   return getAuth().verifyIdToken(header.slice(7), true);
 }
 
+async function requireRequiredConsent(uid) {
+  const snap = await getFirestore().collection("userConsents").doc(uid).get();
+  if (!snap.exists || snap.data()?.requiredAccepted !== true) {
+    throw new Error("required_consent_missing");
+  }
+}
+
 async function adminFromRequest(req) {
   const user = await userFromRequest(req);
       // All capability endpoints below require a verified Firebase ID token.
@@ -70,6 +77,9 @@ export const bqSqwadApi = onRequest(
       }
 
       const user = await userFromRequest(req);
+      if (path !== "consent" && path !== "consent/training") {
+        await requireRequiredConsent(user.uid);
+      }
 
       if (req.method === "POST" && path === "consent") {
         const requiredAccepted = body.requiredAccepted === true;
@@ -106,6 +116,71 @@ export const bqSqwadApi = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
         return send(res, 200, { ok: true, trainingConsent });
+      }
+
+      if (req.method === "GET" && path === "history") {
+        const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+        const snap = await getFirestore().collection("chatHistory")
+          .where("uid", "==", user.uid)
+          .orderBy("updatedAt", "desc")
+          .limit(limit)
+          .get();
+        return send(res, 200, {
+          items: snap.docs.map(doc => {
+            const data = doc.data() || {};
+            return {
+              id: doc.id,
+              title: String(data.title || "New chat"),
+              updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() || "",
+              messageCount: Array.isArray(data.messages) ? data.messages.length : 0
+            };
+          })
+        });
+      }
+
+      if (req.method === "GET" && path.startsWith("history/")) {
+        const id = path.slice("history/".length).trim();
+        if (!id || id.includes("/")) return send(res, 400, { error: "invalid_history_id" });
+        const doc = await getFirestore().collection("chatHistory").doc(id).get();
+        if (!doc.exists || doc.data()?.uid !== user.uid) return send(res, 404, { error: "history_not_found" });
+        const data = doc.data() || {};
+        return send(res, 200, { id, title: String(data.title || "New chat"), messages: Array.isArray(data.messages) ? data.messages : [] });
+      }
+
+      if (req.method === "POST" && path === "history") {
+        const requestedId = String(body.id || "").trim();
+        const ref = requestedId
+          ? getFirestore().collection("chatHistory").doc(requestedId)
+          : getFirestore().collection("chatHistory").doc();
+        const existing = requestedId ? await ref.get() : null;
+        if (existing?.exists && existing.data()?.uid !== user.uid) return send(res, 403, { error: "history_forbidden" });
+        const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+        const messages = rawMessages.slice(-100).map(item => ({
+          id: String(item?.id || crypto.randomUUID()).slice(0, 120),
+          mine: item?.mine === true,
+          text: String(item?.text || "").slice(0, 20000),
+          ...(item?.prompt ? { prompt: String(item.prompt).slice(0, 20000) } : {})
+        })).filter(item => item.text.length > 0);
+        if (!messages.length) return send(res, 400, { error: "history_messages_required" });
+        const title = String(body.title || messages.find(item => item.mine)?.text || "New chat").trim().slice(0, 180);
+        await ref.set({
+          uid: user.uid,
+          title,
+          messages,
+          createdAt: existing?.exists ? (existing.data()?.createdAt || FieldValue.serverTimestamp()) : FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return send(res, 200, { ok: true, id: ref.id, title, messageCount: messages.length });
+      }
+
+      if (req.method === "DELETE" && path.startsWith("history/")) {
+        const id = path.slice("history/".length).trim();
+        if (!id || id.includes("/")) return send(res, 400, { error: "invalid_history_id" });
+        const ref = getFirestore().collection("chatHistory").doc(id);
+        const doc = await ref.get();
+        if (!doc.exists || doc.data()?.uid !== user.uid) return send(res, 404, { error: "history_not_found" });
+        await ref.delete();
+        return send(res, 200, { ok: true });
       }
 
       if (req.method === "GET" && path === "memory") {
