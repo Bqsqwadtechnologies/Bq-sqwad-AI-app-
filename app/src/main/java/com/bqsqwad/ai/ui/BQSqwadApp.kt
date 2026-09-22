@@ -1127,184 +1127,111 @@ private fun CameraWorkspace() {
 @Composable
 private fun VoiceWorkspace() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var transcript by remember { mutableStateOf("") }
-    var reply by remember { mutableStateOf("") }
-    var listening by remember { mutableStateOf(false) }
-    var speaking by remember { mutableStateOf(false) }
-    var micMuted by remember { mutableStateOf(false) }
-    var aiSpeakingMuted by remember { mutableStateOf(false) }
-    var ttsReady by remember { mutableStateOf(false) }
-    var ttsFailed by remember { mutableStateOf(false) }
+    var active by remember { mutableStateOf(false) }
+    var state by remember { mutableStateOf("stopped") }
     var permissionExplanation by remember { mutableStateOf(false) }
-    var autoListen by remember { mutableStateOf(false) }
 
-    val tts = remember {
-        TextToSpeech(context) { status ->
-            ttsReady = status == TextToSpeech.SUCCESS
-            ttsFailed = status != TextToSpeech.SUCCESS
+    fun startVoice() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionExplanation = true
+            return
         }
+        context.startForegroundService(
+            Intent(context, LiveMediaForegroundService::class.java)
+                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
+        )
+        active = true
+        state = "connecting"
     }
-    val recognizer = remember { android.speech.SpeechRecognizer.createSpeechRecognizer(context) }
 
-    fun stopVoiceSession() {
-        autoListen = false
-        recognizer.cancel()
-        listening = false
-        tts.stop()
-        speaking = false
+    fun stopVoice() {
         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+        active = false
+        state = "stopped"
     }
 
-    fun startListening() {
-        if (micMuted) return
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
-        autoListen = true
-        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java).putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE))
-        recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-        })
-    }
-
-    val listener = remember {
-        object : android.speech.RecognitionListener {
-            override fun onReadyForSpeech(params: android.os.Bundle?) { listening = true }
-            override fun onBeginningOfSpeech() { listening = true }
-            override fun onRmsChanged(rmsdB: Float) = Unit
-            override fun onBufferReceived(buffer: ByteArray?) = Unit
-            override fun onEndOfSpeech() { listening = false }
-            override fun onError(error: Int) {
-                listening = false
-                if (autoListen && error != android.speech.SpeechRecognizer.ERROR_CLIENT) {
-                    scope.launch {
-                        delay(250)
-                        if (autoListen && !micMuted && !speaking) runCatching { startListening() }
-                    }
+    DisposableEffect(Unit) {
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val poll = object : Runnable {
+            override fun run() {
+                val prefs = context.getSharedPreferences("bq_live_media", Context.MODE_PRIVATE)
+                if (prefs.getString("mode", "") == LiveMediaForegroundService.MODE_VOICE) {
+                    active = prefs.getBoolean("active", false)
+                    state = prefs.getString("answer", "stopped") ?: "stopped"
                 }
+                handler.postDelayed(this, 500)
             }
-            override fun onResults(results: android.os.Bundle?) {
-                listening = false
-                val text = results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                if (text.isBlank()) return
-                transcript = text
-                scope.launch {
-                    try {
-                        val generated = ChatApiClient().sendMessage(text).text
-                        reply = generated
-                        if (generated.isNotBlank() && ttsReady && !aiSpeakingMuted) {
-                            recognizer.cancel()
-                            speaking = true
-                            tts.speak(generated, TextToSpeech.QUEUE_FLUSH, null, "bq_live_voice")
-                        } else if (autoListen) {
-                            startListening()
-                        }
-                    } catch (t: Throwable) {
-                        reply = t.message ?: "Voice request failed."
-                        if (autoListen) startListening()
-                    }
-                }
-            }
-            override fun onPartialResults(partialResults: android.os.Bundle?) {
-                transcript = partialResults?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            }
-            override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
         }
-    }
-
-    DisposableEffect(tts, recognizer, listener) {
-        recognizer.setRecognitionListener(listener)
-        tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { speaking = true }
-            override fun onDone(utteranceId: String?) {
-                scope.launch {
-                    speaking = false
-                    if (autoListen && !micMuted) {
-                        delay(150)
-                        startListening()
-                    }
-                }
-            }
-            override fun onError(utteranceId: String?) {
-                speaking = false
-                if (autoListen && !micMuted) startListening()
-            }
-        })
+        handler.post(poll)
         onDispose {
-            autoListen = false
-            recognizer.cancel()
-            recognizer.destroy()
-            tts.stop()
-            tts.shutdown()
-            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+            handler.removeCallbacksAndMessages(null)
         }
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) startListening() }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) startVoice() }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Live Voice AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("One continuous voice conversation with interruption, microphone control and spoken AI responses.")
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = {
-                if (speaking) {
-                    tts.stop()
-                    speaking = false
-                    autoListen = true
-                    startListening()
-                } else if (listening) {
-                    micMuted = true
-                    recognizer.cancel()
-                    listening = false
-                } else {
-                    micMuted = false
-                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) permissionExplanation = true else startListening()
-                }
-            }) {
-                Icon(if (speaking) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (speaking) "Interrupt" else if (listening) "Mute mic" else "Start voice")
+    Column(
+        Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Spacer(Modifier.height(20.dp))
+        Surface(
+            modifier = Modifier.size(190.dp),
+            shape = CircleShape,
+            tonalElevation = 12.dp,
+            shadowElevation = 16.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Mic,
+                    contentDescription = "Live voice",
+                    modifier = Modifier.size(72.dp)
+                )
             }
-            OutlinedButton(onClick = {
-                micMuted = !micMuted
-                if (micMuted) {
-                    recognizer.cancel()
-                    listening = false
-                } else if (autoListen && !speaking) startListening()
-            }) { Text(if (micMuted) "Unmute mic" else "Mute mic") }
-            OutlinedButton(onClick = {
-                aiSpeakingMuted = !aiSpeakingMuted
-                if (aiSpeakingMuted) {
-                    tts.stop()
-                    speaking = false
-                }
-            }) { Text(if (aiSpeakingMuted) "AI voice off" else "AI voice on") }
-            OutlinedButton(onClick = { stopVoiceSession() }) { Text("End") }
         }
 
-        if (listening || speaking) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (transcript.isNotBlank()) SurfaceCard("You", transcript)
-        if (reply.isNotBlank()) SurfaceCard("BQ Sqwad AI", reply)
-        if (ttsFailed) Text("Android text-to-speech could not initialize. Check the device speech settings.", color = MaterialTheme.colorScheme.error)
-        SurfaceCard("Voice status", when {
-            micMuted -> "Microphone muted"
-            speaking -> "AI response is playing — tap Interrupt to speak"
-            listening -> "Voice session active"
-            else -> "Voice session stopped"
-        })
+        Text(
+            if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Button(
+            onClick = { if (active) stopVoice() else startVoice() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(if (active) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (active) "End conversation" else "Start conversation")
+        }
+
+        if (active) {
+            Text(
+                "Speak naturally. The AI listens and responds with audio; speaking while it responds interrupts the response.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
             title = { Text("Microphone access") },
-            text = { Text("BQ Sqwad AI uses the microphone only for the active Live Voice session. Android shows a visible microphone indicator while access is active.") },
+            text = { Text("Microphone access is required for the live voice conversation. Android shows a microphone indicator while the session is active.") },
             confirmButton = {
-                TextButton(onClick = { permissionExplanation = false; permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Continue") }
+                TextButton(onClick = {
+                    permissionExplanation = false
+                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }) { Text("Continue") }
             },
-            dismissButton = { TextButton(onClick = { permissionExplanation = false }) { Text("Not now") } }
+            dismissButton = {
+                TextButton(onClick = { permissionExplanation = false }) { Text("Not now") }
+            }
         )
     }
 }
