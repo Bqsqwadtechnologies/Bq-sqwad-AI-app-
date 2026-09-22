@@ -20,6 +20,7 @@ import { getOrganization, updateOrganization, updateOrganizationSettings, addOrg
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
+import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp } from "./admin-security.js";
 
 initializeApp();
 
@@ -54,7 +55,9 @@ async function requireRequiredConsent(uid) {
 async function adminFromRequest(req) {
   const user = await userFromRequest(req);
       // All capability endpoints below require a verified Firebase ID token.
-  return assertSuperAdmin(user);
+  const admin = await assertSuperAdmin(user);
+  await requireStepUp(admin.uid);
+  return admin;
 }
 
 export const bqSqwadApi = onRequest(
@@ -988,6 +991,31 @@ export const bqSqwadApi = onRequest(
           createdAt: FieldValue.serverTimestamp()
         });
         return send(res, 200, { ok: true, version, catalog: incoming });
+      }
+
+      if (req.method === "GET" && path === "admin/security/status") {
+        const admin = await assertSuperAdmin(await userFromRequest(req));
+        return send(res, 200, await securityStatus());
+      }
+
+      if (req.method === "POST" && path === "admin/security/password") {
+        const admin = await assertSuperAdmin(await userFromRequest(req));
+        return send(res, 200, await configurePassword(String(body.password || ""), admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/security/totp/start") {
+        const admin = await assertSuperAdmin(await userFromRequest(req));
+        return send(res, 200, await beginTotpSetup(admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/security/totp/confirm") {
+        const admin = await assertSuperAdmin(await userFromRequest(req));
+        return send(res, 200, await confirmTotpSetup(String(body.code || ""), admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/security/unlock") {
+        const admin = await assertSuperAdmin(await userFromRequest(req));
+        return send(res, 200, await unlockAdmin(admin.uid, String(body.password || ""), String(body.code || "")));
       }
 
       if (req.method === "GET" && path === "admin/config") {
