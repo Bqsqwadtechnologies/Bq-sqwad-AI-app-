@@ -998,7 +998,7 @@ export const bqSqwadApi = onRequest(
           productType: String(p.productType || ""),
           enabled: p.enabled === true,
           consumable: p.consumable === true
-        })).filter(p => p.productId && (p.productType === "subs" || p.productType === "inapp")) : [];
+        })).filter(p => p.productId && !p.productId.includes("_") && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
         const features = featureSnap.docs.map(d => {
           const x = d.data();
           return { id: d.id, name: String(x.name || x.title || d.id), description: String(x.description || ""), group: String(x.group || x.category || ""), product: String(x.product || ""), defaultState: String(x.defaultState || "unavailable"), visible: x.visible !== false, comingSoon: x.comingSoon === true };
