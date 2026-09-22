@@ -58,7 +58,7 @@ async function playApi(path, method = "GET", body = undefined) {
   return payload;
 }
 
-export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfuscatedAccountId }) {
+export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfuscatedAccountId, requestedBasePlanId, requestedOfferId }) {
   if (!uid || !productId || !purchaseToken) throw new Error("play_purchase_fields_required");
   if (obfuscatedAccountId) {
     const expected = crypto.createHash("sha256").update(String(uid)).digest("hex");
@@ -69,8 +69,9 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   const products = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products) && catalogSnap.data().products.length
     ? catalogSnap.data().products
     : canonicalPlayProducts();
-  const mapping = products.find(p => p.productId === productId && p.enabled === true);
-  if (!mapping) throw new Error("play_product_not_configured");
+  const productMappings = products.filter(p => p.productId === productId && p.enabled === true);
+  if (!productMappings.length) throw new Error("play_product_not_configured");
+  const requestedMapping = productMappings.find(p => !requestedBasePlanId || String(p.basePlanId || "") === String(requestedBasePlanId)) || productMappings[0];
 
   const existingRef = db.collection("playPurchases").doc(crypto.createHash("sha256").update(purchaseToken).digest("hex"));
   const existing = await existingRef.get();
@@ -92,12 +93,19 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     ? await playApi("purchases/subscriptionsv2/tokens/" + encodeURIComponent(purchaseToken))
     : await playApi("purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken));
 
-  const subscriptionState = mapping.productType === "subs"
+  const subscriptionState = requestedMapping.productType === "subs"
     ? String(verified.subscriptionState || "")
     : "";
-  const purchaseState = mapping.productType === "inapp"
+  const purchaseState = requestedMapping.productType === "inapp"
     ? Number(verified.purchaseState ?? -1)
     : 0;
+  const lineItem = requestedMapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
+  const verifiedBasePlanId = String(lineItem.offerDetails?.basePlanId || requestedMapping.basePlanId || "");
+  const verifiedOfferId = String(lineItem.offerDetails?.offerId || requestedOfferId || "");
+  const mapping = productMappings.find(p => String(p.basePlanId || "") === verifiedBasePlanId) || requestedMapping;
+  if (requestedBasePlanId && verifiedBasePlanId && String(requestedBasePlanId) !== verifiedBasePlanId) {
+    throw new Error("play_base_plan_mismatch");
+  }
   const valid = mapping.productType === "subs"
     ? ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"].includes(subscriptionState)
     : purchaseState === 0;
@@ -108,7 +116,11 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     if (fresh.exists && fresh.data()?.verified === true) return;
 
     const entitlementRef = db.collection("entitlements").doc(uid);
+    const playEntitlementRef = db.collection("playEntitlements").doc(
+      crypto.createHash("sha256").update(String(productId) + ":" + verifiedBasePlanId + ":" + String(purchaseToken)).digest("hex")
+    );
     const creditGrant = Math.max(0, Number(mapping.creditGrant || 0));
+    const quantity = Math.max(1, Number(mapping.quantity || 1));
     const balanceRef = db.collection("creditBalances").doc(uid);
     const balanceSnap = await tx.get(balanceRef);
     const balance = balanceSnap.exists ? balanceSnap.data() : { available: 0, reserved: 0 };
@@ -118,6 +130,8 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
       productId,
       planId: String(mapping.planId || ""),
       productType: mapping.productType,
+      basePlanId: verifiedBasePlanId || null,
+      offerId: verifiedOfferId || null,
       purchaseToken,
       verified: true,
       state: mapping.productType === "subs" ? subscriptionState : "PURCHASED",
@@ -126,10 +140,15 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     }, { merge: true });
 
     if (mapping.planId) {
-      tx.set(entitlementRef, {
+      const entitlementData = {
         uid,
-        planId: String(mapping.planId),
-        product: String(mapping.product || ""),
+        productId,
+        planId: String(mapping.planId || ""),
+        product: String(mapping.product || productId),
+        basePlanId: verifiedBasePlanId || null,
+        offerId: verifiedOfferId || null,
+        tierId: mapping.tierId || null,
+        quantity,
         source: "play",
         providerReference: purchaseToken,
         purchaseToken,
@@ -141,7 +160,9 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
         remainingAllowance: mapping.allowance ?? null,
         creditBalance: creditGrant,
         updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
+      };
+      tx.set(entitlementRef, entitlementData, { merge: true });
+      tx.set(playEntitlementRef, entitlementData, { merge: true });
     }
 
     if (creditGrant > 0) {
