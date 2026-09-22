@@ -218,10 +218,10 @@ export const bqSqwadApi = onRequest(
         try {
           const org = await getOrganization(user.uid);
           const settings = org.settings || {};
-          const knowledge = Array.isArray(org.knowledge)
-            ? org.knowledge.slice(-50).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("
-")
-            : "";
+          if (settings.assistantEnabled === false) return send(res, 403, { error: "organization_ai_disabled" });
+          const knowledge = settings.sharedKnowledgeEnabled === false ? "" : (Array.isArray(org.knowledge)
+            ? org.knowledge.slice(-50).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n")
+            : "");
           const sharedMemory = settings.sharedMemoryEnabled === true ? await memoryContext(user.uid) : "";
           reservation = await reserveCredits(user.uid, gate.creditCost, "organization_assistant");
           const system = [
