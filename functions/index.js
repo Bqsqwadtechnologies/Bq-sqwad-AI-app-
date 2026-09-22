@@ -21,6 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp } from "./admin-security.js";
+import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
 initializeApp();
 
@@ -96,6 +97,14 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
       }
 
+      if (req.method === "GET" && path === "passkey/login/options") {
+        return send(res, 200, await authenticationOptions());
+      }
+
+      if (req.method === "POST" && path === "passkey/login/verify") {
+        return send(res, 200, await verifyAuthentication(String(body.sessionId || ""), body.response || {}));
+      }
+
       const user = await userFromRequest(req);
       if (path !== "consent" && path !== "consent/training") {
         await requireRequiredConsent(user.uid);
@@ -136,6 +145,23 @@ export const bqSqwadApi = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
         return send(res, 200, { ok: true, trainingConsent });
+      }
+
+      if (req.method === "GET" && path === "security/passkeys") {
+        return send(res, 200, await passkeyStatus(user.uid));
+      }
+
+      if (req.method === "POST" && path === "security/passkeys/options") {
+        return send(res, 200, await registrationOptions(user.uid));
+      }
+
+      if (req.method === "POST" && path === "security/passkeys/verify") {
+        return send(res, 200, await verifyRegistration(user.uid, body.response || {}));
+      }
+
+      if (req.method === "DELETE" && path.startsWith("security/passkeys/")) {
+        const id = decodeURIComponent(path.slice("security/passkeys/".length));
+        return send(res, 200, await removePasskey(user.uid, id));
       }
 
       if (req.method === "GET" && path === "history") {
