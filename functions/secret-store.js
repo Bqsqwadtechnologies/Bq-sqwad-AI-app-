@@ -38,7 +38,11 @@ const ENV_FALLBACKS = {
   openai: "OPENAI_API_KEY",
   tavily: "TAVILY_API_KEY",
   paystack: "PAYSTACK_SECRET_KEY",
-  paystack_public: "PAYSTACK_PUBLIC_KEY"
+  paystack_public: "PAYSTACK_PUBLIC_KEY",
+  meta_app_secret: null,
+  youtube_client_secret: null,
+  tiktok_client_secret: null,
+  x_client_secret: null
 };
 
 export async function getProviderSecret(providerId) {
