@@ -14,7 +14,11 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.bqsqwad.ai.core.AdminSecurityClient
+import com.bqsqwad.ai.core.AdminBiometricClient
+import com.google.firebase.auth.FirebaseAuth
+import androidx.biometric.BiometricManager
 import kotlinx.coroutines.launch
 
 
@@ -54,8 +58,10 @@ private fun AuthenticatorQrCode(uri: String) {
 
 @Composable
 fun AdminSecurityScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val client = remember { AdminSecurityClient() }
+    val biometricClient = remember { AdminBiometricClient(context) }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var setupSecret by remember { mutableStateOf("") }
@@ -63,6 +69,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var biometricConfigured by remember { mutableStateOf(false) }
 
     fun run(action: suspend () -> Unit, success: String) {
         busy = true; error = null
@@ -76,8 +83,9 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         runCatching { client.status() }
-            .onSuccess { status = "Password: " + if (it.passwordConfigured) "configured" else "not configured" +
-                " • Authenticator: " + if (it.totpConfigured) "configured" else "not configured" }
+            .onSuccess { biometricConfigured = it.biometricConfigured; status = "Password: " + if (it.passwordConfigured) "configured" else "not configured" +
+                " • Authenticator: " + if (it.totpConfigured) "configured" else "not configured" +
+                " • Fingerprint: " + if (it.biometricConfigured) "configured" else "not configured" }
             .onFailure { error = it.message }
     }
 
@@ -147,6 +155,52 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     ) { Text("Confirm Authenticator") }
                 }
             }
+            item {
+                Text("Fingerprint / biometric unlock", style = MaterialTheme.typography.titleLarge)
+                Text("Enroll a device-bound biometric key for direct admin unlock. Password + authenticator remains available as the recovery path.")
+                Text("Status: " + if (biometricConfigured) "Connected" else "Not connected")
+                Button(
+                    enabled = !busy && !biometricConfigured,
+                    onClick = {
+                        val manager = BiometricManager.from(context)
+                        if (manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) != BiometricManager.BIOMETRIC_SUCCESS) {
+                            error = "Set up a supported fingerprint or strong biometric on this device first."
+                            return@Button
+                        }
+                        run({
+                            biometricClient.register()
+                            biometricConfigured = true
+                        }, "Admin biometric enrolled.")
+                    }
+                ) { Text("Enroll fingerprint / biometric") }
+                if (biometricConfigured) {
+                    Button(
+                        enabled = !busy,
+                        onClick = {
+                            val activity = context as? androidx.fragment.app.FragmentActivity
+                            if (activity == null) {
+                                error = "Admin biometric requires an Activity context."
+                                return@Button
+                            }
+                            busy = true; error = null
+                            scope.launch {
+                                runCatching { biometricClient.unlock(activity) }
+                                    .onSuccess {
+                                        status = "Fingerprint unlock successful."
+                                        FirebaseAuth.getInstance().currentUser?.getIdToken(true)
+                                    }
+                                    .onFailure { error = it.message ?: "Fingerprint unlock failed." }
+                                busy = false
+                            }
+                        }
+                    ) { Text("Unlock with fingerprint") }
+                    OutlinedButton(
+                        enabled = !busy,
+                        onClick = { run({ biometricClient.remove(); biometricConfigured = false }, "Admin biometric disconnected.") }
+                    ) { Text("Disconnect fingerprint") }
+                }
+            }
+
             item {
                 HorizontalDivider()
                 Text("Unlock Admin Control Center", style = MaterialTheme.typography.titleLarge)
