@@ -524,11 +524,13 @@ private fun MainShell(modifier: Modifier) {
     var hub by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
+    var accountProtection by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
     when {
         hub -> FeatureHub({ hub = false }, { plans = true }, { history = true }) { workspace = it; hub = false }
         plans -> ProductCatalogScreen { plans = false }
-        settings -> SettingsScreen { settings = false }
+        settings -> SettingsScreen(onBack = { settings = false }, onOpenAccountProtection = { accountProtection = true })
+        accountProtection -> AccountProtectionScreen { accountProtection = false }
         history -> HistoryScreen { history = false }
         workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
         else -> MainChatScreen(modifier, { hub = true }, { settings = true })
@@ -1387,7 +1389,7 @@ private fun PlansSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
@@ -1412,6 +1414,7 @@ private fun SettingsScreen(onBack: () -> Unit) {
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Account", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { SurfaceCard("Signed-in account", FirebaseAuth.getInstance().currentUser?.email ?: "Signed in") }
+            item { FeatureCard("Account protection", "Connect or disconnect Google, passkeys and this device biometric for account protection.") { onOpenAccountProtection() } }
 
             item { Text("Appearance", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item {
