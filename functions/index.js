@@ -502,8 +502,7 @@ export const bqSqwadApi = onRequest(
         const snap = await ref.get();
         const data = snap.exists ? snap.data() : {};
         const knowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
-        const knowledgeText = knowledge.slice(-30).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("
-");
+        const knowledgeText = knowledge.slice(-30).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n");
         const gate = await authorizeCapability(user.uid, "capability_chat");
         let reservation = null;
         try {
@@ -514,8 +513,7 @@ export const bqSqwadApi = onRequest(
             "Use only the business knowledge supplied below when making business-specific claims; if it is absent, say that the workspace does not contain that information.",
             "Business knowledge:",
             knowledgeText || "(No business knowledge has been added yet.)"
-          ].join("
-");
+          ].join("\n");
           const result = await runAi({ capability: "chat", message, system });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
           gate.commit();
@@ -545,8 +543,7 @@ export const bqSqwadApi = onRequest(
           const remembered = await memoryContext(user.uid);
           const suppliedSystem = body.system ? String(body.system) : "";
           const system = remembered
-            ? [suppliedSystem, "Relevant user memory (use only when helpful and do not invent details):", remembered].filter(Boolean).join("
-")
+            ? [suppliedSystem, "Relevant user memory (use only when helpful and do not invent details):", remembered].filter(Boolean).join("\n")
             : suppliedSystem || undefined;
           const result = await runAi({
             capability,
@@ -586,23 +583,16 @@ export const bqSqwadApi = onRequest(
             model: configured.primaryModelId,
             message: String(body.message || ""),
             system: (await memoryContext(user.uid))
-              ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", await memoryContext(user.uid)].filter(Boolean).join("
-")
+              ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", await memoryContext(user.uid)].filter(Boolean).join("\n")
               : (body.system ? String(body.system) : undefined),
             onEvent: event => {
               if (event.type === "delta") {
-                res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "
-
-");
+                res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "\n\n");
               } else if (event.type === "completed") {
                 completed = true;
-                res.write("data: " + JSON.stringify({ type: "completed" }) + "
-
-");
+                res.write("data: " + JSON.stringify({ type: "completed" }) + "\n\n");
               } else if (event.type === "error") {
-                res.write("data: " + JSON.stringify({ type: "error", message: event.message }) + "
-
-");
+                res.write("data: " + JSON.stringify({ type: "error", message: event.message }) + "\n\n");
               }
             }
           });
@@ -618,9 +608,7 @@ export const bqSqwadApi = onRequest(
           await reverseCredits(user.uid, reservation?.reservationId);
           await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "error", metadata: { error: error?.message || "stream_failed" } });
           if (!res.headersSent) return send(res, 400, { error: error instanceof Error ? error.message : "stream_failed" });
-          res.write("data: " + JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "stream_failed" }) + "
-
-");
+          res.write("data: " + JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "stream_failed" }) + "\n\n");
           return res.end();
         } finally {
           await gate.release();
