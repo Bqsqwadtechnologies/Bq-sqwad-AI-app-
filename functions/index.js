@@ -3,7 +3,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { runAi, callTavily } from "./provider-gateway.js";
+import { runAi, callTavily, callGemini, getRoute } from "./provider-gateway.js";
 import { getProviderSecret, setProviderSecret, deleteProviderSecret, providerSecretStatus, listProviderSecretStatuses } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
