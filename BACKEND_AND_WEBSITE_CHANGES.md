@@ -252,3 +252,9 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Admin unlock sets a short-lived custom-claim verification timestamp; secret/password/TOTP values are not exposed by status endpoints.
 - Added native Admin Security UI and provider-secret UI to the existing Admin Control Center.
 - No GitHub Actions workflow was triggered.
+
+
+## Authenticator QR update
+- Added native Compose QR rendering for the TOTP `otpauth://` enrollment URI.
+- The QR is generated locally on Android from the enrollment URI; no QR image or secret is uploaded to a third party.
+- The setup secret and URI remain available as fallback if scanning is unavailable.
