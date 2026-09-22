@@ -220,3 +220,16 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Personal Intelligence loads server-backed memory and exposes the memory enable/disable control.
 - Workspace execution remains behind server capability/entitlement/credit controls.
 - No prices were hardcoded into these workspace screens; commercial access remains backend/admin controlled.
+
+
+## Phase 7/8 — social integrations and admin control
+- Added a server-side social integration registry for Facebook Pages, Instagram, YouTube, TikTok, and X.
+- Admin-configurable OAuth client IDs, scopes, callback URL, enable/disable state, and global test mode are stored in the backend configuration.
+- Client secrets are encrypted through the existing server-side secret store; they are never stored in Android source code.
+- Added admin endpoints for social configuration, secret storage, connection status, OAuth start/callback, and test mode.
+- Connected account tokens are stored server-side and are not returned by account-list endpoints.
+- Added OAuth state expiry and X PKCE handling.
+- Test mode reports configuration/readiness without creating an external social post.
+- Verified super-admin capability access bypasses normal entitlement/credit gating, so the designated admin can exercise paid capabilities for testing without purchasing each product.
+- The external platforms still control their own OAuth approvals, scopes, audits, quotas and publishing restrictions. For example, TikTok requires the relevant Content Posting scope and user authorization, and unaudited clients can be restricted to private posts; YouTube upload also requires OAuth authorization and may be restricted for unverified projects. citeturn0search0turn0search1turn0search4turn0search16
+- No GitHub Actions workflow was triggered.
