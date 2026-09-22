@@ -246,6 +246,27 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
 
+        OutlinedButton(
+            onClick = {
+                busy = true
+                error = null
+                notice = null
+                scope.launch {
+                    try {
+                        PasskeyClient(context).signInWithPasskey()
+                        notice = "Passkey sign-in successful."
+                        onAuthenticated()
+                    } catch (t: Throwable) {
+                        error = t.message ?: "Passkey sign-in failed."
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "Signing in with passkey…" else "Sign in with passkey") }
+
         TextButton(onClick = onOpenSignUp, enabled = !busy) {
             Text("Don't have an account? Sign up")
         }
