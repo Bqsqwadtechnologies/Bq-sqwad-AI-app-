@@ -43,7 +43,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
     var entitlement by remember { mutableStateOf<JSONObject?>(null) }
-    var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var credits by remember { mutableStateOf<JSONObject?>(null) }\n    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -158,12 +158,12 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         items(entries,key={it.productId+":"+(it.basePlanId?:"")}){entry->
                             val plan=plans.firstOrNull{it.id==entry.planId}
                             val product=playProducts.firstOrNull{it.productId==entry.productId}
-                            ProductCard(entry,plan,product,billing){status=it}
+                            ProductCard(entry,plan,product,billing){status=it; if(it == "CONTACT_SALES") contactPlan = Triple(entry.planId, plan?.name ?: entry.planId, plan?.features ?: emptyList())}
                         }
                     }
                 }
                 if(catalog.isEmpty())item{ProductNotice("Play catalog not configured","No approved native product mappings were returned by the backend. Nothing is being invented or offered for sale.")}
-                item{ProductNotice("Contact Sales","Custom-priced products do not have a Google Play checkout. No numeric price is shown until the live configuration provides one.")}
+                item{ProductNotice("Contact Sales","Custom-priced or currently unavailable high-value plans can be handled by Sales. Choose a plan card to submit your requirements.")}
             }
         }
     }
@@ -191,7 +191,7 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
                 Button(onClick={
                     if(product==null||price==null||billing?.isReady()!=true)onStatus("This product is not currently available through Google Play.")
                     else{val result=billing.launchPurchase(product.productId, entry.basePlanId);onStatus(if(result.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result.debugMessage.ifBlank{"Purchase could not be started."})}
-                },enabled=entry.enabled&&product!=null&&price!=null&&billing?.isReady()==true){Text(if(price==null)"Unavailable" else "Get")}
+                },enabled=true){Text(if(product==null||price==null)"Contact Sales" else "Get")}
             }
         }
     }
