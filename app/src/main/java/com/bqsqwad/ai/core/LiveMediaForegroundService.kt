@@ -133,13 +133,21 @@ class LiveMediaForegroundService : Service() {
             stopSelf()
             return
         }
-        cameraSession = LiveCameraCaptureSession(
+        val session = LiveCameraCaptureSession(
             this,
             lens,
             onFrame = { bytes -> analyzeFrame(bytes, "image/jpeg") },
             onError = { writeError(it.message ?: "Camera capture failed.") }
-        ).also { runCatching { it.start() }.onFailure { writeError(it.message ?: "Camera could not start."); stopSelf() } }
-        writeState(true, "")
+        )
+        try {
+            session.start()
+            cameraSession = session
+            writeState(true, "")
+        } catch (t: Throwable) {
+            runCatching { session.stop() }
+            writeError(t.message ?: "Camera could not start.")
+            stopSelf()
+        }
     }
 
     private fun startScreen(intent: Intent?) {
