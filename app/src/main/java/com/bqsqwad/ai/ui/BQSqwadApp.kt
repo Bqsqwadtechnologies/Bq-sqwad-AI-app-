@@ -128,10 +128,10 @@ private fun ConsentGate(modifier: Modifier) {
                     saving = true
                     error = null
                     scope.launch {
-                        runCatching { WorkspaceApiClient().saveConsent("2026-01", trainingConsent) }
+                        runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
                             .onSuccess {
                                 context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
-                                    .putString("policy_version", "2026-01")
+                                    .putString("policy_version", "2026-09")
                                     .putLong("required_consent_at", System.currentTimeMillis())
                                     .putBoolean("training_consent", trainingConsent)
                                     .apply()
@@ -456,9 +456,9 @@ private fun LegalConsentLinks() {
             style = MaterialTheme.typography.bodySmall
         )
         Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/terms" }) { Text("Terms and Conditions") }
+            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/terms#:~:text=Using%20the%20service" }) { Text("Terms and Conditions") }
             Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/privacy-policy" }) { Text("Privacy Policy") }
+            TextButton(onClick = { browserUrl = "https://bqsqwadai.com/privacy-policy#:~:text=Information%20we%20collect" }) { Text("Privacy Policy") }
         }
     }
     browserUrl?.let { url ->
