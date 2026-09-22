@@ -258,3 +258,18 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added native Compose QR rendering for the TOTP `otpauth://` enrollment URI.
 - The QR is generated locally on Android from the enrollment URI; no QR image or secret is uploaded to a third party.
 - The setup secret and URI remain available as fallback if scanning is unavailable.
+
+
+## Phase 11 — Account protection, passkeys, and admin biometric security
+- Added authenticated user Account Protection settings inside Settings → Account.
+- Users can connect/disconnect Google and email/password Firebase authentication providers while preserving the same Firebase UID.
+- Added native Android Credential Manager passkey creation, disconnect, and passkey sign-in.
+- Added server-side WebAuthn registration/authentication using @simplewebauthn/server. Passkey private keys remain in the credential provider; only verified public-key credentials are stored server-side.
+- Added passkey inventory/status and credential removal endpoints.
+- Added admin passkey creation/disconnect controls inside the Admin Security dashboard.
+- Added cryptographic admin biometric enrollment using an Android Keystore EC signing key protected by strong biometric authentication; the server verifies the signature before granting an admin biometric step-up claim.
+- Admin biometric unlock is a direct step-up path; password/authenticator remains the recovery path. Admin step-up accepts either a recent password/authenticator verification or a recent verified biometric unlock.
+- Added admin biometric enrollment/disconnect/unlock endpoints and audit events.
+- Added Digital Asset Links metadata in the native app pointing to https://bqsqwadai.com/.well-known/assetlinks.json.
+- Passkeys require the website Digital Asset Links file to contain the correct Play App Signing SHA-256 certificate fingerprint and the backend passkey origin allowlist to include the corresponding android:apk-key-hash origin. Those values cannot be safely invented and must be configured with the real release signing certificate before production passkey verification can be considered complete.
+- No GitHub Actions workflow was triggered.
