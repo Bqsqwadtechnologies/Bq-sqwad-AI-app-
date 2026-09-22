@@ -15,6 +15,7 @@ fun ContactSalesDialog(
     planId:String,
     planName:String,
     features:List<String>,
+    billingPeriod:String = "",
     onDismiss:()->Unit,
     onSubmitted:(String)->Unit
 ) {
@@ -51,7 +52,7 @@ fun ContactSalesDialog(
             Button(enabled=!sending && email.trim().contains("@") && message.trim().isNotEmpty(),onClick={
                 sending=true; error=null
                 scope.launch {
-                    runCatching{WorkspaceApiClient().submitContactSales(email.trim(),companyName.trim(),companyEmail.trim(),planId,planName,selected.toList(),message.trim())}
+                    runCatching{WorkspaceApiClient().submitContactSales(email.trim(),companyName.trim(),companyEmail.trim(),planId,planName,selected.toList(),message.trim(),billingPeriod)}
                         .onSuccess{onSubmitted("Request sent. Our admin team can review it and contact you at $email.");onDismiss()}
                         .onFailure{error=it.message ?: "Could not send your request."}
                     sending=false
