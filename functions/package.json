@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": { "node": "22" },
-  "scripts": { "test": "node --test", "check": "node --check index.js && node --check provider-gateway.js && node --check payments.js && node --check secret-store.js && node --check device-commands.js" },
+  "scripts": { "test": "node --test", "check": "node --check index.js && node --check provider-gateway.js && node --check payments.js && node --check secret-store.js && node --check device-commands.js && node --check google-play.js && node --check play-catalog.js && node --check plan-catalog.js" },
   "dependencies": {
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^6.4.0"
