@@ -869,10 +869,10 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
                 Workspace.SEARCH -> SearchWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
-                Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.")
-                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")
+                Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.", "personal_intelligence", true)
+                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.", "life_matters", false)
                 Workspace.COMPANION -> CompanionWorkspace()
-                Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.")
+                Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.", "learning_studio", false)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
@@ -883,25 +883,76 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun AiTaskWorkspace(title: String, description: String) {
+private fun AiTaskWorkspace(
+    title: String,
+    description: String,
+    capability: String = "chat",
+    showMemory: Boolean = false
+) {
     val scope = rememberCoroutineScope()
     var prompt by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
+    var memoryText by remember { mutableStateOf("") }
+    var memoryEnabled by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(showMemory) {
+        if (showMemory) {
+            runCatching { WorkspaceApiClient().memory() }.onSuccess { body ->
+                memoryEnabled = body.optBoolean("enabled", false)
+                memoryText = body.optJSONArray("items")?.let { items ->
+                    (0 until items.length()).mapNotNull { i -> items.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() } }
+                        .takeLast(10).joinToString("\n")
+                }.orEmpty()
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(prompt, { prompt = it }, label = { Text("What do you want to do?") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-        Button(enabled = prompt.isNotBlank() && !busy, onClick = {
-            busy = true
-            scope.launch {
-                try { result = ChatApiClient().sendMessage("Workspace: " + title + "\nUser request: " + prompt).text }
-                catch (t: Throwable) { result = t.message ?: "Request failed" }
-                finally { busy = false }
+        OutlinedTextField(
+            prompt,
+            { prompt = it; error = null },
+            label = { Text("What do you want to do?") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(enabled = prompt.isNotBlank() && !busy, onClick = {
+                busy = true
+                error = null
+                scope.launch {
+                    try {
+                        result = ChatApiClient().sendMessage(
+                            "Workspace: " + title + "\nUser request: " + prompt,
+                            capability
+                        ).text
+                    } catch (t: Throwable) {
+                        error = t.message ?: "Request failed"
+                    } finally {
+                        busy = false
+                    }
+                }
+            }) { Text(if (busy) "Working…" else "Run with BQ Sqwad AI") }
+
+            if (showMemory) {
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        runCatching { WorkspaceApiClient().setMemoryEnabled(!memoryEnabled) }
+                            .onSuccess { memoryEnabled = it.optBoolean("enabled", !memoryEnabled) }
+                            .onFailure { error = it.message ?: "Memory setting could not be updated." }
+                    }
+                }) { Text(if (memoryEnabled) "Memory on" else "Memory off") }
             }
-        }) { Text(if (busy) "Working…" else "Run with BQ Sqwad AI") }
+        }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (showMemory && memoryText.isNotBlank()) {
+            SurfaceCard("Saved memory", memoryText)
+        }
         if (result.isNotBlank()) SurfaceCard("Result", result)
-        SurfaceCard("Live catalog", "Feature availability, limits, and access are controlled by the backend configuration and verified entitlement state.")
+        SurfaceCard("Live catalog", "Availability, limits, access and feature configuration are controlled by the admin backend.")
     }
 }
 
