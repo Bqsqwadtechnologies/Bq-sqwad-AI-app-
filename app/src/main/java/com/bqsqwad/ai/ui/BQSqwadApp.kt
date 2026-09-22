@@ -1419,6 +1419,10 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var accent by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
     var trainingConsent by remember { mutableStateOf(prefs.getBoolean("training_consent", false)) }
     var consentStatus by remember { mutableStateOf<String?>(null) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    var deletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val modes = listOf("system", "dark", "light", "amoled")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
 
@@ -1480,9 +1484,44 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item { FeatureCard("Privacy & Legal Center", "Review privacy topics and open each matching section of the current policy or Terms & Conditions.") { onOpenLegalCenter() } }
             item { FeatureCard("Privacy Policy", "Open the complete BQ Sqwad AI Privacy Policy.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) } }
             item { FeatureCard("Terms & Conditions", "Open the complete BQ Sqwad AI Terms & Conditions.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) } }
+            item { FeatureCard("Delete account and data", "Permanently delete your BQ Sqwad AI account and associated app data. Records required for legal, tax, fraud-prevention or security purposes may be retained in minimized form.") { showDeleteAccount = true; deleteError = null } }
             item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
             item { Text("BQ Sqwad AI • © 2026 BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+
+    if (showDeleteAccount) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingAccount) showDeleteAccount = false },
+            title = { Text("Delete account and data?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This permanently removes your account and associated app data. This action cannot be undone.")
+                    Text("Some records may be retained only when required by applicable financial, tax, fraud-prevention or security obligations.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !deletingAccount,
+                    onClick = {
+                        deletingAccount = true
+                        deleteError = null
+                        scope.launch {
+                            runCatching { AccountDeletionClient().deleteAccount() }
+                                .onSuccess {
+                                    FirebaseAuth.getInstance().signOut()
+                                    showDeleteAccount = false
+                                    onBack()
+                                }
+                                .onFailure { deleteError = it.message ?: "Account deletion failed. Please try again." }
+                            deletingAccount = false
+                        }
+                    }
+                ) { Text(if (deletingAccount) "Deleting…" else "Delete permanently") }
+            },
+            dismissButton = { TextButton(enabled = !deletingAccount, onClick = { showDeleteAccount = false }) { Text("Cancel") } }
+        )
     }
 }
 
