@@ -82,6 +82,7 @@ dependencies {
     implementation("com.android.billingclient:billing:9.1.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.biometric:biometric:1.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
