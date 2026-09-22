@@ -12,6 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -31,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import com.bqsqwad.ai.R
 
 @Composable
@@ -65,7 +70,7 @@ fun BqTopBar(
     ) {
         if (onMenu != null) {
             IconButton(onClick = onMenu) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = "Open BQ Sqwad AI menu")
+                Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu")
             }
         }
         BqLogo(42.dp)
@@ -135,5 +140,52 @@ fun BqStatusBadge(text: String, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
+    }
+}
+
+
+@Composable
+fun BqSectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        subtitle?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+fun BqLoadingState(message: String = "Loading…", modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator()
+        Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun BqEmptyState(title: String, message: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun BqErrorState(message: String, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        onRetry?.let { BqSecondaryButton("Retry", it) }
+    }
+}
+
+@Composable
+fun BqNavigationCard(title: String, body: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Card(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 64.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = "Open $title")
+        }
     }
 }
