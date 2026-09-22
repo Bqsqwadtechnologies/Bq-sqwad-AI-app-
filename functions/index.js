@@ -20,7 +20,7 @@ import { getOrganization, updateOrganization, updateOrganizationSettings, addOrg
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
-import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp } from "./admin-security.js";
+import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
 initializeApp();
@@ -1042,6 +1042,31 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "admin/security/unlock") {
         const admin = await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await unlockAdmin(admin.uid, String(body.password || ""), String(body.code || "")));
+      }
+
+      if (req.method === "GET" && path === "admin/security/biometric") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await biometricStatus());
+      }
+
+      if (req.method === "POST" && path === "admin/security/biometric/register") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await registerBiometric(admin.uid, String(body.publicKey || "")));
+      }
+
+      if (req.method === "POST" && path === "admin/security/biometric/challenge") {
+        const admin = await assertSuperAdmin(user);
+        return send(res, 200, await beginBiometricChallenge(admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/security/biometric/verify") {
+        const admin = await assertSuperAdmin(user);
+        return send(res, 200, await verifyBiometric(admin.uid, String(body.challengeId || ""), String(body.signature || "")));
+      }
+
+      if (req.method === "DELETE" && path === "admin/security/biometric") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await removeBiometric(admin.uid));
       }
 
       if (req.method === "GET" && path === "admin/config") {
