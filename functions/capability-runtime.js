@@ -12,10 +12,15 @@ function dayKey() {
 
 export async function authorizeCapability(uid, controlId) {
   const db = getFirestore();
+  const adminUser = await getAuth().getUser(uid);
+  const adminClaims = adminUser.customClaims || {};
+  const isSuperAdmin = adminUser.email === "isaacoshiomole0@gmail.com" && (adminClaims.admin === true || adminClaims.superAdmin === true || adminClaims.role === "admin" || adminClaims.role === "super_admin");
   const snap = await db.collection("adminAdvancedOptions").doc(controlId).get();
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
-  if (!control) throw new Error("capability_not_configured:" + controlId);
+  if (!control && !isSuperAdmin) throw new Error("capability_not_configured:" + controlId);
+  if (!control && isSuperAdmin) return { control: null, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
+
   if (control.enabled === false || control.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
   }
@@ -54,6 +59,16 @@ export async function authorizeCapability(uid, controlId) {
       throw new Error("plan_expired");
     }
   }
+  if (isSuperAdmin) {
+    return {
+      control,
+      planId: "admin",
+      creditCost: 0,
+      commit: () => { committed = true; },
+      release: async () => {}
+    };
+  }
+
   const plans = Array.isArray(control.allowedPlanIds)
     ? control.allowedPlanIds.map(String).filter(Boolean)
     : [];
