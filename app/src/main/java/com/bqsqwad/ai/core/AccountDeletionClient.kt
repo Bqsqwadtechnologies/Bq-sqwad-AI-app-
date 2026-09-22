@@ -3,6 +3,10 @@ package com.bqsqwad.ai.core
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import com.google.android.gms.tasks.Task
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -16,7 +20,7 @@ class AccountDeletionClient {
 
     suspend fun deleteAccount(): JSONObject = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("No signed-in account")
-        val token = user.getIdToken(true).awaitResult().token ?: error("Authentication token unavailable")
+        val token = awaitTask(user.getIdToken(true)).token ?: error("Authentication token unavailable")
         val connection = (URL(endpoint()).openConnection() as HttpURLConnection).apply {
             requestMethod = "DELETE"
             connectTimeout = 15000
@@ -36,4 +40,10 @@ class AccountDeletionClient {
             connection.disconnect()
         }
     }
+}
+
+private suspend fun <T> awaitTask(task: Task<T>): T = suspendCancellableCoroutine { continuation ->
+    task.addOnSuccessListener { continuation.resume(it) }
+    task.addOnFailureListener { continuation.resumeWithException(it) }
+    task.addOnCanceledListener { continuation.cancel() }
 }
