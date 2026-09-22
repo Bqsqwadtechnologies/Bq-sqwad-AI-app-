@@ -710,7 +710,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
 private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Workspace) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = { IconButton(onPlans) { Icon(Icons.Default.CreditCard, "Plans") } }) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT && (it != Workspace.ADMIN || FirebaseAuth.getInstance().currentUser?.email.equals("isaacoshiomole0@gmail.com", true)) }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -720,7 +720,6 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onWorkspace: (Wo
 
 @Composable
 private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
-    val admin = email.equals("isaacoshiomole0@gmail.com", true)
     Scaffold(topBar = { TopAppBar(title = { Text(if (w == Workspace.BUSINESS) "Business AI" else w.title) }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
         Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
             when (w) {
@@ -728,11 +727,12 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.")
-                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")\n                Workspace.COMPANION -> CompanionWorkspace()
+                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")
+                Workspace.COMPANION -> CompanionWorkspace()
                 Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.")
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
-                Workspace.ADMIN -> if (admin) AdminControlCenter() else AccessDenied()
+                Workspace.ADMIN -> AdminControlCenter()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }
         }
