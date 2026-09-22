@@ -119,3 +119,15 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Verified Play entitlements now retain product ID, plan ID, base-plan ID, offer ID, tier ID, quantity, purchase token/reference, source, subscription state, start/end information and active state. A per-purchase `playEntitlements` record is also stored while the existing canonical `entitlements/{uid}` compatibility record remains intact.
 - Legacy Paystack backend functionality remains untouched and is not used by native Android checkout.
 - No GitHub Actions workflow was modified or triggered by this catalog migration.
+
+
+## End-to-end verification pass — September 22, 2026
+
+- Google Play Billing remains intentionally deferred; no Play product creation or purchase testing was performed in this pass.
+- Fixed backend SSE/system-prompt newline serialization so the existing Functions source emits valid JavaScript string literals and SSE frame separators.
+- Removed the obsolete native Paystack callback/deep-link handling from MainActivity; legacy Paystack backend/website support remains untouched.
+- Removed client-side super-admin email gating from the workspace navigation path; admin authorization remains server-side through the existing protected admin APIs.
+- Fixed the native Contact Sales flow so a canonical commercial plan ID is preserved when a catalog product opens Contact Sales; server-side plan-name resolution remains the fallback.
+- Fixed an invalid Kotlin source escape in the workspace routing branch.
+- Attachment selection and persistent chat history are still identified as incomplete end-to-end areas and are not being marked complete until their full client→backend→storage/history flows are implemented and verified.
+- No GitHub Actions workflow was triggered by this pass.
