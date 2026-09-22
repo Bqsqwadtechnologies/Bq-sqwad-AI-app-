@@ -118,6 +118,59 @@ export async function streamOpenAI({ model, message, system, onEvent }) {
   }
 }
 
+
+export async function callGeminiDeviceCommand({ model, message, system }) {
+  const apiKey = await getProviderSecret("gemini");
+  if (!apiKey) throw new Error("Gemini provider is not configured");
+  const modelId = model || DEFAULT_MODELS.gemini;
+  const request = {
+    contents: [{ role: "user", parts: [{ text: message }] }],
+    tools: [{
+      functionDeclarations: [{
+        name: "device_command",
+        description: "Execute one or more safe, user-requested Android device actions.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            actions: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  type: { type: "STRING" },
+                  value: { type: "STRING" }
+                },
+                required: ["type"]
+              }
+            },
+            message: { type: "STRING" }
+          },
+          required: ["actions", "message"]
+        }
+      }]
+    }],
+    toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["device_command"] } }
+  };
+  if (system) request.systemInstruction = { parts: [{ text: system }] };
+  const result = await jsonFetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
+    {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  const parts = result.candidates?.[0]?.content?.parts || [];
+  const call = parts.find(p => p.functionCall)?.functionCall;
+  const args = call?.args || {};
+  return {
+    text: JSON.stringify({ actions: Array.isArray(args.actions) ? args.actions : [], message: String(args.message || "") }),
+    providerId: "gemini",
+    modelId,
+    rawUsage: result.usageMetadata || {}
+  };
+}
+
 export async function callGemini({ model, message, system }) {
   const apiKey = await getProviderSecret("gemini");
   if (!apiKey) throw new Error("Gemini provider is not configured");
