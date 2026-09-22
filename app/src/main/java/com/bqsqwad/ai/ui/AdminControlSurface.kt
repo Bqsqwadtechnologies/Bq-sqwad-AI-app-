@@ -89,6 +89,10 @@ fun AdminControlCenter() {
         AdminPlanCatalogScreen { showPlanCatalog = false }
         return
     }
+    if (showContactSales) {
+        AdminContactSalesScreen { showContactSales = false }
+        return
+    }
 
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
