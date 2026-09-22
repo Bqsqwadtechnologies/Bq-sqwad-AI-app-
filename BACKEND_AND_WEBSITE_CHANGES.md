@@ -273,3 +273,22 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added Digital Asset Links metadata in the native app pointing to https://bqsqwadai.com/.well-known/assetlinks.json.
 - Passkeys require the website Digital Asset Links file to contain the correct Play App Signing SHA-256 certificate fingerprint and the backend passkey origin allowlist to include the corresponding android:apk-key-hash origin. Those values cannot be safely invented and must be configured with the real release signing certificate before production passkey verification can be considered complete.
 - No GitHub Actions workflow was triggered.
+
+
+## Phase 11 — Final native UI/UX completion — September 22, 2026
+
+- Polished the shared native BQ Sqwad Material 3 design system with reusable section, loading, empty, error, and navigation-card components.
+- Improved the shared top-bar menu affordance to use the native menu icon instead of an unrelated decorative icon.
+- Standardized interactive navigation surfaces around accessible Material 3 clickable cards with clear hierarchy and trailing navigation affordances.
+- Standardized settings cards, spacing, typography weight, and surface treatment through the shared design system.
+- Preserved System, Light, Dark, and AMOLED theme choices and the existing configurable accent palette.
+- No MainActivity, Gradle, release workflow, package ID, or Firebase project changes were made.
+
+## Phase 12 — Verification and release-readiness audit — September 22, 2026
+
+- Audited the current main branch for the Phase 11 UI surface and the previously implemented Phase 1–10 feature wiring.
+- Confirmed the release workflow remains manual-only via workflow_dispatch and was not modified.
+- Confirmed the latest previously completed release workflow run was successful, while noting that it predates the current Phase 11 UI commits.
+- Confirmed the current main branch is c1268691a5967cd32f40a14087141a22dfda5ec8 after the Phase 11 UI commits.
+- Confirmed no new automatic workflow run was triggered by the UI commits.
+- A current-commit signed APK/AAB build and physical-device regression run require manually dispatching the existing release workflow; this repository connection does not provide workflow-dispatch capability, so no false runtime/build-success claim is recorded.
