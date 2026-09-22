@@ -154,7 +154,7 @@ async function releaseConcurrency(db, ref) {
   });
 }
 
-async function releaseRateLimit(db, ref) {\n  await db.runTransaction(async tx => {\n    const snap = await tx.get(ref);\n    if (!snap.exists) return;\n    const current = Number(snap.data()?.count || 0);\n    if (current <= 1) tx.delete(ref);\n    else tx.update(ref, { count: current - 1, updatedAt: FieldValue.serverTimestamp() });\n  });\n}\n\nasync function releaseRateLimit(db, ref) {
+async function releaseRateLimit(db, ref) {
   await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     if (!snap.exists) return;
