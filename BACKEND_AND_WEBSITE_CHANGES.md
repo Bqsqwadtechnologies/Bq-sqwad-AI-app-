@@ -173,3 +173,31 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 
 ### Runtime verification boundary
 - Source-to-backend wiring has been implemented and reviewed, but this environment did not execute a physical-device/emulator build or live Firebase request. A successful source change must not be described as a real-device runtime pass until that device test is performed.
+
+
+## 2026-09-22 — Main feature Phase 3 and Phase 4 implementation
+
+### Phase 3 — Web Search / Research
+- Android Web Search now presents returned source URLs as actionable browser links.
+- Search requests continue through the authenticated Firebase to backend /web-search path.
+- Normal Search and Deep Research remain controlled by the server capability gate and configurable rules.
+- Tavily credentials remain server-side.
+- No billing/catalog changes were made.
+
+### Phase 4 — Live Camera and Screen Viewer
+- Added a native foreground camera capture session using Camera2/ImageReader.
+- Live camera frames are captured by the foreground service rather than depending on the Compose screen remaining visible.
+- The foreground service performs sampled vision requests through the existing authenticated /ai/vision backend.
+- Added a visible foreground notification with an explicit Stop action.
+- Camera permission is requested before the camera foreground service is started.
+- Camera lens selection and live AI prompt can be updated while the service is active.
+- Screen capture is now owned by the foreground service after Android MediaProjection consent.
+- Screen viewer frames continue to the authenticated vision endpoint while the user leaves the app.
+- Android MediaProjection stop/revocation is handled through MediaProjection.Callback.onStop(), which stops the session and foreground service.
+- Screen and camera status/results are mirrored to app-local live-session state so the UI can reconnect to an active foreground session.
+- The UI no longer automatically stops a live camera/screen session merely because the user navigates away from the workspace.
+- No provider secrets are stored in the app.
+- No billing/catalog changes were made.
+
+### Runtime verification boundary
+- Android source paths and service lifecycle were implemented against the current foreground-service and MediaProjection requirements. A physical-device/emulator run was not available in this environment, so real permission-dialog, camera hardware, screen-off, OEM battery-management, Android-version, and Firebase live-request tests remain device verification tasks rather than claims of runtime success.
