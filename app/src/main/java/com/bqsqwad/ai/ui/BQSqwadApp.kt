@@ -64,12 +64,14 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 @Composable
 private fun AuthGate(modifier: Modifier) {
     // Chat remains the entry surface. Protected actions require Firebase authentication and server-verified consent.
-    val user = FirebaseAuth.getInstance().currentUser
-    if (user == null) {
-        MainShell(modifier)
-    } else {
-        ConsentGate(modifier)
+    val auth = remember { FirebaseAuth.getInstance() }
+    var user by remember { mutableStateOf(auth.currentUser) }
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { updated -> user = updated.currentUser }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
     }
+    if (user == null) MainShell(modifier) else ConsentGate(modifier)
 }
 
 @Composable
