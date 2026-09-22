@@ -1485,6 +1485,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item { FeatureCard("Privacy Policy", "Open the complete BQ Sqwad AI Privacy Policy.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) } }
             item { FeatureCard("Terms & Conditions", "Open the complete BQ Sqwad AI Terms & Conditions.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) } }
             item { FeatureCard("Delete account and data", "Permanently delete your BQ Sqwad AI account and associated app data. Records required for legal, tax, fraud-prevention or security purposes may be retained in minimized form.") { showDeleteAccount = true; deleteError = null } }
+            item { FeatureCard("Delete account on the web", "Open the public Privacy Policy deletion instructions if you no longer have access to the app.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy#:~:text=Your%20rights%20and%20choices"))) } }
             item { FeatureCard("Sign out", "End the current authenticated session.") { FirebaseAuth.getInstance().signOut(); onBack() } }
             item { Text("BQ Sqwad AI • © 2026 BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
