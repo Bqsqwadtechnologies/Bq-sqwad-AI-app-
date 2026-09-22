@@ -42,7 +42,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
-    var entitlement by remember { mutableStateOf<JSONObject?>(null) }
+    var entitlement by remember { mutableStateOf<JSONObject?>(null) }\n    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }\n    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
 
     fun load() {
@@ -189,7 +189,7 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                 Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId=="yearly")"Google Play • Yearly" else "Google Play • Monthly",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 Button(onClick={
-                    if(product==null||price==null||billing?.isReady()!=true)onStatus("This product is not currently available through Google Play.")
+                    if(product==null||price==null||billing?.isReady()!=true)onStatus("CONTACT_SALES")
                     else{val result=billing.launchPurchase(product.productId, entry.basePlanId);onStatus(if(result.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result.debugMessage.ifBlank{"Purchase could not be started."})}
                 },enabled=true){Text(if(product==null||price==null)"Contact Sales" else "Get")}
             }
