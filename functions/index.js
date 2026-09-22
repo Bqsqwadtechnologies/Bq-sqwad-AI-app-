@@ -162,7 +162,7 @@ export const bqSqwadApi = onRequest(
       }
 
       const user = await userFromRequest(req);
-      if (path !== "consent" && path !== "consent/training") {
+      if (path !== "consent" && path !== "consent/training" && path !== "account") {
         await requireRequiredConsent(user.uid);
       }
 
