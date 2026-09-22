@@ -26,6 +26,7 @@ private data class PlayCatalogEntry(val planId:String,val productId:String,val b
 private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
+private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
 
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit) {
@@ -46,6 +47,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var contactOptions by remember { mutableStateOf(emptyList<PublicContactOption>()) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -53,7 +55,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             try {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
-                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); entitlement=runCatching{api.entitlement()}.getOrNull()
+                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); contactOptions=parseContactOptions(live); entitlement=runCatching{api.entitlement()}.getOrNull()
                 credits=runCatching{api.credits()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
@@ -68,7 +70,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             } catch(t:Throwable) {
                 val cache=context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE)
                 val c=cache.getString("catalog",null)
-                if(c!=null){plans=parsePlans(JSONObject(c));catalog=parseCatalog(JSONObject(c));features=parseFeatures(JSONObject(c));bindings=parseBindings(JSONObject(c));offline=true}
+                if(c!=null){val cached=JSONObject(c);plans=parsePlans(cached);catalog=parseCatalog(cached);features=parseFeatures(cached);bindings=parseBindings(cached);contactOptions=parseContactOptions(cached);offline=true}
                 else error=t.message?:"Product configuration could not be loaded."
             } finally { loading=false }
         }
@@ -178,7 +180,20 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     }
                 }
                 if(catalog.isEmpty())item{ProductNotice("Play catalog not configured","No approved native product mappings were returned by the backend. Nothing is being invented or offered for sale.")}
-                item{ProductNotice("Contact Sales","Custom-priced or currently unavailable high-value plans can be handled by Sales. Choose a plan card to submit your requirements.")}
+                if(contactOptions.isNotEmpty()){
+                    item{Text("Contact Sales",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
+                    items(contactOptions,key={it.name+":"+it.billingPeriod}){option->
+                        Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)){
+                            Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                                Text(option.name,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                                Text(option.billingPeriod.replaceFirstChar{it.uppercase()}+" • Contact Sales",color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                option.features.take(6).forEach{Text("• "+it)}
+                                if(option.limits.isNotEmpty())Text("Limits: "+option.limits.entries.joinToString(", "){it.key+"="+it.value})
+                                Button(onClick={contactPlan=Triple("",option.name,option.features)},modifier=Modifier.fillMaxWidth()){Text("Contact Sales")}
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -194,7 +209,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDetails?,billing:PlayBillingClient?,onStatus:(String)->Unit){
     val price=product?.subscriptionOfferDetails?.firstOrNull{entry.basePlanId==null||it.basePlanId==entry.basePlanId}?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
         ?:product?.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
-    val title=plan?.name?.ifBlank{null}?:product?.name?.ifBlank{null}?:entry.planId
+    val title=plan?.name?.ifBlank{null}?:product?.name?.ifBlank{null}?: "Product"
     Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)){
         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top){
@@ -216,6 +231,17 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
             }
         }
     }
+}
+
+private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
+    val a=body.optJSONArray("publicContactSales")?:JSONArray()
+    return List(a.length()){i->
+        val x=a.getJSONObject(i)
+        val f=x.optJSONArray("features")?:JSONArray()
+        val l=x.optJSONObject("limits")?:JSONObject()
+        val limits=mutableMapOf<String,String>(); l.keys().forEach{k->limits[k]=l.optString(k)}
+        PublicContactOption(x.optString("name"),x.optString("module"),x.optString("billingPeriod"),x.optString("price"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)
+    }.filter{it.name.isNotBlank()}
 }
 
 private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
