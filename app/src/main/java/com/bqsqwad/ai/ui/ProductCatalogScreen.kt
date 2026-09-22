@@ -42,8 +42,11 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
-    var entitlement by remember { mutableStateOf<JSONObject?>(null) }\n    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }\n    var salesNotice by remember { mutableStateOf<String?>(null) }
-    var credits by remember { mutableStateOf<JSONObject?>(null) }\n    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
+    var entitlement by remember { mutableStateOf<JSONObject?>(null) }
+    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
+    var salesNotice by remember { mutableStateOf<String?>(null) }
+    var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -51,7 +54,13 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             try {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
-                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); entitlement=runCatching{api.entitlement()}.getOrNull()\n                credits=runCatching{api.credits()}.getOrNull()\n                salesNotice=runCatching {\n                    val a=api.contactSalesStatus().optJSONArray("requests")\n                    val contacted=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) }.firstOrNull { x -> x.optString("status") == "contacted" } }\n                    contacted?.let { "Sales has contacted you about ${it.optString("planName").ifBlank{"your request"}}. Check your email." }\n                }.getOrNull()
+                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); entitlement=runCatching{api.entitlement()}.getOrNull()
+                credits=runCatching{api.credits()}.getOrNull()
+                salesNotice=runCatching {
+                    val a=api.contactSalesStatus().optJSONArray("requests")
+                    val contacted=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) }.firstOrNull { x -> x.optString("status") == "contacted" } }
+                    contacted?.let { "Sales has contacted you about ${it.optString("planName").ifBlank{"your request"}}. Check your email." }
+                }.getOrNull()
                 context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                     .putString("catalog",live.toString()).apply()
             } catch(t:Throwable) {
@@ -93,7 +102,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Choose what you need",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Features and limits come from the live catalog. Google Play supplies the purchase price shown below.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
-                if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}\n                salesNotice?.let { notice -> item { ProductNotice("Sales update", notice) } }
+                if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                salesNotice?.let { notice -> item { ProductNotice("Sales update", notice) } }
                 item {
                     OutlinedButton(
                         onClick = {
