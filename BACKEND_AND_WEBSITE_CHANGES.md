@@ -292,3 +292,17 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Confirmed the current main branch is c1268691a5967cd32f40a14087141a22dfda5ec8 after the Phase 11 UI commits.
 - Confirmed no new automatic workflow run was triggered by the UI commits.
 - A current-commit signed APK/AAB build and physical-device regression run require manually dispatching the existing release workflow; this repository connection does not provide workflow-dispatch capability, so no false runtime/build-success claim is recorded.
+
+
+## Privacy hardening — September 22, 2026
+
+- Added a native Privacy & Legal Center reachable from Settings.
+- Privacy and Terms topics now open the corresponding public-policy heading using browser text-fragment navigation.
+- Added direct full Privacy Policy and Terms links.
+- Added in-app account deletion with authenticated server-side deletion of the Firebase account and operational user data.
+- Added an external web deletion path through the public Privacy Policy deletion section for users who no longer have the app installed.
+- Added server cleanup for chat history, memory, business workspace/training records, social connections, passkeys, organization data, runtime records, credits/entitlements and related user-scoped records.
+- Added business-training object cleanup from Cloud Storage.
+- Advanced consent version from 2026-01 to 2026-09.
+- Added docs/LEGAL-POLICY-SYNC-2026-09.md documenting the native data map and the public-policy statements that must remain synchronized.
+- Important: the public website policy was inspected and currently contains legacy statements about Paystack, Google Analytics and the PWA. Those statements must be corrected on the website deployment so the public policy matches the current native Android architecture. The website is outside this Android repository, so this repository cannot publish that website change.
