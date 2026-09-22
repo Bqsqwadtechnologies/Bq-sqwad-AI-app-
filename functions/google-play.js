@@ -79,17 +79,17 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   if (existing.exists && existing.data()?.uid === uid && existing.data()?.verified === true) {
     return { ok: true, alreadyProcessed: true, state: existing.data()?.state || "verified" };
   }
-  if (mapping.planId) {
+  if (requestedMapping.planId) {
     const entitlementSnap = await db.collection("entitlements").doc(uid).get();
     const entitlement = entitlementSnap.exists ? entitlementSnap.data() : null;
     const existingPlan = entitlement?.planId ? String(entitlement.planId) : "";
     const existingState = entitlement?.state ? String(entitlement.state) : "";
-    if (existingPlan && existingPlan === String(mapping.planId) && ["active","grace","on_hold","paused"].includes(existingState) && entitlement?.source === "legacy") {
+    if (existingPlan && existingPlan === String(requestedMapping.planId) && ["active","grace","on_hold","paused"].includes(existingState) && entitlement?.source === "legacy") {
       throw new Error("legacy_entitlement_already_active");
     }
   }
 
-  const verified = mapping.productType === "subs"
+  const verified = requestedMapping.productType === "subs"
     ? await playApi("purchases/subscriptionsv2/tokens/" + encodeURIComponent(purchaseToken))
     : await playApi("purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken));
 
