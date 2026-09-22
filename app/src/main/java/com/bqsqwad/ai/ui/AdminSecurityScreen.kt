@@ -1,14 +1,56 @@
 package com.bqsqwad.ai.ui
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.MultiFormatWriter
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminSecurityClient
 import kotlinx.coroutines.launch
+
+
+private fun createQrBitmap(value: String, size: Int = 720): Bitmap? = runCatching {
+    val hints = mapOf(EncodeHintType.MARGIN to 1)
+    val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, size, size, hints)
+    Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also { bitmap ->
+        for (x in 0 until size) for (y in 0 until size) {
+            bitmap.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        }
+    }
+}.getOrNull()
+
+@Composable
+private fun AuthenticatorQrCode(uri: String) {
+    val bitmap = remember(uri) { createQrBitmap(uri) }
+    bitmap?.let {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 2.dp
+        ) {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "Authenticator setup QR code",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .aspectRatio(1f)
+            )
+        }
+    } ?: Text(
+        "QR code could not be generated. Use the setup URI below.",
+        color = MaterialTheme.colorScheme.error
+    )
+}
 
 @Composable
 fun AdminSecurityScreen(onBack: () -> Unit) {
@@ -90,6 +132,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     }
                 ) { Text("Generate Authenticator Setup") }
                 if (setupSecret.isNotBlank()) {
+                    Text("Scan with Google Authenticator", style = MaterialTheme.typography.titleMedium)
+                    if (setupUri.isNotBlank()) AuthenticatorQrCode(setupUri)
                     SurfaceCard("Authenticator secret", setupSecret)
                     SurfaceCard("Setup URI", setupUri)
                     OutlinedTextField(
