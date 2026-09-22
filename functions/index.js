@@ -1019,7 +1019,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/config") {
-        await adminFromRequest(req);
+        await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await getAdminControlConfig());
       }
 
