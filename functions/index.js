@@ -180,7 +180,7 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "consent") {
         const requiredAccepted = body.requiredAccepted === true;
         if (!requiredAccepted) return send(res, 400, { error: "required_consent_missing" });
-        const policyVersion = String(body.policyVersion || "2026-01").slice(0, 40);
+        const policyVersion = String(body.policyVersion || "2026-09").slice(0, 40);
         const trainingConsent = body.trainingConsent === true;
         await getFirestore().collection("userConsents").doc(user.uid).set({
           uid: user.uid,
