@@ -63,8 +63,89 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
 @Composable
 private fun AuthGate(modifier: Modifier) {
-    // Chat is always the entry surface. Authentication is requested only when a protected action is attempted.
-    MainShell(modifier)
+    // Chat remains the entry surface. Protected actions require Firebase authentication and server-verified consent.
+    val user = FirebaseAuth.getInstance().currentUser
+    if (user == null) {
+        MainShell(modifier)
+    } else {
+        ConsentGate(modifier)
+    }
+}
+
+@Composable
+private fun ConsentGate(modifier: Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(true) }
+    var accepted by remember { mutableStateOf(false) }
+    var trainingConsent by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun refresh() {
+        loading = true
+        error = null
+        scope.launch {
+            runCatching { WorkspaceApiClient().consent() }
+                .onSuccess {
+                    accepted = it.optBoolean("requiredAccepted")
+                    trainingConsent = it.optBoolean("trainingConsent")
+                }
+                .onFailure { error = it.message ?: "Could not verify consent." }
+            loading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    if (loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (accepted) {
+        MainShell(modifier)
+    } else {
+        AuthSurface {
+            Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Please accept the BQ Sqwad AI Terms and Conditions and Privacy Policy. This consent is verified by the server before protected AI features can be used.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(verticalAlignment = Alignment.Top) {
+                Checkbox(checked = accepted, onCheckedChange = { accepted = it })
+                Text("I accept the Terms and Conditions and Privacy Policy.", modifier = Modifier.padding(top = 12.dp))
+            }
+            Row(verticalAlignment = Alignment.Top) {
+                Checkbox(checked = trainingConsent, onCheckedChange = { trainingConsent = it })
+                Text("Optional: allow non-private training activity to improve the service.", modifier = Modifier.padding(top = 12.dp))
+            }
+            LegalConsentLinks()
+            Button(
+                enabled = accepted && !saving,
+                onClick = {
+                    saving = true
+                    error = null
+                    scope.launch {
+                        runCatching { WorkspaceApiClient().saveConsent("2026-01", trainingConsent) }
+                            .onSuccess {
+                                context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
+                                    .putString("policy_version", "2026-01")
+                                    .putLong("required_consent_at", System.currentTimeMillis())
+                                    .putBoolean("training_consent", trainingConsent)
+                                    .apply()
+                            }
+                            .onFailure {
+                                accepted = false
+                                error = it.message ?: "Consent could not be saved."
+                            }
+                        saving = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (saving) "Saving…" else "Continue") }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+    }
 }
 
 @Composable
