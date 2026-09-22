@@ -131,3 +131,15 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Fixed an invalid Kotlin source escape in the workspace routing branch.
 - Attachment selection and persistent chat history are still identified as incomplete end-to-end areas and are not being marked complete until their full client→backend→storage/history flows are implemented and verified.
 - No GitHub Actions workflow was triggered by this pass.
+
+
+## End-to-end integration audit — September 22, 2026
+
+- Verified the native purchase path: catalog fetch → Play ProductDetails query → base-plan/offer selection → Google Play Billing flow → server verification → Firestore entitlement → service restoration.
+- Native verification now sends base-plan and offer context and the server independently verifies the subscription line item returned by Google Play.
+- Restored purchases for both subscriptions and one-time products are routed through the same server verification path.
+- Play subscription acknowledgement is performed only after successful server verification/entitlement persistence.
+- RTDN updates subscription state and restores/deactivates services according to the verified Play state.
+- Fixed a malformed duplicated rate-limit helper in `functions/capability-runtime.js` that could prevent backend syntax validation.
+- Expanded the backend syntax-check script to include `google-play.js`, `play-catalog.js`, and `plan-catalog.js`.
+- No workflow was triggered during this audit. A live Android build and live Google Play purchase test still require the existing manual workflow/test environment and Play Console configuration.
