@@ -6,7 +6,7 @@ enum class Workspace(val title: String, val description: String) {
     CAMERA("AI Live Camera", "Live vision, device actions and location assistance"),
     VOICE("Live Voice AI", "Natural voice conversation with interruption support"),
     PERSONAL("Personal Intelligence", "Planning, organization and personal assistance"),
-    LIFE("Life Matters", "Dedicated AI guidance workspace"),
+    LIFE("Life Matters", "Dedicated AI guidance workspace"),\n    COMPANION("AI Companion", "Caring conversation, personality, memory and check-ins"),
     LEARNING("Learning Studio", "Subjects, lessons and custom learning"),
     BUSINESS("Business AI", "Agents, knowledge, connections and automation"),
     ORGANIZATION_STUDIO("Organization Studio AI", "Professional live production, multi-camera coordination, broadcasting and organization intelligence"),
