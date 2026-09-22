@@ -1,6 +1,7 @@
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import crypto from "node:crypto";
 
 const RP_ID = "bqsqwadai.com";
 const RP_NAME = "BQ Sqwad AI";
