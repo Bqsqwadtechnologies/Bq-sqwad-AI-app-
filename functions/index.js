@@ -1045,12 +1045,12 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/security/biometric") {
-        const admin = await adminFromRequest(req);
+        const admin = await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await biometricStatus());
       }
 
       if (req.method === "POST" && path === "admin/security/biometric/register") {
-        const admin = await adminFromRequest(req);
+        const admin = await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await registerBiometric(admin.uid, String(body.publicKey || "")));
       }
 
@@ -1065,7 +1065,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "DELETE" && path === "admin/security/biometric") {
-        const admin = await adminFromRequest(req);
+        const admin = await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await removeBiometric(admin.uid));
       }
 
