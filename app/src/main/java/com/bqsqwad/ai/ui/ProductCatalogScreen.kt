@@ -46,7 +46,6 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
-    var contactPlan by remember { mutableStateOf<Triple<String,String,List<String>>?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -91,6 +90,9 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         if(playProducts.isEmpty()) status="Google Play products are not available on this device yet."
     }
     LaunchedEffect(Unit){load()}
+    LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(30000); runCatching { load() } }
+    }
 
     Scaffold(topBar={
         TopAppBar(
@@ -178,6 +180,12 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 if(catalog.isEmpty())item{ProductNotice("Play catalog not configured","No approved native product mappings were returned by the backend. Nothing is being invented or offered for sale.")}
                 item{ProductNotice("Contact Sales","Custom-priced or currently unavailable high-value plans can be handled by Sales. Choose a plan card to submit your requirements.")}
             }
+        }
+    }
+    contactPlan?.let { (planId, planName, features) ->
+        ContactSalesDialog(planId, planName, features, onDismiss = { contactPlan = null }) { notice ->
+            salesNotice = notice
+            contactPlan = null
         }
     }
 }
