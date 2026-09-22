@@ -751,8 +751,9 @@ export const bqSqwadApi = onRequest(
         let reservation = null;
         try {
           reservation = await reserveCredits(user.uid, gate.creditCost, "device_commands");
-          const result = await runAi({
-            capability: "device_commands",
+          const deviceRoute = await getRoute("device_commands");
+          const result = await callGemini({
+            model: deviceRoute.primaryModelId,
             message: String(body.message || ""),
             system: DEVICE_COMMAND_SYSTEM
           });
@@ -1161,7 +1162,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "realtime/session") {
-        const gate = await authorizeCapability(user.uid, "voice");
+        const gate = await authorizeCapability(user.uid, "capability_live_voice");
         try {
           const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
           const cfg = option.exists ? (option.data()?.config || {}) : {};
