@@ -19,6 +19,8 @@ function entriesFor(item) {
   return periods.flatMap(period => {
     const price = item.price?.[period];
     if (price == null || typeof price !== "number") return [];
+    if (Array.isArray(item.playEligiblePeriods) && !item.playEligiblePeriods.includes(period)) return [];
+    if (Array.isArray(item.proposalPeriods) && item.proposalPeriods.includes(period)) return [];
 
     let basePlanId = null;
     if (item.productType === "subs") {
