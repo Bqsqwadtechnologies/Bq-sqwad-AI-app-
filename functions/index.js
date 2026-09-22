@@ -1272,6 +1272,34 @@ export const bqSqwadApi = onRequest(
         });
       }
 
+      if (req.method === "GET" && path === "admin/live-voice-pricing") {
+        await adminFromRequest(req);
+        const snap = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
+        return send(res, 200, {
+          enabled: snap.exists ? snap.data()?.enabled !== false : false,
+          config: snap.exists ? (snap.data()?.config || {}) : {},
+          source: snap.exists ? "firestore" : "unconfigured"
+        });
+      }
+
+      if (req.method === "POST" && path === "admin/live-voice-pricing") {
+        const admin = await adminFromRequest(req);
+        const pricing = {
+          creditsPerMinute: body.creditsPerMinute == null ? null : Math.max(0, Number(body.creditsPerMinute)),
+          minimumMinutes: body.minimumMinutes == null ? null : Math.max(0, Number(body.minimumMinutes)),
+          maxSessionMinutes: body.maxSessionMinutes == null ? null : Math.max(1, Number(body.maxSessionMinutes)),
+          modelId: body.modelId ? String(body.modelId).slice(0, 120) : null
+        };
+        return send(res, 200, {
+          ok: true,
+          option: await updateAdvancedAdminOption({
+            id: "live_voice_pricing",
+            enabled: body.enabled === true,
+            config: pricing
+          }, admin.uid)
+        });
+      }
+
       if (req.method === "POST" && path === "admin/web-search-pricing") {
         await adminFromRequest(req);
         const pricing = {
