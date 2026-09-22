@@ -143,3 +143,33 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Fixed a malformed duplicated rate-limit helper in `functions/capability-runtime.js` that could prevent backend syntax validation.
 - Expanded the backend syntax-check script to include `google-play.js`, `play-catalog.js`, and `plan-catalog.js`.
 - No workflow was triggered during this audit. A live Android build and live Google Play purchase test still require the existing manual workflow/test environment and Play Console configuration.
+
+
+## 2026-09-22 — Main feature Phase 1 and Phase 2 completion work
+
+### Phase 1 — Main Chat
+- Connected the main-chat file picker to real local attachment processing instead of a placeholder message.
+- Supported attachment pipeline now reads user-selected images and text-based documents through Android's document provider and sends the actual content to the existing authenticated AI backend.
+- Image attachments use the existing authenticated vision endpoint; text attachments are included in the authenticated chat request.
+- Unsupported binary document types are rejected explicitly instead of being falsely presented as attached.
+- Added authenticated Firestore-backed chat history endpoints:
+  - GET /history
+  - GET /history/:id
+  - POST /history
+  - DELETE /history/:id
+- History records are scoped to the verified Firebase uid on the server.
+- Main chat automatically saves completed conversations after an AI response.
+- Added native Chat History UI for listing, opening, and deleting saved conversations.
+- No billing/catalog changes were made.
+
+### Phase 2 — Authentication and Consent
+- Added a server-verified consent requirement for protected API access.
+- Firebase ID tokens continue to be verified server-side before user identity is used.
+- Required consent is stored in the existing userConsents collection and checked before protected API routes are processed.
+- Added a native consent gate that observes Firebase authentication state, loads the server consent record, and lets the user save required Terms/Privacy acceptance plus optional training consent.
+- Existing local consent preferences remain only a convenience cache; the backend is the authority for protected access.
+- No provider/API secrets were added to the Android app.
+- No billing/catalog changes were made.
+
+### Runtime verification boundary
+- Source-to-backend wiring has been implemented and reviewed, but this environment did not execute a physical-device/emulator build or live Firebase request. A successful source change must not be described as a real-device runtime pass until that device test is performed.
