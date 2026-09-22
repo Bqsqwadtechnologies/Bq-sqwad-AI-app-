@@ -49,6 +49,8 @@ class WorkspaceApiClient {
 
     suspend fun clearMemory():JSONObject = request("/memory","DELETE")
 
+    suspend fun realtimeSession():JSONObject = request("/realtime/session", payload=JSONObject())
+
     suspend fun plans():JSONObject = request("/plans","GET")
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
