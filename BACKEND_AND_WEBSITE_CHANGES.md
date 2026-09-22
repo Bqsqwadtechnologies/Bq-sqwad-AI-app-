@@ -233,3 +233,22 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Verified super-admin capability access bypasses normal entitlement/credit gating, so the designated admin can exercise paid capabilities for testing without purchasing each product.
 - The external platforms still control their own OAuth approvals, scopes, audits, quotas and publishing restrictions. For example, TikTok requires the relevant Content Posting scope and user authorization, and unaudited clients can be restricted to private posts; YouTube upload also requires OAuth authorization and may be restricted for unverified projects. citeturn0search0turn0search1turn0search4turn0search16
 - No GitHub Actions workflow was triggered.
+
+
+## Phase 9 — Central Provider Credentials & Live Configuration
+- Added centralized server-side provider secret lifecycle.
+- Admin Control Center now exposes API & Provider Secrets for Gemini, OpenAI, Tavily, legacy Paystack credentials, social credentials, and arbitrary future provider IDs.
+- Secrets are encrypted with AES-256-GCM using the BQ_SECRET_ENCRYPTION_KEY runtime secret; plaintext secrets are never returned by status APIs or stored in Android.
+- Admin can save/replace/remove credentials without an APK update.
+- Provider status reports only configured/source/updated metadata.
+- Credential changes are audited without recording the secret value.
+- Provider gateway continues to resolve secrets server-side.
+
+## Phase 10 — Gemini Command Orchestration & Admin Security
+- Device-command execution is now forced through the configured Gemini model; OpenAI is not used as the device-command provider.
+- Added Gemini function calling for the safe Android device-command tool, with Android-side final action policy enforcement.
+- Added Admin Security service with optional admin password and RFC 6238-compatible TOTP authenticator enrollment.
+- When security factors are configured, sensitive admin endpoints require a recent step-up verification.
+- Admin unlock sets a short-lived custom-claim verification timestamp; secret/password/TOTP values are not exposed by status endpoints.
+- Added native Admin Security UI and provider-secret UI to the existing Admin Control Center.
+- No GitHub Actions workflow was triggered.
