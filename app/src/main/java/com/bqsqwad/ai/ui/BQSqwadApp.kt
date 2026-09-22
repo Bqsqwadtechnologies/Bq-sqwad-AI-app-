@@ -794,6 +794,12 @@ private fun CameraWorkspace() {
     var prompt by remember { mutableStateOf("What do you see in this camera view?") }
     var answer by remember { mutableStateOf("") }
     var lens by remember { mutableStateOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) }
+    var screenActive by remember { mutableStateOf(false) }
+    var screenAnalyzing by remember { mutableStateOf(false) }
+    var screenAnswer by remember { mutableStateOf("") }
+    var screenPrompt by remember { mutableStateOf("What is happening on my screen?") }
+    var screenLastAnalysisAt by remember { mutableLongStateOf(0L) }
+    var screenSession by remember { mutableStateOf<ScreenCaptureSession?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (it) {
@@ -801,8 +807,60 @@ private fun CameraWorkspace() {
             active = true
         }
     }
+    val screenLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode != android.app.Activity.RESULT_OK || data == null) {
+            screenAnswer = "Screen sharing was cancelled. Nothing was captured."
+            return@rememberLauncherForActivityResult
+        }
+        runCatching {
+            active = false
+            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+            context.startForegroundService(
+                Intent(context, LiveMediaForegroundService::class.java)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_SCREEN)
+            )
+            val metrics = context.resources.displayMetrics
+            val session = ScreenCaptureSession(context, onFrame = { frame ->
+                val now = System.currentTimeMillis()
+                if (!screenAnalyzing && now - screenLastAnalysisAt >= 1500L) {
+                    screenLastAnalysisAt = now
+                    screenAnalyzing = true
+                    scope.launch {
+                        try {
+                            val encoded = android.util.Base64.encodeToString(frame, android.util.Base64.NO_WRAP)
+                            screenAnswer = ChatApiClient().analyzeCameraFrame(screenPrompt, encoded).text
+                        } catch (t: Throwable) {
+                            screenAnswer = t.message ?: "Screen analysis failed."
+                        } finally {
+                            screenAnalyzing = false
+                        }
+                    }
+                }
+            })
+            screenSession = session
+            session.start(
+                data,
+                metrics.widthPixels,
+                metrics.heightPixels,
+                metrics.densityDpi
+            )
+            screenActive = true
+            screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames only for this session."
+        }.onFailure { t ->
+            screenSession?.stop()
+            screenSession = null
+            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+            screenActive = false
+            screenAnswer = t.message ?: "Could not start screen sharing."
+        }
+    }
     DisposableEffect(Unit) {
-        onDispose { context.stopService(Intent(context, LiveMediaForegroundService::class.java)) }
+        onDispose {
+            screenSession?.stop()
+            screenSession = null
+            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+        }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -824,8 +882,36 @@ private fun CameraWorkspace() {
                     lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                 }, enabled = active) { Text("Flip") }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    if (screenActive) {
+                        screenSession?.stop()
+                        screenSession = null
+                        context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                        screenActive = false
+                    } else {
+                        screenLauncher.launch(
+                            context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+                                .createScreenCaptureIntent()
+                        )
+                    }
+                }, enabled = !active || screenActive) {
+                    Text(if (screenActive) "Stop screen viewer" else "Share screen with AI")
+                }
+            }
         }
-        if (granted && active) {
+        if (screenActive) {
+            SurfaceCard("Screen viewer", "● Screen sharing active • Android permission was granted for this capture session.")
+            OutlinedTextField(
+                screenPrompt,
+                { screenPrompt = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Ask about the screen") },
+                maxLines = 2
+            )
+            if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (screenAnswer.isNotBlank()) SurfaceCard("BQ Sqwad AI", screenAnswer)
+        } else if (granted && active) {
             NativeCameraPreview(
                 Modifier.fillMaxWidth().height(280.dp),
                 lensFacing = lens,
@@ -854,6 +940,9 @@ private fun CameraWorkspace() {
         } else {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
+    }
+    if (screenActive && active) {
+        active = false
     }
     if (permissionExplanation) {
         AlertDialog(
