@@ -40,6 +40,62 @@ function send(res, status, value) {
   res.status(status).set("Cache-Control", "no-store").json(value);
 }
 
+async function deleteUserCollectionRecords(db, collection, uid, options = {}) {
+  const snap = await db.collection(collection).where("uid", "==", uid).limit(500).get();
+  const batch = db.batch();
+  snap.docs.forEach(doc => batch.delete(doc.ref));
+  if (snap.size) await batch.commit();
+  return snap.size;
+}
+
+async function deleteUserAccountData(uid) {
+  const db = getFirestore();
+  const directDocs = [
+    ["userConsents", uid],
+    ["businessWorkspaces", uid],
+    ["userMemory", uid],
+    ["organizationWorkspaces", uid],
+    ["organizationProduction", uid],
+    ["entitlements", uid],
+    ["creditBalances", uid],
+    ["playEntitlements", uid]
+  ];
+  const batch = db.batch();
+  for (const [collection, id] of directDocs) {
+    batch.delete(db.collection(collection).doc(id));
+  }
+  await batch.commit();
+
+  const queryCollections = [
+    "chatHistory",
+    "businessTrainingAssets",
+    "aiFeedback",
+    "contactSalesRequests",
+    "creditReservations",
+    "creditLedger",
+    "playPurchases",
+    "passkeys",
+    "passkeyChallenges",
+    "socialAccounts",
+    "organizationProductionEvents",
+    "aiJobs",
+    "aiWorkflows",
+    "aiAgents",
+    "aiEvaluations",
+    "aiPlugins",
+    "aiActivity"
+  ];
+  for (const collection of queryCollections) {
+    await deleteUserCollectionRecords(db, collection, uid);
+  }
+
+  try {
+    await getStorage().bucket().deleteFiles({ prefix: "business-training/" + uid + "/" });
+  } catch (error) {
+    console.error("account_storage_cleanup_failed", { uid, message: error?.message || "storage_cleanup_failed" });
+  }
+}
+
 async function userFromRequest(req) {
   const header = req.headers.authorization || "";
   if (!header.startsWith("Bearer ")) throw new Error("Authentication required");
@@ -108,6 +164,17 @@ export const bqSqwadApi = onRequest(
       const user = await userFromRequest(req);
       if (path !== "consent" && path !== "consent/training") {
         await requireRequiredConsent(user.uid);
+      }
+
+      if (req.method === "DELETE" && path === "account") {
+        const deletionUser = await userFromRequest(req);
+        await deleteUserAccountData(deletionUser.uid);
+        await getAuth().deleteUser(deletionUser.uid);
+        return send(res, 200, {
+          ok: true,
+          deleted: true,
+          retainedRecords: "Only records required by applicable financial, tax, fraud-prevention or security obligations may remain in minimized or anonymized form."
+        });
       }
 
       if (req.method === "POST" && path === "consent") {
