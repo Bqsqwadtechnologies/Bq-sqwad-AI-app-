@@ -233,10 +233,8 @@ export const bqSqwadApi = onRequest(
             "Description: " + String(org.description || ""),
             "Organization knowledge:",
             knowledge || "(No organization knowledge has been added.)",
-            sharedMemory ? "Approved shared user memory:
-" + sharedMemory : ""
-          ].filter(Boolean).join("
-");
+            sharedMemory ? "Approved shared user memory:\n" + sharedMemory : ""
+          ].filter(Boolean).join("\n");
           const result = await runAi({ capability: "chat", message, system });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
           gate.commit();
