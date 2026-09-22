@@ -787,6 +787,44 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, canonicalAdminCatalog());
       }
 
+      if (req.method === "POST" && path === "contact-sales") {
+        const email = String(body.email || user.email || "").trim().slice(0, 320);
+        const companyName = String(body.companyName || "").trim().slice(0, 180);
+        const companyEmail = String(body.companyEmail || "").trim().slice(0, 320);
+        const planId = String(body.planId || "").trim().slice(0, 100);
+        const planName = String(body.planName || "").trim().slice(0, 180);
+        const message = String(body.message || "").trim().slice(0, 6000);
+        const features = Array.isArray(body.features) ? body.features.map(x => String(x).slice(0, 180)).slice(0, 100) : [];
+        if (!email || !planId || !message) return send(res, 400, { error: "email_plan_and_message_required" });
+        const ref = await getFirestore().collection("contactSalesRequests").add({
+          uid: user.uid, email, companyName, companyEmail, planId, planName, features, message,
+          status: "new", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, requestId: ref.id, status: "new" });
+      }
+
+      if (req.method === "GET" && path === "contact-sales/status") {
+        const snap = await getFirestore().collection("contactSalesRequests").where("uid", "==", user.uid).orderBy("updatedAt", "desc").limit(10).get();
+        return send(res, 200, { requests: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+      }
+
+      if (req.method === "GET" && path === "admin/contact-sales") {
+        await adminFromRequest(req);
+        const snap = await getFirestore().collection("contactSalesRequests").orderBy("createdAt", "desc").limit(100).get();
+        return send(res, 200, { requests: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+      }
+
+      if (req.method === "POST" && path === "admin/contact-sales/status") {
+        await adminFromRequest(req);
+        const requestId = String(body.requestId || "").trim();
+        const status = String(body.status || "").trim().toLowerCase();
+        if (!requestId || !["seen","contacted","replied","closed"].includes(status)) return send(res, 400, { error: "invalid_request_status" });
+        await getFirestore().collection("contactSalesRequests").doc(requestId).set({
+          status, lastAdminAction: status, lastAdminActionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return send(res, 200, { ok: true, requestId, status });
+      }
+
       if (req.method === "GET" && path === "admin/plan-catalog") {
         await adminFromRequest(req);
         return send(res, 200, { version: PLAN_CATALOG_VERSION, catalog: PLAN_CATALOG });
