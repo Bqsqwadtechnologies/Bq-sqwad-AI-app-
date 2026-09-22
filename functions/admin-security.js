@@ -88,7 +88,8 @@ export async function securityStatus() {
     totpConfigured: Boolean(data.totpSecret),
     verifiedWindowSeconds: 12 * 60 * 60,
     issuer: ISSUER,
-    account: ACCOUNT
+    account: ACCOUNT,
+    biometricConfigured: Boolean(data.biometric?.publicKey)
   };
 }
 
