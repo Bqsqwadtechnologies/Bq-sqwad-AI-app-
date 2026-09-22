@@ -14,7 +14,7 @@ import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlCon
 import crypto from "node:crypto";
 import { verifyPlayPurchase, processPlayRtdn } from "./google-play.js";
 import { PLAN_CATALOG, PLAN_CATALOG_VERSION } from "./plan-catalog.js";
-import { canonicalAdminCatalog } from "./play-catalog.js";
+import { canonicalAdminCatalog, canonicalPlayProducts } from "./play-catalog.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
@@ -827,7 +827,77 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "GET" && path === "admin/plan-catalog") {
         await adminFromRequest(req);
-        return send(res, 200, { version: PLAN_CATALOG_VERSION, catalog: PLAN_CATALOG });
+        const snap = await getFirestore().collection("planCatalog").doc("config").get();
+        if (snap.exists) {
+          const data = snap.data() || {};
+          return send(res, 200, {
+            version: Number(data.version || PLAN_CATALOG_VERSION),
+            catalog: data.catalog || canonicalAdminCatalog(),
+            source: "firestore",
+            updatedAt: data.updatedAt || null
+          });
+        }
+        return send(res, 200, { version: PLAN_CATALOG_VERSION, catalog: canonicalAdminCatalog(), source: "code-fallback" });
+      }
+
+      if (req.method === "POST" && path === "admin/plan-catalog") {
+        const admin = await adminFromRequest(req);
+        const incoming = body.catalog;
+        if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+          return send(res, 400, { error: "catalog_object_required" });
+        }
+        const raw = JSON.stringify(incoming);
+        if (raw.includes("_")) return send(res, 400, { error: "commercial_ids_must_not_contain_underscores" });
+
+        const ids = [];
+        const products = [];
+        const walk = value => {
+          if (!value || typeof value !== "object") return;
+          if (Array.isArray(value)) return value.forEach(walk);
+          if (typeof value.id === "string") {
+            if (!/^[a-z0-9-]+$/.test(value.id)) throw new Error("invalid_commercial_id");
+            if (ids.includes(value.id)) throw new Error("duplicate_commercial_id");
+            ids.push(value.id);
+          }
+          if (typeof value.productId === "string" && value.productId) {
+            if (!/^[a-z0-9-]+$/.test(value.productId)) throw new Error("invalid_product_id");
+            products.push(value.productId);
+          }
+          if (Array.isArray(value.quantityTiers)) {
+            for (const tier of value.quantityTiers) {
+              if (!tier || !/^[a-z0-9-]+$/.test(String(tier.tierId || ""))) throw new Error("invalid_tier_id");
+            }
+          }
+          Object.values(value).forEach(walk);
+        };
+        try { walk(incoming); } catch (e) { return send(res, 400, { error: e.message || "invalid_catalog" }); }
+
+        const existing = await getFirestore().collection("planCatalog").doc("config").get();
+        const version = Math.max(
+          PLAN_CATALOG_VERSION,
+          Number(existing.data()?.version || PLAN_CATALOG_VERSION),
+          Number(body.version || 0)
+        ) + (existing.exists ? 1 : 0);
+
+        const payload = {
+          version,
+          catalog: { ...incoming, version },
+          commercialIdCount: ids.length,
+          productIdCount: products.length,
+          updatedBy: admin.uid,
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        await getFirestore().collection("planCatalog").doc("config").set(payload, { merge: false });
+        await getFirestore().collection("adminConfigAudit").add({
+          type: "plan_catalog_update",
+          version,
+          actorUid: admin.uid,
+          previousVersion: Number(existing.data()?.version || PLAN_CATALOG_VERSION),
+          commercialIdCount: ids.length,
+          productIdCount: products.length,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, version, catalog: incoming });
       }
 
       if (req.method === "GET" && path === "admin/config") {
@@ -843,12 +913,12 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "admin/plan") {
         const admin = await adminFromRequest(req);
         const id = String(body.id || "").trim();
-        if (!id || !/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return send(res, 400, { error: "invalid_plan_id" });
+        if (!id || !/^[a-z0-9-]{1,80}$/.test(id)) return send(res, 400, { error: "invalid_plan_id" });
         const plan = {
           name: String(body.name || "").trim().slice(0, 120),
           active: body.active !== false,
           amountMinor: Math.max(0, Number(body.amountMinor || 0)),
-          currency: String(body.currency || "NGN").toUpperCase().slice(0, 3),
+          currency: "USD",
           billingPeriod: String(body.billingPeriod || "monthly").slice(0, 30),
           features: Array.isArray(body.features) ? body.features.map(String).slice(0, 50) : [],
           limits: body.limits && typeof body.limits === "object" ? body.limits : {},
@@ -920,7 +990,8 @@ export const bqSqwadApi = onRequest(
           version: Number(data.version || 1),
           effectiveDate: data.effectiveDate || null
         });
-        const products = playSnap.exists && Array.isArray(playSnap.data()?.products) ? playSnap.data().products.map(p => ({
+        const configuredProducts = playSnap.exists && Array.isArray(playSnap.data()?.products) ? playSnap.data().products : canonicalPlayProducts();
+        const products = configuredProducts.map(p => ({
           planId: String(p.planId || ""),
           productId: String(p.productId || ""),
           basePlanId: p.basePlanId ? String(p.basePlanId) : null,
@@ -946,17 +1017,23 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "GET" && path === "play/catalog") {
         const snap = await getFirestore().collection("playCatalog").doc("config").get();
-        const products = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : [];
+        const sourceProducts = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : canonicalPlayProducts();
+        const products = sourceProducts.map(p => ({
+          planId: String(p.planId || ""),
+          productId: String(p.productId || ""),
+          basePlanId: p.basePlanId ? String(p.basePlanId) : null,
+          offerId: p.offerId ? String(p.offerId) : null,
+          productType: String(p.productType || ""),
+          enabled: p.enabled === true,
+          consumable: p.consumable === true,
+          trialOfferId: p.trialOfferId ? String(p.trialOfferId) : null,
+          trialDays: Number(p.trialDays || 0),
+          billingPeriod: String(p.billingPeriod || ""),
+          priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
+        })).filter(p => p.productId && !p.productId.includes("_") && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
         return send(res, 200, {
-          version: snap.exists ? Number(snap.data()?.version || 1) : 1,
-          products: products.map(p => ({
-            planId: String(p.planId || ""),
-            productId: String(p.productId || ""),
-            basePlanId: p.basePlanId ? String(p.basePlanId) : null,
-            productType: String(p.productType || ""),
-            enabled: p.enabled === true,
-            consumable: p.consumable === true
-          })).filter(p => p.productId && (p.productType === "subs" || p.productType === "inapp"))
+          version: snap.exists ? Number(snap.data()?.version || PLAN_CATALOG_VERSION) : PLAN_CATALOG_VERSION,
+          products
         });
       }
 
