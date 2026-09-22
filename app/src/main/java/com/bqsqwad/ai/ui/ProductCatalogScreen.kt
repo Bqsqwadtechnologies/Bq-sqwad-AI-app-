@@ -152,7 +152,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             Text("Feature matrix",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
                             Text("Every row is resolved against the live plan-feature bindings. No plan is treated as included unless its backend binding says so.",color=MaterialTheme.colorScheme.onSurfaceVariant)
                             plans.take(8).forEach { plan ->
-                                Text(plan.name.ifBlank { plan.id },style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                                Text(plan.name.ifBlank { "Plan" },style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
                                 features.take(24).forEach { feature ->
                                     val binding=bindings.firstOrNull{it.planId==plan.id && it.featureId==feature.id}
                                     val state=binding?.state ?: if(feature.comingSoon) "coming_soon" else "unavailable"
