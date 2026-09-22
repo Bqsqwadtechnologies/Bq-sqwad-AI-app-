@@ -41,7 +41,6 @@ fun AdminControlCenter() {
     var selectedSection by remember { mutableStateOf("all") }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var showPlanCatalog by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
@@ -83,15 +82,10 @@ fun AdminControlCenter() {
         "emergency" to "Emergency Controls"
     )
 
-    if (showPlanCatalog) {
-        AdminPlanCatalogScreen { showPlanCatalog = false }
-        return
-    }
 
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
         SurfaceCard(
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
