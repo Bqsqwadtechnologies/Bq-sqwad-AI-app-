@@ -201,3 +201,22 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 
 ### Runtime verification boundary
 - Android source paths and service lifecycle were implemented against the current foreground-service and MediaProjection requirements. A physical-device/emulator run was not available in this environment, so real permission-dialog, camera hardware, screen-off, OEM battery-management, Android-version, and Firebase live-request tests remain device verification tasks rather than claims of runtime success.
+
+
+## Phase 5 — native realtime voice
+- Replaced the previous SpeechRecognizer → text chat → Android TTS chain with a native realtime speech-to-speech session.
+- Added `RealtimeVoiceSession.kt` using a WebSocket transport and PCM microphone/speaker streams.
+- Server creates an ephemeral OpenAI Realtime client secret; the OpenAI API key remains server-side.
+- Server-side VAD is enabled and a `speech_started` event immediately cancels/flushes current output for barge-in.
+- Live Voice remains owned by `LiveMediaForegroundService`, so leaving the screen does not dispose the realtime session.
+- Voice UI no longer displays conversation transcripts or AI reply text.
+- Added admin-controlled `live_voice_pricing` configuration. Native code reads pricing/config from the backend; no voice price is hardcoded in Android.
+- Added admin GET/POST controls at `/admin/live-voice-pricing` and the authenticated `/realtime/session` endpoint.
+- Added OkHttp only because the native realtime WebSocket transport requires it.
+- No workflow was triggered.
+
+## Phase 6 — Personal / Life Matters / Learning Studio
+- Workspace requests now use distinct backend capabilities: `personal_intelligence`, `life_matters`, and `learning_studio`.
+- Personal Intelligence loads server-backed memory and exposes the memory enable/disable control.
+- Workspace execution remains behind server capability/entitlement/credit controls.
+- No prices were hardcoded into these workspace screens; commercial access remains backend/admin controlled.
