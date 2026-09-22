@@ -8,6 +8,12 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.Signature
 import android.util.Base64
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -83,6 +89,48 @@ class AdminBiometricClient(private val context: Context) {
 
     suspend fun beginChallenge(): JSONObject = request("/admin/security/biometric/challenge")
 
+    suspend fun signChallengeWithBiometric(activity: FragmentActivity, challengeBase64: String): String {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val key = ks.getKey(alias, null) as? java.security.PrivateKey ?: error("Admin biometric key is unavailable")
+        val signature = Signature.getInstance("SHA256withECDSA")
+        val challenge = Base64.decode(challengeBase64, Base64.DEFAULT)
+        try {
+            signature.initSign(key)
+        } catch (e: java.security.UnrecoverableKeyException) {
+            throw e
+        } catch (e: android.security.keystore.UserNotAuthenticatedException) {
+            // The biometric prompt below authorizes this key operation.
+        }
+        signature.update(challenge)
+        return suspendCancellableCoroutine { continuation ->
+            val executor = ContextCompat.getMainExecutor(activity)
+            val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    try {
+                        val cryptoSignature = result.cryptoObject?.signature
+                        if (cryptoSignature == null) continuation.resumeWithException(IllegalStateException("Biometric signature unavailable"))
+                        else continuation.resume(Base64.encodeToString(cryptoSignature.sign(), Base64.NO_WRAP))
+                    } catch (t: Throwable) {
+                        continuation.resumeWithException(t)
+                    }
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    continuation.resumeWithException(IllegalStateException(errString.toString()))
+                }
+            })
+            val cryptoObject = BiometricPrompt.CryptoObject(signature)
+            prompt.authenticate(
+                BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Admin biometric unlock")
+                    .setSubtitle("Use your enrolled fingerprint or biometric")
+                    .setNegativeButtonText("Cancel")
+                    .build(),
+                cryptoObject
+            )
+            continuation.invokeOnCancellation { prompt.cancelAuthentication() }
+        }
+    }
+
     suspend fun signChallenge(challengeBase64: String): String = withContext(Dispatchers.IO) {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val key = ks.getKey(alias, null) as? java.security.PrivateKey ?: error("Admin biometric key is unavailable")
@@ -92,9 +140,9 @@ class AdminBiometricClient(private val context: Context) {
         Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
     }
 
-    suspend fun unlock(): JSONObject {
+    suspend fun unlock(activity: FragmentActivity): JSONObject {
         val challenge = beginChallenge()
-        val signature = signChallenge(challenge.getString("challenge"))
+        val signature = signChallengeWithBiometric(activity, challenge.getString("challenge"))
         return request(
             "/admin/security/biometric/verify",
             "POST",
