@@ -1040,7 +1040,14 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "play/verify") {
         const productId = String(body.productId || "").trim();
         const purchaseToken = String(body.purchaseToken || "").trim();
-        const result = await verifyPlayPurchase({ uid: user.uid, productId, purchaseToken, obfuscatedAccountId: body.obfuscatedAccountId ? String(body.obfuscatedAccountId) : "" });
+        const result = await verifyPlayPurchase({
+          uid: user.uid,
+          productId,
+          purchaseToken,
+          obfuscatedAccountId: body.obfuscatedAccountId ? String(body.obfuscatedAccountId) : "",
+          requestedBasePlanId: body.basePlanId ? String(body.basePlanId) : "",
+          requestedOfferId: body.offerId ? String(body.offerId) : ""
+        });
         return send(res, 200, result);
       }
 
