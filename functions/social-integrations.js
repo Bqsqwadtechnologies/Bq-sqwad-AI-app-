@@ -101,7 +101,7 @@ export async function saveSocialClientSecret(platform, value, actorUid) {
   return { ok: true, platform };
 }
 
-export async function beginSocialOAuth(platform, state, redirectUri) {
+export async function beginSocialOAuth(platform, state, redirectUri, codeChallenge = null) {
   const config = await getSocialConfig();
   const p = PLATFORMS[platform];
   if (!p) throw new Error("unsupported_social_platform");
@@ -116,11 +116,11 @@ export async function beginSocialOAuth(platform, state, redirectUri) {
     state
   });
   if (platform === "youtube") params.set("access_type", "offline");
-  if (platform === "x") params.set("code_challenge", "challenge_not_supported_by_generic_flow");
+  if (platform === "x") { params.set("code_challenge", codeChallenge || ""); params.set("code_challenge_method", "S256"); }
   return p.authorizationUrl + "?" + params.toString();
 }
 
-export async function exchangeSocialOAuth(platform, code, redirectUri) {
+export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerifier = null) {
   const config = await getSocialConfig();
   const p = PLATFORMS[platform];
   const pc = config.platforms?.[platform] || {};
@@ -135,6 +135,7 @@ export async function exchangeSocialOAuth(platform, code, redirectUri) {
     redirect_uri: redirectUri,
     grant_type: "authorization_code"
   });
+  if (platform === "x" && codeVerifier) body.set("code_verifier", codeVerifier);
   const response = await fetch(p.tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   const raw = await response.text();
   if (!response.ok) throw new Error("social_token_exchange_failed:" + raw.slice(0, 500));
