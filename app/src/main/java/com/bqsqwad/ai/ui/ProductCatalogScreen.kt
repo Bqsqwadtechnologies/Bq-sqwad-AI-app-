@@ -27,7 +27,7 @@ private data class LivePlan(val id:String,val name:String,val module:String,val 
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
-private data class ContactSelection(val planName:String,val billingPeriod:String,val features:List<String>)
+private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
 
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit) {
@@ -176,7 +176,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         items(entries,key={it.productId+":"+(it.basePlanId?:"")}){entry->
                             val plan=plans.firstOrNull{it.id==entry.planId}
                             val product=playProducts.firstOrNull{it.productId==entry.productId}
-                            ProductCard(entry,plan,product,billing){status=it; if(it == "CONTACT_SALES") contactPlan = ContactSelection(plan?.name ?: "Product", entry.basePlanId ?: "custom", plan?.features ?: emptyList())}
+                            ProductCard(entry,plan,product,billing){status=it; if(it == "CONTACT_SALES") contactPlan = ContactSelection(entry.planId, plan?.name ?: "Product", entry.basePlanId ?: "custom", plan?.features ?: emptyList())}
                         }
                     }
                 }
@@ -190,7 +190,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                 Text(option.billingPeriod.replaceFirstChar{it.uppercase()}+" • Contact Sales",color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 option.features.take(6).forEach{Text("• "+it)}
                                 if(option.limits.isNotEmpty())Text("Limits: "+option.limits.entries.joinToString(", "){it.key+"="+it.value})
-                                Button(onClick={contactPlan=ContactSelection(option.name,option.billingPeriod,option.features)},modifier=Modifier.fillMaxWidth()){Text("Contact Sales")}
+                                Button(onClick={contactPlan=ContactSelection("",option.name,option.billingPeriod,option.features)},modifier=Modifier.fillMaxWidth()){Text("Contact Sales")}
                             }
                         }
                     }
@@ -199,7 +199,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         }
     }
     contactPlan?.let { selection ->
-        ContactSalesDialog("", selection.planName, selection.features, selection.billingPeriod, onDismiss = { contactPlan = null }) { notice ->
+        ContactSalesDialog(selection.planId, selection.planName, selection.features, selection.billingPeriod, onDismiss = { contactPlan = null }) { notice ->
             salesNotice = notice
             contactPlan = null
         }
