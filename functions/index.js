@@ -1218,6 +1218,24 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await saveSocialClientSecret(String(body.platform || ""), String(body.secretValue || ""), admin.uid));
       }
 
+      if (req.method === "POST" && path === "admin/social-test") {
+        const admin = await adminFromRequest(req);
+        const config = await getSocialConfig();
+        const platform = String(body.platform || "");
+        const p = config.platforms?.[platform];
+        if (!p) return send(res, 400, { error: "unsupported_or_unconfigured_platform" });
+        const secretId = platform === "facebook" || platform === "instagram" ? "meta_app_secret" : platform === "youtube" ? "youtube_client_secret" : platform === "tiktok" ? "tiktok_client_secret" : "x_client_secret";
+        const secretConfigured = Boolean(await getProviderSecret(secretId));
+        return send(res, 200, {
+          ok: Boolean(config.enabled && p.enabled && p.clientId && secretConfigured),
+          testMode: config.testMode,
+          platform,
+          clientIdConfigured: Boolean(p.clientId),
+          clientSecretConfigured: secretConfigured,
+          nextStep: config.testMode ? "OAuth/publish simulation only; no external post is created." : "Ready for authorized OAuth connection."
+        });
+      }
+
       if (req.method === "GET" && path === "admin/social-accounts") {
         const admin = await adminFromRequest(req);
         return send(res, 200, { accounts: await listSocialAccounts(admin.uid) });
