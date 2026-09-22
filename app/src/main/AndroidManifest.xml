@@ -21,6 +21,7 @@
         android:label="BQ Sqwad AI"
         android:supportsRtl="true"
         android:theme="@style/Theme.BQSqwadAI">
+        <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
         <service
             android:name=".core.LiveMediaForegroundService"
             android:exported="false"
