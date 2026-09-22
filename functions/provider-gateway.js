@@ -130,14 +130,14 @@ export async function callGeminiDeviceCommand({ model, message, system }) {
         name: "device_command",
         description: "Execute one or more safe, user-requested Android device actions.",
         parameters: {
-          type: "OBJECT",
+          type: "object",
           properties: {
             actions: {
-              type: "ARRAY",
+              type: "array",
               items: {
                 type: "OBJECT",
                 properties: {
-                  type: { type: "STRING" },
+                  type: { type: "string" },
                   value: { type: "STRING" }
                 },
                 required: ["type"]
