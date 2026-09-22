@@ -67,10 +67,10 @@ class AdminBiometricClient(private val context: Context) {
             .setUserAuthenticationRequired(true)
             .setInvalidatedByBiometricEnrollment(true)
         if (Build.VERSION.SDK_INT >= 30) {
-            builder.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+            builder.setUserAuthenticationParameters(30, KeyProperties.AUTH_BIOMETRIC_STRONG)
         } else {
             @Suppress("DEPRECATION")
-            builder.setUserAuthenticationValidityDurationSeconds(-1)
+            builder.setUserAuthenticationValidityDurationSeconds(30)
         }
         generator.initialize(builder.build())
         generator.generateKeyPair()
@@ -90,26 +90,17 @@ class AdminBiometricClient(private val context: Context) {
     suspend fun beginChallenge(): JSONObject = request("/admin/security/biometric/challenge")
 
     suspend fun signChallengeWithBiometric(activity: FragmentActivity, challengeBase64: String): String {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val key = ks.getKey(alias, null) as? java.security.PrivateKey ?: error("Admin biometric key is unavailable")
-        val signature = Signature.getInstance("SHA256withECDSA")
-        val challenge = Base64.decode(challengeBase64, Base64.DEFAULT)
-        try {
-            signature.initSign(key)
-        } catch (e: java.security.UnrecoverableKeyException) {
-            throw e
-        } catch (e: android.security.keystore.UserNotAuthenticatedException) {
-            // The biometric prompt below authorizes this key operation.
-        }
-        signature.update(challenge)
         return suspendCancellableCoroutine { continuation ->
             val executor = ContextCompat.getMainExecutor(activity)
             val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     try {
-                        val cryptoSignature = result.cryptoObject?.signature
-                        if (cryptoSignature == null) continuation.resumeWithException(IllegalStateException("Biometric signature unavailable"))
-                        else continuation.resume(Base64.encodeToString(cryptoSignature.sign(), Base64.NO_WRAP))
+                        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                        val key = ks.getKey(alias, null) as? java.security.PrivateKey ?: error("Admin biometric key is unavailable")
+                        val signature = Signature.getInstance("SHA256withECDSA")
+                        signature.initSign(key)
+                        signature.update(Base64.decode(challengeBase64, Base64.DEFAULT))
+                        continuation.resume(Base64.encodeToString(signature.sign(), Base64.NO_WRAP))
                     } catch (t: Throwable) {
                         continuation.resumeWithException(t)
                     }
@@ -118,26 +109,15 @@ class AdminBiometricClient(private val context: Context) {
                     continuation.resumeWithException(IllegalStateException(errString.toString()))
                 }
             })
-            val cryptoObject = BiometricPrompt.CryptoObject(signature)
             prompt.authenticate(
                 BiometricPrompt.PromptInfo.Builder()
                     .setTitle("Admin biometric unlock")
                     .setSubtitle("Use your enrolled fingerprint or biometric")
                     .setNegativeButtonText("Cancel")
-                    .build(),
-                cryptoObject
+                    .build()
             )
             continuation.invokeOnCancellation { prompt.cancelAuthentication() }
         }
-    }
-
-    suspend fun signChallenge(challengeBase64: String): String = withContext(Dispatchers.IO) {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val key = ks.getKey(alias, null) as? java.security.PrivateKey ?: error("Admin biometric key is unavailable")
-        val signature = Signature.getInstance("SHA256withECDSA")
-        signature.initSign(key)
-        signature.update(Base64.decode(challengeBase64, Base64.DEFAULT))
-        Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
     }
 
     suspend fun unlock(activity: FragmentActivity): JSONObject {
