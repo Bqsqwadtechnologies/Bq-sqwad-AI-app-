@@ -4,7 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { runAi, callTavily } from "./provider-gateway.js";
-import { getProviderSecret, setProviderSecret, providerSecretStatus } from "./secret-store.js";
+import { getProviderSecret, setProviderSecret, deleteProviderSecret, providerSecretStatus, listProviderSecretStatuses } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
 import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
@@ -1284,7 +1284,7 @@ export const bqSqwadApi = onRequest(
         const db = getFirestore();
         const config = await getAdminControlConfig();
         const providers = await Promise.all(
-          ["gemini", "openai", "tavily", "paystack", "paystack_public"].map(providerSecretStatus)
+          listProviderSecretStatuses()
         );
         return send(res, 200, {
           providers,
@@ -1304,10 +1304,18 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "admin/provider-secret") {
         const admin = await adminFromRequest(req);
         const providerId = String(body.providerId || "");
-        const allowed = new Set(["gemini", "openai", "tavily", "paystack", "paystack_public"]);
-        if (!allowed.has(providerId)) return send(res, 400, { error: "unsupported_provider" });
-        await setProviderSecret(providerId, String(body.secretValue || ""), admin.uid);
-        return send(res, 200, { ok: true, providerId });
+        if (!/^[a-z][a-z0-9_.-]{1,79}$/i.test(providerId)) return send(res, 400, { error: "invalid_provider_id" });
+        const value = String(body.secretValue || "");
+        if (body.remove === true) return send(res, 200, await deleteProviderSecret(providerId, admin.uid));
+        if (!value) return send(res, 400, { error: "secret_required" });
+        await setProviderSecret(providerId, value, admin.uid);
+        await getFirestore().collection("adminSecretAudit").add({
+          providerId,
+          action: "set",
+          actorUid: admin.uid,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, providerId, stored: true });
       }
 
       if (req.method === "POST" && path === "admin/route") {
