@@ -728,7 +728,7 @@ private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.")
-                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")
+                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.")\n                Workspace.COMPANION -> CompanionWorkspace()
                 Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.")
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
