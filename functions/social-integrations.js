@@ -64,7 +64,8 @@ export async function getSocialConfig() {
   return {
     enabled: data.enabled === true,
     testMode: data.testMode !== false,
-    callbackBaseUrl: CANONICAL_CALLBACK_URL,\n    javascriptOrigin: CANONICAL_WEB_ORIGIN,
+    callbackBaseUrl: CANONICAL_CALLBACK_URL,
+    javascriptOrigin: CANONICAL_WEB_ORIGIN,
     platforms: data.platforms || {}
   };
 }
@@ -277,7 +278,6 @@ export async function publishSocialPost(uid, accountId, input = {}) {
       headers: { "Content-Type": contentType, "Content-Length": String(bytes.byteLength) },
       body: bytes
     });
-  }
   } else {
     throw new Error("social_publish_not_supported_for_platform");
   }
