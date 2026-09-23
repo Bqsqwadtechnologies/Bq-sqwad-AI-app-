@@ -159,6 +159,61 @@ export async function saveSocialAccount(platform, tokenData, metadata = {}, acto
   return { id, platform, status: "connected", metadata };
 }
 
+
+export async function publishSocialPost(uid, accountId, input = {}) {
+  const ref = accountRef(clean(accountId, 160));
+  const snap = await ref.get();
+  if (!snap.exists || clean(snap.data()?.uid, 160) !== uid) throw new Error("social_account_not_found");
+  const account = snap.data();
+  const platform = clean(account.platform, 40);
+  const token = clean(account.token, 10000);
+  const text = clean(input.text, 5000);
+  if (!token) throw new Error("social_account_token_missing");
+  if (!text && !input.mediaUrl) throw new Error("social_content_required");
+  const metadata = account.metadata || {};
+  let response;
+  if (platform === "x") {
+    response = await fetch("https://api.x.com/2/tweets", {
+      method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text || "" })
+    });
+  } else if (platform === "facebook") {
+    const pageId = clean(input.pageId || metadata.pageId, 120);
+    if (!pageId) throw new Error("facebook_page_id_required");
+    response = await fetch("https://graph.facebook.com/v24.0/" + encodeURIComponent(pageId) + "/feed", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ message: text, access_token: token })
+    });
+  } else if (platform === "instagram") {
+    const igId = clean(input.instagramAccountId || metadata.instagramAccountId, 120);
+    const mediaUrl = clean(input.mediaUrl, 2000);
+    if (!igId || !mediaUrl) throw new Error("instagram_account_and_media_required");
+    const create = await fetch("https://graph.facebook.com/v24.0/" + encodeURIComponent(igId) + "/media", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ image_url: mediaUrl, caption: text, access_token: token })
+    });
+    const createRaw = await create.text();
+    if (!create.ok) throw new Error("instagram_media_create_failed:" + createRaw.slice(0, 500));
+    const creation = JSON.parse(createRaw);
+    response = await fetch("https://graph.facebook.com/v24.0/" + encodeURIComponent(igId) + "/media_publish", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creation_id: creation.id, access_token: token })
+    });
+  } else {
+    throw new Error("social_publish_not_supported_for_platform");
+  }
+  const raw = await response.text();
+  if (!response.ok) throw new Error("social_publish_failed:" + raw.slice(0, 700));
+  let result = {};
+  try { result = JSON.parse(raw); } catch {}
+  const publishRef = getFirestore().collection("socialPublishJobs").doc();
+  await publishRef.set({
+    uid, accountId, platform, status: "published", text, result,
+    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true, jobId: publishRef.id, platform, status: "published", result };
+}
+
 export async function listSocialAccounts(uid) {
   const snap = await getFirestore().collection(ACCOUNTS).where("uid", "==", uid).limit(50).get();
   return snap.docs.map(d => {
