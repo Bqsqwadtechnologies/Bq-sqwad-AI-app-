@@ -22,7 +22,7 @@ import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
@@ -1504,6 +1504,42 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "admin/controls") {
         await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
+      }
+
+      if (req.method === "GET" && path === "admin/business/test-session") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await getBusinessTestSession(admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/business/test-session") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await setBusinessTestSession(
+          admin.uid,
+          String(body.planId || ""),
+          body.enabled !== false,
+          Number(body.durationMinutes || 120)
+        ));
+      }
+
+      if (req.method === "POST" && path === "admin/business/test-suite") {
+        const admin = await adminFromRequest(req);
+        const planId = String(body.planId || "");
+        return send(res, 200, await runBusinessPlanTestSuite(admin.uid, planId));
+      }
+
+      if (req.method === "POST" && path === "admin/business/plan-status") {
+        const admin = await adminFromRequest(req);
+        const planId = String(body.planId || "").trim();
+        if (!planId) return send(res, 400, { error: "business_plan_id_required" });
+        const active = body.active !== false;
+        await getFirestore().collection("businessPlanStatus").doc(planId).set({
+          planId, active, updatedBy: admin.uid, updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        await getFirestore().collection("adminConfigAudit").add({
+          type: "business_plan_status",
+          planId, active, actorUid: admin.uid, createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, planId, active });
       }
 
       if (req.method === "POST" && path === "admin/plan") {
