@@ -1223,17 +1223,140 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
 @Composable
 private data class AppFeature(val id: String, val title: String, val description: String, val capability: String, val webSearch: Boolean = false)
 
-private val ADVANCED_APP_FEATURES = listOf(
+private val PRIMARY_ADVANCED_FEATURES = listOf(
     AppFeature("codron", "Codron AI", "AI coding, repository understanding, debugging and controlled code changes.", "codron"),
     AppFeature("ai_agent", "AI Agent", "Task-oriented agents with tools, memory, execution history and controlled automation.", "ai_agent"),
     AppFeature("deep_research", "Deep Research", "Multi-step research with web evidence, source collection and report generation.", "deep_research", true),
-    AppFeature("knowledge_graph", "Knowledge Graph", "Connect people, facts, documents and relationships into searchable knowledge.", "knowledge_graph"),
-    AppFeature("semantic_file_search", "Semantic File Search", "Find relevant information across supported uploaded files by meaning, not only filenames.", "semantic_file_search"),
+    AppFeature("knowledge_graphs", "Knowledge Graphs", "Connect people, facts, documents and relationships into searchable knowledge.", "knowledge_graphs", true),
+    AppFeature("semantic_file_search", "Semantic File Search", "Find relevant information across supported uploaded files by meaning.", "semantic_file_search"),
     AppFeature("conversation_intelligence", "Conversation Intelligence", "Extract important facts, topics, actions and summaries from conversations.", "conversation_intelligence"),
     AppFeature("project_workspaces", "Project Workspaces", "Keep related conversations, files, instructions and memory together.", "project_workspaces"),
-    AppFeature("ai_reports", "AI-Generated Reports", "Turn conversations and structured data into organized reports and exports.", "ai_reports"),
-    AppFeature("scheduled_tasks", "Scheduled Tasks", "Run supported AI tasks on a schedule and keep execution history.", "scheduled_tasks")
+    AppFeature("ai_generated_reports", "AI-Generated Reports", "Turn conversations and structured data into organized reports and exports.", "ai_generated_reports"),
+    AppFeature("scheduled_ai_tasks", "Scheduled AI Tasks", "Run supported AI tasks on a schedule and keep execution history.", "scheduled_ai_tasks")
 )
+
+private val FEATURE_DISPLAY_NAMES = mapOf(
+    "ai_task_planner" to "AI Task Planner",
+    "agent_tool_use" to "Agent Tool Use",
+    "agent_sandbox" to "Agent Sandbox",
+    "ai_workflow_builder" to "AI Workflow Builder",
+    "ai_monitoring_agents" to "AI Monitoring Agents",
+    "multimodal_images" to "Multimodal Images",
+    "multifile_reasoning" to "Multi-File Reasoning",
+    "document_analysis" to "Document Analysis",
+    "audio_analysis" to "Audio Analysis",
+    "video_analysis" to "Video Analysis",
+    "response_confidence_context" to "Response Confidence",
+    "source_verification" to "Source Verification",
+    "custom_ai_assistants" to "Custom AI Assistants",
+    "business_ai_employee" to "Business AI Employees",
+    "agent_to_agent_workflows" to "Agent-to-Agent Workflows",
+    "human_approval_checkpoints" to "Human Approval Checkpoints",
+    "action_preview" to "Action Preview",
+    "permission_center" to "Permission Center",
+    "privacy_dashboard" to "Privacy Dashboard",
+    "ai_activity_timeline" to "AI Activity Timeline",
+    "undoable_ai_actions" to "Undoable AI Actions",
+    "secure_temporary_file_vault" to "Secure Temporary File Vault",
+    "large_file_resumable_uploads" to "Resumable Large-File Uploads",
+    "background_generation_jobs" to "Background Generation Jobs",
+    "generation_queue" to "Generation Queue",
+    "usage_forecasting" to "Usage Forecasting",
+    "admin_experimentation" to "AI Experimentation",
+    "feature_rollout_percentages" to "Feature Rollouts",
+    "emergency_kill_switches" to "Emergency Kill Switches",
+    "provider_health_checks" to "Provider Health",
+    "ai_incident_replay" to "AI Incident Replay",
+    "model_version_rollback" to "Model Version Rollback",
+    "security_event_monitoring" to "Security Event Monitoring",
+    "ai_abuse_risk_detection" to "AI Abuse Risk Detection",
+    "encrypted_local_sensitive_storage" to "Encrypted Local Storage",
+    "passkey_auth" to "Passkeys",
+    "account_session_device_management" to "Sessions & Devices",
+    "data_export_account_deletion" to "Data Export & Account Deletion",
+    "accessibility_ai_controls" to "Accessibility AI Controls",
+    "multilingual_ui_voice" to "Multilingual UI & Voice",
+    "cross_device_sync" to "Cross-Device Sync",
+    "admin_capability_marketplace" to "Capability Marketplace",
+    "ai_orchestration" to "AI Orchestration",
+    "model_routing" to "Model Routing",
+    "provider_failover" to "Provider Failover",
+    "personal_memory" to "Personal Memory",
+    "project_memory" to "Project Memory",
+    "business_memory" to "Business Memory",
+    "device_intelligence" to "Device Intelligence",
+    "calendar_actions" to "Calendar Actions",
+    "reminder_actions" to "Reminder Actions",
+    "location_assistance" to "Location Assistance",
+    "screen_awareness" to "Screen Awareness",
+    "media_controls" to "Media Controls",
+    "web_research" to "Web Research",
+    "research_export" to "Research Export",
+    "live_camera_ocr" to "Live Camera OCR",
+    "live_camera_scene_understanding" to "Live Camera Scene Understanding",
+    "live_voice_barge_in" to "Live Voice Barge-In",
+    "voice_activity_detection" to "Voice Activity Detection",
+    "learning_quizzes" to "Learning Quizzes",
+    "document_to_course" to "Document to Course",
+    "business_crm" to "Business CRM",
+    "business_workflows" to "Business Workflows",
+    "business_analytics" to "Business Analytics",
+    "business_knowledge" to "Business Knowledge",
+    "business_agents" to "Business Agents",
+    "business_channels" to "Business Channels",
+    "business_automation" to "Business Automation",
+    "agent_training" to "Agent Training",
+    "agent_evaluation" to "Agent Evaluation",
+    "agent_versioning" to "Agent Versioning",
+    "agent_rollback" to "Agent Rollback",
+    "notifications" to "Notifications",
+    "referrals" to "Referrals",
+    "credit_reservation" to "Credit Reservation",
+    "credit_reversal" to "Credit Reversal",
+    "rate_limiting" to "Rate Limiting",
+    "abuse_protection" to "Abuse Protection",
+    "incident_system" to "Incident System",
+    "ai_evaluation_center" to "AI Evaluation Center",
+    "secure_file_pipeline" to "Secure File Pipeline",
+    "offline_retry_queue" to "Offline Retry Queue"
+)
+
+private fun capabilityDisplayName(id: String): String =
+    FEATURE_DISPLAY_NAMES[id] ?: id.split('_').joinToString(" ") { part ->
+        part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
+private fun capabilityDescription(id: String): String = when (id) {
+    "web_research", "deep_research" -> "Research the web with source-aware AI evidence and saved results."
+    "knowledge_graphs" -> "Build connected knowledge from people, facts, files and relationships."
+    "semantic_file_search" -> "Find relevant information across supported files by meaning."
+    "conversation_intelligence" -> "Extract topics, facts, actions and summaries from conversations."
+    "project_workspaces" -> "Keep related conversations, files, instructions and memory together."
+    "data_analysis_workspace" -> "Analyze structured datasets with calculations, charts and AI reports."
+    "ai_generated_reports" -> "Generate structured reports from AI conversations and analyzed data."
+    "background_generation_jobs", "generation_queue" -> "Run longer AI generation work in a tracked background queue."
+    "cross_device_sync" -> "Keep supported AI data synchronized across signed-in devices."
+    else -> "Connected BQ Sqwad AI capability controlled by the server-side feature catalog."
+}
+
+private val ADVANCED_APP_FEATURES: List<AppFeature>
+    get() {
+        val primary = PRIMARY_ADVANCED_FEATURES
+        val primaryIds = primary.map { it.id }.toSet()
+        val extra = AdvancedCapabilities.advanced
+            .filterNot { it in primaryIds }
+            .sorted()
+            .map { id ->
+                AppFeature(
+                    id = id,
+                    title = capabilityDisplayName(id),
+                    description = capabilityDescription(id),
+                    capability = id,
+                    webSearch = id == "web_research"
+                )
+            }
+        return primary + extra
+    }
 
 @Composable
 private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit, onAdvancedFeature: (AppFeature) -> Unit) {
