@@ -217,7 +217,7 @@ fun BusinessWorkspaceScreen() {
                 }
             }
             "Channels" -> {
-                SocialChannelsPanel(api, error = { error = it })
+                SocialChannelsPanel(api, data.optString("workspaceId"), error = { error = it })
             }
             "Lead Capture" -> {
                 RecordCreateForm("Lead capture form", listOf("name","source")) { values ->
@@ -321,13 +321,13 @@ private fun Records(array: JSONArray, title: String) {
     }
 }
 @Composable
-private fun SocialChannelsPanel(api: WorkspaceApiClient, error: (String) -> Unit) {
+private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, error: (String) -> Unit) {
     var accounts by remember { mutableStateOf(JSONArray()) }
     var text by remember { mutableStateOf("") }
     var accountId by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
-        runCatching { api.socialAccounts() }
+        runCatching { api.socialAccounts(workspaceId) }
             .onSuccess { accounts = it.optJSONArray("accounts") ?: JSONArray() }
             .onFailure { error(it.message ?: "Social channels could not be loaded.") }
     }
