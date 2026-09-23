@@ -1,4 +1,3 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
@@ -6,185 +5,178 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import com.bqsqwad.ai.core.BusinessTrainingUploader
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 @Composable
 fun BusinessWorkspaceScreen() {
+    val api = remember { WorkspaceApiClient() }
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf("Overview") }
+    var data by remember { mutableStateOf(JSONObject()) }
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var workspace by remember { mutableStateOf(JSONObject()) }
-    var prompt by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf("") }
-    var leadName by remember { mutableStateOf("") }
-    var leadContact by remember { mutableStateOf("") }
-    var leadNote by remember { mutableStateOf("") }
-    var inboxMessage by remember { mutableStateOf("") }
-    var inboxContact by remember { mutableStateOf("") }
-    var trainingType by remember { mutableStateOf("document") }
-    var trainingTitle by remember { mutableStateOf("") }
-    var trainingPurpose by remember { mutableStateOf("") }
-    var trainingStatus by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    val trainingPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null && trainingTitle.isNotBlank() && trainingPurpose.isNotBlank()) {
-            trainingStatus = "Uploading…"
-            scope.launch {
-                runCatching {
-                    BusinessTrainingUploader.upload(context.contentResolver, uri, trainingType, trainingTitle.trim(), trainingPurpose.trim())
-                }.onSuccess {
-                    trainingStatus = "Training asset uploaded and registered."
-                    trainingTitle = ""
-                    trainingPurpose = ""
-                    load()
-                }.onFailure {
-                    trainingStatus = it.message ?: "Training upload failed."
-                }
-            }
-        } else {
-            trainingStatus = "Enter a title and purpose before selecting a file."
-        }
-    }
 
     fun load() {
         loading = true; error = null
         scope.launch {
-            try { workspace = WorkspaceApiClient().businessWorkspace() }
-            catch (t: Throwable) { error = t.message ?: "Business workspace could not be loaded." }
-            finally { loading = false }
+            runCatching { api.businessWorkspace() }
+                .onSuccess { data = it }
+                .onFailure { error = it.message ?: "Business workspace could not be loaded." }
+            loading = false
         }
     }
     LaunchedEffect(Unit) { load() }
 
-    val tabs = listOf("Overview", "Assistant", "Knowledge", "Training", "Inbox", "Leads", "Automation", "Analytics")
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val tabs = listOf("Overview","Team","Assistants","Knowledge","Contacts","Leads","Pipeline","Appointments")
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("A native business workspace. Your business data stays scoped to your authenticated workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         ScrollableTabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0)) {
-            tabs.forEachIndexed { i, label ->
-                Tab(selected = tab == label, onClick = { tab = label }, text = { Text(label) })
-            }
+            tabs.forEach { label -> Tab(tab == label, { tab = label }, text = { Text(label) }) }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { SurfaceCard("Could not load", it) }
+        error?.let { SurfaceCard("Error", it) }
 
         when (tab) {
             "Overview" -> {
-                SurfaceCard("Workspace", workspace.optString("name").ifBlank { "Business workspace" })
-                SurfaceCard("Assistant", workspace.optString("assistantName").ifBlank { "Business AI Assistant" })
-                SurfaceCard("Data isolation", "Business knowledge, leads, conversations and automation records are stored under the signed-in business workspace and are not included in general model training.")
+                SurfaceCard("Workspace", data.optString("name").ifBlank { "My Business" })
+                SurfaceCard("Plan", data.optString("planId").ifBlank { "bizstarter" })
+                val a = data.optJSONObject("analytics") ?: JSONObject()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Metric("Members", a.optInt("members"))
+                    Metric("Knowledge", a.optInt("knowledge"))
+                    Metric("Contacts", a.optInt("contacts"))
+                    Metric("Leads", a.optInt("leads"))
+                }
                 Button(onClick = { load() }, enabled = !loading) { Text("Refresh") }
             }
-            "Assistant" -> {
-                OutlinedTextField(prompt, { prompt = it }, label = { Text("Ask the business assistant") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                Button(enabled = prompt.isNotBlank() && !saving, onClick = {
-                    saving = true; answer = ""; error = null
-                    scope.launch {
-                        try { answer = WorkspaceApiClient().businessAssistant(prompt.trim()).optString("answer") }
-                        catch (t: Throwable) { error = t.message ?: "Business assistant request failed." }
-                        finally { saving = false }
-                    }
-                }) { Text(if (saving) "Working…" else "Run assistant") }
-                if (answer.isNotBlank()) SurfaceCard("Assistant response", answer)
+            "Team" -> {
+                val members = data.optJSONArray("members") ?: JSONArray()
+                MemberForm(api, data.optString("workspaceId"), saving, { saving = it }, { load() }, { error = it })
+                Records(members, "Team member")
             }
-            "Knowledge" -> {
-                SurfaceCard("Knowledge base", "Connect approved business documents, FAQs, policies and product information here. The backend stores records per business workspace.")
-                OutlinedTextField(prompt, { prompt = it }, label = { Text("Add a knowledge note") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
-                Button(enabled = prompt.isNotBlank() && !saving, onClick = {
+            "Assistants" -> {
+                RecordCreateForm("Assistant", listOf("name","instructions")) { values ->
                     saving = true
                     scope.launch {
-                        try { workspace = WorkspaceApiClient().addBusinessKnowledge(prompt.trim()) }
-                        catch (t: Throwable) { error = t.message ?: "Knowledge could not be saved." }
-                        finally { saving = false; prompt = "" }
-                    }
-                }) { Text(if (saving) "Saving…" else "Save knowledge") }
-                val knowledge = workspace.optJSONArray("knowledge") 
-                if (knowledge != null) itemsFromJson(knowledge).forEach { SurfaceCard("Knowledge", it) }
-            }
-            "Training" -> {
-                SurfaceCard("Business AI training", "Upload approved business documents, photos, voice recordings, videos, step-by-step material, or appearance/hair references. Files are stored under your authenticated business workspace.")
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("document", "photo", "voice", "video", "step_by_step", "appearance_hair").forEach { type ->
-                        FilterChip(selected = trainingType == type, onClick = { trainingType = type }, label = { Text(type.replace('_', ' ').replaceFirstChar { it.uppercase() }) })
+                        runCatching { api.createBusinessRecord("assistant", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("instructions", values[1])) }
+                            .onFailure { error = it.message ?: "Assistant could not be created." }
+                            .onSuccess { load() }
+                        saving = false
                     }
                 }
-                OutlinedTextField(trainingTitle, { trainingTitle = it }, label = { Text("Training title") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(trainingPurpose, { trainingPurpose = it }, label = { Text("What should the AI learn from this?") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                Button(
-                    enabled = trainingTitle.isNotBlank() && trainingPurpose.isNotBlank(),
-                    onClick = { trainingPicker.launch("*/*") }
-                ) { Text("Select and upload training file") }
-                trainingStatus?.let { Text(it, color = if (it.contains("failed", true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
-                val assets = workspace.optJSONArray("trainingAssets")
-                if (assets != null && assets.length() > 0) {
-                    Text("Registered training assets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    itemsFromJson(assets).takeLast(20).forEach { SurfaceCard("Training asset", it) }
-                }
+                Records(data.optJSONArray("assistants") ?: JSONArray(), "Assistant")
             }
-            "Inbox" -> {
-                SurfaceCard("Unified inbox", "Customer messages can be connected here through approved channels. Each conversation is scoped to this business.")
-                OutlinedTextField(inboxMessage, { inboxMessage = it }, label = { Text("Add customer message") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                OutlinedTextField(inboxContact, { inboxContact = it }, label = { Text("Customer contact (optional)") }, modifier = Modifier.fillMaxWidth())
-                Button(enabled = inboxMessage.isNotBlank() && !saving, onClick = {
-                    saving = true; error = null
+            "Knowledge" -> {
+                RecordCreateForm("Knowledge item", listOf("title","content")) { values ->
+                    saving = true
                     scope.launch {
-                        try { workspace = WorkspaceApiClient().addBusinessInboxMessage(inboxMessage.trim(), inboxContact.trim().ifBlank { null }); inboxMessage = ""; inboxContact = "" }
-                        catch (t: Throwable) { error = t.message ?: "Inbox message could not be saved." }
-                        finally { saving = false }
+                        runCatching { api.createBusinessRecord("knowledge", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("content", values[1]).put("type","note")) }
+                            .onFailure { error = it.message ?: "Knowledge could not be saved." }
+                            .onSuccess { load() }
+                        saving = false
                     }
-                }) { Text(if (saving) "Saving…" else "Add message") }
-                val inbox = workspace.optJSONArray("inbox")
-                if (inbox != null && inbox.length() > 0) itemsFromJson(inbox).forEach { SurfaceCard("Conversation", it) }
+                }
+                Records(data.optJSONArray("knowledge") ?: JSONArray(), "Knowledge")
+            }
+            "Contacts" -> {
+                RecordCreateForm("Contact", listOf("name","email","phone","company")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessRecord("contact", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("email", values[1]).put("phone", values[2]).put("company", values[3])) }
+                            .onFailure { error = it.message ?: "Contact could not be saved." }
+                            .onSuccess { load() }
+                        saving = false
+                    }
+                }
+                Records(data.optJSONArray("contacts") ?: JSONArray(), "Contact")
             }
             "Leads" -> {
-                SurfaceCard("Leads & CRM", "Track business prospects, status, notes and follow-up activity without mixing them with personal chat history.")
-                OutlinedTextField(leadName, { leadName = it }, label = { Text("Lead name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(leadContact, { leadContact = it }, label = { Text("Contact") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(leadNote, { leadNote = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                Button(enabled = leadName.isNotBlank() && !saving, onClick = {
-                    saving = true; error = null
+                RecordCreateForm("Lead", listOf("name","email","phone","notes")) { values ->
+                    saving = true
                     scope.launch {
-                        try { workspace = WorkspaceApiClient().addBusinessLead(leadName.trim(), leadContact.trim(), leadNote.trim()); leadName = ""; leadContact = ""; leadNote = "" }
-                        catch (t: Throwable) { error = t.message ?: "Lead could not be saved." }
-                        finally { saving = false }
+                        runCatching { api.createBusinessRecord("lead", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("email", values[1]).put("phone", values[2]).put("notes", values[3]).put("status","new")) }
+                            .onFailure { error = it.message ?: "Lead could not be saved." }
+                            .onSuccess { load() }
+                        saving = false
                     }
-                }) { Text(if (saving) "Saving…" else "Add lead") }
-                val leads = workspace.optJSONArray("leads")
-                if (leads != null && leads.length() > 0) itemsFromJson(leads).forEach { SurfaceCard("Lead", it) }
+                }
+                Records(data.optJSONArray("leads") ?: JSONArray(), "Lead")
             }
-            "Automation" -> {
-                SurfaceCard("Automation", "Business automations are represented as server-side records so future actions can be audited and controlled.")
-                val automations = workspace.optJSONArray("automations")
-                if (automations != null && automations.length() > 0) itemsFromJson(automations).forEach { SurfaceCard("Automation", it) }
+            "Pipeline" -> {
+                RecordCreateForm("Pipeline", listOf("name")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessRecord("pipeline", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0])) }
+                            .onFailure { error = it.message ?: "Pipeline could not be created." }
+                            .onSuccess { load() }
+                        saving = false
+                    }
+                }
+                Records(data.optJSONArray("pipelines") ?: JSONArray(), "Pipeline")
             }
-            "Analytics" -> {
-                SurfaceCard("Business analytics", "Usage and activity metrics are workspace-scoped. The dashboard reports stored activity; it does not invent metrics.")
-                val analytics = workspace.optJSONObject("analytics")
-                Text("Requests: " + (analytics?.optLong("requests", 0L) ?: 0L))
-                Text("Leads: " + (analytics?.optLong("leads", 0L) ?: 0L))
-                Text("Knowledge items: " + (analytics?.optLong("knowledge", 0L) ?: 0L))
+            "Appointments" -> {
+                RecordCreateForm("Appointment", listOf("title","contactId","startAt","endAt","notes")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessRecord("appointment", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("contactId", values[1]).put("startAt", values[2]).put("endAt", values[3]).put("notes", values[4]).put("status","scheduled")) }
+                            .onFailure { error = it.message ?: "Appointment could not be created." }
+                            .onSuccess { load() }
+                        saving = false
+                    }
+                }
+                Records(data.optJSONArray("appointments") ?: JSONArray(), "Appointment")
             }
         }
     }
 }
 
-private fun itemsFromJson(array: org.json.JSONArray): List<String> =
-    (0 until array.length()).mapNotNull { i ->
-        val value = array.opt(i)
-        when (value) {
-            is JSONObject -> value.toString()
-            is String -> value
-            else -> value?.toString()
+@Composable
+private fun Metric(label: String, value: Int) {
+    SurfaceCard(label, value.toString(), Modifier.weight(1f))
+}
+
+@Composable
+private fun MemberForm(api: WorkspaceApiClient, workspaceId: String, saving: Boolean, setSaving: (Boolean)->Unit, reload: ()->Unit, setError: (String)->Unit) {
+    var uid by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("member") }
+    val scope = rememberCoroutineScope()
+    OutlinedTextField(uid, { uid = it }, label = { Text("Member Firebase UID") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(role, { role = it }, label = { Text("Role: viewer/member/manager/admin") }, modifier = Modifier.fillMaxWidth())
+    Button(enabled = uid.isNotBlank() && !saving, onClick = {
+        setSaving(true)
+        scope.launch {
+            runCatching { api.addBusinessMember(workspaceId, uid.trim(), role.trim()) }
+                .onFailure { setError(it.message ?: "Member could not be added.") }
+                .onSuccess { uid = ""; reload() }
+            setSaving(false)
+        }
+    }) { Text(if (saving) "Saving…" else "Add member") }
+}
+
+@Composable
+private fun RecordCreateForm(title: String, fields: List<String>, onSave: (List<String>)->Unit) {
+    val values = remember(fields) { fields.map { mutableStateOf("") } }
+    SurfaceCard(title, "Create and store a real workspace record.")
+    fields.forEachIndexed { i, field ->
+        OutlinedTextField(values[i].value, { values[i].value = it }, label = { Text(field.replaceFirstChar { it.uppercase() }) }, modifier = Modifier.fillMaxWidth(), minLines = if (field in listOf("content","instructions","notes")) 3 else 1)
+    }
+    Button(enabled = values.all { it.value.isNotBlank() }, onClick = { onSave(values.map { it.value.trim() }) }) { Text("Save $title") }
+}
+
+@Composable
+private fun Records(array: JSONArray, title: String) {
+    if (array.length() == 0) SurfaceCard(title, "No records yet.")
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        items((0 until array.length()).map { array.optJSONObject(it) ?: JSONObject() }) { item ->
+            SurfaceCard(title, item.toString())
         }
     }
+}
