@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout selected branch
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -21,38 +21,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.5
         uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5'
 
-      - name: Find Android Gradle project
+      - name: Verify Android project structure
         shell: bash
         run: |
           set -euo pipefail
-
-          GRADLEW_PATH="$(find . -type f -name gradlew -print -quit)"
-
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "ERROR: gradlew was not found in the repository."
-            exit 1
-          fi
-
-          GRADLE_DIR="$(dirname "$GRADLEW_PATH")"
-
-          echo "Found Gradle project:"
-          echo "$GRADLE_DIR"
-
-          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          echo "Android Gradle project found at repository root."
 
       - name: Generate debug signing report
         shell: bash
         run: |
           set -euo pipefail
 
-          cd "$GRADLE_DIR"
-
-          chmod +x ./gradlew
-
-          report="$(./gradlew signingReport 2>&1)"
+          report="$(gradle --no-daemon signingReport 2>&1)"
 
           printf '%s\n' "$report" |
             awk '
