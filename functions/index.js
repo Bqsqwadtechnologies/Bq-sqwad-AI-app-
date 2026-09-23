@@ -162,7 +162,7 @@ export const bqSqwadApi = onRequest(
         const expires = stateData.expiresAt?.toDate?.()?.getTime?.() || Date.parse(String(stateData.expiresAt || ""));
         if (!Number.isFinite(expires) || expires < Date.now()) return send(res, 400, { error: "oauth_state_expired" });
         const tokens = await exchangeSocialOAuth(String(stateData.platform), code, String(stateData.redirectUri || ""), stateData.codeVerifier || null);
-        const account = await saveSocialAccount(String(stateData.platform), tokens, { providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
+        const account = await saveSocialAccount(String(stateData.platform), tokens, { workspaceId: String(stateData.workspaceId || ""), providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
         await stateRef.delete();
         return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
       }
@@ -215,13 +215,15 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "social/oauth/start") {
         const platform = String(body.platform || "").trim();
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
         const config = await getSocialConfig();
         const state = crypto.randomUUID();
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
         if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
         const codeVerifier = platform === "x" ? crypto.randomBytes(32).toString("base64url") : null;
         await getFirestore().collection("socialOAuthStates").doc(state).set({
-          uid: user.uid, platform, redirectUri, codeVerifier,
+          uid: user.uid, platform, workspaceId: workspace.workspaceId, redirectUri, codeVerifier,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), createdAt: FieldValue.serverTimestamp()
         });
         const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeVerifier);
