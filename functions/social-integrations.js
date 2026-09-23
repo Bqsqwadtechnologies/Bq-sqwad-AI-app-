@@ -291,8 +291,9 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   return { ok: true, jobId: publishRef.id, platform, status: "published", result };
 }
 
-export async function listSocialAccounts(uid) {
-  const snap = await getFirestore().collection(ACCOUNTS).where("uid", "==", uid).limit(50).get();
+export async function listSocialAccounts(uid, workspaceId) {
+  const query = getFirestore().collection(ACCOUNTS).where("uid", "==", uid);
+  const snap = workspaceId ? await query.where("workspaceId", "==", String(workspaceId)).limit(50).get() : await query.limit(50).get();
   return snap.docs.map(d => {
     const x = d.data();
     return { id: d.id, platform: x.platform, metadata: x.metadata || {}, status: x.status || "unknown", updatedAt: x.updatedAt?.toDate?.()?.toISOString() || null };
