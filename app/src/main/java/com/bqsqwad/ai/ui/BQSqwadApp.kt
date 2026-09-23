@@ -813,7 +813,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                     Icon(Icons.Default.Info, contentDescription = "Learn more about Main Chat")
                 }
                 IconButton(onClick = onPrivacy) {
-                    Icon(Icons.Default.PrivacyTip, contentDescription = "Main Chat privacy")
+                    Icon(Icons.Default.Lock, contentDescription = "Main Chat privacy")
                 }
                 IconButton(onClick = openSettings) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -1173,7 +1173,7 @@ private fun WorkspaceScreen(
                         Icon(Icons.Default.Info, contentDescription = "Learn more about ${w.title}")
                     }
                     IconButton(onClick = onPrivacy) {
-                        Icon(Icons.Default.PrivacyTip, contentDescription = "${w.title} privacy")
+                        Icon(Icons.Default.Lock, contentDescription = "${w.title} privacy")
                     }
                 }
             )
