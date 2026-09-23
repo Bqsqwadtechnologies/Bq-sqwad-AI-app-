@@ -44,6 +44,7 @@ class ChatApiClient(
                 it.write(JSONObject().apply {
                     put("capability", capability)
                     put("message", message)
+                    if (!system.isNullOrBlank()) put("system", system)
                 }.toString().toByteArray())
             }
             val status = connection.responseCode
@@ -66,6 +67,7 @@ class ChatApiClient(
     suspend fun streamMessage(
         message: String,
         capability: String = "chat",
+        system: String? = null,
         onDelta: (String) -> Unit
     ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
