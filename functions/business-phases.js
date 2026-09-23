@@ -231,6 +231,27 @@ export async function addBusinessMember(uid, input) {
 }
 
 
+export async function updateBusinessSettings(uid, workspaceId, patch = {}) {
+  const id = clean(workspaceId, 120);
+  await requireBusinessAccess(uid, id, "manager");
+  const ref = workspaceRef(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("business_workspace_not_found");
+  const current = snap.data() || {};
+  const currentSettings = obj(current.settings);
+  const settings = {
+    ...currentSettings,
+    timezone: clean(patch.timezone, 80) || currentSettings.timezone || "UTC",
+    currency: "USD",
+    assistantEnabled: patch.assistantEnabled == null ? currentSettings.assistantEnabled !== false : patch.assistantEnabled === true,
+    automationEnabled: patch.automationEnabled == null ? currentSettings.automationEnabled !== false : patch.automationEnabled === true,
+    notificationsEnabled: patch.notificationsEnabled == null ? currentSettings.notificationsEnabled !== false : patch.notificationsEnabled === true,
+    webSearchEnabled: patch.webSearchEnabled == null ? currentSettings.webSearchEnabled !== false : patch.webSearchEnabled === true
+  };
+  await ref.set({ settings, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return businessWorkspace(uid, { workspaceId: id });
+}
+
 export async function listBusinessExtended(uid, workspaceId) {
   await requireBusinessAccess(uid, workspaceId);
   const [faqs, vault, inbox, automations, leadCaptures, activities] = await Promise.all([
