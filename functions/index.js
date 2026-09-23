@@ -1448,6 +1448,11 @@ export const bqSqwadApi = onRequest(
           updatedBy: admin.uid
         };
         await getFirestore().collection("plans").doc(id).set(plan, { merge: true });
+        if (String(body.module || "").toLowerCase() === "business" || id.startsWith("biz") || id === "businessenterprise") {
+          await getFirestore().collection("businessPlanStatus").doc(id).set({
+            planId: id, active: plan.active === true, updatedBy: admin.uid, updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
         return send(res, 200, { ok: true, plan: { id, ...plan } });
       }
 
