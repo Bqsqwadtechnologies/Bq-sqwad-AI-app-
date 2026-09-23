@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.bqsqwad.ai.domain.Workspace
 
 private data class LegalSection(val title: String, val detail: String, val url: String)
 
