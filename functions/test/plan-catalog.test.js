@@ -50,7 +50,7 @@ test("one-time services are not recurring and add-ons have no trial", () => {
   assert.equal(addon.offerId, null);
 });
 
-test("credit subscriptions use internal credit IDs with daily weekly monthly base plans", () => {
+test("credit subscriptions use internal credit IDs with weekly monthly base plans", () => {
   const credits = COMMERCIAL_CATALOG.sections.credits;
   assert.deepEqual(
     credits.map(x => x.id),
