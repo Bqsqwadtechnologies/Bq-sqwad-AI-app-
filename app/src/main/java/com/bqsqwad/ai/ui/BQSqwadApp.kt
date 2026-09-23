@@ -555,8 +555,13 @@ private fun MainShell(modifier: Modifier) {
         workspace = selected
     }
 
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    LaunchedEffect(drawerOpen) {
+        if (drawerOpen) drawerState.open() else drawerState.close()
+    }
+
     ModalNavigationDrawer(
-        drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed),
+        drawerState = drawerState,
         gesturesEnabled = true,
         drawerContent = {
             ModalDrawerSheet {
@@ -582,7 +587,7 @@ private fun MainShell(modifier: Modifier) {
                         NavigationDrawerItem(
                             label = { Text("New Chat") },
                             selected = workspace == null && !history && !settings,
-                            onClick = { drawerOpen = false; workspace = null },
+                            onClick = { drawerOpen = false; history = false; settings = false; workspace = null },
                             icon = { Icon(Icons.Default.AddComment, null) }
                         )
                     }
