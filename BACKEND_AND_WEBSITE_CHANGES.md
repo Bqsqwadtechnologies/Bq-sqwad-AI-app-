@@ -375,3 +375,10 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added server-authoritative admin controls for user-facing advanced capabilities so native feature-hub entries can be enabled, disabled, rolled out, priced in credits, assigned plan IDs, routed, rate-limited, and killed from Admin Control Center.
 - Internal/admin-only BQ Sqwad AI Agent remains excluded from the user-facing native feature catalog.
 - Existing `/ai` and `/ai/stream` routes remain the shared execution path; no provider secrets are placed in Android.
+
+## 2026-09-23 — Credit subscription IDs and Google Play base plans
+- Credit subscription IDs now use the internal IDs without underscores: `credit100`, `credit250`, `credit500`, `credit1000`.
+- Each credit subscription is configured with Google Play base-plan IDs: `daily`, `weekly`, and `monthly`.
+- Existing approved monthly USD prices remain unchanged: 100=$11.99, 250=$24.99, 500=$44.99, 1000=$79.99.
+- Daily and weekly prices are intentionally not invented; they must be configured before those base plans are published/returned as purchasable Play offers.
+- Native Android reads the canonical backend/Play catalog and does not hard-code these commercial prices.
