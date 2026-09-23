@@ -1051,6 +1051,94 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
     }
 }
 
+
+@Composable
+private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Learn more • \${w.title}") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
+            )
+        }
+    ) { p ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(p).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Text(w.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(w.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item { SurfaceCard("What this feature does", featureLongDescription(w)) }
+            item { SurfaceCard("How it works", featureHowItWorks(w)) }
+            item { SurfaceCard("Permissions & controls", featurePermissions(w)) }
+            item { SurfaceCard("Privacy", "This feature has a dedicated privacy section: \${featurePrivacyHeading(w)}. Use the Privacy button on the feature screen to open that section directly.") }
+            item {
+                Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                    Text("Return to \${w.title}")
+                }
+            }
+        }
+    }
+}
+
+private fun featureLongDescription(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
+    Workspace.SEARCH -> "Search the web through the configured backend, with source-aware results and direct links that open in the device browser."
+    Workspace.CAMERA -> "Use the camera or supported screen-sharing flow for live visual analysis. Android permission indicators and foreground-service controls remain visible during active sessions."
+    Workspace.VOICE -> "Have a real-time voice conversation with interruption support. The live voice session uses the configured realtime backend and microphone permission."
+    Workspace.PERSONAL -> "A personal intelligence workspace for planning, organization, goals and permission-based memory backed by the account."
+    Workspace.LIFE -> "A dedicated life-planning workspace for routines, reminders, practical guidance and structured assistance."
+    Workspace.COMPANION -> "A dedicated companion workspace with personality, memory and check-in controls governed by the account and feature configuration."
+    Workspace.LEARNING -> "Learning Studio provides subject tutoring, lessons, homework help, revision and exam-preparation workflows."
+    Workspace.BUSINESS -> "Business AI connects the business workspace, assistants, knowledge, contacts, leads, pipelines, inbox, automation, channels, advanced AI and enterprise configuration."
+    Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI provides professional organization intelligence, production coordination and the connected organization tools exposed by the backend."
+    Workspace.ADMIN -> "Admin Control Center manages server-side configuration, providers, billing/catalog controls, security and testing. Administrative secrets remain server-side."
+}
+
+private fun featureHowItWorks(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "The app sends authenticated protected requests through the existing backend, streams the response into the chat, and saves the conversation to history when possible."
+    Workspace.SEARCH -> "The app sends the query to the backend search route. Search-provider credentials stay server-side; returned sources remain actionable."
+    Workspace.CAMERA -> "Android starts the camera or screen foreground service, captures supported frames, and sends analysis requests through the configured backend."
+    Workspace.VOICE -> "The app starts the foreground voice session, obtains the server-authorized realtime session, and exchanges audio through the existing realtime client."
+    Workspace.PERSONAL -> "Workspace requests are routed with the selected capability and account context; memory is loaded or changed only through the account APIs."
+    Workspace.LIFE -> "Requests are routed to the life capability and returned to the workspace result surface."
+    Workspace.COMPANION -> "Companion requests use the companion workspace and its configured account features, including available memory and check-in controls."
+    Workspace.LEARNING -> "Learning requests are routed to the learning capability and use the server catalog and configuration for availability and limits."
+    Workspace.BUSINESS -> "Business screens call the workspace APIs for records, automation, social accounts, integrations and enterprise settings; provider credentials remain encrypted server-side."
+    Workspace.ORGANIZATION_STUDIO -> "Organization requests are routed to the organization capability and its connected backend services."
+    Workspace.ADMIN -> "Admin actions call protected server endpoints after server-side authorization. Sensitive provider credentials and security material are never embedded in the APK."
+}
+
+private fun featurePermissions(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "No camera or microphone permission is required just to read or type chat. Speech-to-text requests microphone access through Android when used; attachments use Android's document picker."
+    Workspace.SEARCH -> "No special device permission is required for ordinary web search."
+    Workspace.CAMERA -> "Camera permission is required for camera capture. Screen analysis separately uses Android's MediaProjection consent flow."
+    Workspace.VOICE -> "Microphone permission is required while live voice is active. Android displays the system microphone indicator during use."
+    Workspace.PERSONAL -> "Memory is account-controlled. The user can turn personal memory on or off where exposed by the workspace."
+    Workspace.LIFE -> "Ordinary requests do not require special device permissions unless a connected tool explicitly requests one."
+    Workspace.COMPANION -> "Memory and personalization are account-controlled; optional capabilities use only the permissions needed for that capability."
+    Workspace.LEARNING -> "Ordinary learning requests do not require special device permissions."
+    Workspace.BUSINESS -> "Connected channels and integrations use account authorization and provider permissions configured for that integration."
+    Workspace.ORGANIZATION_STUDIO -> "Connected production or organization tools request only the permissions required for the selected operation."
+    Workspace.ADMIN -> "Administrative operations require server-side authorization; secrets are managed on the server rather than exposed to end users."
+}
+
+private fun featurePrivacyHeading(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "Main Chat"
+    Workspace.SEARCH -> "Web Search"
+    Workspace.CAMERA -> "AI Live Camera"
+    Workspace.VOICE -> "Live Voice AI"
+    Workspace.PERSONAL -> "Personal Intelligence"
+    Workspace.LIFE -> "Life Matters"
+    Workspace.COMPANION -> "AI Companion"
+    Workspace.LEARNING -> "Learning Studio"
+    Workspace.BUSINESS -> "Business AI"
+    Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
+    Workspace.ADMIN -> "Admin Control Center"
+}
+
 @Composable
 private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = {
@@ -1068,8 +1156,29 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () ->
 }
 
 @Composable
-private fun WorkspaceScreen(w: Workspace, email: String, onBack: () -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text(if (w == Workspace.BUSINESS) "Business AI" else w.title) }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
+private fun WorkspaceScreen(
+    w: Workspace,
+    email: String,
+    onBack: () -> Unit,
+    onLearnMore: () -> Unit,
+    onPrivacy: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (w == Workspace.BUSINESS) "Business AI" else w.title) },
+                navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                actions = {
+                    IconButton(onClick = onLearnMore) {
+                        Icon(Icons.Default.Info, contentDescription = "Learn more about ${w.title}")
+                    }
+                    IconButton(onClick = onPrivacy) {
+                        Icon(Icons.Default.PrivacyTip, contentDescription = "${w.title} privacy")
+                    }
+                }
+            )
+        }
+    ) { p ->
         Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
             when (w) {
                 Workspace.SEARCH -> SearchWorkspace()
