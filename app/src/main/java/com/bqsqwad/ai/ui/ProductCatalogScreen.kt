@@ -23,6 +23,8 @@ import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean)
 private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>)
@@ -30,6 +32,7 @@ private data class CatalogFeature(val id:String,val name:String,val description:
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
 private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
+private data class UserEntitlement(val id:String,val planId:String,val productId:String,val product:String,val basePlanId:String?,val state:String,val renewalState:String,val endDate:String?)
 
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit) {
@@ -47,6 +50,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var status by remember { mutableStateOf("") }
     var entitlement by remember { mutableStateOf<JSONObject?>(null) }
+    var entitlements by remember { mutableStateOf(emptyList<UserEntitlement>()) }
     var contactPlan by remember { mutableStateOf<ContactSelection?>(null) }
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
@@ -59,6 +63,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
                 plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); contactOptions=parseContactOptions(live); entitlement=runCatching{api.entitlement()}.getOrNull()
+                entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 credits=runCatching{api.credits()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
@@ -135,15 +140,62 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                entitlement?.let { ent ->
+                if (entitlements.isNotEmpty()) {
+                    val expiring = entitlements.filter { daysUntil(it.endDate) in 0..7 }
+                    if (expiring.isNotEmpty()) item {
+                        Surface(shape=RoundedCornerShape(18.dp), color=MaterialTheme.colorScheme.errorContainer, modifier=Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                Text("Plan expiry notice", fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.onErrorContainer)
+                                Text(if (expiring.size == 1) "A paid feature plan expires within 7 days." else expiring.size.toString() + " feature plans expire within 7 days.", color=MaterialTheme.colorScheme.onErrorContainer)
+                                expiring.forEach { row ->
+                                    val name = plans.firstOrNull { it.id == row.planId }?.name ?: row.product.ifBlank { row.planId }
+                                    val days = daysUntil(row.endDate)
+                                    Text(name + " • " + if (days <= 0) "expires today" else days.toString() + " days to expire", fontWeight=FontWeight.SemiBold, color=MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Surface(shape=RoundedCornerShape(20.dp), tonalElevation=3.dp, modifier=Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Text("Current plans", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                Text("Your verified feature access and renewal dates.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                entitlements.forEach { row ->
+                                    val plan = plans.firstOrNull { it.id == row.planId }
+                                    val days = daysUntil(row.endDate)
+                                    val warning = days in 0..7
+                                    Card(Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=if (warning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh), shape=RoundedCornerShape(16.dp)) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                            Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(plan?.name ?: row.product.ifBlank { row.planId.ifBlank { "Feature plan" } }, fontWeight=FontWeight.Bold)
+                                                    Text(row.basePlanId?.replace('-', ' ')?.replaceFirstChar { it.uppercase() } ?: "Active access", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Text(row.state.replace('_',' ').replaceFirstChar{it.uppercase()}, style=MaterialTheme.typography.labelLarge, color=if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                                            }
+                                            row.endDate?.let { date ->
+                                                val expiryText = when {
+                                                    days < 0 -> "Expired"
+                                                    days == 0L -> "Expires today"
+                                                    days <= 7L -> days.toString() + " days to expire"
+                                                    else -> "Renews / access until " + formatEntitlementDate(date)
+                                                }
+                                                Text(expiryText, fontWeight=if (warning) FontWeight.Bold else FontWeight.Medium, color=if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else entitlement?.let { ent ->
                     if (ent.optBoolean("exists", false)) item {
-                        val state=ent.optString("status").ifBlank{if(ent.optBoolean("active",false))"active" else "unknown"}
                         Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh,modifier=Modifier.fillMaxWidth()){
                             Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
-                                Text("Your access",fontWeight=FontWeight.Bold)
+                                Text("Current plan",fontWeight=FontWeight.Bold)
                                 Text(plans.firstOrNull { it.id == ent.optString("planId") }?.name?.ifBlank { null } ?: "Current plan")
-                                Text(state.replace('_',' ').replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
-                                ent.optString("endDate").takeIf{it.isNotBlank()}?.let{Text("Access end: $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                                Text(ent.optString("state").ifBlank{ent.optString("status").ifBlank{"Active"}}.replace('_',' ').replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+                                ent.optString("endDate").takeIf{it.isNotBlank()}?.let{Text("Access end: "+it.take(10),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                             }
                         }
                     }
@@ -234,6 +286,23 @@ private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDet
             }
         }
     }
+}
+
+private fun parseUserEntitlements(body:JSONObject):List<UserEntitlement> {
+    val a=body.optJSONArray("items")?:JSONArray()
+    return List(a.length()){i->
+        val x=a.getJSONObject(i)
+        UserEntitlement(x.optString("id"),x.optString("planId"),x.optString("productId"),x.optString("product"),x.optString("basePlanId").ifBlank{null},x.optString("state"),x.optString("renewalState"),x.optString("endDate").ifBlank{null})
+    }.filter { it.planId.isNotBlank() || it.productId.isNotBlank() }
+}
+
+private fun daysUntil(value:String?):Long {
+    if(value.isNullOrBlank()) return Long.MAX_VALUE
+    return runCatching { ChronoUnit.DAYS.between(Instant.now(), Instant.parse(value)) }.getOrDefault(Long.MAX_VALUE)
+}
+
+private fun formatEntitlementDate(value:String):String {
+    return runCatching { java.time.ZonedDateTime.parse(value).toLocalDate().toString() }.getOrElse { value.take(10) }
 }
 
 private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
