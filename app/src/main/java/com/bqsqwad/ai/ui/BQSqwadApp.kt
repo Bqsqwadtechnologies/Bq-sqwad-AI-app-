@@ -895,12 +895,43 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 .padding(top = 20.dp, bottom = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            FloatingLogo(
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
-                                    .size(104.dp)
                                     .offset(y = floatOffset.dp)
                                     .clickable(onClick = openFeatures)
-                            )
+                                    .padding(horizontal = 18.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .size(116.dp)
+                                        .border(
+                                            2.dp,
+                                            Color(0xFF1457FF).copy(alpha = 0.55f + (pulse * 0.45f)),
+                                            CircleShape
+                                        ),
+                                    shape = CircleShape,
+                                    color = Color.Transparent,
+                                    shadowElevation = 22.dp
+                                ) {
+                                    FloatingLogo(Modifier.fillMaxSize())
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color(0xFF1457FF).copy(alpha = 0.94f),
+                                    shadowElevation = 8.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Text("AI Features", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
