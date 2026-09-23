@@ -50,7 +50,18 @@ const INTEGRATIONS = Object.freeze([
   "webhooks","email","sms"
 ]);
 
-export function supportedBusinessIntegrations() { return INTEGRATIONS.map(id => ({ id, status: "admin_configurable" })); }
+const NO_CREDENTIAL_INTEGRATIONS = new Set(["webhooks", "rest_api"]);
+export function supportedBusinessIntegrations() {
+  return INTEGRATIONS.map(id => ({
+    id,
+    status: NO_CREDENTIAL_INTEGRATIONS.has(id) ? "available_without_provider_keys" : "admin_configurable",
+    requiresProviderCredentials: !NO_CREDENTIAL_INTEGRATIONS.has(id),
+    description: {
+      webhooks: "Connect external services to Business AI automations through a signed workspace webhook endpoint.",
+      rest_api: "Use the authenticated Business AI API from your own server or automation without storing a provider API key in the app."
+    }[id] || "Provider credentials are managed server-side by an administrator."
+  }));
+}
 
 export async function getBusinessIntegrationConfig(uid, workspaceId) {
   await requireBusinessAccess(uid, workspaceId);
