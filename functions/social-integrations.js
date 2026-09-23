@@ -250,6 +250,8 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     if (!media.ok) throw new Error("youtube_media_fetch_failed");
     const contentType = media.headers.get("content-type") || "video/*";
     if (!contentType.startsWith("video/") && contentType !== "application/octet-stream") throw new Error("youtube_video_content_type_required");
+    const declaredLength = Number(media.headers.get("content-length") || 0);
+    if (declaredLength > 512 * 1024 * 1024) throw new Error("youtube_video_too_large_for_business_uploader");
     const bytes = new Uint8Array(await media.arrayBuffer());
     const metadataBody = JSON.stringify({
       snippet: { title, description, categoryId: clean(input.categoryId || "22", 20) },
