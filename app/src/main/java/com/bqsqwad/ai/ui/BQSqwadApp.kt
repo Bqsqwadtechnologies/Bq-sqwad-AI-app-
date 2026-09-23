@@ -643,9 +643,10 @@ private fun MainShell(modifier: Modifier) {
                 onPlans = { featureHub = false; plans = true },
                 onHistory = { featureHub = false; history = true },
                 onWorkspace = { selected ->
-                    if (selected == Workspace.ADMIN && !adminAuthorized) return@FeatureHub
-                    featureHub = false
-                    workspace = selected
+                    if (selected != Workspace.ADMIN || adminAuthorized) {
+                        featureHub = false
+                        workspace = selected
+                    }
                 }
             )
             plans -> ProductCatalogScreen { plans = false }
@@ -1516,6 +1517,10 @@ private fun CameraWorkspace() {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
     }
+    DeviceIntelligencePanel("AI Live Camera")
+
+    DeviceIntelligencePanel("Live Voice AI")
+
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
@@ -1639,6 +1644,75 @@ private fun VoiceWorkspace() {
             }
         )
     }
+}
+
+@Composable
+fun DeviceIntelligencePanel(featureName: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var command by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    SurfaceCard(
+        "Device Intelligence",
+        "Use $featureName to control supported Android device actions. Main Chat does not expose this control panel."
+    )
+    OutlinedTextField(
+        value = command,
+        onValueChange = { command = it; status = null },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Ask the device assistant") },
+        placeholder = { Text("Turn on the torch, raise volume, open Calendar…") },
+        maxLines = 3
+    )
+    Button(
+        enabled = !busy && command.isNotBlank(),
+        onClick = {
+            val requested = command.trim()
+            busy = true
+            status = null
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    DeviceIntelligenceClient().interpret(requested)
+                }.onSuccess { result ->
+                    val executor = DeviceCommandExecutor(context)
+                    val failures = result.actions.mapNotNull { action ->
+                        executor.execute(action).exceptionOrNull()?.message
+                    }
+                    scope.launch(Dispatchers.Main) {
+                        busy = false
+                        status = buildString {
+                            append(result.message.ifBlank { "Device command processed." })
+                            if (result.actions.isNotEmpty()) {
+                                append(" Executed ")
+                                append(result.actions.size)
+                                append(" supported action(s).")
+                            }
+                            if (failures.isNotEmpty()) {
+                                append(" Some actions could not be completed: ")
+                                append(failures.joinToString("; "))
+                            }
+                            if (result.creditsCharged > 0) {
+                                append(" Credits used: ")
+                                append(result.creditsCharged)
+                            }
+                        }
+                    }
+                }.onFailure {
+                    scope.launch(Dispatchers.Main) {
+                        busy = false
+                        status = it.message ?: "Device intelligence failed."
+                    }
+                }
+            }
+            command = ""
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(if (busy) "Processing device command…" else "Run device command")
+    }
+    status?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
 }
 
 @Composable
