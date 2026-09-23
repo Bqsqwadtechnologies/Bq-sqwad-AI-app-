@@ -55,15 +55,21 @@ async function effectiveBusinessPlan(uid, workspace) {
       if (test.enabled === true && (!expires || expires > Date.now())) {
         const testPlan = businessCatalogPlans().find(p => p.id === String(test.planId || ""));
         if (testPlan && testPlan.active !== false) {
-          return { plan: testPlan, source: "admin_test", adminTest: true, expiresAt: test.expiresAt || null };
+          return { plan: testPlan, source: "admin_test", adminTest: true, expiresAt: test.expiresAt || null, features: expandInheritedBusinessFeatures(testPlan.id) };
         }
       }
     }
   }
 
   const planId = clean(workspace?.planId, 100);
-  const plan = businessCatalogPlans().find(p => p.id === planId);
+  let plan = businessCatalogPlans().find(p => p.id === planId);
   if (!plan || plan.active === false) throw new Error("business_plan_unavailable");
+  const runtimePlan = await dbi.collection("planCatalog").doc("config").get();
+  const runtimeRows = runtimePlan.exists ? (runtimePlan.data()?.catalog?.sections?.business || runtimePlan.data()?.catalog?.business || []) : [];
+  const runtime = Array.isArray(runtimeRows) ? runtimeRows.find(p => String(p.id || "") === planId) : null;
+  if (runtime) plan = { ...plan, ...runtime, limits: { ...(plan.limits || {}), ...(runtime.limits || {}) }, features: Array.isArray(runtime.features) ? runtime.features : plan.features };
+  const statusSnap = await dbi.collection("businessPlanStatus").doc(planId).get();
+  if (statusSnap.exists && statusSnap.data()?.active === false) throw new Error("business_plan_unavailable");
 
   const entitlementSnap = await dbi.collection("entitlements").doc(uid).get();
   const entitlement = entitlementSnap.exists ? (entitlementSnap.data() || {}) : {};
@@ -74,7 +80,7 @@ async function effectiveBusinessPlan(uid, workspace) {
   if (!entitlementPlanId || entitlementPlanId !== planId || !active || (end && end <= Date.now())) {
     throw new Error("business_plan_entitlement_required");
   }
-  return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null };
+  return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null, features: expandInheritedBusinessFeatures(planId) };
 }
 
 function expandInheritedBusinessFeatures(planId, seen = new Set()) {
@@ -111,7 +117,7 @@ async function requireBusinessPlan(uid, workspaceId, group = null) {
   const snap = await ref.get();
   if (!snap.exists) throw new Error("business_workspace_not_found");
   const context = await effectiveBusinessPlan(uid, snap.data());
-  if (group && !planHasBusinessFeature(context.plan.id, group)) {
+  if (group && !(context.features || expandInheritedBusinessFeatures(context.plan.id)).some(feature => (BUSINESS_FEATURE_GROUPS[group] || []).some(w => String(feature).toLowerCase() === String(w).toLowerCase()))) {
     throw new Error("business_feature_not_in_plan");
   }
   return context;
@@ -330,7 +336,12 @@ export async function createBusinessRecord(uid, type, input) {
     payload.note = clean(input.note, 3000);
   }
   await ref.set(payload);
-  await workspaceRef(workspaceId).set({ updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  const usagePatch = {};
+  if (type === "contact") usagePatch.contacts = FieldValue.increment(1);
+  if (type === "lead") usagePatch.leads = FieldValue.increment(1);
+  if (type === "knowledge") usagePatch.knowledgeItems = FieldValue.increment(1);
+  if (type === "assistant") usagePatch.assistants = FieldValue.increment(1);
+  await workspaceRef(workspaceId).set({ usage: usagePatch, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return sanitizeDoc(ref.id, (await ref.get()).data());
 }
 
@@ -343,6 +354,7 @@ export async function updateBusinessRecord(uid, type, id, input) {
   if (!snap.exists) throw new Error("business_record_not_found");
   const workspaceId = clean(snap.data()?.workspaceId, 120);
   await requireBusinessAccess(uid, workspaceId, "manager");
+  await requireBusinessPlan(uid, workspaceId);
   const allowed = obj(input);
   delete allowed.workspaceId; delete allowed.ownerUid; delete allowed.createdBy; delete allowed.createdAt; delete allowed.updatedAt; delete allowed.id;
   allowed.updatedAt = FieldValue.serverTimestamp();
@@ -357,7 +369,9 @@ export async function deleteBusinessRecord(uid, type, id) {
   const ref = db().collection(collection).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new Error("business_record_not_found");
-  await requireBusinessAccess(uid, clean(snap.data()?.workspaceId, 120), "manager");
+  const workspaceId = clean(snap.data()?.workspaceId, 120);
+  await requireBusinessAccess(uid, workspaceId, "manager");
+  await requireBusinessPlan(uid, workspaceId);
   await ref.delete();
   return { ok: true, id };
 }
@@ -365,6 +379,7 @@ export async function deleteBusinessRecord(uid, type, id) {
 export async function addBusinessMember(uid, input) {
   const workspaceId = clean(input.workspaceId, 120);
   await requireBusinessAccess(uid, workspaceId, "admin");
+  await requireBusinessPlan(uid, workspaceId);
   const memberUid = clean(input.uid, 160);
   if (!memberUid) throw new Error("member_uid_required");
   const role = ["viewer","member","manager","admin"].includes(clean(input.role,30)) ? clean(input.role,30) : "member";
@@ -377,6 +392,7 @@ export async function addBusinessMember(uid, input) {
 export async function updateBusinessSettings(uid, workspaceId, patch = {}) {
   const id = clean(workspaceId, 120);
   await requireBusinessAccess(uid, id, "manager");
+  await requireBusinessPlan(uid, id);
   const ref = workspaceRef(id);
   const snap = await ref.get();
   if (!snap.exists) throw new Error("business_workspace_not_found");
@@ -418,7 +434,13 @@ export async function createBusinessExtended(uid, type, input) {
   else if(type==='inbox'){p.contactId=clean(input.contactId,120);p.channel=clean(input.channel,60)||'manual';p.sender=clean(input.sender,320);p.message=clean(input.message,12000);p.status=clean(input.status,30)||'open';if(!p.message)throw new Error('inbox_message_required');}
   else if(type==='automation'){p.name=clean(input.name,180);p.enabled=input.enabled!==false;p.trigger=obj(input.trigger);p.conditions=Array.isArray(input.conditions)?input.conditions.slice(0,30):[];p.actions=Array.isArray(input.actions)?input.actions.slice(0,50):[];if(!p.name)throw new Error('automation_name_required');}
   else {p.name=clean(input.name,180);p.source=clean(input.source,80)||'web';p.fields=Array.isArray(input.fields)?input.fields.slice(0,50):[];p.status='active';p.token=crypto.randomUUID();p.webhookToken=crypto.randomUUID();}
-  await ref.set(p); await workspaceRef(workspaceId).set({updatedAt:now},{merge:true}); return sanitizeDoc(ref.id,(await ref.get()).data());
+  await ref.set(p);
+  const usagePatch = {};
+  if (type === "leadCapture") usagePatch.leads = FieldValue.increment(1);
+  if (type === "inbox") usagePatch.messages = FieldValue.increment(1);
+  if (["faq","vault"].includes(type)) usagePatch.knowledgeItems = FieldValue.increment(1);
+  await workspaceRef(workspaceId).set({usage:usagePatch,updatedAt:now},{merge:true});
+  return sanitizeDoc(ref.id,(await ref.get()).data());
 }
 
 
@@ -482,6 +504,6 @@ export async function receiveBusinessAutomationWebhook(token, event = {}) {
 
 export async function updateBusinessExtended(uid,type,id,input){
   const map={faq:BUSINESS_COLLECTIONS.faqs,vault:BUSINESS_COLLECTIONS.vault,inbox:BUSINESS_COLLECTIONS.inbox,automation:BUSINESS_COLLECTIONS.automations,leadCapture:BUSINESS_COLLECTIONS.leadCaptures}; const collection=map[type]; if(!collection||!id)throw new Error('unsupported_business_extended_record');
-  const ref=db().collection(collection).doc(id); const snap=await ref.get(); if(!snap.exists)throw new Error('business_record_not_found'); await requireBusinessAccess(uid,clean(snap.data()?.workspaceId,120),'manager');
+  const ref=db().collection(collection).doc(id); const snap=await ref.get(); if(!snap.exists)throw new Error('business_record_not_found'); const workspaceId=clean(snap.data()?.workspaceId,120); await requireBusinessAccess(uid,workspaceId,'manager'); await requireBusinessPlan(uid,workspaceId);
   const p=obj(input); delete p.workspaceId;delete p.ownerUid;delete p.createdBy;delete p.createdAt;delete p.updatedAt;delete p.id;p.updatedAt=FieldValue.serverTimestamp(); await ref.set(p,{merge:true}); return sanitizeDoc(id,(await ref.get()).data());
 }
