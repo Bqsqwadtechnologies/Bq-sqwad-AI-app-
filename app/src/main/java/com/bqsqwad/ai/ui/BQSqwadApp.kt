@@ -877,6 +877,33 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (messages.isEmpty()) {
+                    item {
+                        val floatTransition = rememberInfiniteTransition(label = "bqFloatingLogo")
+                        val floatOffset by floatTransition.animateFloat(
+                            initialValue = 0f,
+                            targetValue = -8f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1400, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "bqFloatingLogoOffset"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 20.dp, bottom = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FloatingLogo(
+                                modifier = Modifier
+                                    .size(104.dp)
+                                    .offset(y = floatOffset.dp)
+                                    .clickable(onClick = openFeatures)
+                            )
+                        }
+                    }
+                }
                 items(messages) { m ->
                     Column(Modifier.fillMaxWidth(if (m.mine) .88f else 1f).align(if (m.mine) Alignment.End else Alignment.Start)) {
                         Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { Text(m.text, Modifier.padding(14.dp)) }
