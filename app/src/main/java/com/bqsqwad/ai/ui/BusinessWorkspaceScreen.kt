@@ -33,7 +33,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels")
+    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -144,6 +144,15 @@ fun BusinessWorkspaceScreen() {
                         }
                     }) { Text("Run selected automation") }
                 }
+            }
+            "Advanced AI" -> {
+                AdvancedAiPanel(api, data.optString("workspaceId"), { error = it })
+            }
+            "Integrations" -> {
+                BusinessIntegrationsPanel(api, data.optString("workspaceId"), { error = it })
+            }
+            "Enterprise" -> {
+                BusinessEnterprisePanel(api, data.optString("workspaceId"), { error = it })
             }
             "Channels" -> {
                 SocialChannelsPanel(api, error = { error = it })
@@ -279,6 +288,52 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, error: (String) -> Unit
                     .onSuccess { text = "" }
             }
         }) { Text("Publish") }
+    }
+}
+
+@Composable
+private fun AdvancedAiPanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
+    var prompt by remember { mutableStateOf("") }
+    var imageBase64 by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Advanced AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Use the server-side AI gateway for document, image, OCR, translation and other configured AI capabilities.")
+        OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Task / instruction") }, minLines = 3)
+        Button(enabled = prompt.isNotBlank(), onClick = {
+            scope.launch { runCatching { api.businessAdvancedAi(JSONObject().put("workspaceId", workspaceId).put("capability","chat").put("message",prompt)) }
+                .onSuccess { result = it.optString("text") }.onFailure { error(it.message ?: "Advanced AI failed.") } }
+        }) { Text("Run AI task") }
+        if (result.isNotBlank()) SurfaceCard("Result", result)
+    }
+}
+
+@Composable
+private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
+    var integrations by remember { mutableStateOf(JSONArray()) }
+    LaunchedEffect(workspaceId) { runCatching { api.businessIntegrations(workspaceId) }.onSuccess { integrations = it.optJSONArray("integrations") ?: JSONArray() }.onFailure { error(it.message ?: "Integrations could not be loaded.") } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Business Integrations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Admin-configurable integration registry. Provider credentials remain server-side.")
+        for (i in 0 until integrations.length()) {
+            val item = integrations.optJSONObject(i) ?: continue
+            SurfaceCard(item.optString("id"), item.optString("status"))
+        }
+    }
+}
+
+@Composable
+private fun BusinessEnterprisePanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
+    var config by remember { mutableStateOf(JSONObject()) }
+    LaunchedEffect(workspaceId) { runCatching { api.businessEnterprise(workspaceId) }.onSuccess { config = it.optJSONObject("config") ?: JSONObject() }.onFailure { error(it.message ?: "Enterprise configuration could not be loaded.") } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Enterprise Controls", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        SurfaceCard("SSO", (config.optJSONObject("sso") ?: JSONObject()).optBoolean("enabled").toString())
+        SurfaceCard("Audit Logs", (config.optJSONObject("auditLogs") ?: JSONObject()).optBoolean("enabled", true).toString())
+        SurfaceCard("White Label", (config.optJSONObject("whiteLabel") ?: JSONObject()).optBoolean("enabled").toString())
+        SurfaceCard("SLA", (config.optJSONObject("sla") ?: JSONObject()).optDouble("targetPercent", 99.9).toString() + "%")
+        SurfaceCard("Security", "MFA, session and IP policy are admin-configurable.")
     }
 }
 
