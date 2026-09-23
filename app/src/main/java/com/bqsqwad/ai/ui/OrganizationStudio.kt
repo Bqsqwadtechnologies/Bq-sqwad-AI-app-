@@ -211,9 +211,27 @@ fun OrganizationStudioWorkspace() {
                             busy = true
                             error = null
                             scope.launch {
-                                runCatching { api.organizationAssistant(assistantPrompt) }
-                                    .onSuccess {
-                                        assistantResult = it.optString("answer")
+                                runCatching {
+                                        val org = organization
+                                        val knowledge = org?.optJSONArray("knowledge")?.let { items ->
+                                            (0 until items.length()).mapNotNull { i -> items.optJSONObject(i)?.optString("text")?.takeIf { it.isNotBlank() } }
+                                                .takeLast(50).joinToString("\n")
+                                        }.orEmpty()
+                                        val settings = org?.optJSONObject("settings")
+                                        val system = listOf(
+                                            "You are the BQ Sqwad AI Organization Studio assistant.",
+                                            "Keep organization data isolated from unrelated personal workspace data.",
+                                            "Do not invent organization facts.",
+                                            "Organization: " + (org?.optString("name") ?: "My Organization"),
+                                            "Description: " + (org?.optString("description") ?: ""),
+                                            "Organization knowledge:\n" + if (settings?.optBoolean("sharedKnowledgeEnabled", false) == true) knowledge else "(shared knowledge disabled)"
+                                        ).joinToString("\n")
+                                        val streamed = StringBuilder()
+                                        val reply = ChatApiClient().streamMessage(assistantPrompt, "organization_studio", system) { delta ->
+                                            streamed.append(delta)
+                                            assistantResult = streamed.toString()
+                                        }
+                                        assistantResult = reply.text
                                         assistantPrompt = ""
                                     }
                                     .onFailure { e -> error = e.message ?: "Organization AI request failed." }
