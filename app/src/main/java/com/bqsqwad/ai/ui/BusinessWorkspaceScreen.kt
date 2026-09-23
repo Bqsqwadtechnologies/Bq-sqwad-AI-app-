@@ -33,7 +33,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
+    val tabs = listOf("Overview","Analytics","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -56,7 +56,49 @@ fun BusinessWorkspaceScreen() {
                     Column(Modifier.weight(1f)) { SurfaceCard("Contacts", a.optInt("contacts").toString()) }
                     Column(Modifier.weight(1f)) { SurfaceCard("Leads", a.optInt("leads").toString()) }
                 }
+                val warnings = data.optJSONArray("usageWarnings") ?: JSONArray()
+                if (warnings.length() > 0) {
+                    Surface(
+                        Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Usage needs attention", fontWeight = FontWeight.Bold)
+                            for (i in 0 until warnings.length()) {
+                                val w = warnings.optJSONObject(i) ?: continue
+                                Text(w.optString("message"))
+                            }
+                            Text("Review eligible add-ons or upgrade the Business plan before the billing period ends.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                val addOns = data.optJSONArray("recommendedAddOns") ?: JSONArray()
+                if (addOns.length() > 0) {
+                    SurfaceCard("Recommended add-ons", "Available from the server catalogue for your current plan.")
+                    for (i in 0 until minOf(addOns.length(), 6)) {
+                        val addOn = addOns.optJSONObject(i) ?: continue
+                        SurfaceCard(addOn.optString("name"), addOn.optString("description").ifBlank { "Business capacity add-on" })
+                    }
+                }
                 Button(onClick = { load() }, enabled = !loading) { Text("Refresh") }
+            }
+            "Analytics" -> {
+                val a = data.optJSONObject("analytics") ?: JSONObject()
+                Text("Business Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Live workspace metrics from the server. No fabricated numbers.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(
+                    "AI requests" to a.optInt("requests", 0),
+                    "Team members" to a.optInt("members", 0),
+                    "Assistants" to a.optInt("assistants", 0),
+                    "Knowledge items" to a.optInt("knowledge", 0),
+                    "Contacts" to a.optInt("contacts", 0),
+                    "Leads" to a.optInt("leads", 0),
+                    "Pipeline records" to a.optInt("pipelines", 0),
+                    "Appointments" to a.optInt("appointments", 0),
+                    "Inbox items" to a.optInt("inbox", 0),
+                    "Automations" to a.optInt("automations", 0)
+                ).forEach { (label, value) -> SurfaceCard(label, value.toString()) }
             }
             "Team" -> {
                 val members = data.optJSONArray("members") ?: JSONArray()
