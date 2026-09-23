@@ -28,7 +28,7 @@ import org.json.JSONObject
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean)
+private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
 private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
@@ -281,7 +281,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                if(features.isNotEmpty() && plans.isNotEmpty()) item {
+                if(false && features.isNotEmpty() && plans.isNotEmpty()) item {
                     Surface(shape=RoundedCornerShape(18.dp),tonalElevation=2.dp,modifier=Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                             Text("Feature matrix",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
@@ -343,27 +343,43 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 
 @Composable
 private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDetails?,billing:PlayBillingClient?,onStatus:(String)->Unit){
-    val price=product?.subscriptionOfferDetails?.firstOrNull{entry.basePlanId==null||it.basePlanId==entry.basePlanId}?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
+    val playPrice=product?.subscriptionOfferDetails?.firstOrNull{entry.basePlanId==null||it.basePlanId==entry.basePlanId}?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
         ?:product?.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
+    val configuredPrice=entry.priceUsd?.let { String.format(java.util.Locale.US, "$%.2f", it) }
+    val price=playPrice ?: configuredPrice
     val title=plan?.name?.ifBlank{null}?:product?.name?.ifBlank{null}?: "Product"
-    Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp)){
-        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top){
-                Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)}
+    val period=entry.billingPeriod?.replaceFirstChar { it.uppercase() } ?: entry.basePlanId?.replaceFirstChar { it.uppercase() } ?: "Purchase"
+    Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp)){
+        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
                 BqStatusBadge(if(entry.enabled)"Available" else "Unavailable")
-            }
-            plan?.features?.take(4)?.forEach{feature->Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.Top){Text("•",color=MaterialTheme.colorScheme.primary);Text(feature,Modifier.weight(1f))}}
-            if(plan?.limits?.isNotEmpty()==true){
-                Text("Limits",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold)
-                plan.limits.entries.take(5).forEach { (key,value) -> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(key.replace('_',' '));Text(value,fontWeight=FontWeight.SemiBold)} }
             }
             HorizontalDivider()
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f)){Text(price?:"Price unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(if(entry.basePlanId=="yearly")"Google Play • Yearly" else "Google Play • Monthly",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                Button(onClick={
-                    if(product==null||price==null||billing?.isReady()!=true)onStatus("CONTACT_SALES")
-                    else{val result=billing.launchPurchase(product.productId, entry.basePlanId);onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)"Purchase started. Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")}
-                },enabled=true){Text(if(product==null||price==null)"Contact Sales" else "Get")}
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)){
+                    Text(price ?: "Price not configured",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary)
+                    Text(
+                        if(playPrice!=null) "Google Play • $period" else "Admin catalog • $period",
+                        style=MaterialTheme.typography.labelMedium,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Button(
+                    onClick={
+                        if(product==null||playPrice==null||billing?.isReady()!=true) {
+                            onStatus(if(configuredPrice!=null) "Google Play is not ready for this product yet. The configured USD price is shown above." else "This product is not configured for purchase yet.")
+                        } else {
+                            val result=billing.launchPurchase(product.productId, entry.basePlanId)
+                            onStatus(
+                                if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
+                                    "Purchase started. Access unlocks only after server verification."
+                                else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started."
+                            )
+                        }
+                    },
+                    enabled=entry.enabled && product!=null && playPrice!=null && billing?.isReady()==true
+                ){ Text("Get") }
             }
         }
     }
@@ -399,8 +415,20 @@ private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
 
 private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
     val a=body.optJSONArray("products")?:JSONArray()
-    return List(a.length()){i -> val p=a.getJSONObject(i); PlayCatalogEntry(p.optString("planId"),p.optString("productId"),p.optString("basePlanId").ifBlank{null},p.optString("productType"),p.optBoolean("enabled",false))}.filter{it.productId.isNotBlank()}
+    return List(a.length()){i ->
+        val p=a.getJSONObject(i)
+        PlayCatalogEntry(
+            p.optString("planId"),
+            p.optString("productId"),
+            p.optString("basePlanId").ifBlank{null},
+            p.optString("productType"),
+            p.optBoolean("enabled",false),
+            if(p.has("priceUsd") && !p.isNull("priceUsd")) p.optDouble("priceUsd") else null,
+            p.optString("billingPeriod").ifBlank{null}
+        )
+    }.filter{it.productId.isNotBlank()}
 }
+
 private fun parsePlans(body:JSONObject):List<LivePlan>{
     val a=body.optJSONArray("plans")?:JSONArray()
     return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),p.optString("module"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}.filter{it.id.isNotBlank()}
