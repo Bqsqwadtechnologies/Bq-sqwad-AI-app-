@@ -85,6 +85,7 @@ class ChatApiClient(
             it.write(JSONObject().apply {
                 put("capability", capability)
                 put("message", message)
+                if (!system.isNullOrBlank()) put("system", system)
             }.toString().toByteArray())
         }
         val status = connection.responseCode
