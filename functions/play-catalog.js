@@ -1,0 +1,114 @@
+// BQ Sqwad AI Google Play catalog projection.
+// The canonical source is functions/plan-catalog.js. Firestore playCatalog/config overrides this projection at runtime.
+// Google Play localized pricing is authoritative at checkout.
+
+import { COMMERCIAL_CATALOG, PLAN_CATALOG_VERSION, validateCommercialCatalog } from "./plan-catalog.js";
+
+export const CANONICAL_PLAY_CATALOG_VERSION = PLAN_CATALOG_VERSION;
+
+const rows = Object.values(COMMERCIAL_CATALOG.sections).flat();
+
+function entriesFor(item) {
+  if (!item.playEligible || !item.productId || item.productType === "free" || item.productType === "custom") return [];
+  if (item.priceStatus === "proposal") {
+    // Proposal prices are visible to the admin catalog but are never silently published to Play.
+    return [];
+  }
+
+  const periods = item.billingPeriods || [];
+  return periods.flatMap(period => {
+    const price = item.price?.[period];
+    if (price == null || typeof price !== "number") return [];
+    if (Array.isArray(item.playEligiblePeriods) && !item.playEligiblePeriods.includes(period)) return [];
+    if (Array.isArray(item.proposalPeriods) && item.proposalPeriods.includes(period)) return [];
+
+    let basePlanId = null;
+    if (item.productType === "subs") {
+      if (period === "monthly") basePlanId = item.basePlans?.find(x => x === "monthly") || "monthly";
+      else if (period === "yearly") basePlanId = item.basePlans?.find(x => x === "yearly") || "yearly";
+      else if (period === "term") basePlanId = item.basePlans?.find(x => x === "term") || "term";
+      else basePlanId = item.basePlans?.find(x => x.includes(period)) || period;
+    }
+
+    const eligibleTrial = item.trialEligible === true && item.offerId === "trial-3d" && item.productType === "subs";
+    return [{
+      module: item.module,
+      name: item.name,
+      planId: item.id,
+      productId: item.productId,
+      basePlanId,
+      billingPeriod: period,
+      priceUsd: price,
+      currency: item.currency || "USD",
+      productType: item.productType,
+      recurring: item.recurring === true,
+      playEligible: true,
+      trialOfferId: eligibleTrial ? "trial-3d" : null,
+      trialDays: eligibleTrial ? 3 : 0,
+      gracePeriodDays: item.gracePeriodDays ?? 7,
+      accountHold: item.accountHold || "google-play-automatic",
+      resubscribe: item.resubscribe || "allow",
+      planChange: item.planChange || "charge-next-billing-date",
+      limits: item.limits || {},
+      features: item.features || [],
+      entitlements: item.entitlements || [],
+      quantityTiers: item.quantityTiers || [],
+      contactSales: false,
+      active: item.active !== false,
+      countryAvailability: item.countryAvailability || {mode:"all",countries:[]}
+    }];
+  });
+}
+
+export const CANONICAL_PLAY_CATALOG = rows.flatMap(entriesFor);
+
+export function canonicalPlayProducts() {
+  return CANONICAL_PLAY_CATALOG.map(x => ({
+    planId: x.planId,
+    product: x.productId,
+    productId: x.productId,
+    basePlanId: x.basePlanId,
+    productType: x.productType === "subs" ? "subs" : "inapp",
+    enabled: x.active !== false,
+    consumable: false,
+    creditGrant: Number((x.entitlements?.find(e => String(e).startsWith("credit:")) || "").split(":")[1] || 0),
+    trialOfferId: x.trialOfferId,
+    trialDays: x.trialDays,
+    billingPeriod: x.billingPeriod,
+    priceUsd: x.priceUsd,
+    recurring: x.recurring,
+    quantityTiers: x.quantityTiers
+  }));
+}
+
+export function canonicalAdminCatalog() {
+  validateCommercialCatalog();
+  const all = rows.map(item => ({
+    ...item,
+    googlePlayProductId: item.productId,
+    basePlanIds: item.basePlans || [],
+    offerId: item.offerId,
+    localizedPlayPrice: item.localizedPlayPrice || "play-authoritative",
+    billingType: item.productType === "subs" ? (item.recurring ? "auto-renewing" : "prepaid") : item.productType,
+    recurringVsOneTime: item.recurring ? "recurring" : "one-time",
+    consumable: item.productType === "inapp" && item.recurring === false,
+    playBillingStatus: item.playEligible ? "eligible" : item.contactSales ? "contact-sales" : "not-for-play",
+    tierId: item.tierId,
+    tierConfiguration: item.quantityTiers || [],
+    includedAddOns: item.includedAddOns || [],
+    addOnQuantityRules: item.addOnQuantityRules || null,
+    availability: item.countryAvailability || {mode:"all",countries:[]},
+    configurationVersion: PLAN_CATALOG_VERSION
+  }));
+
+  return {
+    version: PLAN_CATALOG_VERSION,
+    catalogVersion: PLAN_CATALOG_VERSION,
+    currency: COMMERCIAL_CATALOG.currency,
+    contactSalesEmail: COMMERCIAL_CATALOG.contactSalesEmail,
+    globalRules: COMMERCIAL_CATALOG.globalRules,
+    plans: all,
+    googlePlayProducts: canonicalPlayProducts(),
+    visibility: "admin_only"
+  };
+}
