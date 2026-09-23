@@ -2005,7 +2005,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             if (entitlements.any {
                 val end = it.optString("endDate")
                 if (end.isBlank()) false else runCatching {
-                    java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.now(), java.time.Instant.parse(end)) in 0..7
+                    java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.now(), java.time.Instant.parse(end)) in 0L..7L
                 }.getOrDefault(false)
             }) {
                 item {
@@ -2014,7 +2014,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                             Text("Plan expiry alert", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                             entitlements.filter {
                                 val end = it.optString("endDate")
-                                end.isNotBlank() && runCatching { java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.now(), java.time.Instant.parse(end)) in 0..7 }.getOrDefault(false)
+                                end.isNotBlank() && runCatching { java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.now(), java.time.Instant.parse(end)) in 0L..7L }.getOrDefault(false)
                             }.forEach {
                                 val days = runCatching { java.time.temporal.ChronoUnit.DAYS.between(java.time.Instant.now(), java.time.Instant.parse(it.optString("endDate"))) }.getOrDefault(0)
                                 Text(
