@@ -1163,6 +1163,37 @@ export const bqSqwadApi = onRequest(
 
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
       // The legacy adminControls store and endpoints are intentionally removed.
+      if (path === "admin/runtime" || path.startsWith("admin/runtime/")) {
+        await adminFromRequest(req);
+        const parts = path.split("/");
+        const type = String(req.query?.type || body.type || parts[3] || "agents").trim();
+        if (!["jobs","workflows","agents","evaluations","plugins"].includes(type)) {
+          return send(res, 400, { error: "invalid_runtime_type" });
+        }
+        const collection = {
+          jobs: "aiJobs",
+          workflows: "aiWorkflows",
+          agents: "aiAgents",
+          evaluations: "aiEvaluations",
+          plugins: "aiPlugins"
+        }[type];
+        if (req.method === "GET" && path === "admin/runtime") {
+          const snap = await getFirestore().collection(collection).where("uid", "==", user.uid).limit(200).get();
+          return send(res, 200, { type, records: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+        }
+        if (req.method === "POST" && path === "admin/runtime") {
+          const record = await createManagedRecord(type, user.uid, body);
+          return send(res, 200, { ok: true, record });
+        }
+        if (req.method === "PATCH" && path.startsWith("admin/runtime/")) {
+          const id = parts[3];
+          if (!id) return send(res, 400, { error: "runtime_record_id_required" });
+          const record = await updateManagedRecord(type, user.uid, id, body);
+          return send(res, 200, { ok: true, record });
+        }
+        return send(res, 405, { error: "runtime_method_not_supported" });
+      }
+
       if (req.method === "GET" && path === "admin/play-catalog") {
         await adminFromRequest(req);
         return send(res, 200, canonicalAdminCatalog());
