@@ -86,6 +86,11 @@ async function listOwned(collection, workspaceId, limit = 100) {
   return snap.docs.map(d => sanitizeDoc(d.id, d.data())).sort((a,b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
 }
 
+export async function businessKnowledgeForWorkspace(uid, workspaceId, limit = 50) {
+  await requireBusinessAccess(uid, workspaceId);
+  return listOwned(BUSINESS_COLLECTIONS.knowledge, workspaceId, limit);
+}
+
 export async function businessWorkspace(uid, input = {}) {
   const workspaceId = await ensureWorkspace(uid, input);
   await requireBusinessAccess(uid, workspaceId);
