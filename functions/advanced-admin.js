@@ -48,6 +48,73 @@ export const CORE_CAPABILITY_OPTIONS = [
   ["capability_ai_agent","BQ Sqwad AI Agent (Admin Only)","agents","openai",null,["gemini"]]
 ];
 
+// User-facing advanced capabilities are first-class admin controls so every feature
+// surfaced by the native feature hub has a server-authoritative switch, route and credit price.
+export const USER_ADVANCED_CAPABILITY_OPTIONS = [
+  ["capability_knowledge_graphs","Knowledge Graphs capability","data"],
+  ["capability_semantic_file_search","Semantic File Search capability","data"],
+  ["capability_conversation_intelligence","Conversation Intelligence capability","capabilities"],
+  ["capability_project_workspaces","Project Workspaces capability","capabilities"],
+  ["capability_ai_generated_reports","AI Generated Reports capability","data"],
+  ["capability_ai_coding_workspace","AI Coding Workspace capability","codron"],
+  ["capability_github_codron_integration","GitHub Codron Integration capability","codron"],
+  ["capability_ai_evaluation_laboratory","AI Evaluation Laboratory capability","experiments"],
+  ["capability_custom_ai_assistants","Custom AI Assistants capability","capabilities"],
+  ["capability_business_ai_employee","Business AI Employee capability","business"],
+  ["capability_agent_to_agent_workflows","Agent-to-Agent Workflows capability","agents"],
+  ["capability_human_approval_checkpoints","Human Approval Checkpoints capability","security"],
+  ["capability_action_preview","Action Preview capability","security"],
+  ["capability_permission_center","Permission Center capability","security"],
+  ["capability_ai_activity_timeline","AI Activity Timeline capability","audit"],
+  ["capability_undoable_ai_actions","Undoable AI Actions capability","security"],
+  ["capability_secure_temporary_file_vault","Secure Temporary File Vault capability","privacy"],
+  ["capability_large_file_resumable_uploads","Large File Resumable Uploads capability","system"],
+  ["capability_background_generation_jobs","Background Generation Jobs capability","system"],
+  ["capability_generation_queue","Generation Queue capability","system"],
+  ["capability_usage_forecasting","Usage Forecasting capability","monitoring"],
+  ["capability_automatic_quality_fallback","Automatic Quality Fallback capability","routing"],
+  ["capability_response_confidence_context","Response Confidence Context capability","capabilities"],
+  ["capability_source_verification","Source Verification capability","capabilities"],
+  ["capability_cross_device_sync","Cross-Device Sync capability","data"],
+  ["capability_multimodal_images","Multimodal Images capability","capabilities"],
+  ["capability_multifile_reasoning","Multi-File Reasoning capability","capabilities"],
+  ["capability_document_analysis","Document Analysis capability","data"],
+  ["capability_audio_analysis","Audio Analysis capability","data"],
+  ["capability_video_analysis","Video Analysis capability","data"],
+  ["capability_conversation_search","Conversation Search capability","data"],
+  ["capability_conversation_export","Conversation Export capability","data"],
+  ["capability_memory","Memory capability","data"],
+  ["capability_personal_memory","Personal Memory capability","data"],
+  ["capability_project_memory","Project Memory capability","data"],
+  ["capability_business_memory","Business Memory capability","business"],
+  ["capability_device_intelligence","Device Intelligence capability","device"],
+  ["capability_calendar_actions","Calendar Actions capability","device"],
+  ["capability_reminder_actions","Reminder Actions capability","device"],
+  ["capability_location_assistance","Location Assistance capability","device"],
+  ["capability_screen_awareness","Screen Awareness capability","device"],
+  ["capability_media_controls","Media Controls capability","device"],
+  ["capability_web_research","Web Research capability","capabilities"],
+  ["capability_research_export","Research Export capability","data"],
+  ["capability_live_camera_ocr","Live Camera OCR capability","capabilities"],
+  ["capability_live_camera_scene_understanding","Live Camera Scene Understanding capability","capabilities"],
+  ["capability_live_voice_barge_in","Live Voice Barge-In capability","capabilities"],
+  ["capability_voice_activity_detection","Voice Activity Detection capability","capabilities"],
+  ["capability_learning_quizzes","Learning Quizzes capability","capabilities"],
+  ["capability_document_to_course","Document-to-Course capability","learning"],
+  ["capability_business_crm","Business CRM capability","business"],
+  ["capability_business_workflows","Business Workflows capability","business"],
+  ["capability_business_analytics","Business Analytics capability","business"],
+  ["capability_business_knowledge","Business Knowledge capability","business"],
+  ["capability_business_agents","Business Agents capability","business"],
+  ["capability_business_channels","Business Channels capability","business"],
+  ["capability_business_automation","Business Automation capability","business"],
+  ["capability_notifications","Notifications capability","notifications"],
+  ["capability_credit_reservation","Credit Reservation capability","credits"],
+  ["capability_rate_limiting","Rate Limiting capability","security"],
+  ["capability_abuse_protection","Abuse Protection capability","security"],
+  ["capability_offline_retry_queue","Offline Retry Queue capability","system"]
+];
+
 export const ADVANCED_ADMIN_OPTIONS = [
   ["provider_cost_optimizer","Provider cost optimizer","providers"],
   ["provider_health_monitor","Provider health monitor","monitoring"],
@@ -93,6 +160,7 @@ export const ADVANCED_ADMIN_OPTIONS = [
 
 const ALL_OPTIONS = [
   ...CORE_CAPABILITY_OPTIONS.map(([id,label,section]) => [id,label,section]),
+  ...USER_ADVANCED_CAPABILITY_OPTIONS,
   ...ADVANCED_ADMIN_OPTIONS
 ];
 
