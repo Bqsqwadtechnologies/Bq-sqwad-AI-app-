@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { COMMERCIAL_CATALOG } from "./plan-catalog.js";
