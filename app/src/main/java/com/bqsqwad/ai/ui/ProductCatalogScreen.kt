@@ -247,11 +247,11 @@ private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
 
 private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
     val a=body.optJSONArray("products")?:JSONArray()
-    return List(a.length()){i -> val p=a.getJSONObject(i); PlayCatalogEntry(p.optString("planId"),p.optString("productId"),p.optString("basePlanId").ifBlank{null},p.optString("productType"),p.optBoolean("enabled",false))}}.filter{it.productId.isNotBlank()}
+    return List(a.length()){i -> val p=a.getJSONObject(i); PlayCatalogEntry(p.optString("planId"),p.optString("productId"),p.optString("basePlanId").ifBlank{null},p.optString("productType"),p.optBoolean("enabled",false))}.filter{it.productId.isNotBlank()}
 }
 private fun parsePlans(body:JSONObject):List<LivePlan>{
     val a=body.optJSONArray("plans")?:JSONArray()
-    return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),p.optString("module"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}}.filter{it.id.isNotBlank()}
+    return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),p.optString("module"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}.filter{it.id.isNotBlank()}
 }
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
 @Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
@@ -259,9 +259,9 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
 
 private fun parseFeatures(body:JSONObject):List<CatalogFeature>{
     val a=body.optJSONArray("features")?:JSONArray()
-    return List(a.length()){i -> val x=a.getJSONObject(i); CatalogFeature(x.optString("id"),x.optString("name"),x.optString("description"),x.optString("group"),x.optBoolean("comingSoon",false))}}.filter{it.id.isNotBlank()}
+    return List(a.length()){i -> val x=a.getJSONObject(i); CatalogFeature(x.optString("id"),x.optString("name"),x.optString("description"),x.optString("group"),x.optBoolean("comingSoon",false))}.filter{it.id.isNotBlank()}
 }
 private fun parseBindings(body:JSONObject):List<FeatureBinding>{
     val a=body.optJSONArray("bindings")?:JSONArray()
-    return List(a.length()){i -> val x=a.getJSONObject(i); FeatureBinding(x.optString("planId"),x.optString("featureId"),x.optString("state","unavailable"),if(x.isNull("quota"))null else x.optString("quota"))}}.filter{it.featureId.isNotBlank()}
+    return List(a.length()){i -> val x=a.getJSONObject(i); FeatureBinding(x.optString("planId"),x.optString("featureId"),x.optString("state","unavailable"),if(x.isNull("quota"))null else x.optString("quota"))}.filter{it.featureId.isNotBlank()}
 }
