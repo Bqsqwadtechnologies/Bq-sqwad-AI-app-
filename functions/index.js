@@ -1627,7 +1627,9 @@ export const bqSqwadApi = onRequest(
           basePlanId: p.basePlanId ? String(p.basePlanId) : null,
           productType: String(p.productType || ""),
           enabled: p.enabled === true,
-          consumable: p.consumable === true
+          consumable: p.consumable === true,
+          billingPeriod: p.billingPeriod ? String(p.billingPeriod) : null,
+          priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
         })).filter(p => p.productId && !p.productId.includes("_") && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
         const features = featureSnap.docs.map(d => {
           const x = d.data();
