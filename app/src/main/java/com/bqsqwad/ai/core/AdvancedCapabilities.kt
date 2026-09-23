@@ -19,6 +19,7 @@ object AdvancedCapabilities {
     const val CODRON_DEFAULT_ACTIVE = false
 
     val advanced = setOf(
+        CODRON, "ai_agent", "ai_agent_creator", "ai_agent_evaluation", "ai_agent_versioning",
         "ai_task_planner","agent_tool_use","agent_sandbox","ai_workflow_builder",
         "scheduled_ai_tasks","ai_monitoring_agents","deep_research","knowledge_graphs",
         "semantic_file_search","conversation_intelligence","project_workspaces",
