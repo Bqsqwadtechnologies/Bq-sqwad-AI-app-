@@ -49,3 +49,19 @@ test("one-time services are not recurring and add-ons have no trial", () => {
   assert.equal(addon.trialEligible, false);
   assert.equal(addon.offerId, null);
 });
+
+test("credit subscriptions use internal credit IDs with daily weekly monthly base plans", () => {
+  const credits = COMMERCIAL_CATALOG.sections.credits;
+  assert.deepEqual(
+    credits.map(x => x.id),
+    ["credit100", "credit250", "credit500", "credit1000"]
+  );
+  for (const row of credits) {
+    assert.equal(row.productId, row.id);
+    assert.deepEqual(row.billingPeriods, ["daily", "weekly", "monthly"]);
+    assert.deepEqual(row.basePlans, ["daily", "weekly", "monthly"]);
+    assert.equal(row.productType, "subs");
+    assert.equal(row.recurring, true);
+    assert.match(row.entitlements[0], /^credit:(100|250|500|1000)$/);
+  }
+});
