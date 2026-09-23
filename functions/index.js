@@ -70,7 +70,8 @@ async function deleteUserAccountData(uid) {
     ["organizationProduction", uid],
     ["entitlements", uid],
     ["creditBalances", uid],
-    ["playEntitlements", uid]
+    ["playEntitlements", uid],
+    ["userFeatureSettings", uid]
   ];
   const batch = db.batch();
   for (const [collection, id] of directDocs) {
@@ -95,7 +96,8 @@ async function deleteUserAccountData(uid) {
     "aiAgents",
     "aiEvaluations",
     "aiPlugins",
-    "aiActivity"
+    "aiActivity",
+    "organizationScheduledTasks"
   ];
   for (const collection of queryCollections) {
     await deleteUserCollectionRecords(db, collection, uid);
