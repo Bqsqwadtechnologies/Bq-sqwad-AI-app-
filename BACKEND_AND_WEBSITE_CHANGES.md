@@ -324,3 +324,28 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added enterprise workspace configuration for SSO provider metadata, audit-log policy, departments, white-label settings, SLA targets and security policy.
 - Added native Enterprise controls and integration visibility.
 - Phase 9 canonical commercial catalog/admin controls remain server-authoritative through the existing plan-catalog and Google Play projection; admin-only catalog IDs, validation, versioning and audit records are preserved.
+
+
+## 2026-09 End-to-End Phases 0-3 implementation notes
+
+### Phase 0
+- Required Terms/Privacy consent is now enforced after Firebase authentication and before Main Chat/protected API access. Account creation no longer requires pre-account consent.
+- Rejecting the post-auth consent gate signs the user out; returning without accepted server consent shows the gate again.
+- Account-deletion collection cleanup now paginates until all matching user records are removed instead of stopping at the first 500.
+
+### Phase 1
+- Existing Main Chat streaming, history, attachment analysis, camera vision, voice, memory and capability-credit infrastructure remain on the centralized capability authorization/credit path.
+- New media and research work reuses the same server capability/credit gate instead of creating a second billing mechanism.
+
+### Phase 2
+- Added server-side credit-gated image generation endpoint: POST /ai/image.
+- Added dedicated Video Generation workspace and native client.
+- Added asynchronous video job creation/status/content-storage pipeline: POST /video/generate and GET /video/jobs/:jobId.
+- Generated media is stored in Firebase Storage and exposed through time-limited signed URLs; provider credentials remain server-side.
+- IMPORTANT: the currently documented OpenAI Videos API/Sora 2 service is scheduled for shutdown on 2026-09-24. The workspace is therefore provider-isolated so a supported replacement can be configured without exposing provider secrets in Android. Do not treat the deprecated Sora endpoint as a permanent production dependency.
+
+### Phase 3
+- Web Search and Deep Research use the centralized capability authorization and credit reservation system.
+- Admin Control Center already exposes Web Search pricing controls including normal-search credits, Deep Research credits, result-page credits, result limits, daily limits and plan overrides.
+- Deep Research now performs Tavily retrieval followed by an AI synthesis with numbered source references and returns the synthesis to the native Web Search workspace.
+- The capability/admin configuration remains the authoritative place for credit costs; no Android price is hardcoded for these features.
