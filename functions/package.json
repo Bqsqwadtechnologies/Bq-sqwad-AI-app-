@@ -7,7 +7,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check index.js && node --check provider-gateway.js && node --check payments.js && node --check secret-store.js && node --check device-commands.js && node --check google-play.js && node --check play-catalog.js && node --check plan-catalog.js && node --check admin-security.js && node --check passkeys.js && node --check social-integrations.js"
+    "check": "node --check index.js && node --check provider-gateway.js && node --check payments.js && node --check secret-store.js && node --check device-commands.js && node --check google-play.js && node --check play-catalog.js && node --check plan-catalog.js && node --check admin-security.js && node --check passkeys.js && node --check social-integrations.js && node --check organization.js && node --check organization-scheduler.js && node --check user-settings.js"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",
