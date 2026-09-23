@@ -2372,7 +2372,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
         loadingAccount = false
     }
 
-    val modes = listOf("system", "dark", "light", "amoled")
+    val modes = listOf("system", "light", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
 
     Scaffold(
