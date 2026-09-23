@@ -23,6 +23,7 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var pendingDeactivate by remember { mutableStateOf<String?>(null) }
 
     fun load() {
         loading = true
@@ -38,6 +39,28 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
         }
     }
     LaunchedEffect(Unit) { load() }
+
+    pendingDeactivate?.let { planId ->
+        AlertDialog(
+            onDismissRequest = { pendingDeactivate = null },
+            title = { Text("Deactivate Business plan?") },
+            text = { Text("This immediately blocks the plan entitlement for affected accounts. The action will be written to the admin audit log.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val id = planId
+                    pendingDeactivate = null
+                    busy = true
+                    scope.launch {
+                        runCatching { api.setAdminBusinessPlanStatus(id, false, confirmDeactivation = true) }
+                            .onFailure { error = it.message ?: "Could not deactivate plan." }
+                        busy = false
+                        load()
+                    }
+                }) { Text("Deactivate") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDeactivate = null }) { Text("Cancel") } }
+        )
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Business AI — Admin Test Lab") }, navigationIcon = { IconButton(onClick = onBack) { Text("‹") } }) }) { padding ->
         LazyColumn(
@@ -70,12 +93,16 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected == id, { selected = id; suite = null }, label = { Text("Select") })
                             OutlinedButton(enabled = !busy, onClick = {
-                                busy = true
-                                scope.launch {
-                                    runCatching { api.setAdminBusinessPlanStatus(id, !active) }
-                                        .onFailure { error = it.message ?: "Could not change plan status." }
-                                    busy = false
-                                    load()
+                                if (active) {
+                                    pendingDeactivate = id
+                                } else {
+                                    busy = true
+                                    scope.launch {
+                                        runCatching { api.setAdminBusinessPlanStatus(id, true) }
+                                            .onFailure { error = it.message ?: "Could not reactivate plan." }
+                                        busy = false
+                                        load()
+                                    }
                                 }
                             }) { Text(if (active) "Deactivate" else "Reactivate") }
                         }
