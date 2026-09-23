@@ -139,6 +139,26 @@ class WorkspaceApiClient {
 
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
 
+    suspend fun createBusinessWorkspace(name:String, planId:String="bizstarter"): JSONObject =
+        request("/business/workspace", payload=JSONObject().put("name", name.take(180)).put("planId", planId.take(100)))
+
+    suspend fun businessRecords(type:String, workspaceId:String?=null): JSONObject =
+        request("/business/records?type=" + type + (workspaceId?.let { "&workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
+
+    suspend fun createBusinessRecord(type:String, payload:JSONObject): JSONObject =
+        request("/business/records", payload=JSONObject(payload.toString()).put("type", type))
+
+    suspend fun updateBusinessRecord(type:String, id:String, payload:JSONObject): JSONObject =
+        request("/business/records/" + type + "/" + id, "PATCH", payload)
+
+    suspend fun deleteBusinessRecord(type:String, id:String): JSONObject =
+        request("/business/records/" + type + "/" + id, "DELETE")
+
+    suspend fun addBusinessMember(workspaceId:String, uid:String, role:String="member", permissions:List<String> = emptyList()): JSONObject =
+        request("/business/members", payload=JSONObject().apply {
+            put("workspaceId", workspaceId); put("uid", uid); put("role", role); put("permissions", JSONArray(permissions))
+        })
+
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
