@@ -8,12 +8,15 @@ permissions:
 
 jobs:
   debug-signing-report:
-    name: Report debug signing certificate
+    name: Report diagnostic branch debug signing certificate
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout selected branch
+      - name: Checkout diagnostic branch
         uses: actions/checkout@v4
+        with:
+          ref: diagnostic/debug-signing-report
+          fetch-depth: 1
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -26,12 +29,13 @@ jobs:
         with:
           gradle-version: '9.5'
 
-      - name: Verify Android project structure
+      - name: Verify diagnostic project
         shell: bash
         run: |
           set -euo pipefail
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
+          echo "Using diagnostic branch: diagnostic/debug-signing-report"
           echo "Android Gradle project found at repository root."
 
       - name: Generate debug signing report
