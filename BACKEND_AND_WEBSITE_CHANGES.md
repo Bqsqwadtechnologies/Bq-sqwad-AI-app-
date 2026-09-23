@@ -306,3 +306,12 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Advanced consent version from 2026-01 to 2026-09.
 - Added docs/LEGAL-POLICY-SYNC-2026-09.md documenting the native data map and the public-policy statements that must remain synchronized.
 - Important: the public website policy was inspected and currently contains legacy statements about Paystack, Google Analytics and the PWA. Those statements must be corrected on the website deployment so the public policy matches the current native Android architecture. The website is outside this Android repository, so this repository cannot publish that website change.
+
+
+## Business Phases 3–5 implementation — 2026-09
+- Added workspace-scoped Business automation execution with condition evaluation, record/inbox/activity actions, execution status, and secure webhook-token entry point.
+- Added native API methods and UI controls for running Business automations.
+- Added unified social-channel account listing, OAuth-start flow, and publishing API for configured Facebook, Instagram, and X accounts.
+- Added native Business Channels UI and publishing flow.
+- Social provider credentials/tokens remain server-side; no provider secret is embedded in Android.
+- External provider publishing requires the corresponding provider application, OAuth configuration, permissions, and account connection in the existing admin configuration.
