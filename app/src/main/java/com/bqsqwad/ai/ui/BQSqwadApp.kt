@@ -1502,24 +1502,119 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
 
 @Composable
 private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("bq_feature_settings", Context.MODE_PRIVATE) }
-    val prefix = workspace.name.lowercase()
-    var webSearch by remember { mutableStateOf(prefs.getBoolean(prefix + ".web_search", workspace == Workspace.SEARCH || workspace == Workspace.TRUTH_GUARD || workspace == Workspace.FRONTIER_LAB)) }
-    var memory by remember { mutableStateOf(prefs.getBoolean(prefix + ".memory", workspace == Workspace.PERSONAL || workspace == Workspace.COMPANION)) }
-    var notifications by remember { mutableStateOf(prefs.getBoolean(prefix + ".notifications", true)) }
-    var saveHistory by remember { mutableStateOf(prefs.getBoolean(prefix + ".history", true)) }
-    var autoRun by remember { mutableStateOf(prefs.getBoolean(prefix + ".auto_run", false)) }
-    fun save(key: String, value: Boolean) { prefs.edit().putBoolean(prefix + "." + key, value).apply() }
-    Scaffold(topBar = { TopAppBar(title = { Text(workspace.title + " Settings") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
-        LazyColumn(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
-            item { Surface(shape = RoundedCornerShape(22.dp), tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(workspace.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text(workspace.description, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
-            item { FeatureSettingSwitch("Web Search", "Allow this workspace to use configured web-search evidence when supported.", webSearch) { webSearch = it; save("web_search", it) } }
-            item { FeatureSettingSwitch("Memory", "Use saved memory where this workspace supports it.", memory) { memory = it; save("memory", it) } }
-            item { FeatureSettingSwitch("Notifications", "Allow this workspace to surface supported job and activity notifications.", notifications) { notifications = it; save("notifications", it) } }
-            item { FeatureSettingSwitch("Save history", "Save completed workspace conversations to your account history.", saveHistory) { saveHistory = it; save("history", it) } }
-            item { FeatureSettingSwitch("Automatic runs", "Allow supported background or scheduled actions for this workspace.", autoRun) { autoRun = it; save("auto_run", it) } }
-            item { Text("Sensitive permissions such as camera, microphone and screen capture are requested only when the feature actually needs them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    val scope = rememberCoroutineScope()
+    val key = workspace.name.lowercase()
+    val defaults = remember(workspace) {
+        mapOf(
+            "web_search" to (workspace == Workspace.SEARCH || workspace == Workspace.TRUTH_GUARD || workspace == Workspace.FRONTIER_LAB),
+            "memory" to (workspace == Workspace.PERSONAL || workspace == Workspace.COMPANION),
+            "notifications" to true,
+            "history" to true,
+            "auto_run" to false,
+            "streaming" to true,
+            "voice_responses" to (workspace == Workspace.VOICE || workspace == Workspace.COMPANION),
+            "save_files" to true,
+            "personalization" to (workspace == Workspace.PERSONAL || workspace == Workspace.COMPANION || workspace == Workspace.LIFE),
+            "background_jobs" to (workspace == Workspace.VIDEO || workspace == Workspace.ORGANIZATION_STUDIO)
+        )
+    }
+    var values by remember(key) { mutableStateOf(defaults) }
+    var loading by remember { mutableStateOf(true) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun saveValue(setting: String, value: Boolean) {
+        values = values + (setting to value)
+        scope.launch {
+            saving = true
+            runCatching {
+                WorkspaceApiClient().updateFeatureSettings(
+                    key,
+                    org.json.JSONObject().put(setting, value)
+                )
+            }.onFailure {
+                error = it.message ?: "Setting could not be saved."
+            }
+            saving = false
+        }
+    }
+
+    LaunchedEffect(key) {
+        loading = true
+        runCatching {
+            WorkspaceApiClient().featureSettings()
+        }.onSuccess { body ->
+            val stored = body.optJSONObject("settings")?.optJSONObject(key)
+            if (stored != null) {
+                val next = defaults.toMutableMap()
+                stored.keys().forEach { setting ->
+                    if (stored.opt(setting) is Boolean) next[setting] = stored.optBoolean(setting)
+                }
+                values = next
+            }
+        }.onFailure {
+            error = it.message ?: "Feature settings could not be loaded."
+        }
+        loading = false
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(workspace.title + " Settings") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                actions = {
+                    if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            )
+        }
+    ) { p ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(p).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    tonalElevation = 4.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(workspace.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(workspace.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (loading) "Loading your saved settings…" else "Settings are saved to your account and loaded on your other signed-in devices.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            item { Text("AI behavior", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { FeatureSettingSwitch("Streaming responses", "Show supported AI responses as they arrive instead of waiting for the complete result.", values["streaming"] == true) { saveValue("streaming", it) } }
+            item { FeatureSettingSwitch("Web Search", "Allow this workspace to use configured web-search evidence when supported.", values["web_search"] == true) { saveValue("web_search", it) } }
+            item { FeatureSettingSwitch("Memory", "Use saved memory where this workspace supports it.", values["memory"] == true) { saveValue("memory", it) } }
+            item { FeatureSettingSwitch("Personalization", "Use your saved preferences and personalization controls where supported.", values["personalization"] == true) { saveValue("personalization", it) } }
+            item { Text("Data & history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { FeatureSettingSwitch("Save history", "Save completed workspace conversations to your account history.", values["history"] != false) { saveValue("history", it) } }
+            item { FeatureSettingSwitch("Save generated files", "Keep supported generated files available in your account history or workspace.", values["save_files"] != false) { saveValue("save_files", it) } }
+            item { Text("Notifications & automation", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item { FeatureSettingSwitch("Notifications", "Allow this workspace to surface supported job, plan and activity notifications.", values["notifications"] != false) { saveValue("notifications", it) } }
+            item { FeatureSettingSwitch("Automatic runs", "Allow supported scheduled or background actions for this workspace.", values["auto_run"] == true) { saveValue("auto_run", it) } }
+            item { FeatureSettingSwitch("Background jobs", "Allow supported long-running jobs to continue through the server job system.", values["background_jobs"] == true) { saveValue("background_jobs", it) } }
+            if (workspace == Workspace.VOICE || workspace == Workspace.COMPANION) {
+                item { Text("Voice", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                item { FeatureSettingSwitch("Spoken responses", "Allow supported voice experiences to speak AI responses.", values["voice_responses"] == true) { saveValue("voice_responses", it) } }
+            }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+            item {
+                Text(
+                    "Camera, microphone, screen capture and other sensitive Android permissions are never silently enabled by these settings. Android permission prompts remain user-controlled.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
