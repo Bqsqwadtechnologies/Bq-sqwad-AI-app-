@@ -331,6 +331,7 @@ private fun AdvancedAiPanel(api: WorkspaceApiClient, workspaceId: String, error:
 
 @Composable
 private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
+    val scope = rememberCoroutineScope()
     var integrations by remember { mutableStateOf(JSONArray()) }
     LaunchedEffect(workspaceId) { runCatching { api.businessIntegrations(workspaceId) }.onSuccess { integrations = it.optJSONArray("integrations") ?: JSONArray() }.onFailure { error(it.message ?: "Integrations could not be loaded.") } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -356,15 +357,12 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                             enabled = noKey,
                             onCheckedChange = { next ->
                                 enabled = next
-                                if (noKey) {
-                                    LaunchedEffect(Unit) {}
-                                }
                             }
                         )
                     }
                     if (noKey) {
                         Button(onClick = {
-                            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                            scope.launch {
                                 runCatching {
                                     api.configureBusinessIntegration(
                                         JSONObject().put("workspaceId", workspaceId).put("integration", id).put("enabled", enabled)
