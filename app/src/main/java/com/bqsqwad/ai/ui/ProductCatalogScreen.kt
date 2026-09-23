@@ -166,7 +166,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     }
                 }
                 if (entitlements.isNotEmpty()) {
-                    val expiring = entitlements.filter { daysUntil(it.endDate) in 0..7 }
+                    val expiring = entitlements.filter { daysUntil(it.endDate) in 0L..7L }
                     if (expiring.isNotEmpty()) item {
                         Surface(shape=RoundedCornerShape(18.dp), color=MaterialTheme.colorScheme.errorContainer, modifier=Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -188,7 +188,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                 entitlements.forEach { row ->
                                     val plan = plans.firstOrNull { it.id == row.planId }
                                     val days = daysUntil(row.endDate)
-                                    val warning = days in 0..7
+                                    val warning = days in 0L..7L
                                     Card(Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=if (warning) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh), shape=RoundedCornerShape(16.dp)) {
                                         Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
                                             Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
