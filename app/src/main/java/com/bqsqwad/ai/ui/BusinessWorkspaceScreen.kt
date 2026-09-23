@@ -338,7 +338,43 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
         Text("Admin-configurable integration registry. Provider credentials remain server-side.")
         for (i in 0 until integrations.length()) {
             val item = integrations.optJSONObject(i) ?: continue
-            SurfaceCard(item.optString("id"), item.optString("status"))
+            val id = item.optString("id")
+            val noKey = id == "webhooks" || id == "rest_api"
+            var enabled by remember(id, workspaceId) { mutableStateOf(false) }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(id, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (noKey) "No client key required. Uses the existing authenticated Business workspace and server-side authorization."
+                        else "Provider configuration is required server-side before this integration can be connected.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(if (noKey) "Available now" else "Admin-configurable")
+                        Switch(
+                            checked = enabled,
+                            enabled = noKey,
+                            onCheckedChange = { next ->
+                                enabled = next
+                                if (noKey) {
+                                    LaunchedEffect(Unit) {}
+                                }
+                            }
+                        )
+                    }
+                    if (noKey) {
+                        Button(onClick = {
+                            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                runCatching {
+                                    api.configureBusinessIntegration(
+                                        JSONObject().put("workspaceId", workspaceId).put("integration", id).put("enabled", enabled)
+                                    )
+                                }.onFailure { error(it.message ?: "Integration could not be configured.") }
+                            }
+                        }) { Text(if (enabled) "Enable integration" else "Save disabled state") }
+                    }
+                }
+            }
         }
     }
 }
