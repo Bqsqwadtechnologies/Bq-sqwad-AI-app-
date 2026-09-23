@@ -983,6 +983,7 @@ private fun AiTaskWorkspace(
 
 @Composable
 private fun SearchWorkspace() {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var deep by remember { mutableStateOf(false) }
