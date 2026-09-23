@@ -389,3 +389,22 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Credit subscriptions now use only `weekly` and `monthly` base plans.
 - Subscription IDs remain `credit100`, `credit250`, `credit500`, and `credit1000`.
 - Existing monthly USD prices remain unchanged. Weekly prices remain unconfigured until explicitly approved/configured.
+
+
+## 2026-09-23 — Business AI end-to-end hardening
+- Business AI remains a separate Business product from Organization AI; Business Enterprise is still Business AI for large companies.
+- The five Business AI areas are covered by the native/backend architecture: Business AI/chat, Business Plan Builder, Business Knowledge/FAQ, Business CRM/analytics, and Business Agents/Automation/Research/Enterprise operations.
+- Business plans and Business add-ons are website-managed and excluded from the Google Play catalogue.
+- Business access is now server-authorized against the active Business entitlement; changing a workspace `planId` alone cannot grant paid access.
+- Runtime admin plan configuration is honored for Business feature entitlements and limits.
+- Admin-only Business test sessions can temporarily unlock a selected Business plan without granting that entitlement to customers.
+- Admin-only Business plan status controls can deactivate/reactivate plans and are audited.
+- The Admin Control Center now includes a Business AI End-to-End Test Lab with isolated smoke testing for the selected plan.
+- Business usage warnings are returned when configured limits reach 80%+ and eligible add-ons are returned for remediation; users can be directed toward an appropriate plan upgrade rather than being silently cut off.
+- Legacy Business routes were routed through the canonical plan-enforced workspace services to avoid entitlement bypasses.
+- Business training assets are workspace-scoped and protected by Business access.
+- Business social/OAuth accounts are workspace-scoped and channel-plan gated.
+- YouTube Business publishing now uses server-side OAuth refresh and a private-by-default video upload path. Public publishing remains subject to YouTube's own API/project requirements.
+- Business Plan Builder is now a real server workflow with credit reservation, audit activity and safeguards against fabricated legal/regulatory/financial guarantees.
+- Business Enterprise controls are restricted to the Business Enterprise plan.
+- These controls reduce billing/access ambiguity but do not constitute legal advice or a guarantee of compliance with every jurisdiction or industry regulation. Business customers should receive the applicable Terms, Privacy Policy, data-processing terms and sector-specific agreements before relying on regulated workflows.
