@@ -607,31 +607,14 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "business/workspace") {
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        if (!snap.exists) {
-          const initial = {
-            uid: user.uid,
-            name: "Business Workspace",
-            assistantName: "Business AI Assistant",
-            knowledge: [],
-            inbox: [],
-            leads: [],
-            automations: [],
-            analytics: { requests: 0, leads: 0, knowledge: 0 },
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
-          };
-          await ref.set(initial);
-          return send(res, 200, { ...initial, createdAt: null, updatedAt: null });
-        }
-        return send(res, 200, { exists: true, ...snap.data() });
+        return send(res, 200, await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId }));
       }
 
       if (req.method === "POST" && path === "business/training-assets/upload-url") {
+        const workspace = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId || body.workspaceId });
+        await requireBusinessAccess(user.uid, workspace.workspaceId, "manager");
         const type = String(body.type || "").trim().toLowerCase();
-        const allowedTypes = new Set(["document", "photo", "voice", "video", "step_by_step", "appearance_hair"]);
+        const allowedTypes = new Set(["text", "document", "photo", "voice", "video", "step_by_step", "appearance_hair"]);
         if (!allowedTypes.has(type)) return send(res, 400, { error: "unsupported_training_asset_type" });
         const title = String(body.title || "").trim().slice(0, 180);
         const purpose = String(body.purpose || "").trim().slice(0, 1000);
@@ -642,30 +625,14 @@ export const bqSqwadApi = onRequest(
         if (size > 500 * 1024 * 1024) return send(res, 413, { error: "training_asset_too_large" });
         const assetId = crypto.randomUUID();
         const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
-        const objectPath = "business-training/" + user.uid + "/" + assetId + "-" + safeName;
-        const bucket = getStorage().bucket();
-        const file = bucket.file(objectPath);
-        const [uploadUrl] = await file.getSignedUrl({
-          version: "v4",
-          action: "write",
-          expires: Date.now() + 15 * 60 * 1000,
-          contentType
-        });
+        const objectPath = "business-training/" + user.uid + "/" + workspace.workspaceId + "/" + assetId + "-" + safeName;
+        const file = getStorage().bucket().file(objectPath);
+        const [uploadUrl] = await file.getSignedUrl({ version: "v4", action: "write", expires: Date.now() + 15 * 60 * 1000, contentType });
         await getFirestore().collection("businessTrainingAssets").doc(assetId).set({
-          id: assetId,
-          uid: user.uid,
-          type,
-          title,
-          purpose,
-          fileName: safeName,
-          contentType,
-          size,
-          objectPath,
-          status: "upload_pending",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
+          id: assetId, uid: user.uid, workspaceId: workspace.workspaceId, type, title, purpose, fileName: safeName,
+          contentType, size, objectPath, status: "upload_pending", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
         });
-        return send(res, 200, { ok: true, assetId, uploadUrl, objectPath, expiresInSeconds: 900 });
+        return send(res, 200, { ok: true, assetId, workspaceId: workspace.workspaceId, uploadUrl, objectPath, expiresInSeconds: 900 });
       }
 
       if (req.method === "POST" && path === "business/training-assets/finalize") {
@@ -675,6 +642,7 @@ export const bqSqwadApi = onRequest(
         const snap = await ref.get();
         if (!snap.exists || snap.data()?.uid !== user.uid) return send(res, 404, { error: "training_asset_not_found" });
         const data = snap.data() || {};
+        await requireBusinessAccess(user.uid, String(data.workspaceId || ""), "manager");
         const file = getStorage().bucket().file(String(data.objectPath || ""));
         const [exists] = await file.exists();
         if (!exists) return send(res, 409, { error: "training_asset_upload_missing" });
@@ -682,163 +650,85 @@ export const bqSqwadApi = onRequest(
         const actualSize = Number(metadata.size || 0);
         const expectedSize = Number(data.size || 0);
         if (!actualSize || (expectedSize && actualSize !== expectedSize)) return send(res, 409, { error: "training_asset_size_mismatch" });
-        await ref.set({
-          status: "uploaded",
-          uploadedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        const workspaceRef = getFirestore().collection("businessWorkspaces").doc(user.uid);
-        const workspaceSnap = await workspaceRef.get();
-        const workspace = workspaceSnap.exists ? workspaceSnap.data() || {} : {};
-        const assets = Array.isArray(workspace.trainingAssets) ? workspace.trainingAssets : [];
         const entry = {
-          id: assetId,
-          type: String(data.type || ""),
-          title: String(data.title || ""),
-          purpose: String(data.purpose || ""),
-          contentType: String(data.contentType || ""),
-          size: actualSize,
-          objectPath: String(data.objectPath || ""),
-          status: "uploaded",
-          createdAt: new Date().toISOString()
+          id: assetId, type: String(data.type || ""), title: String(data.title || ""), purpose: String(data.purpose || ""),
+          contentType: String(data.contentType || ""), size: actualSize, objectPath: String(data.objectPath || ""),
+          status: "uploaded", workspaceId: String(data.workspaceId || ""), createdAt: new Date().toISOString()
         };
-        const without = assets.filter(item => String(item?.id || "") !== assetId);
-        without.push(entry);
-        await workspaceRef.set({ uid: user.uid, trainingAssets: without.slice(-500), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        await ref.set({ status: "uploaded", uploadedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        await getFirestore().collection("businessWorkspaces").doc(String(data.workspaceId)).set({
+          trainingAssets: FieldValue.arrayUnion(entry), updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
         return send(res, 200, { ok: true, asset: entry });
       }
 
       if (req.method === "POST" && path === "business/training-assets") {
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        await requireBusinessAccess(user.uid, workspace.workspaceId, "manager");
         const type = String(body.type || "").trim().toLowerCase();
         const allowedTypes = new Set(["text", "document", "photo", "voice", "video", "step_by_step", "appearance_hair"]);
         if (!allowedTypes.has(type)) return send(res, 400, { error: "unsupported_training_asset_type" });
         const purpose = String(body.purpose || "").trim().slice(0, 1000);
         const title = String(body.title || "").trim().slice(0, 180);
         if (!title || !purpose) return send(res, 400, { error: "training_asset_title_and_purpose_required" });
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        const current = snap.exists ? snap.data() : {};
-        const trainingAssets = Array.isArray(current.trainingAssets) ? current.trainingAssets : [];
-        trainingAssets.push({
-          id: crypto.randomUUID(),
-          type,
-          title,
-          purpose,
-          status: "metadata_saved",
-          createdAt: new Date().toISOString()
-        });
-        await ref.set({ uid: user.uid, trainingAssets: trainingAssets.slice(-500), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-        return send(res, 200, { ok: true, trainingAssets });
+        const asset = { id: crypto.randomUUID(), workspaceId: workspace.workspaceId, type, title, purpose, status: "metadata_saved", createdAt: new Date().toISOString() };
+        await getFirestore().collection("businessTrainingAssets").doc(asset.id).set({ ...asset, uid: user.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        await getFirestore().collection("businessWorkspaces").doc(workspace.workspaceId).set({ trainingAssets: FieldValue.arrayUnion(asset), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return send(res, 200, { ok: true, asset });
       }
 
       if (req.method === "POST" && path === "business/knowledge") {
-        const text = String(body.text || "").trim().slice(0, 12000);
-        if (!text) return send(res, 400, { error: "knowledge_text_required" });
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        const current = snap.exists ? snap.data() : {};
-        const knowledge = Array.isArray(current.knowledge) ? current.knowledge : [];
-        const item = { id: crypto.randomUUID(), text, createdAt: new Date().toISOString() };
-        knowledge.push(item);
-        await ref.set({
-          uid: user.uid,
-          name: current.name || "Business Workspace",
-          assistantName: current.assistantName || "Business AI Assistant",
-          knowledge: knowledge.slice(-200),
-          inbox: Array.isArray(current.inbox) ? current.inbox : [],
-          leads: Array.isArray(current.leads) ? current.leads : [],
-          automations: Array.isArray(current.automations) ? current.automations : [],
-          analytics: { ...(current.analytics || {}), knowledge: knowledge.length },
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        const updated = await ref.get();
-        return send(res, 200, { exists: true, ...updated.data() });
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        return send(res, 200, { ok: true, record: await createBusinessRecord(user.uid, "knowledge", { ...body, workspaceId: workspace.workspaceId }) });
       }
 
       if (req.method === "POST" && path === "business/leads") {
-        const name = String(body.name || "").trim().slice(0, 160);
-        const contact = String(body.contact || "").trim().slice(0, 320);
-        const note = String(body.note || "").trim().slice(0, 2000);
-        if (!name) return send(res, 400, { error: "lead_name_required" });
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        const current = snap.exists ? snap.data() : {};
-        const leads = Array.isArray(current.leads) ? current.leads : [];
-        leads.push({ id: crypto.randomUUID(), name, contact, note, status: "new", createdAt: new Date().toISOString() });
-        await ref.set({
-          uid: user.uid,
-          leads: leads.slice(-500),
-          analytics: { ...(current.analytics || {}), leads: leads.length },
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        const updated = await ref.get();
-        return send(res, 200, { exists: true, ...updated.data() });
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        return send(res, 200, { ok: true, record: await createBusinessRecord(user.uid, "lead", { ...body, workspaceId: workspace.workspaceId }) });
       }
 
       if (req.method === "POST" && path === "business/inbox") {
-        const message = String(body.message || "").trim().slice(0, 4000);
-        const contact = String(body.contact || "").trim().slice(0, 320);
-        if (!message) return send(res, 400, { error: "inbox_message_required" });
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        const current = snap.exists ? snap.data() : {};
-        const inbox = Array.isArray(current.inbox) ? current.inbox : [];
-        inbox.push({ id: crypto.randomUUID(), message, contact, status: "open", createdAt: new Date().toISOString() });
-        await ref.set({
-          uid: user.uid,
-          inbox: inbox.slice(-500),
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        const updated = await ref.get();
-        return send(res, 200, { exists: true, ...updated.data() });
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        return send(res, 200, { ok: true, record: await createBusinessExtended(user.uid, "inbox", { ...body, workspaceId: workspace.workspaceId }) });
       }
 
       if (req.method === "POST" && path === "business/assistant") {
         const message = String(body.message || "").trim().slice(0, 8000);
         if (!message) return send(res, 400, { error: "business_message_required" });
-        const db = getFirestore();
-        const ref = db.collection("businessWorkspaces").doc(user.uid);
-        const snap = await ref.get();
-        const data = snap.exists ? snap.data() : {};
-        const legacyKnowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
-        let workspaceKnowledge = [];
-        const requestedWorkspaceId = String(body.workspaceId || "").trim();
-        if (requestedWorkspaceId) {
-          workspaceKnowledge = await businessKnowledgeForWorkspace(user.uid, requestedWorkspaceId, 50);
-        } else {
-          const owned = await db.collection("businessWorkspaces").where("ownerUid", "==", user.uid).limit(1).get();
-          if (!owned.empty) workspaceKnowledge = await businessKnowledgeForWorkspace(user.uid, owned.docs[0].id, 50);
-        }
-        const knowledge = [...legacyKnowledge, ...workspaceKnowledge];
-        const knowledgeText = knowledge.slice(-50).map(item => typeof item === "string" ? item : (item?.text || item?.content)).filter(Boolean).join("\n");
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        const plan = await requireBusinessPlan(user.uid, workspace.workspaceId, "assistant");
+        const knowledgeRows = await businessKnowledgeForWorkspace(user.uid, workspace.workspaceId, 50);
+        const knowledgeText = knowledgeRows.map(item => item?.content || item?.text || "").filter(Boolean).join("\n");
         const gate = await authorizeCapability(user.uid, "capability_chat");
         let reservation = null;
         try {
+          const usage = workspace.workspace?.usage || workspace.usage || {};
+          const limit = plan.plan?.limits?.aiMessagesPerMonth;
+          if (limit != null && !String(limit).toLowerCase().includes("unlimited") && Number(usage.messages || 0) >= Number(limit)) {
+            return send(res, 403, { error: "business_message_limit_reached", upgradeRequired: true, planId: plan.plan.id });
+          }
           reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
           const system = [
             "You are the BQ Sqwad AI Business Assistant.",
             "Keep business workspace information isolated from personal workspace context.",
-            "Use only the business knowledge supplied below when making business-specific claims; if it is absent, say that the workspace does not contain that information.",
+            "Use only the business knowledge supplied below when making business-specific claims.",
+            "Do not invent business facts, legal obligations, financial commitments, guarantees, or regulatory status.",
+            "For high-impact legal, financial, employment, healthcare, safety, tax, or compliance matters, clearly state limitations and recommend qualified professional review where appropriate.",
             "Business knowledge:",
             knowledgeText || "(No business knowledge has been added yet.)"
           ].join("\n");
           const result = await runAi({ capability: "chat", message, system });
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
           gate.commit();
-          await ref.set({
-            uid: user.uid,
-            analytics: { ...(data.analytics || {}), requests: Number(data.analytics?.requests || 0) + 1 },
+          await getFirestore().collection("businessWorkspaces").doc(workspace.workspaceId).set({
+            usage: { messages: FieldValue.increment(1) },
             updatedAt: FieldValue.serverTimestamp()
           }, { merge: true });
-          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
-          return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0 });
+          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "", workspaceId: workspace.workspaceId } });
+          return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0, planId: plan.plan.id });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "error", metadata: { error: error?.message || "business_request_failed" } });
+          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "error", metadata: { error: error?.message || "business_request_failed", workspaceId: workspace.workspaceId } });
           throw error;
         } finally {
           await gate.release();
