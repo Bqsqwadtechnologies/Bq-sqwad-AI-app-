@@ -356,3 +356,16 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Native Plans & Products now uses the entitlement list for a professional Current Plans surface and shows a red in-app expiry alert when a plan has 7 days or less remaining.
 - Native Plans & Products now presents the server-backed credit wallet with available and reserved balances. Credit pricing remains catalog/Google Play controlled; no Android price source was hardcoded.
 - Native Settings now has expanded feature-specific controls for chat/history/memory/web search, voice/camera/Companion, TruthGuard/Frontier, notifications/sound/vibration, appearance/accessibility, privacy, and account/security.
+
+
+## 2026-09-23 — End-to-end native feature connectivity hardening
+
+- Added authenticated server-backed per-workspace user feature settings at `GET/POST /feature-settings`.
+- Added organization scheduled AI task storage, create/update/run endpoints and a five-minute backend scheduler.
+- Scheduled organization AI tasks use the shared AI runtime and credit reservation/commit/reversal flow.
+- Added cleanup of feature settings and organization scheduled tasks to account deletion.
+- Streaming AI requests now preserve the optional system context sent by the native app.
+- Organization Studio AI Director now uses the streaming AI path with organization capability context.
+- Added organization scheduled-task controls to the native Organization Studio screen.
+- Expanded native feature settings into account-backed behavior settings for streaming, web search, memory, personalization, history, generated files, notifications, automation, background jobs and supported voice responses.
+- Commercial prices remain controlled by the existing canonical admin/Play catalog architecture; no native price source was hard-coded by these changes.
