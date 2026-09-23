@@ -1340,22 +1340,14 @@ private fun capabilityDescription(id: String): String = when (id) {
 }
 
 private val ADVANCED_APP_FEATURES: List<AppFeature>
-    get() {
-        val primary = PRIMARY_ADVANCED_FEATURES
-        val primaryIds = primary.map { it.id }.toSet()
-        val extra = AdvancedCapabilities.advanced
-            .filterNot { it in primaryIds }
-            .sorted()
-            .map { id ->
-                AppFeature(
-                    id = id,
-                    title = capabilityDisplayName(id),
-                    description = capabilityDescription(id),
-                    capability = id,
-                    webSearch = id == "web_research"
-                )
-            }
-        return primary + extra
+    get() = NativeFeatureRegistry.advanced.map { entry ->
+        AppFeature(
+            id = entry.id,
+            title = entry.title,
+            description = entry.description,
+            capability = entry.id,
+            webSearch = entry.webSearch
+        )
     }
 
 @Composable
@@ -1468,16 +1460,40 @@ private fun WorkspaceScreen(
 
 @Composable
 private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
+    val entry = NativeFeatureRegistry.find(feature.id)
     Scaffold(
-        topBar = { TopAppBar(title = { Text(feature.title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }
+        topBar = {
+            TopAppBar(
+                title = { Text(feature.title) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }
+            )
+        }
     ) { p ->
-        Column(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(p).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Surface(shape = RoundedCornerShape(22.dp), tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(feature.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Uses the shared BQ Sqwad AI runtime and server-controlled capability configuration.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Connected capability: " + feature.capability,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "This feature uses the shared BQ Sqwad AI runtime, central credit controls and server-side availability. It is part of the native app feature registry.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+            }
+            if (entry?.webSearch == true) {
+                SurfaceCard("Web Search", "Web evidence is available to this capability through the shared search service.")
+            }
+            if (entry?.credits != false) {
+                SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits remain admin-configurable.")
             }
             AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch)
         }
