@@ -12,6 +12,7 @@ import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -878,7 +879,8 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () ->
     IconButton(onClick = onPlans) { Icon(Icons.Default.CreditCard, "Plans") }
 }) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }            items(Workspace.values().filter { it != Workspace.CHAT }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            items(Workspace.values().filter { it != Workspace.CHAT }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
