@@ -92,6 +92,19 @@ class WorkspaceApiClient {
 
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
 
+    suspend fun organizationScheduledTasks(): JSONObject = request("/organization/scheduled-tasks","GET")
+
+    suspend fun createOrganizationScheduledTask(name:String, prompt:String, schedule:String, enabled:Boolean=true): JSONObject =
+        request("/organization/scheduled-tasks", payload=JSONObject().apply {
+            put("name", name.take(160)); put("prompt", prompt.take(8000)); put("schedule", schedule.take(40)); put("enabled", enabled)
+        })
+
+    suspend fun updateOrganizationScheduledTask(id:String, patch:JSONObject): JSONObject =
+        request("/organization/scheduled-tasks/" + java.net.URLEncoder.encode(id, "UTF-8"), "PATCH", patch)
+
+    suspend fun runOrganizationScheduledTask(id:String): JSONObject =
+        request("/organization/scheduled-tasks/" + java.net.URLEncoder.encode(id, "UTF-8") + "/run", payload=JSONObject())
+
     suspend fun organization(): JSONObject = request("/organization","GET")
 
     suspend fun updateOrganization(name:String, description:String): JSONObject =
