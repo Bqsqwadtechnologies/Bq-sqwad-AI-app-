@@ -58,8 +58,8 @@ test("credit subscriptions use internal credit IDs with daily weekly monthly bas
   );
   for (const row of credits) {
     assert.equal(row.productId, row.id);
-    assert.deepEqual(row.billingPeriods, ["daily", "weekly", "monthly"]);
-    assert.deepEqual(row.basePlans, ["daily", "weekly", "monthly"]);
+    assert.deepEqual(row.billingPeriods, ["weekly", "monthly"]);
+    assert.deepEqual(row.basePlans, ["weekly", "monthly"]);
     assert.equal(row.productType, "subs");
     assert.equal(row.recurring, true);
     assert.match(row.entitlements[0], /^credit:(100|250|500|1000)$/);
