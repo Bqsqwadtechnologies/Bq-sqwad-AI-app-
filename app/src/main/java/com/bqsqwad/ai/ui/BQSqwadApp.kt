@@ -591,6 +591,7 @@ private fun MainShell(modifier: Modifier) {
                             icon = {
                                 Icon(
                                     when (w) {
+                                        Workspace.VIDEO -> Icons.Default.VideoLibrary
                                         Workspace.SEARCH -> Icons.Default.Search
                                         Workspace.CAMERA -> Icons.Default.CameraAlt
                                         Workspace.VOICE -> Icons.Default.Mic
@@ -1153,6 +1154,7 @@ private fun WorkspaceScreen(
     ) { p ->
         Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
             when (w) {
+                Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
