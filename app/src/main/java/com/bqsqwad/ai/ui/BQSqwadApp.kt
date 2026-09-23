@@ -1925,6 +1925,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var showDeleteAccount by remember { mutableStateOf(false) }
     var deletingAccount by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
@@ -1944,6 +1945,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
         loadingAccount = true
         val api = WorkspaceApiClient()
         credits = runCatching { api.credits() }.getOrNull()
+        playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
             val a = api.entitlements().optJSONArray("items") ?: JSONArray()
             List(a.length()) { i -> a.getJSONObject(i) }
@@ -2023,6 +2025,45 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { Text("Plans, credits & billing", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            item {
+                val available = credits?.optDouble("available", 0.0) ?: 0.0
+                Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 4.dp) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Live credit balance", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(String.format(java.util.Locale.US, "%.2f credits", available), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("Server-authoritative balance shared by eligible AI features.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
+                item {
+                    val autoRenew = billing.optBoolean("autoRenewEnabled", false)
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 4.dp) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Google Play billing", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (autoRenew) "Auto-renewal ON" else "Auto-renewal OFF",
+                                color = if (autoRenew) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Google Play controls renewal and payment methods. Changes made there are reflected back to BQ Sqwad AI through verified purchase state and backend notifications.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("managementUrl"))))
+                                }, Modifier.weight(1f)) { Text("Manage") }
+                                OutlinedButton(onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("paymentMethodManagementUrl"))))
+                                }, Modifier.weight(1f)) { Text("Payment method") }
                             }
                         }
                     }
