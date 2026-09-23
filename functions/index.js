@@ -19,12 +19,14 @@ import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryC
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
+import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -389,6 +391,39 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "DELETE" && path === "memory") {
         return send(res, 200, await clearUserMemory(user.uid));
+      }
+
+      if (req.method === "GET" && path === "organization/scheduled-tasks") {
+        return send(res, 200, { tasks: await listOrganizationScheduledTasks(user.uid) });
+      }
+
+      if (req.method === "POST" && path === "organization/scheduled-tasks") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await createOrganizationScheduledTask(user.uid, body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "PATCH" && path.startsWith("organization/scheduled-tasks/")) {
+        const id = decodeURIComponent(path.slice("organization/scheduled-tasks/".length));
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await updateOrganizationScheduledTask(user.uid, id, body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path.startsWith("organization/scheduled-tasks/") && path.endsWith("/run")) {
+        const id = decodeURIComponent(path.slice("organization/scheduled-tasks/".length, -"/run".length));
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await runOrganizationScheduledTask(user.uid, id);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
       }
 
       if (req.method === "GET" && path === "organization") {
@@ -1945,4 +1980,7 @@ export const bqSqwadApi = onRequest(
 export const googlePlayRtdn = onMessagePublished({ topic: "google-play-rtdn", region: "europe-west1" }, async (event) => {
   try { return await processPlayRtdn(event); }
   catch (error) { console.error("Google Play RTDN error", error instanceof Error ? error.message : "notification_failed"); throw error; }
+});
+export const bqSqwadOrganizationScheduler = onSchedule({ schedule: "every 5 minutes", region: "europe-west1" }, async () => {
+  await runDueOrganizationScheduledTasks();
 });
