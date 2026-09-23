@@ -57,6 +57,36 @@ fun AdminConfigScreen() {
                                 }
                             }, enabled = !saving)
                         }
+                        if (option.id == "web_search_pricing") {
+                            var searchCredits by remember(option.id, option.version) { mutableStateOf(option.config.creditsPerSearch.toString()) }
+                            var researchCredits by remember(option.id, option.version) { mutableStateOf(option.config.creditsPerDeepResearch.toString()) }
+                            var maxResults by remember(option.id, option.version) { mutableStateOf(option.config.maxResults.toString()) }
+                            Text("Web Search pricing & limits", style = MaterialTheme.typography.titleSmall)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(searchCredits, { searchCredits = it }, label = { Text("Credits/search") }, modifier = Modifier.weight(1f))
+                                OutlinedTextField(researchCredits, { researchCredits = it }, label = { Text("Credits/deep research") }, modifier = Modifier.weight(1f))
+                            }
+                            OutlinedTextField(maxResults, { maxResults = it }, label = { Text("Max results") }, modifier = Modifier.fillMaxWidth())
+                            Button(
+                                enabled = !saving,
+                                onClick = {
+                                    saving = true
+                                    scope.launch {
+                                        try {
+                                            val cfg = option.config.copy(
+                                                creditsPerSearch = searchCredits.toDoubleOrNull() ?: option.config.creditsPerSearch,
+                                                creditsPerDeepResearch = researchCredits.toDoubleOrNull() ?: option.config.creditsPerDeepResearch,
+                                                maxResults = (maxResults.toLongOrNull() ?: option.config.maxResults).coerceIn(1, 20)
+                                            )
+                                            AdminAdvancedClient().update(option.copy(config = cfg))
+                                            options = AdminAdvancedClient().list()
+                                        } catch (t: Throwable) {
+                                            error = t.message ?: "Could not save web-search pricing."
+                                        } finally { saving = false }
+                                    }
+                                }
+                            ) { Text("Save Web Search settings") }
+                        }
                         Text("Credits: " + option.creditCost + " • Rollout: " + option.rolloutPercent + "%")
                         Text("Version " + option.version + if (saving) " • Saving…" else "")
                     }
