@@ -166,6 +166,49 @@ function usageWarnings(workspace, plan) {
   }));
 }
 
+export async function runBusinessUsageWarnings() {
+  const snap = await db().collection(BUSINESS_COLLECTIONS.workspaces).limit(500).get();
+  const monthKey = new Date().toISOString().slice(0, 7);
+  let checked = 0;
+  let created = 0;
+  for (const doc of snap.docs) {
+    const workspace = doc.data() || {};
+    const uid = clean(workspace.uid, 160);
+    if (!uid) continue;
+    checked++;
+    try {
+      const context = await effectiveBusinessPlan(uid, workspace);
+      const warnings = usageWarnings(workspace, context.plan);
+      if (!warnings.length) continue;
+      const addOns = await eligibleBusinessAddOns(context.plan.id);
+      for (const warning of warnings) {
+        const recommendations = addOns.filter(a => {
+          const id = String(a.id || "").toLowerCase();
+          return warning.key === "messages" ? id.includes("msgs") :
+            warning.key === "storage" ? id.includes("storage") :
+            warning.key === "assistants" ? id.includes("assistant") :
+            warning.key === "teamMembers" ? id.includes("team") || id.includes("user") : false;
+        }).slice(0, 4).map(a => ({ id: String(a.id), name: String(a.name || a.id), price: a.price || null }));
+        const notificationId = crypto.createHash("sha256").update(
+          [uid, doc.id, warning.key, monthKey, warning.severity].join("|")
+        ).digest("hex");
+        const ref = db().collection("businessUsageNotifications").doc(notificationId);
+        if ((await ref.get()).exists) continue;
+        await ref.set({
+          uid, workspaceId: doc.id, planId: context.plan.id,
+          kind: "business_usage_threshold", thresholdPercent: 80,
+          warning, recommendations, unread: true,
+          createdAt: FieldValue.serverTimestamp(), monthKey
+        });
+        created++;
+      }
+    } catch (error) {
+      console.error("business_usage_warning_failed", { workspaceId: doc.id, message: error?.message || "warning_failed" });
+    }
+  }
+  return { ok: true, checked, created };
+}
+
 async function eligibleBusinessAddOns(planId) {
   const configured = await db().collection("addOns").where("enabled", "==", true).get();
   const fallback = COMMERCIAL_CATALOG.sections.businessAddOns || [];
