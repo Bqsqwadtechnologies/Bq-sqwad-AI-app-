@@ -344,9 +344,6 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
     var confirmPassword by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmVisible by remember { mutableStateOf(false) }
-    var requiredConsent by remember { mutableStateOf(false) }
-    var showRequiredConsent by remember { mutableStateOf(true) }
-    var trainingConsent by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -374,61 +371,16 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
             trailingIcon = { TextButton(onClick = { confirmVisible = !confirmVisible }) { Text(if (confirmVisible) "Hide" else "Show") } }
         )
 
-        if (requiredConsent) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Required consent accepted", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "You can review the Terms and Privacy Policy again before creating the account.",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    TextButton(onClick = { showRequiredConsent = true }, enabled = !busy) {
-                        Text("Review privacy & terms")
-                    }
-                }
-            }
-        }
-        Row(verticalAlignment = Alignment.Top) {
-            Checkbox(checked = trainingConsent, onCheckedChange = { trainingConsent = it }, enabled = !busy)
-            Text(
-                "Optional: allow non-private training activity to improve the service. Private details, credentials, API keys, and personal content are excluded.",
-                modifier = Modifier.padding(top = 12.dp)
-            )
-        }
-
         val googleScope = rememberCoroutineScope()
 
         OutlinedButton(
             onClick = {
-                if (!requiredConsent) {
-                    error = "Please accept the Terms and Conditions and Privacy Policy before continuing with Google."
-                    return@OutlinedButton
-                }
                 busy = true
                 error = null
                 googleScope.launch {
                     try {
-                        val googleUser = performGoogleSignIn(context, auth)
-                        val consentPrefs = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
-                        consentPrefs.edit()
-                            .putString("policy_version", "2026-09")
-                            .putLong("required_consent_at", System.currentTimeMillis())
-                            .putBoolean("training_consent", trainingConsent)
-                            .putString("account_name", googleUser.displayName.orEmpty())
-                            .apply()
-                        val consentSaved = runCatching {
-                            WorkspaceApiClient().saveConsent("2026-09", trainingConsent)
-                        }.isSuccess
-                        if (!consentSaved) {
-                            auth.signOut()
-                            error = "Consent could not be recorded securely. No account was created or signed in."
-                        } else {
-                            onAuthenticated()
-                        }
+                        performGoogleSignIn(context, auth)
+                        onAuthenticated()
                     } catch (t: Throwable) {
                         error = friendlyGoogleAuthError(t)
                     } finally {
@@ -442,45 +394,19 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
 
         Button(
             enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 6 &&
-                password == confirmPassword && requiredConsent,
+                password == confirmPassword,
             onClick = {
                 busy = true
                 error = null
                 auth.createUserWithEmailAndPassword(email.trim(), password)
                     .addOnCompleteListener { task ->
+                        busy = false
                         if (!task.isSuccessful) {
-                            busy = false
                             error = friendlyAuthError(task.exception)
                             return@addOnCompleteListener
                         }
-                        val created = auth.currentUser
-                        val consentPrefs = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
-                        consentPrefs.edit()
-                            .putString("policy_version", "2026-09")
-                            .putLong("required_consent_at", System.currentTimeMillis())
-                            .putBoolean("training_consent", trainingConsent)
-                            .putString("account_name", name.trim())
-                            .apply()
-                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                            val consentSaved = runCatching {
-                                WorkspaceApiClient().saveConsent("2026-09", trainingConsent)
-                            }.isSuccess
-                            withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                if (!consentSaved) {
-                                    created?.delete()
-                                    busy = false
-                                    error = "Consent could not be recorded securely. Your account was not created."
-                                } else {
-                                    created?.sendEmailVerification()?.addOnCompleteListener {
-                                        busy = false
-                                        onAuthenticated()
-                                    } ?: run {
-                                        busy = false
-                                        onAuthenticated()
-                                    }
-                                }
-                            }
-                        }
+                        auth.currentUser?.sendEmailVerification()
+                        onAuthenticated()
                     }
             },
             modifier = Modifier.fillMaxWidth()
@@ -493,78 +419,6 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
         LegalConsentLinks()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
-
-    if (showRequiredConsent) {
-        RequiredSignupConsentDialog(
-            accepted = requiredConsent,
-            onAccept = {
-                requiredConsent = true
-                showRequiredConsent = false
-                error = null
-            },
-            onReject = {
-                requiredConsent = false
-                showRequiredConsent = false
-                error = "You declined the required Terms and Privacy Policy. No account was created."
-                onBackToSignIn()
-            }
-        )
-    }
-}
-
-@Composable
-private fun RequiredSignupConsentDialog(
-    accepted: Boolean,
-    onAccept: () -> Unit,
-    onReject: () -> Unit
-) {
-    val context = LocalContext.current
-    var pendingUrl by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = { },
-        title = { Text("Before you create your account") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    "Please read and accept the BQ Sqwad AI Privacy Policy and Terms & Conditions before an account can be created.",
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "These are required because they explain how your account, conversations, uploads, AI processing, permissions, security and data choices are handled."
-                )
-                TextButton(
-                    onClick = { pendingUrl = "https://bqsqwadai.com/privacy-policy#:~:text=Information%20we%20collect" },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Read Privacy Policy", fontWeight = FontWeight.SemiBold) }
-                TextButton(
-                    onClick = { pendingUrl = "https://bqsqwadai.com/terms#:~:text=Using%20the%20service" },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Read Terms & Conditions", fontWeight = FontWeight.SemiBold) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = accepted, onCheckedChange = { if (!accepted) onAccept() })
-                    Text("I have read and agree to the required Privacy Policy and Terms & Conditions.")
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onAccept, enabled = !accepted) {
-                Text(if (accepted) "Accepted" else "Accept & continue")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onReject) { Text("Reject") }
-        }
-    )
-    pendingUrl?.let { url ->
-        LaunchedEffect(url) {
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-            pendingUrl = null
-        }
-    }
-}
 
 @Composable
 private fun LegalConsentLinks() {
