@@ -1,0 +1,46 @@
+name: Diagnostic - Android Debug Signing Report
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-signing-report:
+    name: Report debug signing certificate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Print debug SHA-1
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$(./gradlew signingReport 2>&1)"
+          printf '%s\n' "$report" |
+            awk '
+              /Variant: debug/ { in_debug=1; next }
+              in_debug && /Variant:/ { in_debug=0 }
+              in_debug && /SHA1:/ { print $0; found=1 }
+              END {
+                if (!found) {
+                  print "DEBUG_SHA1_NOT_FOUND"
+                  exit 1
+                }
+              }
+            '
