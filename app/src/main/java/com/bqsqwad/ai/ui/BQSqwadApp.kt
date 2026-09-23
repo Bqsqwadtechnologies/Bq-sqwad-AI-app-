@@ -1252,6 +1252,7 @@ private fun SearchWorkspace() {
     var query by remember { mutableStateOf("") }
     var deep by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var answer by remember { mutableStateOf<String?>(null) }
     val results = remember { mutableStateListOf<SearchSource>() }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -1259,9 +1260,10 @@ private fun SearchWorkspace() {
         Row(verticalAlignment = Alignment.CenterVertically) { Switch(deep, { deep = it }); Text("Deep Research") }
         Button(enabled = query.isNotBlank(), onClick = {
             error = null
-            scope.launch { try { results.clear(); results.addAll(WorkspaceApiClient().search(query.trim(), deep).sources) } catch (t: Throwable) { error = t.message ?: "Search failed" } }
+            scope.launch { try { val reply = WorkspaceApiClient().search(query.trim(), deep); answer = reply.answer; results.clear(); results.addAll(reply.sources) } catch (t: Throwable) { error = t.message ?: "Search failed" } }
         }) { Text("Search") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        answer?.let { SurfaceCard(if (deep) "Deep Research Answer" else "Answer", it) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(results) { r ->
                 Card(Modifier.fillMaxWidth().clickable {
