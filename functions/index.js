@@ -24,6 +24,7 @@ import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, un
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
+import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -361,6 +362,16 @@ export const bqSqwadApi = onRequest(
         if (!doc.exists || doc.data()?.uid !== user.uid) return send(res, 404, { error: "history_not_found" });
         await ref.delete();
         return send(res, 200, { ok: true });
+      }
+
+      if (req.method === "GET" && path === "feature-settings") {
+        return send(res, 200, await getUserFeatureSettings(user.uid));
+      }
+
+      if (req.method === "POST" && path === "feature-settings") {
+        const workspaceId = String(body.workspaceId || "global").trim().slice(0, 80);
+        if (!workspaceId) return send(res, 400, { error: "workspace_id_required" });
+        return send(res, 200, await updateUserFeatureSettings(user.uid, workspaceId, body.settings || {}));
       }
 
       if (req.method === "GET" && path === "memory") {
