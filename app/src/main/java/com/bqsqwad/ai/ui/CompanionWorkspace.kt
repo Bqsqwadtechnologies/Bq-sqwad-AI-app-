@@ -64,5 +64,6 @@ fun CompanionWorkspace(){
             busy=true
             scope.launch{runCatching{ChatApiClient().sendMessage("Personality: $personality. $prompt","companion")}.onSuccess{messages.add(CompanionMessage(false,it.text))}.onFailure{notice=it.message?:"Check-in failed."};busy=false}
         },modifier=Modifier.fillMaxWidth()){Text("Daily check-in")}
+        DeviceIntelligencePanel("AI Companion")
     }
 }
