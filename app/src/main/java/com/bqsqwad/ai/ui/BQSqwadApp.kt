@@ -1252,7 +1252,6 @@ private data class AppFeature(val id: String, val title: String, val description
 
 private val PRIMARY_ADVANCED_FEATURES = listOf(
     AppFeature("codron", "Codron AI", "AI coding, repository understanding, debugging and controlled code changes.", "codron"),
-    AppFeature("ai_agent", "AI Agent", "Task-oriented agents with tools, memory, execution history and controlled automation.", "ai_agent"),
     AppFeature("deep_research", "Deep Research", "Multi-step research with web evidence, source collection and report generation.", "deep_research", true),
     AppFeature("knowledge_graphs", "Knowledge Graphs", "Connect people, facts, documents and relationships into searchable knowledge.", "knowledge_graphs", true),
     AppFeature("semantic_file_search", "Semantic File Search", "Find relevant information across supported uploaded files by meaning.", "semantic_file_search"),
@@ -2669,7 +2668,7 @@ private fun speakTextWhenReady(context: Context, text: String, onError: (String)
 }
 
 @Composable private fun FloatingLogo(modifier: Modifier) {
-    Box(modifier.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF5FB7FF), Color(0xFF0A5DB8), Color.Transparent)))) { LogoBubble(Modifier.fillMaxSize().padding(8.dp)) }
+    Box(modifier.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF7EA7FF), Color(0xFF1749D1), Color(0xFF061A63), Color.Transparent)))) { LogoBubble(Modifier.fillMaxSize().padding(8.dp)) }
 }
 
 @Composable
