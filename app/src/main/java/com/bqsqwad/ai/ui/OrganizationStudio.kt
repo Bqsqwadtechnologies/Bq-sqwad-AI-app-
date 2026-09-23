@@ -446,9 +446,16 @@ fun OrganizationStudioWorkspace() {
                             error = null
                             scope.launch {
                                 try {
-                                    directorResult = ChatApiClient().sendMessage(
-                                        "Organization Studio AI production director request:\n$directorPrompt"
-                                    ).text
+                                    val streamed = StringBuilder()
+                                    val reply = ChatApiClient().streamMessage(
+                                        "Organization Studio AI production director request:\n$directorPrompt",
+                                        "organization_studio",
+                                        onDelta = { delta ->
+                                            streamed.append(delta)
+                                            directorResult = streamed.toString()
+                                        }
+                                    )
+                                    directorResult = reply.text
                                 } catch (t: Throwable) {
                                     error = t.message ?: "AI director request failed."
                                 } finally { busy = false }
