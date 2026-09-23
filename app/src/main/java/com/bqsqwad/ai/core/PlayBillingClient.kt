@@ -3,6 +3,7 @@ package com.bqsqwad.ai.core
 import android.app.Activity
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.ProductType
+import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
@@ -36,7 +37,7 @@ data class PlayPurchaseState(
 class PlayBillingClient(
     private val activity: Activity,
     private val onPurchaseState: (PlayPurchaseState) -> Unit = {}
-) : BillingClient.BillingClientStateListener, BillingClient.PurchasesUpdatedListener {
+) : BillingClientStateListener, BillingClient.PurchasesUpdatedListener {
 
     private val baseUrl = "https://europe-west1-" +
         FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
