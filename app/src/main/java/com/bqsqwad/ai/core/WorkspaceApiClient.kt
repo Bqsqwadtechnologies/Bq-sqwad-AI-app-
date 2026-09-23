@@ -64,6 +64,17 @@ class WorkspaceApiClient {
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
 
     suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
+    suspend fun adminBusinessTestSession(): JSONObject = request("/admin/business/test-session", "GET")
+
+    suspend fun setAdminBusinessTestSession(planId: String, enabled: Boolean = true, durationMinutes: Int = 120): JSONObject =
+        request("/admin/business/test-session", payload = JSONObject().put("planId", planId).put("enabled", enabled).put("durationMinutes", durationMinutes))
+
+    suspend fun runAdminBusinessTestSuite(planId: String): JSONObject =
+        request("/admin/business/test-suite", payload = JSONObject().put("planId", planId))
+
+    suspend fun setAdminBusinessPlanStatus(planId: String, active: Boolean): JSONObject =
+        request("/admin/business/plan-status", payload = JSONObject().put("planId", planId).put("active", active))
+
 
     suspend fun saveAdminPlanCatalog(version:Int, catalog:JSONObject):JSONObject =
         request("/admin/plan-catalog", payload=JSONObject().put("version", version).put("catalog", catalog))
