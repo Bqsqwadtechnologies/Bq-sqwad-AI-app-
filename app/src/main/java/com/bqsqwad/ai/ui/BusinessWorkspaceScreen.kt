@@ -33,7 +33,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture")
+    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -134,6 +134,9 @@ fun BusinessWorkspaceScreen() {
                     }
                 }
                 Records(extended.optJSONArray("automations") ?: JSONArray(), "Automation")
+            }
+            "Channels" -> {
+                SocialChannelsPanel(api, error = { error = it })
             }
             "Lead Capture" -> {
                 RecordCreateForm("Lead capture form", listOf("name","source")) { values ->
@@ -236,3 +239,36 @@ private fun Records(array: JSONArray, title: String) {
         }
     }
 }
+@Composable
+private fun SocialChannelsPanel(api: WorkspaceApiClient, error: (String) -> Unit) {
+    var accounts by remember { mutableStateOf(JSONArray()) }
+    var text by remember { mutableStateOf("") }
+    var accountId by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        runCatching { api.socialAccounts() }
+            .onSuccess { accounts = it.optJSONArray("accounts") ?: JSONArray() }
+            .onFailure { error(it.message ?: "Social channels could not be loaded.") }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Connected Channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Connect supported social accounts through the secure OAuth flow, then publish from one workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (accounts.length() == 0) SurfaceCard("No connected channels", "Connect a social account from the account/OAuth flow.")
+        for (i in 0 until accounts.length()) {
+            val a = accounts.optJSONObject(i) ?: continue
+            val id = a.optString("id")
+            OutlinedButton(onClick = { accountId = id }) {
+                Text(a.optString("platform").replaceFirstChar { it.uppercase() } + if (accountId == id) " • Selected" else "")
+            }
+        }
+        OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Post text") })
+        Button(enabled = accountId.isNotBlank() && text.isNotBlank(), onClick = {
+            scope.launch {
+                runCatching { api.publishSocial(accountId, text) }
+                    .onFailure { error(it.message ?: "Publishing failed.") }
+                    .onSuccess { text = "" }
+            }
+        }) { Text("Publish") }
+    }
+}
+
