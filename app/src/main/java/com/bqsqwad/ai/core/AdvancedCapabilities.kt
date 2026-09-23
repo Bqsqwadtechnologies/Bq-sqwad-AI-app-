@@ -4,6 +4,9 @@ object AdvancedCapabilities {
     const val IMAGE_GENERATION = "image_generation"
     const val VIDEO_GENERATION = "video_generation"
     const val FILE_ANALYSIS = "file_analysis"
+    const val TRUTH_GUARD = "truth_guard"
+    const val FRONTIER_LAB = "frontier_lab"
+    const val DATA_ANALYSIS = "data_analysis_workspace"
     const val CODRON = "codron"
     const val BUSINESS_TRAINING_TEXT = "business_training_text"
     const val BUSINESS_TRAINING_PHOTO = "business_training_photo"
@@ -36,7 +39,7 @@ object AdvancedCapabilities {
         "audio_analysis","video_analysis","conversation_search","conversation_export","memory",
         "personal_memory","project_memory","business_memory","device_intelligence",
         "calendar_actions","reminder_actions","location_assistance","screen_awareness",
-        "media_controls","web_research","research_export","live_camera_ocr",
+        "media_controls","web_research","research_export","truth_guard","frontier_lab","data_analysis_workspace","live_camera_ocr",
         "live_camera_scene_understanding","live_voice_barge_in","voice_activity_detection",
         "learning_quizzes","document_to_course","business_crm","business_workflows",
         "business_analytics","business_knowledge","business_agents","business_channels",
