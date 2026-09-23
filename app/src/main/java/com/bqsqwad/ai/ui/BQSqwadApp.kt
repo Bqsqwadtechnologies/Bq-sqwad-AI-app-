@@ -525,6 +525,12 @@ private fun MainShell(modifier: Modifier) {
     var history by remember { mutableStateOf(false) }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
+    var featureHub by remember { mutableStateOf(false) }
+    var adminAuthorized by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        adminAuthorized = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
+    }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
         drawerOpen = false
@@ -583,7 +589,7 @@ private fun MainShell(modifier: Modifier) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    items(Workspace.values().filter { it != Workspace.CHAT }) { w ->
+                    items(Workspace.values().filter { it != Workspace.CHAT && (it != Workspace.ADMIN || adminAuthorized) }) { w ->
                         NavigationDrawerItem(
                             label = { Text(w.title) },
                             selected = workspace == w,
@@ -632,6 +638,16 @@ private fun MainShell(modifier: Modifier) {
         modifier = modifier
     ) {
         when {
+            featureHub -> FeatureHub(
+                onBack = { featureHub = false },
+                onPlans = { featureHub = false; plans = true },
+                onHistory = { featureHub = false; history = true },
+                onWorkspace = { selected ->
+                    if (selected == Workspace.ADMIN && !adminAuthorized) return@FeatureHub
+                    featureHub = false
+                    workspace = selected
+                }
+            )
             plans -> ProductCatalogScreen { plans = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
             featureInfo != null -> FeatureInfoScreen(featureInfo!!) { featureInfo = null }
@@ -653,6 +669,7 @@ private fun MainShell(modifier: Modifier) {
             else -> MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 openHub = { drawerOpen = true },
+                openFeatures = { featureHub = true },
                 openSettings = { settings = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
                 onPrivacy = { featurePrivacy = Workspace.CHAT }
@@ -664,7 +681,7 @@ private fun MainShell(modifier: Modifier) {
 private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -879,74 +896,100 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 ),
                 label = "composerPulseValue"
             )
-            val composerBlue = Color(0xFF0A63FF).copy(alpha = 0.55f + (pulse * 0.45f))
-            Surface(
-                modifier = Modifier.fillMaxWidth().border(2.dp, composerBlue, composerShape),
-                shape = composerShape,
-                color = Color.White,
-                shadowElevation = 10.dp
+            val composerBlue = Color(0xFF1457FF).copy(alpha = 0.55f + (pulse * 0.45f))
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.Bottom
+                Surface(
+                    modifier = Modifier.fillMaxWidth().border(2.dp, composerBlue, composerShape),
+                    shape = composerShape,
+                    color = Color.White,
+                    shadowElevation = 10.dp
                 ) {
-                    Column(modifier = Modifier.width(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(
-                            onClick = {
-                                micError = null
-                                speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
-                                })
-                            },
-                            enabled = !busy
-                        ) {
-                            Icon(Icons.Default.Mic, contentDescription = "Speech to text", tint = Color(0xFF0A63FF))
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 8.dp, end = 58.dp, top = 7.dp, bottom = 7.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Column(modifier = Modifier.width(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconButton(
+                                onClick = {
+                                    micError = null
+                                    speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
+                                    })
+                                },
+                                enabled = !busy
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = "Speech to text", tint = Color(0xFF1457FF))
+                            }
+                            IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
+                                Icon(Icons.Default.AttachFile, contentDescription = "Upload attachment", tint = Color(0xFF1457FF))
+                            }
                         }
-                        IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
-                            Icon(Icons.Default.AttachFile, contentDescription = "Upload attachment", tint = Color(0xFF0A63FF))
+                        OutlinedTextField(
+                            value = message,
+                            onValueChange = { value ->
+                                micError = null
+                                message = value
+                            },
+                            placeholder = { Text("Message BQ Sqwad AI", color = Color(0xFF667085)) },
+                            modifier = Modifier.weight(1f).heightIn(min = 68.dp),
+                            minLines = 2,
+                            maxLines = 6,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                disabledBorderColor = Color.Transparent,
+                                errorBorderColor = Color.Transparent,
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            )
+                        )
+                        IconButton(
+                            enabled = message.isNotBlank() || attachments.isNotEmpty() || busy,
+                            onClick = {
+                                if (busy) {
+                                    streamJob?.cancel()
+                                    return@IconButton
+                                }
+                                val text = message.trim()
+                                if (FirebaseAuth.getInstance().currentUser == null) {
+                                    showAuth = true
+                                    return@IconButton
+                                }
+                                sendAuthenticatedMessage(text)
+                            },
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Icon(
+                                if (busy) Icons.Default.Stop else Icons.Default.Send,
+                                contentDescription = if (busy) "Stop generating" else "Send",
+                                tint = Color(0xFF1457FF),
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
                     }
-                    OutlinedTextField(
-                        value = message,
-                        onValueChange = { value ->
-                            micError = null
-                            message = value
-                        },
-                        placeholder = { Text("Message BQ Sqwad AI", color = Color(0xFF667085)) },
-                        modifier = Modifier.weight(1f).heightIn(min = 68.dp),
-                        minLines = 2,
-                        maxLines = 6,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            disabledBorderColor = Color.Transparent,
-                            errorBorderColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        )
-                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .padding(end = 6.dp)
+                        .size(58.dp)
+                        .border(2.dp, Color(0xFF1457FF).copy(alpha = 0.75f + pulse * 0.25f), CircleShape),
+                    shape = CircleShape,
+                    color = Color(0xFF1457FF),
+                    shadowElevation = 18.dp
+                ) {
                     IconButton(
-                        enabled = message.isNotBlank() || attachments.isNotEmpty() || busy,
-                        onClick = {
-                            if (busy) {
-                                streamJob?.cancel()
-                                return@IconButton
-                            }
-                            val text = message.trim()
-                            if (FirebaseAuth.getInstance().currentUser == null) {
-                                showAuth = true
-                                return@IconButton
-                            }
-                            sendAuthenticatedMessage(text)
-                        },
-                        modifier = Modifier.size(52.dp)
+                        onClick = openFeatures,
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         Icon(
-                            if (busy) Icons.Default.Stop else Icons.Default.Send,
-                            contentDescription = if (busy) "Stop generating" else "Send",
-                            tint = Color(0xFF0A63FF),
-                            modifier = Modifier.size(28.dp)
+                            Icons.Default.Add,
+                            contentDescription = "Open AI Features",
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
                         )
                     }
                 }
@@ -1120,7 +1163,7 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () ->
 }) }) { p ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(Workspace.values().filter { it != Workspace.CHAT }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -1152,6 +1195,25 @@ private fun WorkspaceScreen(
             )
         }
     ) { p ->
+        if (w == Workspace.ADMIN) {
+            var allowed by remember { mutableStateOf<Boolean?>(null) }
+            LaunchedEffect(Unit) {
+                allowed = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
+            }
+            when (allowed) {
+                null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                true -> Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
+                    when (w) {
+                        Workspace.ADMIN -> AdminControlCenter()
+                        else -> Unit
+                    }
+                }
+                false -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
+                    AccessDenied()
+                }
+            }
+            return@Scaffold
+        }
         Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
