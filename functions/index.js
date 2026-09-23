@@ -21,7 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 
