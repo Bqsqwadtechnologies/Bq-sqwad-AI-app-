@@ -79,6 +79,8 @@ class WorkspaceApiClient {
 
     suspend fun entitlement():JSONObject = request("/entitlement","GET")
 
+    suspend fun entitlements():JSONObject = request("/entitlements","GET")
+
     suspend fun credits():JSONObject = request("/credits","GET")
 
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
