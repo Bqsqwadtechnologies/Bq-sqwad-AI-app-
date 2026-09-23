@@ -4,7 +4,6 @@ import android.app.Activity
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.ProductType
 import com.android.billingclient.api.BillingClientStateListener
-import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
@@ -39,13 +38,15 @@ data class PlayPurchaseState(
 class PlayBillingClient(
     private val activity: Activity,
     private val onPurchaseState: (PlayPurchaseState) -> Unit = {}
-) : BillingClientStateListener, BillingClient.PurchasesUpdatedListener {
+) : BillingClientStateListener {
 
     private val baseUrl = "https://europe-west1-" +
         FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 
     private val client = BillingClient.newBuilder(activity)
-        .setListener(this)
+        .setListener { result, purchases ->
+            handlePurchasesUpdated(result, purchases)
+        }
         .enablePendingPurchases(
             com.android.billingclient.api.PendingPurchasesParams.newBuilder()
                 .enableOneTimeProducts()
@@ -83,7 +84,7 @@ class PlayBillingClient(
         connected = false
     }
 
-    override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
+    private fun handlePurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
             return
@@ -139,7 +140,7 @@ class PlayBillingClient(
             QueryPurchasesParams.newBuilder().setProductType(ProductType.SUBS).build()
         ) { _, purchases -> purchases.forEach(::verifyWithBackend) }
         client.queryPurchasesAsync(
-            BillingClient.QueryPurchasesParams.newBuilder().setProductType(ProductType.INAPP).build()
+            QueryPurchasesParams.newBuilder().setProductType(ProductType.INAPP).build()
         ) { _, purchases -> purchases.forEach(::verifyWithBackend) }
     }
 
