@@ -120,7 +120,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             error!=null->ProductError(error!!,Modifier.padding(padding),::load)
             else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Choose what you need",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Features and limits come from the live catalog. Google Play supplies the purchase price shown below.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Choose what you need",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Plans and USD list prices come from the live admin catalog. Google Play supplies the final localized checkout price.",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 salesNotice?.let { notice -> item { ProductNotice("Sales update", notice) } }
                 item {
@@ -323,8 +323,6 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                                 Text(option.name,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
                                 Text(option.billingPeriod.replaceFirstChar{it.uppercase()}+" • Contact Sales",color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                option.features.take(6).forEach{Text("• "+it)}
-                                if(option.limits.isNotEmpty())Text("Limits: "+option.limits.entries.joinToString(", "){it.key+"="+it.value})
                                 Button(onClick={contactPlan=ContactSelection("",option.name,option.billingPeriod,option.features)},modifier=Modifier.fillMaxWidth()){Text("Contact Sales")}
                             }
                         }
