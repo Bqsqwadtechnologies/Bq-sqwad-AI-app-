@@ -227,10 +227,10 @@ fun OrganizationStudioWorkspace() {
                                             "Organization knowledge:\n" + if (settings?.optBoolean("sharedKnowledgeEnabled", false) == true) knowledge else "(shared knowledge disabled)"
                                         ).joinToString("\n")
                                         val streamed = StringBuilder()
-                                        val reply = ChatApiClient().streamMessage(assistantPrompt, "organization_studio", system) { delta ->
+                                        val reply = ChatApiClient().streamMessage(assistantPrompt, "organization_studio", onDelta = { delta ->
                                             streamed.append(delta)
                                             assistantResult = streamed.toString()
-                                        }
+                                        }, system = system)
                                         assistantResult = reply.text
                                         assistantPrompt = ""
                                     }
