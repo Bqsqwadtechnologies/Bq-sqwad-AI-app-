@@ -129,30 +129,6 @@ export const bqSqwadApi = onRequest(
         try { body = JSON.parse(body); } catch { body = {}; }
       }
 
-      if (req.method === "POST" && path === "business/advanced-ai") {
-        return send(res, 200, await advancedAiTask(user.uid, body));
-      }
-
-      if (req.method === "GET" && path === "business/advanced-ai/jobs") {
-        return send(res, 200, { jobs: await listAdvancedAiJobs(user.uid, String(req.query.workspaceId || "").trim()) });
-      }
-
-      if (req.method === "GET" && path === "business/integrations") {
-        return send(res, 200, await getBusinessIntegrationConfig(user.uid, String(req.query.workspaceId || "").trim()));
-      }
-
-      if (req.method === "POST" && path === "business/integrations") {
-        return send(res, 200, await configureBusinessIntegration(user.uid, body));
-      }
-
-      if (req.method === "GET" && path === "business/enterprise") {
-        return send(res, 200, await getEnterpriseConfig(user.uid, String(req.query.workspaceId || "").trim()));
-      }
-
-      if (req.method === "PATCH" && path === "business/enterprise") {
-        return send(res, 200, await updateEnterpriseConfig(user.uid, String(body.workspaceId || "").trim(), body.config || body));
-      }
-
       if (req.method === "GET" && path === "health") {
         return send(res, 200, { ok: true, service: "bq-sqwad-ai", time: new Date().toISOString() });
       }
@@ -195,6 +171,31 @@ export const bqSqwadApi = onRequest(
       if (path !== "consent" && path !== "consent/training" && path !== "account") {
         await requireRequiredConsent(user.uid);
       }
+
+      if (req.method === "POST" && path === "business/advanced-ai") {
+        return send(res, 200, await advancedAiTask(user.uid, body));
+      }
+
+      if (req.method === "GET" && path === "business/advanced-ai/jobs") {
+        return send(res, 200, { jobs: await listAdvancedAiJobs(user.uid, String(req.query.workspaceId || "").trim()) });
+      }
+
+      if (req.method === "GET" && path === "business/integrations") {
+        return send(res, 200, await getBusinessIntegrationConfig(user.uid, String(req.query.workspaceId || "").trim()));
+      }
+
+      if (req.method === "POST" && path === "business/integrations") {
+        return send(res, 200, await configureBusinessIntegration(user.uid, body));
+      }
+
+      if (req.method === "GET" && path === "business/enterprise") {
+        return send(res, 200, await getEnterpriseConfig(user.uid, String(req.query.workspaceId || "").trim()));
+      }
+
+      if (req.method === "PATCH" && path === "business/enterprise") {
+        return send(res, 200, await updateEnterpriseConfig(user.uid, String(body.workspaceId || "").trim(), body.config || body));
+      }
+
 
       if (req.method === "GET" && path === "social/accounts") {
         return send(res, 200, { accounts: await listSocialAccounts(user.uid) });
