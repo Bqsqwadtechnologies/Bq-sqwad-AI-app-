@@ -1,6 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { runAi, callOpenAIVision, getRoute } from "./provider-gateway.js";
-import { requireBusinessAccess } from "./business-phases.js";
+import { requireBusinessAccess, requireBusinessPlan } from "./business-phases.js";
 
 const db = () => getFirestore();
 const clean = (v, n = 1000) => String(v ?? "").trim().slice(0, n);
@@ -8,7 +8,7 @@ const obj = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 
 export async function advancedAiTask(uid, input = {}) {
   const workspaceId = clean(input.workspaceId, 120);
-  if (workspaceId) await requireBusinessAccess(uid, workspaceId);
+  if (workspaceId) { await requireBusinessAccess(uid, workspaceId); await requireBusinessPlan(uid, workspaceId, "advanced"); }
   const capability = clean(input.capability, 60) || "chat";
   const message = clean(input.message, 12000);
   if (!message) throw new Error("advanced_ai_message_required");
@@ -54,6 +54,7 @@ export function supportedBusinessIntegrations() { return INTEGRATIONS.map(id => 
 
 export async function getBusinessIntegrationConfig(uid, workspaceId) {
   await requireBusinessAccess(uid, workspaceId);
+  await requireBusinessPlan(uid, workspaceId, "channels");
   const snap = await db().collection("businessIntegrationConfigs").where("workspaceId", "==", workspaceId).limit(100).get();
   return { integrations: supportedBusinessIntegrations(), configured: snap.docs.map(d => ({ id:d.id, integration:d.data().integration, enabled:d.data().enabled === true, settings:d.data().publicSettings || {} })) };
 }
@@ -61,6 +62,7 @@ export async function getBusinessIntegrationConfig(uid, workspaceId) {
 export async function configureBusinessIntegration(uid, input = {}) {
   const workspaceId = clean(input.workspaceId, 120);
   await requireBusinessAccess(uid, workspaceId, "admin");
+  await requireBusinessPlan(uid, workspaceId, "channels");
   const integration = clean(input.integration, 80);
   if (!INTEGRATIONS.includes(integration)) throw new Error("unsupported_business_integration");
   const ref = db().collection("businessIntegrationConfigs").doc(workspaceId + "_" + integration);
@@ -74,6 +76,8 @@ export async function configureBusinessIntegration(uid, input = {}) {
 
 export async function getEnterpriseConfig(uid, workspaceId) {
   await requireBusinessAccess(uid, workspaceId);
+  const plan = await requireBusinessPlan(uid, workspaceId);
+  if (!["bizenterprise","businessenterprise"].includes(plan.plan.id)) throw new Error("business_enterprise_plan_required");
   const ref = db().collection("businessEnterpriseConfigs").doc(workspaceId);
   const snap = await ref.get();
   return { workspaceId, config: snap.exists ? snap.data() : {
@@ -88,6 +92,8 @@ export async function getEnterpriseConfig(uid, workspaceId) {
 
 export async function updateEnterpriseConfig(uid, workspaceId, patch = {}) {
   await requireBusinessAccess(uid, workspaceId, "owner");
+  const plan = await requireBusinessPlan(uid, workspaceId);
+  if (!["bizenterprise","businessenterprise"].includes(plan.plan.id)) throw new Error("business_enterprise_plan_required");
   const ref = db().collection("businessEnterpriseConfigs").doc(workspaceId);
   const current = await getEnterpriseConfig(uid, workspaceId);
   const next = { ...current.config, ...obj(patch), updatedBy: uid, updatedAt: FieldValue.serverTimestamp() };
