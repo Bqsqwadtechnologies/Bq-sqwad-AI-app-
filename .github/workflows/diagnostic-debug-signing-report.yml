@@ -21,35 +21,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 9.5
         uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5'
 
-      - name: Find Gradle project
+      - name: Verify project structure
         shell: bash
         run: |
           set -euo pipefail
-
-          GRADLEW_PATH="$(find . -type f -name gradlew -print -quit)"
-
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "ERROR: gradlew was not found."
-            exit 1
-          fi
-
-          GRADLE_DIR="$(dirname "$GRADLEW_PATH")"
-
-          echo "Gradle project found at: $GRADLE_DIR"
-          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          echo "Android Gradle project found at repository root."
 
       - name: Generate debug signing report
         shell: bash
         run: |
           set -euo pipefail
 
-          cd "$GRADLE_DIR"
-          chmod +x ./gradlew
-
-          report="$(./gradlew signingReport 2>&1)"
+          report="$(gradle --no-daemon signingReport 2>&1)"
 
           printf '%s
 ' "$report" |
