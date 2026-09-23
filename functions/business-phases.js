@@ -130,7 +130,7 @@ function limitValue(plan, key) {
   return Number.isFinite(n) ? n : null;
 }
 
-async function requireBusinessPlan(uid, workspaceId, group = null) {
+export async function requireBusinessPlan(uid, workspaceId, group = null) {
   const ref = workspaceRef(workspaceId);
   const snap = await ref.get();
   if (!snap.exists) throw new Error("business_workspace_not_found");
