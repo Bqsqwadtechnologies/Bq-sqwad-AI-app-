@@ -231,6 +231,10 @@ class WorkspaceApiClient {
     suspend fun businessAdvancedAi(payload: JSONObject): JSONObject =
         request("/business/advanced-ai", payload=payload)
 
+    suspend fun businessPlanBuilder(workspaceId:String, brief:String): JSONObject =
+        request("/business/plan-builder", payload=JSONObject().put("workspaceId", workspaceId).put("brief", brief.take(12000)))
+
+
     suspend fun businessAdvancedAiJobs(workspaceId:String? = null): JSONObject =
         request("/business/advanced-ai/jobs" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
 
