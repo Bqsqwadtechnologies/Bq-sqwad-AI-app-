@@ -21,7 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
 initializeApp();
@@ -958,6 +958,18 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "business/members") {
         return send(res, 200, { ok: true, member: await addBusinessMember(user.uid, body) });
       }
+      if (req.method === "GET" && path === "business/extended") {
+        const result = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
+        return send(res, 200, await listBusinessExtended(user.uid, result.workspaceId));
+      }
+      if (req.method === "POST" && path === "business/extended") {
+        return send(res, 200, { ok: true, record: await createBusinessExtended(user.uid, String(body.type || ""), body) });
+      }
+      if (req.method === "PATCH" && path.startsWith("business/extended/")) {
+        const parts = path.split("/");
+        return send(res, 200, { ok: true, record: await updateBusinessExtended(user.uid, String(parts[2] || ""), String(parts[3] || ""), body) });
+      }
+
       if (req.method === "GET" && path === "business/records") {
         const type = String(req.query?.type || "").trim();
         const result = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
