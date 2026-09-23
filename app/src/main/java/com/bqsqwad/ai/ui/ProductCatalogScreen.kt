@@ -193,19 +193,26 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                     Button(
                                         onClick = {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playManagement?.optString("managementUrl"))))
+                                            val url = playManagement?.optString("managementUrl").orEmpty()
+                                            if (url.isNotBlank()) {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                                status = "Google Play opened. Turn off auto-renewal there; your access remains until the paid period ends."
+                                            }
                                         },
                                         modifier=Modifier.weight(1f)
-                                    ) { Text("Manage subscription") }
+                                    ) {
+                                        Text(if (autoRenew) "Turn off auto-renewal" else "Manage subscription")
+                                    }
                                     OutlinedButton(
                                         onClick = {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playManagement?.optString("paymentMethodManagementUrl"))))
+                                            val url = playManagement?.optString("paymentMethodManagementUrl").orEmpty()
+                                            if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                         },
                                         modifier=Modifier.weight(1f)
                                     ) { Text("Payment method") }
                                 }
                                 Text(
-                                    "Auto-renewal and payment methods are controlled by Google Play. BQ Sqwad AI does not store or silently remove your Google payment method.",
+                                    if (autoRenew) "Turn off auto-renewal opens the Google Play subscription controls. Google Play remains authoritative; BQ Sqwad AI will refresh the backend entitlement after the change." else "Auto-renewal is currently off. You can manage or resubscribe through Google Play. BQ Sqwad AI will refresh the backend entitlement after the change.",
                                     style=MaterialTheme.typography.bodySmall,
                                     color=MaterialTheme.colorScheme.onSurfaceVariant
                                 )
