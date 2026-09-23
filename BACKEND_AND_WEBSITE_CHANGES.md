@@ -315,3 +315,12 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added native Business Channels UI and publishing flow.
 - Social provider credentials/tokens remain server-side; no provider secret is embedded in Android.
 - External provider publishing requires the corresponding provider application, OAuth configuration, permissions, and account connection in the existing admin configuration.
+
+
+## Business Phases 6–9 implementation — 2026-09
+- Added advanced Business AI task/job service using the existing server-side provider gateway, including image-capable AI requests and persisted job records.
+- Added native Advanced AI controls and job API.
+- Added a Business integration registry for Google Workspace, Microsoft 365, calendars, Shopify, WooCommerce, WordPress, Zapier, CRM/API, webhooks, email and SMS. Integration credentials remain server-side and each provider must be configured before use.
+- Added enterprise workspace configuration for SSO provider metadata, audit-log policy, departments, white-label settings, SLA targets and security policy.
+- Added native Enterprise controls and integration visibility.
+- Phase 9 canonical commercial catalog/admin controls remain server-authoritative through the existing plan-catalog and Google Play projection; admin-only catalog IDs, validation, versioning and audit records are preserved.
