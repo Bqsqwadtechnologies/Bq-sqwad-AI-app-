@@ -168,6 +168,22 @@ class WorkspaceApiClient {
     suspend fun updateBusinessExtended(type:String, id:String, payload:JSONObject): JSONObject =
         request("/business/extended/" + type + "/" + id, "PATCH", payload)
 
+    suspend fun runBusinessAutomation(automationId:String, event:JSONObject = JSONObject()): JSONObject =
+        request("/business/automations/run", payload=JSONObject().put("automationId", automationId.take(160)).put("event", event))
+
+    suspend fun socialAccounts(): JSONObject = request("/social/accounts", "GET")
+
+    suspend fun startSocialOAuth(platform:String, redirectUri:String): JSONObject =
+        request("/social/oauth/start", payload=JSONObject().put("platform", platform.take(40)).put("redirectUri", redirectUri.take(1000)))
+
+    suspend fun publishSocial(accountId:String, text:String, mediaUrl:String? = null, pageId:String? = null, instagramAccountId:String? = null): JSONObject =
+        request("/social/publish", payload=JSONObject().apply {
+            put("accountId", accountId.take(160)); put("text", text.take(5000))
+            if (mediaUrl != null) put("mediaUrl", mediaUrl.take(2000))
+            if (pageId != null) put("pageId", pageId.take(120))
+            if (instagramAccountId != null) put("instagramAccountId", instagramAccountId.take(120))
+        })
+
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
