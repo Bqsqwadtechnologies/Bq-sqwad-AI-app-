@@ -100,6 +100,9 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     ? Number(verified.purchaseState ?? -1)
     : 0;
   const lineItem = requestedMapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
+  const autoRenewEnabled = requestedMapping.productType === "subs"
+    ? lineItem.autoRenewingPlan?.autoRenewEnabled !== false
+    : false;
   const verifiedBasePlanId = String(lineItem.offerDetails?.basePlanId || requestedMapping.basePlanId || "");
   const verifiedOfferId = String(lineItem.offerDetails?.offerId || requestedOfferId || "");
   const mapping = productMappings.find(p => String(p.basePlanId || "") === verifiedBasePlanId) || requestedMapping;
@@ -154,6 +157,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
         purchaseToken,
         state: mapping.productType === "subs" ? "active" : "active",
         renewalState: mapping.productType === "subs" ? subscriptionState : "non_renewing",
+        autoRenewEnabled: mapping.productType === "subs" ? autoRenewEnabled : false,
         startDate: mapping.productType === "subs" && verified.startTime ? new Date(verified.startTime) : FieldValue.serverTimestamp(),
         endDate: mapping.productType === "subs" && verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null,
         allowance: mapping.allowance ?? null,
@@ -216,9 +220,11 @@ export async function processPlayRtdn(event) {
   const normalized = state === "SUBSCRIPTION_STATE_ACTIVE" ? "active" : state === "SUBSCRIPTION_STATE_IN_GRACE_PERIOD" ? "grace" : state === "SUBSCRIPTION_STATE_ON_HOLD" ? "on_hold" : state === "SUBSCRIPTION_STATE_PAUSED" ? "paused" : state === "SUBSCRIPTION_STATE_CANCELED" ? "cancelled" : state === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "pending";
   const uid = String(purchase.data().uid);
   const endDate = verified.lineItems?.[0]?.expiryTime ? new Date(verified.lineItems[0].expiryTime) : null;
+  const autoRenewEnabled = verified.lineItems?.[0]?.autoRenewingPlan?.autoRenewEnabled === true;
   await db.collection("entitlements").doc(uid).set({
     state: normalized,
     renewalState: state,
+    autoRenewEnabled,
     source: "play",
     providerReference: notification.purchaseToken,
     endDate,
