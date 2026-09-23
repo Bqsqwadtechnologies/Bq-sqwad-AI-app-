@@ -141,11 +141,6 @@ fun BusinessWorkspaceScreen() {
 }
 
 @Composable
-private fun Metric(label: String, value: Int) {
-    SurfaceCard(label, value.toString(), Modifier.weight(1f))
-}
-
-@Composable
 private fun MemberForm(api: WorkspaceApiClient, workspaceId: String, saving: Boolean, setSaving: (Boolean)->Unit, reload: ()->Unit, setError: (String)->Unit) {
     var uid by remember { mutableStateOf("") }
     var role by remember { mutableStateOf("member") }
