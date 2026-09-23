@@ -20,6 +20,11 @@ data class AdminProviderSecretStatus(
 class AdminProviderClient(
     private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
+    suspend fun planCatalog(): JSONObject = request("GET", "/admin/plan-catalog", null)
+
+    suspend fun savePlanCatalog(catalog: JSONObject): JSONObject =
+        request("POST", "/admin/plan-catalog", JSONObject().put("catalog", catalog))
+
     suspend fun statuses(): List<AdminProviderSecretStatus> =
         request("GET", "/admin/providers", null).let { root ->
             val array = root.optJSONArray("providers") ?: JSONArray()
