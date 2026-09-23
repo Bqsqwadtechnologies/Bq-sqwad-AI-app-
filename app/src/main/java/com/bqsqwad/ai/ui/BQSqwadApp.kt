@@ -599,6 +599,9 @@ private fun MainShell(modifier: Modifier) {
                                     when (w) {
                                         Workspace.VIDEO -> Icons.Default.VideoLibrary
                                         Workspace.SEARCH -> Icons.Default.Search
+                                        Workspace.TRUTH_GUARD -> Icons.Default.Verified
+                                        Workspace.FRONTIER_LAB -> Icons.Default.Science
+                                        Workspace.DATA_ANALYSIS -> Icons.Default.Analytics
                                         Workspace.CAMERA -> Icons.Default.CameraAlt
                                         Workspace.VOICE -> Icons.Default.Mic
                                         Workspace.PERSONAL -> Icons.Default.Psychology
@@ -1103,6 +1106,9 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
 private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
     Workspace.SEARCH -> "Search the web through the configured backend, with source-aware results and direct links that open in the device browser."
+    Workspace.TRUTH_GUARD -> "Review claims against web sources and separate evidence from unsupported conclusions."
+    Workspace.FRONTIER_LAB -> "Explore advanced AI capabilities using the authenticated, credit-controlled AI runtime."
+    Workspace.DATA_ANALYSIS -> "Analyze structured information and turn findings into readable reports."
     Workspace.CAMERA -> "Use the camera or supported screen-sharing flow for live visual analysis. Android permission indicators and foreground-service controls remain visible during active sessions."
     Workspace.VOICE -> "Have a real-time voice conversation with interruption support. The live voice session uses the configured realtime backend and microphone permission."
     Workspace.PERSONAL -> "A personal intelligence workspace for planning, organization, goals and permission-based memory backed by the account."
@@ -1117,6 +1123,9 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
 private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.CHAT -> "The app sends authenticated protected requests through the existing backend, streams the response into the chat, and saves the conversation to history when possible."
     Workspace.SEARCH -> "The app sends the query to the backend search route. Search-provider credentials stay server-side; returned sources remain actionable."
+    Workspace.TRUTH_GUARD -> "TruthGuard can search the web first, then send the evidence to its configured AI capability for claim analysis."
+    Workspace.FRONTIER_LAB -> "Frontier Lab uses the configured capability route and can attach web-search evidence before the AI response."
+    Workspace.DATA_ANALYSIS -> "Data Analysis uses the server capability route and central credit controls."
     Workspace.CAMERA -> "Android starts the camera or screen foreground service, captures supported frames, and sends analysis requests through the configured backend."
     Workspace.VOICE -> "The app starts the foreground voice session, obtains the server-authorized realtime session, and exchanges audio through the existing realtime client."
     Workspace.PERSONAL -> "Workspace requests are routed with the selected capability and account context; memory is loaded or changed only through the account APIs."
@@ -1131,6 +1140,9 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
 private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.CHAT -> "No camera or microphone permission is required just to read or type chat. Speech-to-text requests microphone access through Android when used; attachments use Android's document picker."
     Workspace.SEARCH -> "No special device permission is required for ordinary web search."
+    Workspace.TRUTH_GUARD -> "No special device permission is required; web-search credentials remain server-side."
+    Workspace.FRONTIER_LAB -> "No special device permission is required unless an enabled experiment explicitly requests one."
+    Workspace.DATA_ANALYSIS -> "No special device permission is required for ordinary structured-data analysis."
     Workspace.CAMERA -> "Camera permission is required for camera capture. Screen analysis separately uses Android's MediaProjection consent flow."
     Workspace.VOICE -> "Microphone permission is required while live voice is active. Android displays the system microphone indicator during use."
     Workspace.PERSONAL -> "Memory is account-controlled. The user can turn personal memory on or off where exposed by the workspace."
@@ -1145,6 +1157,9 @@ private fun featurePermissions(w: Workspace): String = when (w) {
 private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.CHAT -> "Main Chat"
     Workspace.SEARCH -> "Web Search"
+    Workspace.TRUTH_GUARD -> "TruthGuard AI"
+    Workspace.FRONTIER_LAB -> "Frontier Lab"
+    Workspace.DATA_ANALYSIS -> "Data Analysis"
     Workspace.CAMERA -> "AI Live Camera"
     Workspace.VOICE -> "Live Voice AI"
     Workspace.PERSONAL -> "Personal Intelligence"
@@ -1219,6 +1234,9 @@ private fun WorkspaceScreen(
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
+                Workspace.TRUTH_GUARD -> AiTaskWorkspace("TruthGuard AI", "Evidence-aware fact checking with web-search evidence.", "truth_guard", false, true)
+                Workspace.FRONTIER_LAB -> AiTaskWorkspace("Frontier Lab", "Advanced AI experimentation with optional web-search evidence.", "frontier_lab", false, true)
+                Workspace.DATA_ANALYSIS -> AiTaskWorkspace("Data Analysis", "Structured analysis and AI-generated reports.", "data_analysis_workspace", false, false)
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.", "personal_intelligence", true)
@@ -1239,7 +1257,8 @@ private fun AiTaskWorkspace(
     title: String,
     description: String,
     capability: String = "chat",
-    showMemory: Boolean = false
+    showMemory: Boolean = false,
+    allowWebSearch: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     var prompt by remember { mutableStateOf("") }
@@ -1248,6 +1267,8 @@ private fun AiTaskWorkspace(
     var memoryEnabled by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var useWebSearch by remember { mutableStateOf(allowWebSearch) }
+    var streamingResult by remember { mutableStateOf("") }
 
     LaunchedEffect(showMemory) {
         if (showMemory) {
@@ -1275,12 +1296,23 @@ private fun AiTaskWorkspace(
             Button(enabled = prompt.isNotBlank() && !busy, onClick = {
                 busy = true
                 error = null
+                result = ""
+                streamingResult = ""
                 scope.launch {
                     try {
-                        result = ChatApiClient().sendMessage(
-                            "Workspace: " + title + "\nUser request: " + prompt,
-                            capability
-                        ).text
+                        val requestText = if (useWebSearch) {
+                            val search = WorkspaceApiClient().search(prompt.trim(), false)
+                            val evidence = search.sources.joinToString("\n\n") { source ->
+                                "SOURCE: " + source.title + "\nURL: " + source.url + "\n" + (source.snippet ?: "")
+                            }
+                            "Workspace: " + title + "\nUser request: " + prompt + "\n\nWEB SEARCH EVIDENCE:\n" + evidence
+                        } else {
+                            "Workspace: " + title + "\nUser request: " + prompt
+                        }
+                        val reply = ChatApiClient().streamMessage(requestText, capability) { delta ->
+                            streamingResult += delta
+                        }
+                        result = reply.text
                     } catch (t: Throwable) {
                         error = t.message ?: "Request failed"
                     } finally {
@@ -1288,6 +1320,12 @@ private fun AiTaskWorkspace(
                     }
                 }
             }) { Text(if (busy) "Working…" else "Run with BQ Sqwad AI") }
+
+            if (allowWebSearch) {
+                OutlinedButton(onClick = { useWebSearch = !useWebSearch }, enabled = !busy) {
+                    Text(if (useWebSearch) "Web Search on" else "Web Search off")
+                }
+            }
 
             if (showMemory) {
                 OutlinedButton(onClick = {
@@ -1303,6 +1341,7 @@ private fun AiTaskWorkspace(
         if (showMemory && memoryText.isNotBlank()) {
             SurfaceCard("Saved memory", memoryText)
         }
+        if (streamingResult.isNotBlank()) SurfaceCard("Live result", streamingResult)
         if (result.isNotBlank()) SurfaceCard("Result", result)
         SurfaceCard("Live catalog", "Availability, limits, access and feature configuration are controlled by the admin backend.")
     }
