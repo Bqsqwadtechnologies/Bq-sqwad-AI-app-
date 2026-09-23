@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class SearchSource(val title:String,val url:String,val snippet:String?)
-data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double)
+data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,val answer:String? = null)
 
 class WorkspaceApiClient {
     private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
@@ -36,7 +36,7 @@ class WorkspaceApiClient {
     suspend fun search(query:String,deepResearch:Boolean=false):SearchReply{
         val b=request("/web-search",payload=JSONObject().put("query",query).put("deepResearch",deepResearch))
         val a=b.optJSONArray("sources") ?: JSONArray()
-        return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0))
+        return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0),b.optString("answer").takeIf{it.isNotBlank()})
     }
 
     suspend fun memory():JSONObject = request("/memory","GET")
