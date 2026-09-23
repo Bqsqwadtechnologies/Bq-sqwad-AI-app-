@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getProviderSecret, setProviderSecret } from "./secret-store.js";
 
+const CANONICAL_CALLBACK_BASE_URL = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
+const CANONICAL_CALLBACK_URL = CANONICAL_CALLBACK_BASE_URL + "/social/oauth/callback";
+const CANONICAL_WEB_ORIGIN = "https://bqsqwadai.com";
+
 const CONFIG = "socialIntegrations";
 const ACCOUNTS = "socialAccounts";
 
@@ -59,7 +63,7 @@ export async function getSocialConfig() {
   return {
     enabled: data.enabled === true,
     testMode: data.testMode !== false,
-    callbackBaseUrl: clean(data.callbackBaseUrl, 1000),
+    callbackBaseUrl: CANONICAL_CALLBACK_URL,\n    javascriptOrigin: CANONICAL_WEB_ORIGIN,
     platforms: data.platforms || {}
   };
 }
@@ -80,7 +84,7 @@ export async function updateSocialConfig(patch, actorUid) {
   await configRef().set({
     enabled: patch.enabled == null ? current.enabled : patch.enabled === true,
     testMode: patch.testMode == null ? current.testMode : patch.testMode === true,
-    callbackBaseUrl: patch.callbackBaseUrl == null ? current.callbackBaseUrl : clean(patch.callbackBaseUrl, 1000),
+    callbackBaseUrl: CANONICAL_CALLBACK_URL,
     platforms,
     updatedBy: actorUid,
     updatedAt: FieldValue.serverTimestamp()
