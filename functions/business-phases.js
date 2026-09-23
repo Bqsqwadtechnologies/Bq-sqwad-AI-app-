@@ -251,8 +251,66 @@ export async function createBusinessExtended(uid, type, input) {
   else if(type==='vault'){p.title=clean(input.title,200);p.content=clean(input.content,30000);p.visibility=clean(input.visibility,30)||'workspace';p.tags=arr(input.tags);if(!p.title||!p.content)throw new Error('vault_title_and_content_required');}
   else if(type==='inbox'){p.contactId=clean(input.contactId,120);p.channel=clean(input.channel,60)||'manual';p.sender=clean(input.sender,320);p.message=clean(input.message,12000);p.status=clean(input.status,30)||'open';if(!p.message)throw new Error('inbox_message_required');}
   else if(type==='automation'){p.name=clean(input.name,180);p.enabled=input.enabled!==false;p.trigger=obj(input.trigger);p.conditions=Array.isArray(input.conditions)?input.conditions.slice(0,30):[];p.actions=Array.isArray(input.actions)?input.actions.slice(0,50):[];if(!p.name)throw new Error('automation_name_required');}
-  else {p.name=clean(input.name,180);p.source=clean(input.source,80)||'web';p.fields=Array.isArray(input.fields)?input.fields.slice(0,50):[];p.status='active';p.token=crypto.randomUUID();}
+  else {p.name=clean(input.name,180);p.source=clean(input.source,80)||'web';p.fields=Array.isArray(input.fields)?input.fields.slice(0,50):[];p.status='active';p.token=crypto.randomUUID();p.webhookToken=crypto.randomUUID();}
   await ref.set(p); await workspaceRef(workspaceId).set({updatedAt:now},{merge:true}); return sanitizeDoc(ref.id,(await ref.get()).data());
+}
+
+
+export async function runBusinessAutomation(uid, automationId, event = {}) {
+  const ref = db().collection(BUSINESS_COLLECTIONS.automations).doc(clean(automationId, 160));
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("business_automation_not_found");
+  const automation = snap.data();
+  const workspaceId = clean(automation.workspaceId, 120);
+  await requireBusinessAccess(uid, workspaceId, "manager");
+  if (automation.enabled === false) return { ok: true, skipped: true, reason: "disabled" };
+  const conditions = Array.isArray(automation.conditions) ? automation.conditions.slice(0, 30) : [];
+  const matches = conditions.every(c => {
+    const field = clean(c?.field, 120);
+    const op = clean(c?.operator, 30) || "equals";
+    const actual = event?.[field];
+    const expected = c?.value;
+    if (op === "exists") return actual !== undefined && actual !== null && actual !== "";
+    if (op === "contains") return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+    if (op === "not_equals") return String(actual ?? "") !== String(expected ?? "");
+    return String(actual ?? "") === String(expected ?? "");
+  });
+  if (!matches) return { ok: true, skipped: true, reason: "conditions_not_met" };
+  const actions = Array.isArray(automation.actions) ? automation.actions.slice(0, 50) : [];
+  const results = [];
+  for (const action of actions) {
+    const type = clean(action?.type, 40);
+    if (type === "create_inbox") {
+      results.push(await createBusinessExtended(uid, "inbox", {
+        workspaceId, contactId: action.contactId || event.contactId || "", channel: action.channel || event.channel || "automation",
+        sender: action.sender || event.sender || "", message: action.message || event.message || "Automation message", status: "open"
+      }));
+    } else if (type === "create_lead") {
+      results.push(await createBusinessRecord(uid, "lead", {
+        workspaceId, contactId: action.contactId || event.contactId || "", name: action.name || event.name || "",
+        email: action.email || event.email || "", phone: action.phone || event.phone || "", source: action.source || "automation",
+        notes: action.notes || "", status: action.status || "new"
+      }));
+    } else if (type === "update_record") {
+      const typeName = clean(action.recordType, 40), id = clean(action.recordId || event.recordId, 160);
+      if (["assistant","knowledge","contact","lead","pipeline","appointment"].includes(typeName) && id) {
+        results.push(await updateBusinessRecord(uid, typeName, id, obj(action.patch)));
+      }
+    } else if (type === "log_activity") {
+      results.push(await createBusinessRecord(uid, "activity", { workspaceId, entityType: action.entityType || event.entityType || "automation", entityId: action.entityId || event.entityId || "", action: action.action || automation.name, note: action.note || "Automation executed" }));
+    }
+  }
+  await ref.set({ lastRunAt: FieldValue.serverTimestamp(), lastRunStatus: "success", lastRunEvent: event || {}, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true, skipped: false, automationId, results };
+}
+
+export async function receiveBusinessAutomationWebhook(token, event = {}) {
+  const snap = await db().collection(BUSINESS_COLLECTIONS.automations).where("webhookToken", "==", clean(token, 200)).limit(1).get();
+  if (snap.empty) throw new Error("business_automation_webhook_not_found");
+  const automation = snap.docs[0].data();
+  if (automation.enabled === false) return { ok: true, skipped: true, reason: "disabled" };
+  const uid = clean(automation.ownerUid, 160);
+  return runBusinessAutomation(uid, snap.docs[0].id, event);
 }
 
 export async function updateBusinessExtended(uid,type,id,input){
