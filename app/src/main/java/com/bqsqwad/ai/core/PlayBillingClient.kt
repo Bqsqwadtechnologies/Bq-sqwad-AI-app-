@@ -84,7 +84,7 @@ class PlayBillingClient(
         connected = false
     }
 
-    private fun handlePurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
+    private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
             return
