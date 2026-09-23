@@ -15,7 +15,12 @@ export const BUSINESS_COLLECTIONS = Object.freeze({
   leads: "businessLeads",
   pipelines: "businessPipelines",
   appointments: "businessAppointments",
-  activities: "businessCrmActivities"
+  activities: "businessCrmActivities",
+  faqs: "businessFaqs",
+  vault: "businessVault",
+  inbox: "businessInbox",
+  automations: "businessAutomations",
+  leadCaptures: "businessLeadCaptures"
 });
 
 function workspaceRef(id) { return db().collection(BUSINESS_COLLECTIONS.workspaces).doc(id); }
@@ -218,4 +223,35 @@ export async function addBusinessMember(uid, input) {
   const ref = db().collection(BUSINESS_COLLECTIONS.members).doc(workspaceId + "_" + memberUid);
   await ref.set({workspaceId, uid: memberUid, role, status:"active", permissions:arr(input.permissions,100), invitedBy:uid, updatedAt:FieldValue.serverTimestamp(), createdAt:FieldValue.serverTimestamp()},{merge:true});
   return sanitizeDoc(ref.id, (await ref.get()).data());
+}
+
+
+export async function listBusinessExtended(uid, workspaceId) {
+  await requireBusinessAccess(uid, workspaceId);
+  const [faqs, vault, inbox, automations, leadCaptures, activities] = await Promise.all([
+    listOwned(BUSINESS_COLLECTIONS.faqs, workspaceId), listOwned(BUSINESS_COLLECTIONS.vault, workspaceId),
+    listOwned(BUSINESS_COLLECTIONS.inbox, workspaceId), listOwned(BUSINESS_COLLECTIONS.automations, workspaceId),
+    listOwned(BUSINESS_COLLECTIONS.leadCaptures, workspaceId), listOwned(BUSINESS_COLLECTIONS.activities, workspaceId)
+  ]);
+  const ws = await workspaceRef(workspaceId).get(); const usage = ws.exists ? (ws.data()?.usage || {}) : {};
+  return { faqs, vault, inbox, automations, leadCaptures, activities, usage, forecast: { messagesUsed:Number(usage.messages||0), contactsUsed:Number(usage.contacts||0), leadsUsed:Number(usage.leads||0), knowledgeUsed:Number(usage.knowledgeItems||0), period:'current' } };
+}
+
+export async function createBusinessExtended(uid, type, input) {
+  const map={faq:BUSINESS_COLLECTIONS.faqs,vault:BUSINESS_COLLECTIONS.vault,inbox:BUSINESS_COLLECTIONS.inbox,automation:BUSINESS_COLLECTIONS.automations,leadCapture:BUSINESS_COLLECTIONS.leadCaptures};
+  const collection=map[type]; if(!collection) throw new Error('unsupported_business_extended_record');
+  const workspaceId=await ensureWorkspace(uid,input); await requireBusinessAccess(uid,workspaceId,'manager');
+  const ref=db().collection(collection).doc(); const now=FieldValue.serverTimestamp(); const p={workspaceId,ownerUid:uid,createdBy:uid,createdAt:now,updatedAt:now};
+  if(type==='faq'){p.question=clean(input.question,1000);p.answer=clean(input.answer,12000);p.tags=arr(input.tags);if(!p.question||!p.answer)throw new Error('faq_question_and_answer_required');}
+  else if(type==='vault'){p.title=clean(input.title,200);p.content=clean(input.content,30000);p.visibility=clean(input.visibility,30)||'workspace';p.tags=arr(input.tags);if(!p.title||!p.content)throw new Error('vault_title_and_content_required');}
+  else if(type==='inbox'){p.contactId=clean(input.contactId,120);p.channel=clean(input.channel,60)||'manual';p.sender=clean(input.sender,320);p.message=clean(input.message,12000);p.status=clean(input.status,30)||'open';if(!p.message)throw new Error('inbox_message_required');}
+  else if(type==='automation'){p.name=clean(input.name,180);p.enabled=input.enabled!==false;p.trigger=obj(input.trigger);p.conditions=Array.isArray(input.conditions)?input.conditions.slice(0,30):[];p.actions=Array.isArray(input.actions)?input.actions.slice(0,50):[];if(!p.name)throw new Error('automation_name_required');}
+  else {p.name=clean(input.name,180);p.source=clean(input.source,80)||'web';p.fields=Array.isArray(input.fields)?input.fields.slice(0,50):[];p.status='active';p.token=crypto.randomUUID();}
+  await ref.set(p); await workspaceRef(workspaceId).set({updatedAt:now},{merge:true}); return sanitizeDoc(ref.id,(await ref.get()).data());
+}
+
+export async function updateBusinessExtended(uid,type,id,input){
+  const map={faq:BUSINESS_COLLECTIONS.faqs,vault:BUSINESS_COLLECTIONS.vault,inbox:BUSINESS_COLLECTIONS.inbox,automation:BUSINESS_COLLECTIONS.automations,leadCapture:BUSINESS_COLLECTIONS.leadCaptures}; const collection=map[type]; if(!collection||!id)throw new Error('unsupported_business_extended_record');
+  const ref=db().collection(collection).doc(id); const snap=await ref.get(); if(!snap.exists)throw new Error('business_record_not_found'); await requireBusinessAccess(uid,clean(snap.data()?.workspaceId,120),'manager');
+  const p=obj(input); delete p.workspaceId;delete p.ownerUid;delete p.createdBy;delete p.createdAt;delete p.updatedAt;delete p.id;p.updatedAt=FieldValue.serverTimestamp(); await ref.set(p,{merge:true}); return sanitizeDoc(id,(await ref.get()).data());
 }
