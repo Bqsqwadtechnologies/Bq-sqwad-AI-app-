@@ -369,3 +369,9 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added organization scheduled-task controls to the native Organization Studio screen.
 - Expanded native feature settings into account-backed behavior settings for streaming, web search, memory, personalization, history, generated files, notifications, automation, background jobs and supported voice responses.
 - Commercial prices remain controlled by the existing canonical admin/Play catalog architecture; no native price source was hard-coded by these changes.
+
+
+## 2026-09-23 — Native advanced capability control-plane integration
+- Added server-authoritative admin controls for user-facing advanced capabilities so native feature-hub entries can be enabled, disabled, rolled out, priced in credits, assigned plan IDs, routed, rate-limited, and killed from Admin Control Center.
+- Internal/admin-only BQ Sqwad AI Agent remains excluded from the user-facing native feature catalog.
+- Existing `/ai` and `/ai/stream` routes remain the shared execution path; no provider secrets are placed in Android.
