@@ -1170,27 +1170,102 @@ export const bqSqwadApi = onRequest(
         if (!["jobs","workflows","agents","evaluations","plugins"].includes(type)) {
           return send(res, 400, { error: "invalid_runtime_type" });
         }
-        const collection = {
-          jobs: "aiJobs",
-          workflows: "aiWorkflows",
-          agents: "aiAgents",
-          evaluations: "aiEvaluations",
-          plugins: "aiPlugins"
-        }[type];
+        const collection = { jobs: "aiJobs", workflows: "aiWorkflows", agents: "aiAgents", evaluations: "aiEvaluations", plugins: "aiPlugins" }[type];
+        const db = getFirestore();
+
         if (req.method === "GET" && path === "admin/runtime") {
-          const snap = await getFirestore().collection(collection).where("uid", "==", user.uid).limit(200).get();
+          const snap = await db.collection(collection).where("uid", "==", user.uid).limit(200).get();
           return send(res, 200, { type, records: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
         }
+
         if (req.method === "POST" && path === "admin/runtime") {
           const record = await createManagedRecord(type, user.uid, body);
+          if (type === "agents") {
+            await db.collection("aiAgentVersions").doc(record.id + "_v1").set({
+              agentId: record.id, uid: user.uid, version: 1, name: record.name,
+              description: record.description, config: record.config, createdAt: FieldValue.serverTimestamp()
+            });
+          }
           return send(res, 200, { ok: true, record });
         }
-        if (req.method === "PATCH" && path.startsWith("admin/runtime/")) {
+
+        if (type === "agents" && req.method === "POST" && path.endsWith("/run")) {
+          const id = parts[3];
+          const snap = await db.collection("aiAgents").doc(id).get();
+          if (!snap.exists || snap.data()?.uid !== user.uid) return send(res, 404, { error: "agent_not_found" });
+          const agent = snap.data() || {};
+          if (String(agent.status || "draft") !== "active") return send(res, 409, { error: "agent_not_active" });
+          const config = agent.config && typeof agent.config === "object" ? agent.config : {};
+          const message = String(body.message || config.defaultMessage || "").trim().slice(0, 12000);
+          if (!message) return send(res, 400, { error: "agent_message_required" });
+          const result = await runAi({
+            capability: String(config.capability || "chat").slice(0, 80),
+            message,
+            system: String(config.systemPrompt || config.instructions || "").slice(0, 16000)
+          });
+          const job = db.collection("aiJobs").doc();
+          await job.set({
+            uid: user.uid, name: "Agent run: " + String(agent.name || id).slice(0, 120),
+            description: "Admin agent execution", status: "completed", version: Number(agent.version || 1),
+            config: { agentId: id, message, capability: String(config.capability || "chat"), response: String(result.text || "").slice(0, 20000) },
+            createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+          });
+          await db.collection("aiActivity").add({
+            uid: user.uid, capability: "agent_runtime", action: "agent_run", status: "success",
+            metadata: { agentId: id, provider: result.providerId || "", model: result.modelId || "" },
+            createdAt: FieldValue.serverTimestamp()
+          });
+          return send(res, 200, { ok: true, answer: result.text, providerId: result.providerId, modelId: result.modelId, jobId: job.id });
+        }
+
+        if (req.method === "PATCH" && path.startsWith("admin/runtime/") && !path.endsWith("/run") && !path.endsWith("/rollback")) {
           const id = parts[3];
           if (!id) return send(res, 400, { error: "runtime_record_id_required" });
+          const before = type === "agents" ? await db.collection("aiAgents").doc(id).get() : null;
           const record = await updateManagedRecord(type, user.uid, id, body);
+          if (type === "agents") {
+            await db.collection("aiAgentVersions").doc(id + "_v" + record.version).set({
+              agentId: id, uid: user.uid, version: record.version, name: record.name,
+              description: record.description, config: record.config, createdAt: FieldValue.serverTimestamp()
+            });
+            if (before?.exists) {
+              await db.collection("aiActivity").add({
+                uid: user.uid, capability: "agent_runtime", action: "agent_updated", status: "success",
+                metadata: { agentId: id, version: record.version }, createdAt: FieldValue.serverTimestamp()
+              });
+            }
+          }
           return send(res, 200, { ok: true, record });
         }
+
+        if (type === "agents" && req.method === "GET" && path.endsWith("/versions")) {
+          const agentId = parts[3];
+          const snap = await db.collection("aiAgentVersions").where("uid", "==", user.uid).where("agentId", "==", agentId).limit(100).get();
+          return send(res, 200, { versions: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+        }
+
+        if (type === "agents" && req.method === "POST" && path.endsWith("/rollback")) {
+          const agentId = parts[3];
+          const version = Math.max(1, Number(body.version || 1));
+          const versionSnap = await db.collection("aiAgentVersions").doc(agentId + "_v" + version).get();
+          if (!versionSnap.exists || versionSnap.data()?.uid !== user.uid) return send(res, 404, { error: "agent_version_not_found" });
+          const agentRef = db.collection("aiAgents").doc(agentId);
+          const agentSnap = await agentRef.get();
+          if (!agentSnap.exists || agentSnap.data()?.uid !== user.uid) return send(res, 404, { error: "agent_not_found" });
+          const currentVersion = Number(agentSnap.data()?.version || 1) + 1;
+          await agentRef.set({
+            name: versionSnap.data()?.name || "", description: versionSnap.data()?.description || "",
+            config: versionSnap.data()?.config || {}, version: currentVersion, updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+          await db.collection("aiAgentVersions").doc(agentId + "_v" + currentVersion).set({
+            agentId, uid: user.uid, version: currentVersion,
+            name: versionSnap.data()?.name || "", description: versionSnap.data()?.description || "",
+            config: versionSnap.data()?.config || {}, source: "rollback:" + version,
+            createdAt: FieldValue.serverTimestamp()
+          });
+          return send(res, 200, { ok: true, agentId, version: currentVersion, rolledBackFrom: version });
+        }
+
         return send(res, 405, { error: "runtime_method_not_supported" });
       }
 
