@@ -694,8 +694,17 @@ export const bqSqwadApi = onRequest(
         const ref = db.collection("businessWorkspaces").doc(user.uid);
         const snap = await ref.get();
         const data = snap.exists ? snap.data() : {};
-        const knowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
-        const knowledgeText = knowledge.slice(-30).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n");
+        const legacyKnowledge = Array.isArray(data.knowledge) ? data.knowledge : [];
+        let workspaceKnowledge = [];
+        const requestedWorkspaceId = String(body.workspaceId || "").trim();
+        if (requestedWorkspaceId) {
+          workspaceKnowledge = await businessKnowledgeForWorkspace(user.uid, requestedWorkspaceId, 50);
+        } else {
+          const owned = await db.collection("businessWorkspaces").where("ownerUid", "==", user.uid).limit(1).get();
+          if (!owned.empty) workspaceKnowledge = await businessKnowledgeForWorkspace(user.uid, owned.docs[0].id, 50);
+        }
+        const knowledge = [...legacyKnowledge, ...workspaceKnowledge];
+        const knowledgeText = knowledge.slice(-50).map(item => typeof item === "string" ? item : (item?.text || item?.content)).filter(Boolean).join("\n");
         const gate = await authorizeCapability(user.uid, "capability_chat");
         let reservation = null;
         try {
