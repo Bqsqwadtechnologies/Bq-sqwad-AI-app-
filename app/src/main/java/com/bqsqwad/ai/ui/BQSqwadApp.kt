@@ -543,21 +543,129 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
 private fun MainShell(modifier: Modifier) {
     val email = FirebaseAuth.getInstance().currentUser?.email.orEmpty()
     var workspace by remember { mutableStateOf<Workspace?>(null) }
-    var hub by remember { mutableStateOf(false) }
+    var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
-    when {
-        hub -> FeatureHub({ hub = false }, { plans = true }, { history = true }) { workspace = it; hub = false }
-        plans -> ProductCatalogScreen { plans = false }
-        settings -> SettingsScreen(onBack = { settings = false }, onOpenAccountProtection = { accountProtection = true }, onOpenLegalCenter = { legalCenter = true })
-        accountProtection -> AccountProtectionScreen { accountProtection = false }
-        legalCenter -> LegalCenterScreen { legalCenter = false }
-        history -> HistoryScreen { history = false }
-        workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
-        else -> MainChatScreen(modifier, { hub = true }, { settings = true })
+
+    val openWorkspace: (Workspace) -> Unit = { selected ->
+        drawerOpen = false
+        workspace = selected
+    }
+
+    ModalNavigationDrawer(
+        drawerState = rememberDrawerState(if (drawerOpen) DrawerValue.Open else DrawerValue.Closed),
+        gesturesEnabled = true,
+        drawerContent = {
+            ModalDrawerSheet {
+                LazyColumn(
+                    Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().padding(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BqLogo(48.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("BQ Sqwad AI", fontWeight = FontWeight.Bold)
+                                Text("The AI That Grows With You", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    item { HorizontalDivider() }
+                    item {
+                        NavigationDrawerItem(
+                            label = { Text("New Chat") },
+                            selected = workspace == null && !history && !settings,
+                            onClick = { drawerOpen = false; workspace = null },
+                            icon = { Icon(Icons.Default.AddComment, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            label = { Text("Chat History") },
+                            selected = history,
+                            onClick = { drawerOpen = false; history = true },
+                            icon = { Icon(Icons.Default.History, null) }
+                        )
+                    }
+                    item {
+                        Text(
+                            "AI Features",
+                            modifier = Modifier.padding(start = 28.dp, top = 14.dp, bottom = 6.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    items(Workspace.values().filter { it != Workspace.CHAT }) { w ->
+                        NavigationDrawerItem(
+                            label = { Text(w.title) },
+                            selected = workspace == w,
+                            onClick = { openWorkspace(w) },
+                            icon = {
+                                Icon(
+                                    when (w) {
+                                        Workspace.SEARCH -> Icons.Default.Search
+                                        Workspace.CAMERA -> Icons.Default.CameraAlt
+                                        Workspace.VOICE -> Icons.Default.Mic
+                                        Workspace.PERSONAL -> Icons.Default.Psychology
+                                        Workspace.LIFE -> Icons.Default.FavoriteBorder
+                                        Workspace.COMPANION -> Icons.Default.Face
+                                        Workspace.LEARNING -> Icons.Default.School
+                                        Workspace.BUSINESS -> Icons.Default.Business
+                                        Workspace.ORGANIZATION_STUDIO -> Icons.Default.Dashboard
+                                        Workspace.ADMIN -> Icons.Default.AdminPanelSettings
+                                        else -> Icons.Default.AutoAwesome
+                                    },
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                    }
+                    item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                    item {
+                        NavigationDrawerItem(
+                            label = { Text("Plans & Credits") },
+                            selected = plans,
+                            onClick = { drawerOpen = false; plans = true },
+                            icon = { Icon(Icons.Default.CreditCard, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            label = { Text("Settings") },
+                            selected = settings,
+                            onClick = { drawerOpen = false; settings = true },
+                            icon = { Icon(Icons.Default.Settings, null) }
+                        )
+                    }
+                }
+            }
+        },
+        modifier = modifier
+    ) {
+        when {
+            plans -> ProductCatalogScreen { plans = false }
+            settings -> SettingsScreen(
+                onBack = { settings = false },
+                onOpenAccountProtection = { accountProtection = true },
+                onOpenLegalCenter = { legalCenter = true }
+            )
+            accountProtection -> AccountProtectionScreen { accountProtection = false }
+            legalCenter -> LegalCenterScreen { legalCenter = false }
+            history -> HistoryScreen { history = false }
+            workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
+            else -> MainChatScreen(
+                modifier = Modifier.fillMaxSize(),
+                openHub = { drawerOpen = true },
+                openSettings = { settings = true }
+            )
+        }
     }
 }
 
