@@ -144,26 +144,25 @@ private fun ConsentGate(modifier: Modifier) {
                     enabled = accepted && !saving,
                     onClick = {
                         saving = true
-                    error = null
-                    scope.launch {
-                        runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
-                            .onSuccess {
-                                context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
-                                    .putString("policy_version", "2026-09")
-                                    .putLong("required_consent_at", System.currentTimeMillis())
-                                    .putBoolean("training_consent", trainingConsent)
-                                    .apply()
-                            }
-                            .onFailure {
-                                accepted = false
-                                error = it.message ?: "Consent could not be saved."
-                            }
-                        saving = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
+                        error = null
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
+                                .onSuccess {
+                                    context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
+                                        .putString("policy_version", "2026-09")
+                                        .putLong("required_consent_at", System.currentTimeMillis())
+                                        .putBoolean("training_consent", trainingConsent)
+                                        .apply()
+                                }
+                                .onFailure {
+                                    accepted = false
+                                    error = it.message ?: "Consent could not be saved."
+                                }
+                            saving = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
                 ) { Text(if (saving) "Saving…" else "Accept & continue") }
-                )
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
