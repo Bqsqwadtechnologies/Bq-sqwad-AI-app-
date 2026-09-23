@@ -50,10 +50,12 @@ fun BusinessWorkspaceScreen() {
                 SurfaceCard("Plan", data.optString("planId").ifBlank { "bizstarter" })
                 val a = data.optJSONObject("analytics") ?: JSONObject()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Metric("Members", a.optInt("members"))
-                    Metric("Knowledge", a.optInt("knowledge"))
-                    Metric("Contacts", a.optInt("contacts"))
-                    Metric("Leads", a.optInt("leads"))
+                    Column(Modifier.weight(1f)) { SurfaceCard("Members", a.optInt("members").toString()) }
+                    Column(Modifier.weight(1f)) { SurfaceCard("Knowledge", a.optInt("knowledge").toString()) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) { SurfaceCard("Contacts", a.optInt("contacts").toString()) }
+                    Column(Modifier.weight(1f)) { SurfaceCard("Leads", a.optInt("leads").toString()) }
                 }
                 Button(onClick = { load() }, enabled = !loading) { Text("Refresh") }
             }
