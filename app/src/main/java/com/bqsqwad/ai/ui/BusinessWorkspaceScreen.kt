@@ -133,7 +133,17 @@ fun BusinessWorkspaceScreen() {
                         saving = false
                     }
                 }
-                Records(extended.optJSONArray("automations") ?: JSONArray(), "Automation")
+                val automations = extended.optJSONArray("automations") ?: JSONArray()
+                Records(automations, "Automation")
+                if (automations.length() > 0) {
+                    Button(onClick = {
+                        val id = automations.optJSONObject(0)?.optString("id").orEmpty()
+                        if (id.isNotBlank()) {
+                            scope.launch { runCatching { api.runBusinessAutomation(id, JSONObject().put("source", "native_test").put("workspaceId", data.optString("workspaceId"))) }
+                                .onFailure { error = it.message ?: "Automation could not run." } }
+                        }
+                    }) { Text("Run selected automation") }
+                }
             }
             "Channels" -> {
                 SocialChannelsPanel(api, error = { error = it })
