@@ -1519,8 +1519,6 @@ private fun CameraWorkspace() {
     }
     DeviceIntelligencePanel("AI Live Camera")
 
-    DeviceIntelligencePanel("Live Voice AI")
-
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
@@ -1627,6 +1625,8 @@ private fun VoiceWorkspace() {
             )
         }
     }
+
+    DeviceIntelligencePanel("Live Voice AI")
 
     if (permissionExplanation) {
         AlertDialog(
