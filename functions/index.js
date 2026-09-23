@@ -1639,6 +1639,25 @@ export const bqSqwadApi = onRequest(
         });
       }
 
+      if (req.method === "GET" && path === "play/subscription-management") {
+        const entitlementSnap = await getFirestore().collection("entitlements").doc(user.uid).get();
+        const entitlement = entitlementSnap.exists ? entitlementSnap.data() : {};
+        const isPlay = String(entitlement.source || "") === "play";
+        const hasSubscription = isPlay && Boolean(entitlement.purchaseToken) && String(entitlement.productId || "");
+        return send(res, 200, {
+          ok: true,
+          provider: "google_play",
+          hasSubscription,
+          autoRenewEnabled: hasSubscription ? entitlement.autoRenewEnabled !== false : false,
+          state: String(entitlement.state || ""),
+          renewalState: String(entitlement.renewalState || ""),
+          endDate: entitlement.endDate || null,
+          managementUrl: hasSubscription ? "https://play.google.com/store/account/subscriptions" : null,
+          paymentMethodManagementUrl: hasSubscription ? "https://play.google.com/store/paymentmethods" : null,
+          note: "Google Play is authoritative for auto-renewal and payment methods. The app/backend cannot silently change or remove a user's Google payment method."
+        });
+      }
+
       if (req.method === "POST" && path === "play/verify") {
         const productId = String(body.productId || "").trim();
         const purchaseToken = String(body.purchaseToken || "").trim();
