@@ -65,3 +65,20 @@ test("credit subscriptions use internal credit IDs with weekly monthly base plan
     assert.match(row.entitlements[0], /^credit:(100|250|500|1000)$/);
   }
 });
+
+test("Business plans are website-managed and excluded from Google Play", () => {
+  const plans = COMMERCIAL_CATALOG.sections.business;
+  assert.ok(plans.length >= 7);
+  for (const plan of plans) {
+    assert.equal(plan.module, "business");
+    assert.equal(plan.playEligible, false, plan.id + " must not be a Play product");
+    assert.ok(Array.isArray(plan.features) && plan.features.length > 0, plan.id + " needs feature entitlements");
+    assert.ok(plan.limits && typeof plan.limits === "object", plan.id + " needs limits");
+  }
+});
+
+test("Business add-ons are not exposed as native Play products", () => {
+  for (const addon of COMMERCIAL_CATALOG.sections.businessAddOns) {
+    assert.equal(addon.playEligible, false, addon.id + " must remain website-managed");
+  }
+});
