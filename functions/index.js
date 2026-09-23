@@ -21,7 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
 initializeApp();
@@ -960,6 +960,18 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "business/workspace") {
         return send(res, 200, await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId }));
       }
+      if (req.method === "POST" && path === "business/automations/run") {
+        const automationId = String(body.automationId || "").trim();
+        if (!automationId) return send(res, 400, { error: "automation_id_required" });
+        return send(res, 200, await runBusinessAutomation(user.uid, automationId, body.event || {}));
+      }
+
+      if (req.method === "POST" && path === "business/automations/webhook") {
+        const token = String(body.token || "").trim();
+        if (!token) return send(res, 400, { error: "webhook_token_required" });
+        return send(res, 200, await receiveBusinessAutomationWebhook(token, body.event || body));
+      }
+
       if (req.method === "POST" && path === "business/workspace") {
         const result = await businessWorkspace(user.uid, body);
         return send(res, 200, result);
