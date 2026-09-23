@@ -382,3 +382,10 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Existing approved monthly USD prices remain unchanged: 100=$11.99, 250=$24.99, 500=$44.99, 1000=$79.99.
 - Daily and weekly prices are intentionally not invented; they must be configured before those base plans are published/returned as purchasable Play offers.
 - Native Android reads the canonical backend/Play catalog and does not hard-code these commercial prices.
+
+
+## 2026-09-23 — Credit base-plan correction
+- Removed the unsupported `daily` Google Play credit base plan.
+- Credit subscriptions now use only `weekly` and `monthly` base plans.
+- Subscription IDs remain `credit100`, `credit250`, `credit500`, and `credit1000`.
+- Existing monthly USD prices remain unchanged. Weekly prices remain unconfigured until explicitly approved/configured.
