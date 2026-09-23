@@ -69,6 +69,7 @@ async function effectiveBusinessPlan(uid, workspace) {
   const runtimeRows = runtimePlan.exists ? (runtimePlan.data()?.catalog?.sections?.business || runtimePlan.data()?.catalog?.business || []) : [];
   const runtime = Array.isArray(runtimeRows) ? runtimeRows.find(p => String(p.id || "") === planId) : null;
   if (runtime) plan = { ...plan, ...runtime, limits: { ...(plan.limits || {}), ...(runtime.limits || {}) }, features: Array.isArray(runtime.features) ? runtime.features : plan.features };
+  const featureRows = Array.isArray(runtimeRows) && runtimeRows.length ? runtimeRows : businessCatalogPlans();
   const statusSnap = await dbi.collection("businessPlanStatus").doc(planId).get();
   if (statusSnap.exists && statusSnap.data()?.active === false) throw new Error("business_plan_unavailable");
 
@@ -81,7 +82,7 @@ async function effectiveBusinessPlan(uid, workspace) {
   if (!entitlementPlanId || entitlementPlanId !== planId || !active || (end && end <= Date.now())) {
     throw new Error("business_plan_entitlement_required");
   }
-  return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null, features: expandInheritedBusinessFeatures(planId) };
+  return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null, features: expandFeaturesFromRows(planId, featureRows) };
 }
 
 function expandInheritedBusinessFeatures(planId, seen = new Set()) {
@@ -96,6 +97,22 @@ function expandInheritedBusinessFeatures(planId, seen = new Set()) {
     if (!match) continue;
     const parent = businessCatalogPlans().find(p => p.name.toLowerCase() === match[1].trim().toLowerCase());
     if (parent) inherited.push(...expandInheritedBusinessFeatures(parent.id, seen));
+  }
+  return Array.from(new Set([...inherited, ...own.filter(x => !/^Everything in /i.test(x))]));
+}
+
+function expandFeaturesFromRows(planId, rows, seen = new Set()) {
+  if (seen.has(planId)) return [];
+  seen.add(planId);
+  const plan = rows.find(p => String(p.id || "") === String(planId));
+  if (!plan) return [];
+  const own = Array.isArray(plan.features) ? plan.features.map(String) : [];
+  const inherited = [];
+  for (const feature of own) {
+    const match = feature.match(/^Everything in (.+)$/i);
+    if (!match) continue;
+    const parent = rows.find(p => String(p.name || "").toLowerCase() === match[1].trim().toLowerCase());
+    if (parent) inherited.push(...expandFeaturesFromRows(String(parent.id), rows, seen));
   }
   return Array.from(new Set([...inherited, ...own.filter(x => !/^Everything in /i.test(x))]));
 }
