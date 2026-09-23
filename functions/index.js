@@ -1103,6 +1103,12 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "business/members") {
         return send(res, 200, { ok: true, member: await addBusinessMember(user.uid, body) });
       }
+      if (req.method === "POST" && path === "business/settings") {
+        const workspaceId = String(body.workspaceId || "").trim();
+        if (!workspaceId) return send(res, 400, { error: "business_workspace_required" });
+        return send(res, 200, await updateBusinessSettings(user.uid, workspaceId, body));
+      }
+
       if (req.method === "GET" && path === "business/extended") {
         const result = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
         return send(res, 200, await listBusinessExtended(user.uid, result.workspaceId));
