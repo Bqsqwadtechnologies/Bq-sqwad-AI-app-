@@ -39,7 +39,7 @@ private fun textFragment(base: String, heading: String): String =
     base + "#:~:text=" + Uri.encode(heading)
 
 @Composable
-fun LegalCenterScreen(onBack: () -> Unit) {
+fun LegalCenterScreen(initialTopic: Workspace? = null, onBack: () -> Unit) {
     val context = LocalContext.current
     val privacy = listOf(
         LegalSection("What information is collected", "Account details, conversations, uploaded content, memory and feature-specific data are explained here.", textFragment(PRIVACY, "Information we collect")),
@@ -81,12 +81,37 @@ fun LegalCenterScreen(onBack: () -> Unit) {
             item {
                 Text("Your privacy controls", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "Tap a topic to open the corresponding section of the current public policy. The links use browser text-fragment navigation so the selected topic opens at its matching heading when supported by the browser.",
+                    "Each BQ Sqwad AI feature has its own privacy topic. Feature privacy actions open this section directly, while public policy links use browser heading navigation when supported.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
                 )
             }
-            item { Text("Privacy Policy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            initialTopic?.let { topic ->
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("${topic.title} privacy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(featurePrivacyDetail(topic), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Public policy section: ${featurePrivacyHeading(topic)}", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+            item { Text("Feature privacy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            items(Workspace.values()) { topic ->
+                LegalSectionCard(
+                    LegalSection(
+                        "${topic.title} privacy",
+                        featurePrivacyDetail(topic),
+                        textFragment(PRIVACY, featurePrivacyHeading(topic))
+                    ),
+                    ::open
+                )
+            }
+            item { Text("General Privacy Policy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             items(privacy) { section ->
                 LegalSectionCard(section, ::open)
             }
@@ -108,6 +133,34 @@ fun LegalCenterScreen(onBack: () -> Unit) {
             }
         }
     }
+}
+
+private fun featurePrivacyHeading(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "Main Chat"
+    Workspace.SEARCH -> "Web Search"
+    Workspace.CAMERA -> "AI Live Camera"
+    Workspace.VOICE -> "Live Voice AI"
+    Workspace.PERSONAL -> "Personal Intelligence"
+    Workspace.LIFE -> "Life Matters"
+    Workspace.COMPANION -> "AI Companion"
+    Workspace.LEARNING -> "Learning Studio"
+    Workspace.BUSINESS -> "Business AI"
+    Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
+    Workspace.ADMIN -> "Admin Control Center"
+}
+
+private fun featurePrivacyDetail(w: Workspace): String = when (w) {
+    Workspace.CHAT -> "Chat messages, attachments, response feedback and saved history are processed to provide the chat service."
+    Workspace.SEARCH -> "Search queries and returned source information are processed to provide web-search results; search-provider credentials remain server-side."
+    Workspace.CAMERA -> "Camera and screen frames are processed only while the user starts the relevant capture feature; Android permission indicators and foreground-service controls apply."
+    Workspace.VOICE -> "Live voice audio is processed while a voice session is active. Microphone permission is required and the live session can be stopped by the user."
+    Workspace.PERSONAL -> "Personal workspace requests and optional memory are account-scoped. Memory controls determine whether saved personal context is used."
+    Workspace.LIFE -> "Life Matters requests are processed to provide planning and practical assistance, with account-scoped feature data where applicable."
+    Workspace.COMPANION -> "Companion conversations and optional memory/check-in data are feature-scoped and controlled through the account."
+    Workspace.LEARNING -> "Learning requests and learning-related feature data are processed to provide tutoring, lessons and revision assistance."
+    Workspace.BUSINESS -> "Business workspace data is scoped to authorized business workspaces. Connected providers receive only the data required for an enabled integration."
+    Workspace.ORGANIZATION_STUDIO -> "Organization Studio data is processed for the organization's configured tools and workflows, subject to workspace access controls."
+    Workspace.ADMIN -> "Administrative configuration is restricted by server-side authorization; provider secrets and security material are kept server-side."
 }
 
 @Composable
