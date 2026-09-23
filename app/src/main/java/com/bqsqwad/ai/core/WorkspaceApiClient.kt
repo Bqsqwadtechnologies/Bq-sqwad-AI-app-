@@ -56,6 +56,8 @@ class WorkspaceApiClient {
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
 
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
+    suspend fun adminAccess():JSONObject = request("/admin/access","GET")
+
     suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
 
     suspend fun saveAdminPlanCatalog(version:Int, catalog:JSONObject):JSONObject =
