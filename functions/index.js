@@ -24,6 +24,7 @@ import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, un
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
+import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
 
 const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
@@ -126,6 +127,30 @@ export const bqSqwadApi = onRequest(
       let body = req.body || {};
       if (typeof body === "string") {
         try { body = JSON.parse(body); } catch { body = {}; }
+      }
+
+      if (req.method === "POST" && path === "business/advanced-ai") {
+        return send(res, 200, await advancedAiTask(user.uid, body));
+      }
+
+      if (req.method === "GET" && path === "business/advanced-ai/jobs") {
+        return send(res, 200, { jobs: await listAdvancedAiJobs(user.uid, String(req.query.workspaceId || "").trim()) });
+      }
+
+      if (req.method === "GET" && path === "business/integrations") {
+        return send(res, 200, await getBusinessIntegrationConfig(user.uid, String(req.query.workspaceId || "").trim()));
+      }
+
+      if (req.method === "POST" && path === "business/integrations") {
+        return send(res, 200, await configureBusinessIntegration(user.uid, body));
+      }
+
+      if (req.method === "GET" && path === "business/enterprise") {
+        return send(res, 200, await getEnterpriseConfig(user.uid, String(req.query.workspaceId || "").trim()));
+      }
+
+      if (req.method === "PATCH" && path === "business/enterprise") {
+        return send(res, 200, await updateEnterpriseConfig(user.uid, String(body.workspaceId || "").trim(), body.config || body));
       }
 
       if (req.method === "GET" && path === "health") {
