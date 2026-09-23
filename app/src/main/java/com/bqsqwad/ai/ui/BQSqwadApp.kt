@@ -77,6 +77,10 @@ private fun AuthGate(modifier: Modifier) {
     if (user == null) MainShell(modifier) else ConsentGate(modifier)
 }
 
+private fun authSignOutForConsent() {
+    FirebaseAuth.getInstance().signOut()
+}
+
 @Composable
 private fun ConsentGate(modifier: Modifier) {
     val context = LocalContext.current
@@ -125,10 +129,21 @@ private fun ConsentGate(modifier: Modifier) {
                 Text("Optional: allow non-private training activity to improve the service.", modifier = Modifier.padding(top = 12.dp))
             }
             LegalConsentLinks()
-            Button(
-                enabled = accepted && !saving,
-                onClick = {
-                    saving = true
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        authSignOutForConsent()
+                    },
+                    enabled = !saving,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Reject & sign out") }
+                Button(
+                    enabled = accepted && !saving,
+                    onClick = {
+                        saving = true
                     error = null
                     scope.launch {
                         runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
@@ -147,7 +162,9 @@ private fun ConsentGate(modifier: Modifier) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (saving) "Saving…" else "Continue") }
+                ) { Text(if (saving) "Saving…" else "Accept & continue") }
+                )
+            }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
