@@ -378,50 +378,118 @@ private fun AdvancedAiPanel(api: WorkspaceApiClient, workspaceId: String, error:
 private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
     val scope = rememberCoroutineScope()
     var integrations by remember { mutableStateOf(JSONArray()) }
-    LaunchedEffect(workspaceId) { runCatching { api.businessIntegrations(workspaceId) }.onSuccess { integrations = it.optJSONArray("integrations") ?: JSONArray() }.onFailure { error(it.message ?: "Integrations could not be loaded.") } }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var configured by remember { mutableStateOf(JSONArray()) }
+    var automations by remember { mutableStateOf(JSONArray()) }
+
+    fun reload() {
+        scope.launch {
+            runCatching { api.businessIntegrations(workspaceId) }
+                .onSuccess {
+                    integrations = it.optJSONArray("integrations") ?: JSONArray()
+                    configured = it.optJSONArray("configured") ?: JSONArray()
+                }
+                .onFailure { error(it.message ?: "Integrations could not be loaded.") }
+            runCatching { api.businessExtended(workspaceId) }
+                .onSuccess { automations = it.optJSONArray("automations") ?: JSONArray() }
+        }
+    }
+
+    LaunchedEffect(workspaceId) { reload() }
+
+    val configuredMap = remember(configured.toString()) {
+        buildMap<String, Boolean> {
+            for (i in 0 until configured.length()) {
+                val item = configured.optJSONObject(i) ?: continue
+                put(item.optString("integration"), item.optBoolean("enabled"))
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Business Integrations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Admin-configurable integration registry. Provider credentials remain server-side.")
+        Text(
+            "Integrations are connected through the Business backend. Provider credentials never belong in the Android app.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         for (i in 0 until integrations.length()) {
             val item = integrations.optJSONObject(i) ?: continue
             val id = item.optString("id")
-            val noKey = id == "webhooks" || id == "rest_api"
-            var enabled by remember(id, workspaceId) { mutableStateOf(false) }
+            val requiresCredentials = item.optBoolean("requiresProviderCredentials", true)
+            val isConfigured = configuredMap[id] == true
+            val noKey = !requiresCredentials
+
             Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(id, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        if (noKey) "No client key required. Uses the existing authenticated Business workspace and server-side authorization."
-                        else "Provider configuration is required server-side before this integration can be connected.",
+                        id.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        item.optString("description").ifBlank {
+                            if (requiresCredentials) "Configured securely by the administrator." else "Available without adding a provider API key."
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(if (noKey) "Available now" else "Admin-configurable")
-                        Switch(
-                            checked = enabled,
-                            enabled = noKey,
-                            onCheckedChange = { next ->
-                                enabled = next
-                            }
-                        )
+                        Column {
+                            Text(if (isConfigured) "Connected" else if (noKey) "Available" else "Waiting for admin configuration")
+                            Text(
+                                if (noKey) "No provider key required" else "Credentials are server-side",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (noKey) {
+                            Switch(
+                                checked = isConfigured,
+                                onCheckedChange = { next ->
+                                    scope.launch {
+                                        runCatching {
+                                            api.configureBusinessIntegration(
+                                                JSONObject()
+                                                    .put("workspaceId", workspaceId)
+                                                    .put("integration", id)
+                                                    .put("enabled", next)
+                                            )
+                                        }.onSuccess { reload() }
+                                            .onFailure { error(it.message ?: "Integration could not be configured.") }
+                                    }
+                                }
+                            )
+                        }
                     }
-                    if (noKey) {
-                        Button(onClick = {
-                            scope.launch {
-                                runCatching {
-                                    api.configureBusinessIntegration(
-                                        JSONObject().put("workspaceId", workspaceId).put("integration", id).put("enabled", enabled)
-                                    )
-                                }.onFailure { error(it.message ?: "Integration could not be configured.") }
+
+                    if (id == "webhooks") {
+                        Text("Webhook automations", fontWeight = FontWeight.SemiBold)
+                        if (automations.length() == 0) {
+                            Text("Create a Business automation with a webhook trigger to receive external events.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            for (j in 0 until minOf(automations.length(), 10)) {
+                                val automation = automations.optJSONObject(j) ?: continue
+                                val token = automation.optString("webhookToken")
+                                if (token.isBlank()) continue
+                                val endpoint = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/business/automations/webhook"
+                                SurfaceCard(
+                                    automation.optString("name").ifBlank { "Automation" },
+                                    "POST $endpoint\nToken: $token"
+                                )
                             }
-                        }) { Text(if (enabled) "Enable integration" else "Save disabled state") }
+                        }
+                    }
+
+                    if (id == "rest_api") {
+                        SurfaceCard(
+                            "Authenticated API",
+                            "Use the existing Firebase-authenticated Business endpoints from your server or automation. No provider API key is stored in the app."
+                        )
                     }
                 }
             }
         }
     }
 }
-
 @Composable
 private fun BusinessEnterprisePanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
     var config by remember { mutableStateOf(JSONObject()) }
