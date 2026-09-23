@@ -21,6 +21,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -1408,40 +1411,213 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
     }
 
 @Composable
-private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit, onAdvancedFeature: (AppFeature) -> Unit) {
-    Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = {
-    IconButton(onClick = onHistory) { Icon(Icons.Default.History, "Chat history") }
-    IconButton(onClick = onPlans) { Icon(Icons.Default.CreditCard, "Plans") }
-}) }) { p ->
-        LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+private fun FeatureHub(
+    onBack: () -> Unit,
+    onPlans: () -> Unit,
+    onHistory: () -> Unit,
+    onWorkspace: (Workspace) -> Unit,
+    onAdvancedFeature: (AppFeature) -> Unit
+) {
+    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }
+    val primary = listOf(
+        Workspace.LEARNING,
+        Workspace.TRUTH_GUARD,
+        Workspace.LIFE,
+        Workspace.COMPANION,
+        Workspace.BUSINESS,
+        Workspace.CAMERA,
+        Workspace.VOICE,
+        Workspace.DATA_ANALYSIS
+    ).filter { visibleWorkspaces.contains(it) }
+    val more = visibleWorkspaces.filter { it !in primary }
+
+    fun iconFor(w: Workspace) = when (w) {
+        Workspace.LEARNING -> Icons.Default.School
+        Workspace.TRUTH_GUARD -> Icons.Default.Verified
+        Workspace.LIFE -> Icons.Default.Favorite
+        Workspace.COMPANION -> Icons.Default.Face
+        Workspace.BUSINESS -> Icons.Default.Business
+        Workspace.CAMERA -> Icons.Default.CameraAlt
+        Workspace.VOICE -> Icons.Default.Mic
+        Workspace.DATA_ANALYSIS -> Icons.Default.Analytics
+        Workspace.SEARCH -> Icons.Default.Search
+        Workspace.FRONTIER_LAB -> Icons.Default.Science
+        Workspace.PERSONAL -> Icons.Default.Psychology
+        Workspace.VIDEO -> Icons.Default.VideoLibrary
+        Workspace.ORGANIZATION_STUDIO -> Icons.Default.Dashboard
+        else -> Icons.Default.AutoAwesome
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("AI Features", fontWeight = FontWeight.Bold)
+                        Text("Explore the AI tools at your fingertips", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                actions = {
+                    IconButton(onClick = onHistory) { Icon(Icons.Default.History, "History") }
+                    IconButton(onClick = onPlans) { Icon(Icons.Default.CreditCard, "Plans and credits") }
+                }
+            )
+        }
+    ) { p ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(p),
+            contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             item {
-                Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("All AI features", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("The + button above Main Chat opens the complete AI feature hub. Feature access remains controlled by the live backend catalog.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(26.dp),
+                    tonalElevation = 3.dp
+                ) {
+                    Row(
+                        Modifier.padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        BqLogo(58.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("AI Features", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Learning, safer decisions, better living, stronger businesses and more.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
+
+            item {
+                Text("Featured AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+
+            item {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 155.dp),
+                    modifier = Modifier.fillMaxWidth().height(((primary.size + 1) / 2 * 150).dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    userScrollEnabled = false
+                ) {
+                    gridItems(primary) { w ->
+                        Card(
+                            onClick = { onWorkspace(w) },
+                            modifier = Modifier.fillMaxWidth().height(140.dp),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(
+                                Modifier.fillMaxSize().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(13.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(iconFor(w), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Text(w.title, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(w.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (more.isNotEmpty()) {
+                item { Text("More AI workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        more.forEach { w ->
+                            Card(
+                                onClick = { onWorkspace(w) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(15.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(iconFor(w), contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                        }
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(w.title, fontWeight = FontWeight.Bold)
+                                        Text(w.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                                    }
+                                    Icon(Icons.Default.ChevronRight, null)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item { Text("Advanced AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(ADVANCED_APP_FEATURES) { feature ->
-                Card(onClick = { onAdvancedFeature(feature) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(46.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ADVANCED_APP_FEATURES.forEach { feature ->
+                        Card(
+                            onClick = { onAdvancedFeature(feature) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(15.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(feature.title, fontWeight = FontWeight.Bold)
+                                    Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                                }
+                                Icon(Icons.Default.ChevronRight, null)
+                            }
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(feature.title, fontWeight = FontWeight.Bold)
-                            Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Open ${feature.title}")
                     }
                 }
             }
-            item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Row(
+                        Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(Icons.Default.CloudDone, null, tint = MaterialTheme.colorScheme.primary)
+                        Column {
+                            Text("Live feature catalogue", fontWeight = FontWeight.SemiBold)
+                            Text("Access, plans, limits and availability come from the server-controlled catalogue.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
         }
     }
 }
