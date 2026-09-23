@@ -414,6 +414,7 @@ export async function updateBusinessSettings(uid, workspaceId, patch = {}) {
 
 export async function listBusinessExtended(uid, workspaceId) {
   await requireBusinessAccess(uid, workspaceId);
+  await requireBusinessPlan(uid, workspaceId);
   const [faqs, vault, inbox, automations, leadCaptures, activities] = await Promise.all([
     listOwned(BUSINESS_COLLECTIONS.faqs, workspaceId), listOwned(BUSINESS_COLLECTIONS.vault, workspaceId),
     listOwned(BUSINESS_COLLECTIONS.inbox, workspaceId), listOwned(BUSINESS_COLLECTIONS.automations, workspaceId),
