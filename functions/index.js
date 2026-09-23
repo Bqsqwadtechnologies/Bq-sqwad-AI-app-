@@ -184,6 +184,41 @@ export const bqSqwadApi = onRequest(
         await requireRequiredConsent(user.uid);
       }
 
+      if (req.method === "POST" && path === "business/plan-builder") {
+        const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+        const plan = await requireBusinessPlan(user.uid, workspace.workspaceId, "assistant");
+        const brief = String(body.brief || body.message || "").trim().slice(0, 12000);
+        if (!brief) return send(res, 400, { error: "business_plan_brief_required" });
+        const gate = await authorizeCapability(user.uid, "capability_chat");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "business_plan_builder");
+          const result = await runAi({
+            capability: "chat",
+            message: brief,
+            system: [
+              "You are the BQ Sqwad AI Business Plan Builder.",
+              "Create a practical business plan using only the information provided by the business.",
+              "Do not invent market facts, financial guarantees, legal compliance status, licenses, certifications, tax advice, or regulatory approvals.",
+              "Separate assumptions from supplied facts.",
+              "For legal, tax, employment, financial, healthcare, safety, or regulatory decisions, clearly flag that qualified professional review may be required.",
+              "Return: executive summary, objectives, target customers, value proposition, operations, marketing, sales, technology/AI plan, risks, measurable KPIs, and a 30/60/90-day action plan.",
+              "Business brief:\n" + brief
+            ].join("\n")
+          });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          gate.commit();
+          await writeActivity({ uid: user.uid, capability: "business_plan_builder", action: "plan_generated", status: "success", metadata: { workspaceId: workspace.workspaceId, planId: plan.plan.id } });
+          return send(res, 200, { ok: true, planId: plan.plan.id, answer: result.text, creditsCharged: reservation?.amount || 0 });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          await writeActivity({ uid: user.uid, capability: "business_plan_builder", action: "plan_generated", status: "error", metadata: { workspaceId: workspace.workspaceId, error: error?.message || "plan_builder_failed" } });
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "POST" && path === "business/advanced-ai") {
         return send(res, 200, await advancedAiTask(user.uid, body));
       }
