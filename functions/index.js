@@ -21,6 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 
 initializeApp();
@@ -943,6 +944,37 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "payments/auto-renew") {
         return send(res, 200, await setAutoRenew({ uid: user.uid, enabled: Boolean(body.enabled) }));
+      }
+
+
+      // Business AI phases 1-3: workspace/teams, knowledge, CRM/sales.
+      if (req.method === "GET" && path === "business/workspace") {
+        return send(res, 200, await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId }));
+      }
+      if (req.method === "POST" && path === "business/workspace") {
+        const result = await businessWorkspace(user.uid, body);
+        return send(res, 200, result);
+      }
+      if (req.method === "POST" && path === "business/members") {
+        return send(res, 200, { ok: true, member: await addBusinessMember(user.uid, body) });
+      }
+      if (req.method === "GET" && path === "business/records") {
+        const type = String(req.query?.type || "").trim();
+        const result = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
+        const key = ({assistant:"assistants",knowledge:"knowledge",contact:"contacts",lead:"leads",pipeline:"pipelines",appointment:"appointments"})[type];
+        if (!key) return send(res, 400, { error: "invalid_business_record_type" });
+        return send(res, 200, { records: result[key] || [] });
+      }
+      if (req.method === "POST" && path === "business/records") {
+        return send(res, 200, { ok: true, record: await createBusinessRecord(user.uid, String(body.type || ""), body) });
+      }
+      if (req.method === "PATCH" && path.startsWith("business/records/")) {
+        const parts = path.split("/");
+        return send(res, 200, { ok: true, record: await updateBusinessRecord(user.uid, String(parts[2] || ""), String(parts[3] || ""), body) });
+      }
+      if (req.method === "DELETE" && path.startsWith("business/records/")) {
+        const parts = path.split("/");
+        return send(res, 200, await deleteBusinessRecord(user.uid, String(parts[2] || ""), String(parts[3] || "")));
       }
 
       if (req.method === "POST" && path.startsWith("runtime/")) {
