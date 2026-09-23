@@ -33,7 +33,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Analytics","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
+    val tabs = listOf("Overview","Analytics","Plan Builder","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -99,6 +99,9 @@ fun BusinessWorkspaceScreen() {
                     "Inbox items" to a.optInt("inbox", 0),
                     "Automations" to a.optInt("automations", 0)
                 ).forEach { (label, value) -> SurfaceCard(label, value.toString()) }
+            }
+            "Plan Builder" -> {
+                BusinessPlanBuilderPanel(api, data.optString("workspaceId"), { error = it })
             }
             "Team" -> {
                 val members = data.optJSONArray("members") ?: JSONArray()
@@ -433,3 +436,46 @@ private fun BusinessEnterprisePanel(api: WorkspaceApiClient, workspaceId: String
     }
 }
 
+
+
+@Composable
+private fun BusinessPlanBuilderPanel(api: WorkspaceApiClient, workspaceId: String, error: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var brief by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Business Plan Builder", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Generate a structured business plan from the company's supplied information. The AI must distinguish facts from assumptions and does not provide legal, tax, regulatory or financial guarantees.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = brief,
+            onValueChange = { brief = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 7,
+            label = { Text("Business brief") },
+            placeholder = { Text("Describe the business, customers, goals, products/services, current situation and constraints.") }
+        )
+        Button(
+            enabled = brief.isNotBlank() && !busy,
+            onClick = {
+                busy = true
+                scope.launch {
+                    runCatching { api.businessPlanBuilder(workspaceId, brief) }
+                        .onSuccess { result = it.optString("answer") }
+                        .onFailure { error(it.message ?: "Business plan could not be generated.") }
+                    busy = false
+                }
+            }
+        ) { Text(if (busy) "Generating…" else "Generate Business Plan") }
+        if (result.isNotBlank()) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 2.dp
+            ) {
+                Text(result, Modifier.padding(16.dp))
+            }
+        }
+    }
+}
