@@ -1327,7 +1327,7 @@ private fun WorkspaceScreen(
                 Workspace.SEARCH -> SearchWorkspace()
                 Workspace.TRUTH_GUARD -> AiTaskWorkspace("TruthGuard AI", "Evidence-aware fact checking with web-search evidence.", "truth_guard", false, true)
                 Workspace.FRONTIER_LAB -> AiTaskWorkspace("Frontier Lab", "Advanced AI experimentation with optional web-search evidence.", "frontier_lab", false, true)
-                Workspace.DATA_ANALYSIS -> AiTaskWorkspace("Data Analysis", "Structured analysis and AI-generated reports.", "data_analysis_workspace", false, false)
+                Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.", "personal_intelligence", true)
@@ -1487,6 +1487,65 @@ private fun AiTaskWorkspace(
         if (streamingResult.isNotBlank()) SurfaceCard("Live result", streamingResult)
         if (result.isNotBlank()) SurfaceCard("Result", result)
         SurfaceCard("Live catalog", "Availability, limits, access and feature configuration are controlled by the admin backend.")
+    }
+}
+
+@Composable
+private fun DataAnalysisWorkspace() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var prompt by remember { mutableStateOf("") }
+    var dataText by remember { mutableStateOf("") }
+    var fileName by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+    var streaming by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var rows by remember { mutableIntStateOf(0) }
+    var columns by remember { mutableIntStateOf(0) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch(Dispatchers.IO) {
+            runCatching { ChatAttachmentReader.read(context, uri) }.onSuccess { attachment ->
+                val text = attachment.text.orEmpty()
+                scope.launch(Dispatchers.Main) {
+                    dataText = text
+                    fileName = attachment.name
+                    val lines = text.lines().filter { it.isNotBlank() }
+                    rows = (lines.size - 1).coerceAtLeast(0)
+                    columns = lines.firstOrNull()?.split(',')?.size ?: 0
+                    error = null
+                }
+            }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
+        }
+    }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Data Analyst", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Analyze CSV, JSON and supported text-based datasets, then generate an AI explanation or report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(if (fileName.isBlank()) "No dataset loaded" else fileName, fontWeight = FontWeight.SemiBold); if (fileName.isNotBlank()) Text(rows.toString() + " rows • " + columns + " columns detected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    OutlinedButton(onClick = { picker.launch(arrayOf("text/*", "application/json", "application/csv", "text/csv")) }, enabled = !busy) { Text("Load data") }
+                }
+                OutlinedTextField(prompt, { prompt = it }, label = { Text("What should I analyze?") }, placeholder = { Text("Summarize trends, compare columns, find anomalies, or create a report…") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                Button(enabled = dataText.isNotBlank() && prompt.isNotBlank() && !busy, onClick = {
+                    busy = true; error = null; result = ""; streaming = ""
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val bounded = dataText.take(120000)
+                            val request = "DATASET: " + fileName + "\\nROWS: " + rows + "\\nCOLUMNS: " + columns + "\\nUSER REQUEST: " + prompt.trim() + "\\n\\nDATA:\\n" + bounded
+                            val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace") { delta -> scope.launch(Dispatchers.Main) { streaming += delta } }
+                            scope.launch(Dispatchers.Main) { result = reply.text; busy = false }
+                        } catch (t: Throwable) { scope.launch(Dispatchers.Main) { error = t.message ?: "Data analysis failed."; busy = false } }
+                    }
+                }) { Text(if (busy) "Analyzing…" else "Analyze dataset") }
+            }
+        }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (streaming.isNotBlank()) SurfaceCard("Live analysis", streaming)
+        if (result.isNotBlank()) SurfaceCard("AI report", result)
+        if (dataText.isNotBlank()) SurfaceCard("Dataset preview", dataText.lineSequence().take(8).joinToString("\\n"))
+        SurfaceCard("Credits", "Data analysis uses the shared backend credit system. Admin-configured capability pricing is authoritative.")
     }
 }
 
