@@ -1493,6 +1493,40 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, snap.exists ? { exists: true, ...snap.data() } : { exists: false });
       }
 
+      if (req.method === "GET" && path === "entitlements") {
+        const db = getFirestore();
+        const [primarySnap, playSnap] = await Promise.all([
+          db.collection("entitlements").doc(user.uid).get(),
+          db.collection("playEntitlements").where("uid", "==", user.uid).limit(100).get()
+        ]);
+        const rows = new Map();
+        if (primarySnap.exists) {
+          const x = primarySnap.data() || {};
+          const key = String(x.productId || x.planId || "primary");
+          rows.set(key, { ...x, id: key });
+        }
+        for (const doc of playSnap.docs) {
+          const x = doc.data() || {};
+          const key = String(x.productId || x.planId || doc.id);
+          rows.set(key, { ...x, id: key });
+        }
+        return send(res, 200, {
+          items: Array.from(rows.values()).map(x => ({
+            id: String(x.id || ""),
+            planId: String(x.planId || ""),
+            productId: String(x.productId || ""),
+            product: String(x.product || x.productId || ""),
+            basePlanId: x.basePlanId ? String(x.basePlanId) : null,
+            state: String(x.state || ""),
+            renewalState: String(x.renewalState || ""),
+            source: String(x.source || ""),
+            startDate: x.startDate?.toDate ? x.startDate.toDate().toISOString() : (x.startDate || null),
+            endDate: x.endDate?.toDate ? x.endDate.toDate().toISOString() : (x.endDate || null),
+            updatedAt: x.updatedAt?.toDate ? x.updatedAt.toDate().toISOString() : (x.updatedAt || null)
+          }))
+        });
+      }
+
       if (req.method === "GET" && path === "credits") {
         const snap = await getFirestore().collection("creditBalances").doc(user.uid).get();
         const data = snap.exists ? snap.data() : {};
