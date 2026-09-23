@@ -45,6 +45,7 @@ fun AdminControlCenter() {
     var showContactSales by remember { mutableStateOf(false) }
     var showProviderSecrets by remember { mutableStateOf(false) }
     var showSecurity by remember { mutableStateOf(false) }
+    var showRuntime by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
@@ -103,6 +104,10 @@ fun AdminControlCenter() {
         AdminSecurityScreen { showSecurity = false }
         return
     }
+    if (showRuntime) {
+        AdminRuntimeScreen { showRuntime = false }
+        return
+    }
 
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
@@ -111,6 +116,7 @@ fun AdminControlCenter() {
         OutlinedButton(onClick = { showContactSales = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Contact Sales Inbox") }
         OutlinedButton(onClick = { showProviderSecrets = true }, modifier = Modifier.fillMaxWidth()) { Text("Open API & Provider Secrets") }
         OutlinedButton(onClick = { showSecurity = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin Security & Authenticator") }
+        OutlinedButton(onClick = { showRuntime = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin AI Runtime (Agents)") }
         SurfaceCard(
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
