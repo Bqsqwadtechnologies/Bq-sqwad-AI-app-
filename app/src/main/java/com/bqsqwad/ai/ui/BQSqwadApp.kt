@@ -701,6 +701,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var feedbackComment by remember { mutableStateOf("") }
     var micError by remember { mutableStateOf<String?>(null) }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    var imageMode by remember { mutableStateOf(false) }
     var historyId by remember { mutableStateOf<String?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
@@ -713,6 +714,34 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
+        if (imageMode && text.isNotBlank() && attachments.isEmpty()) {
+            val promptText = text.trim()
+            message = ""
+            imageMode = false
+            messages.add(ChatMessage(true, promptText))
+            val aiIndex = messages.size
+            messages.add(ChatMessage(false, "Generating image…"))
+            busy = true
+            error = null
+            streamJob = scope.launch(Dispatchers.IO) {
+                try {
+                    val generated = GenerationApiClient().generateImage(promptText)
+                    scope.launch(Dispatchers.Main) {
+                        messages[aiIndex] = messages[aiIndex].copy(text = "Image generated. Open the generated image: " + generated.url)
+                        busy = false
+                        streamJob = null
+                    }
+                } catch (t: Throwable) {
+                    scope.launch(Dispatchers.Main) {
+                        if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
+                        error = t.message ?: "Image generation failed"
+                        busy = false
+                        streamJob = null
+                    }
+                }
+            }
+            return
+        }
         val selectedAttachments = attachments
         attachments = emptyList()
         message = ""
@@ -890,7 +919,19 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
             }
-            val composerShape = RoundedCornerShape(26.dp)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = imageMode,
+                    onClick = { imageMode = !imageMode },
+                    enabled = !busy,
+                    label = { Text(if (imageMode) "Image generation on" else "Generate image") },
+                    leadingIcon = { Icon(Icons.Default.Image, null) }
+                )
+            }
+                        val composerShape = RoundedCornerShape(26.dp)
             val pulse by rememberInfiniteTransition(label = "composerPulse").animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
