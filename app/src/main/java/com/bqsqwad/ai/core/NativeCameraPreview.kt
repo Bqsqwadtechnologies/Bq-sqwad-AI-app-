@@ -42,9 +42,7 @@ fun NativeCameraPreview(
         modifier = modifier,
         factory = { context ->
             LiveCameraTextureView(context).apply {
-                facing = lensFacing
-                intervalMs = captureEveryMs
-                frameListener = onFrame
+                updateConfiguration(lensFacing, captureEveryMs, onFrame)
             }
         },
         update = { view ->
