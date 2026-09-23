@@ -131,11 +131,36 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 }
                 credits?.let { balance ->
                     item {
-                        Surface(shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh, modifier=Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                Text("Credit balance", fontWeight=FontWeight.Bold)
-                                Text(balance.optDouble("available", 0.0).toString(), style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
-                                Text("Reserved: " + balance.optDouble("reserved", 0.0), style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Surface(
+                            shape=RoundedCornerShape(22.dp),
+                            tonalElevation=4.dp,
+                            modifier=Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Credit wallet", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                        Text("Live balance across your AI features", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    BqStatusBadge("LIVE")
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(18.dp), color=MaterialTheme.colorScheme.primaryContainer) {
+                                        Column(Modifier.padding(16.dp)) {
+                                            Text("Available", style=MaterialTheme.typography.labelLarge)
+                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("available", 0.0)), style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold)
+                                            Text("credits", style=MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(18.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Column(Modifier.padding(16.dp)) {
+                                            Text("Reserved", style=MaterialTheme.typography.labelLarge)
+                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("reserved", 0.0)), style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold)
+                                            Text("in active jobs", style=MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                }
+                                Text("Credits are shared across supported AI features and are deducted by the server-authoritative capability runtime.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
