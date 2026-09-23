@@ -19,7 +19,7 @@ import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryC
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
-import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts } from "./social-integrations.js";
+import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
@@ -154,6 +154,10 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
       }
 
+      if (req.method === "GET" && path === "social/platforms") {
+        return send(res, 200, { platforms: listSocialPlatforms(), config: await getSocialConfig() });
+      }
+
       if (req.method === "GET" && path === "passkey/login/options") {
         return send(res, 200, await authenticationOptions());
       }
@@ -165,6 +169,31 @@ export const bqSqwadApi = onRequest(
       const user = await userFromRequest(req);
       if (path !== "consent" && path !== "consent/training" && path !== "account") {
         await requireRequiredConsent(user.uid);
+      }
+
+      if (req.method === "GET" && path === "social/accounts") {
+        return send(res, 200, { accounts: await listSocialAccounts(user.uid) });
+      }
+
+      if (req.method === "POST" && path === "social/oauth/start") {
+        const platform = String(body.platform || "").trim();
+        const config = await getSocialConfig();
+        const state = crypto.randomUUID();
+        const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
+        if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
+        const codeVerifier = platform === "x" ? crypto.randomBytes(32).toString("base64url") : null;
+        await getFirestore().collection("socialOAuthStates").doc(state).set({
+          uid: user.uid, platform, redirectUri, codeVerifier,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000), createdAt: FieldValue.serverTimestamp()
+        });
+        const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeVerifier);
+        return send(res, 200, { authorizationUrl, state });
+      }
+
+      if (req.method === "POST" && path === "social/publish") {
+        const accountId = String(body.accountId || "").trim();
+        if (!accountId) return send(res, 400, { error: "social_account_required" });
+        return send(res, 200, await publishSocialPost(user.uid, accountId, body));
       }
 
       if (req.method === "DELETE" && path === "account") {
