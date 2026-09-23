@@ -60,16 +60,6 @@ export async function authorizeCapability(uid, controlId) {
       throw new Error("plan_expired");
     }
   }
-  if (isSuperAdmin) {
-    return {
-      control,
-      planId: "admin",
-      creditCost: 0,
-      commit: () => { committed = true; },
-      release: async () => {}
-    };
-  }
-
   const plans = Array.isArray(control.allowedPlanIds)
     ? control.allowedPlanIds.map(String).filter(Boolean)
     : [];
