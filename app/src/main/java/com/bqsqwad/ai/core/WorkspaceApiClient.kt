@@ -72,8 +72,8 @@ class WorkspaceApiClient {
     suspend fun runAdminBusinessTestSuite(planId: String): JSONObject =
         request("/admin/business/test-suite", payload = JSONObject().put("planId", planId))
 
-    suspend fun setAdminBusinessPlanStatus(planId: String, active: Boolean): JSONObject =
-        request("/admin/business/plan-status", payload = JSONObject().put("planId", planId).put("active", active))
+    suspend fun setAdminBusinessPlanStatus(planId: String, active: Boolean, confirmDeactivation: Boolean = false): JSONObject =
+        request("/admin/business/plan-status", payload = JSONObject().put("planId", planId).put("active", active).put("confirmDeactivation", confirmDeactivation))
 
 
     suspend fun saveAdminPlanCatalog(version:Int, catalog:JSONObject):JSONObject =
