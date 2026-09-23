@@ -210,7 +210,9 @@ export const bqSqwadApi = onRequest(
 
 
       if (req.method === "GET" && path === "social/accounts") {
-        return send(res, 200, { accounts: await listSocialAccounts(user.uid) });
+        const workspace = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
+        await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+        return send(res, 200, { accounts: await listSocialAccounts(user.uid, workspace.workspaceId) });
       }
 
       if (req.method === "POST" && path === "social/oauth/start") {
