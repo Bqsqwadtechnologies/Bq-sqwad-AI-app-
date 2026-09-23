@@ -12,6 +12,7 @@ import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -549,6 +551,8 @@ private fun MainShell(modifier: Modifier) {
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
+    var featureInfo by remember { mutableStateOf<Workspace?>(null) }
+    var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
         drawerOpen = false
@@ -657,6 +661,8 @@ private fun MainShell(modifier: Modifier) {
         when {
             plans -> ProductCatalogScreen { plans = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
+            featureInfo != null -> FeatureInfoScreen(featureInfo!!) { featureInfo = null }
+            featurePrivacy != null -> LegalCenterScreen(initialTopic = featurePrivacy!!) { featurePrivacy = null }
             legalCenter -> LegalCenterScreen { legalCenter = false }
             settings -> SettingsScreen(
                 onBack = { settings = false },
@@ -664,11 +670,19 @@ private fun MainShell(modifier: Modifier) {
                 onOpenLegalCenter = { legalCenter = true }
             )
             history -> HistoryScreen { history = false }
-            workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
+            workspace != null -> WorkspaceScreen(
+                workspace!!,
+                email,
+                onBack = { workspace = null },
+                onLearnMore = { featureInfo = workspace!! },
+                onPrivacy = { featurePrivacy = workspace!! }
+            )
             else -> MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 openHub = { drawerOpen = true },
-                openSettings = { settings = true }
+                openSettings = { settings = true },
+                onLearnMore = { featureInfo = Workspace.CHAT },
+                onPrivacy = { featurePrivacy = Workspace.CHAT }
             )
         }
     }
@@ -677,7 +691,7 @@ private fun MainShell(modifier: Modifier) {
 private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -795,6 +809,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                 IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) {
                     Icon(Icons.Default.Wallpaper, contentDescription = "Change chat background")
                 }
+                IconButton(onClick = onLearnMore) {
+                    Icon(Icons.Default.Info, contentDescription = "Learn more about Main Chat")
+                }
+                IconButton(onClick = onPrivacy) {
+                    Icon(Icons.Default.PrivacyTip, contentDescription = "Main Chat privacy")
+                }
                 IconButton(onClick = openSettings) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }
@@ -876,43 +896,89 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openSettings
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                IconButton(onClick = openHub) { Icon(Icons.Default.Add, "AI workspaces") }
-                IconButton(onClick = { picker.launch(arrayOf("*/*")) }) { Icon(Icons.Default.AttachFile, "Files") }
-                OutlinedTextField(
-                    message,
-                    { value ->
-                        micError = null
-                        message = value
-                    },
-                    placeholder = { Text("Message BQ Sqwad AI") },
-                    modifier = Modifier.weight(1f),
-                    maxLines = 5
-                )
-                IconButton(onClick = {
-                    micError = null
-                    speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
-                    })
-                }, enabled = !busy) { Icon(Icons.Default.Mic, contentDescription = "Voice input") }
-                if (busy) {
-                    IconButton(onClick = { streamJob?.cancel() }) {
-                        Icon(Icons.Default.Stop, contentDescription = "Stop generating")
-                    }
-                } else {
-                    IconButton(enabled = message.isNotBlank() || attachments.isNotEmpty(), onClick = {
-                        val text = message.trim()
-                        if (FirebaseAuth.getInstance().currentUser == null) {
-                            showAuth = true
-                            return@IconButton
+            val composerShape = RoundedCornerShape(26.dp)
+            val pulse by rememberInfiniteTransition(label = "composerPulse").animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(900, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "composerPulseValue"
+            )
+            val composerBlue = Color(0xFF0A63FF).copy(alpha = 0.55f + (pulse * 0.45f))
+            Surface(
+                modifier = Modifier.fillMaxWidth().border(2.dp, composerBlue, composerShape),
+                shape = composerShape,
+                color = Color.White,
+                shadowElevation = 10.dp
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column(modifier = Modifier.width(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = {
+                                micError = null
+                                speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
+                                })
+                            },
+                            enabled = !busy
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = "Speech to text", tint = Color(0xFF0A63FF))
                         }
-                        sendAuthenticatedMessage(text)
-                    }) { Icon(Icons.Default.Send, "Send") }
+                        IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
+                            Icon(Icons.Default.AttachFile, contentDescription = "Upload attachment", tint = Color(0xFF0A63FF))
+                        }
+                    }
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { value ->
+                            micError = null
+                            message = value
+                        },
+                        placeholder = { Text("Message BQ Sqwad AI", color = Color(0xFF667085)) },
+                        modifier = Modifier.weight(1f).heightIn(min = 68.dp),
+                        minLines = 2,
+                        maxLines = 6,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            errorBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        )
+                    )
+                    IconButton(
+                        enabled = message.isNotBlank() || attachments.isNotEmpty() || busy,
+                        onClick = {
+                            if (busy) {
+                                streamJob?.cancel()
+                                return@IconButton
+                            }
+                            val text = message.trim()
+                            if (FirebaseAuth.getInstance().currentUser == null) {
+                                showAuth = true
+                                return@IconButton
+                            }
+                            sendAuthenticatedMessage(text)
+                        },
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(
+                            if (busy) Icons.Default.Stop else Icons.Default.Send,
+                            contentDescription = if (busy) "Stop generating" else "Send",
+                            tint = Color(0xFF0A63FF),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
             }
         }
-        FloatingLogo(Modifier.align(Alignment.BottomEnd).padding(18.dp).size(62.dp))
         feedbackTarget?.let { target ->
             AlertDialog(
                 onDismissRequest = { feedbackTarget = null },
