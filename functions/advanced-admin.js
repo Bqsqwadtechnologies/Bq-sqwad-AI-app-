@@ -45,7 +45,7 @@ export const CORE_CAPABILITY_OPTIONS = [
   ["capability_frontier_lab","Frontier Lab capability","capabilities","openai",null,["gemini"]],
   ["capability_data_analysis","Data Analyst capability","capabilities","openai",null,["gemini"]],
   ["capability_codron","Codron capability","codron","openai",null,["gemini"]],
-  ["capability_ai_agent","AI Agent capability","agents","openai",null,["gemini"]]
+  ["capability_ai_agent","BQ Sqwad AI Agent (Admin Only)","agents","openai",null,["gemini"]]
 ];
 
 export const ADVANCED_ADMIN_OPTIONS = [
