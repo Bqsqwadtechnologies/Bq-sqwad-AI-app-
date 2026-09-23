@@ -159,6 +159,15 @@ class WorkspaceApiClient {
             put("workspaceId", workspaceId); put("uid", uid); put("role", role); put("permissions", JSONArray(permissions))
         })
 
+    suspend fun businessExtended(workspaceId:String?=null): JSONObject =
+        request("/business/extended" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
+
+    suspend fun createBusinessExtended(type:String, payload:JSONObject): JSONObject =
+        request("/business/extended", payload=JSONObject(payload.toString()).put("type", type))
+
+    suspend fun updateBusinessExtended(type:String, id:String, payload:JSONObject): JSONObject =
+        request("/business/extended/" + type + "/" + id, "PATCH", payload)
+
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
