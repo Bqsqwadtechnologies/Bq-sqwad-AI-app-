@@ -349,3 +349,10 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Admin Control Center already exposes Web Search pricing controls including normal-search credits, Deep Research credits, result-page credits, result limits, daily limits and plan overrides.
 - Deep Research now performs Tavily retrieval followed by an AI synthesis with numbered source references and returns the synthesis to the native Web Search workspace.
 - The capability/admin configuration remains the authoritative place for credit costs; no Android price is hardcoded for these features.
+
+
+## 2026-09-23 — Live plans, credit wallet, and expiry status UI
+- Added authenticated GET `/entitlements` to return the user's verified native Play entitlements, including plan/product IDs, state, renewal state, and start/end dates. The response merges the primary entitlement with `playEntitlements` records and never exposes purchase tokens.
+- Native Plans & Products now uses the entitlement list for a professional Current Plans surface and shows a red in-app expiry alert when a plan has 7 days or less remaining.
+- Native Plans & Products now presents the server-backed credit wallet with available and reserved balances. Credit pricing remains catalog/Google Play controlled; no Android price source was hardcoded.
+- Native Settings now has expanded feature-specific controls for chat/history/memory/web search, voice/camera/Companion, TruthGuard/Frontier, notifications/sound/vibration, appearance/accessibility, privacy, and account/security.
