@@ -656,13 +656,13 @@ private fun MainShell(modifier: Modifier) {
     ) {
         when {
             plans -> ProductCatalogScreen { plans = false }
+            accountProtection -> AccountProtectionScreen { accountProtection = false }
+            legalCenter -> LegalCenterScreen { legalCenter = false }
             settings -> SettingsScreen(
                 onBack = { settings = false },
                 onOpenAccountProtection = { accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true }
             )
-            accountProtection -> AccountProtectionScreen { accountProtection = false }
-            legalCenter -> LegalCenterScreen { legalCenter = false }
             history -> HistoryScreen { history = false }
             workspace != null -> WorkspaceScreen(workspace!!, email) { workspace = null }
             else -> MainChatScreen(
