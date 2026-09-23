@@ -222,7 +222,7 @@ export async function businessWorkspace(uid, input = {}) {
   const workspaceId = await ensureWorkspace(uid, input);
   await requireBusinessAccess(uid, workspaceId);
   await requireBusinessPlan(uid, workspaceId);
-  const [workspace, members, assistants, knowledge, contacts, leads, pipelines, appointments] = await Promise.all([
+  const [workspace, members, assistants, knowledge, contacts, leads, pipelines, appointments, inbox, automations, leadCaptures] = await Promise.all([
     workspaceRef(workspaceId).get(),
     listOwned(BUSINESS_COLLECTIONS.members, workspaceId),
     listOwned(BUSINESS_COLLECTIONS.assistants, workspaceId),
@@ -410,6 +410,8 @@ export async function createBusinessExtended(uid, type, input) {
   const map={faq:BUSINESS_COLLECTIONS.faqs,vault:BUSINESS_COLLECTIONS.vault,inbox:BUSINESS_COLLECTIONS.inbox,automation:BUSINESS_COLLECTIONS.automations,leadCapture:BUSINESS_COLLECTIONS.leadCaptures};
   const collection=map[type]; if(!collection) throw new Error('unsupported_business_extended_record');
   const workspaceId=await ensureWorkspace(uid,input); await requireBusinessAccess(uid,workspaceId,'manager');
+  const group = type === 'automation' ? 'automation' : type === 'inbox' ? 'channels' : type === 'leadCapture' ? 'crm' : (type === 'faq' || type === 'vault' ? 'knowledge' : null);
+  await requireBusinessPlan(uid, workspaceId, group);
   const ref=db().collection(collection).doc(); const now=FieldValue.serverTimestamp(); const p={workspaceId,ownerUid:uid,createdBy:uid,createdAt:now,updatedAt:now};
   if(type==='faq'){p.question=clean(input.question,1000);p.answer=clean(input.answer,12000);p.tags=arr(input.tags);if(!p.question||!p.answer)throw new Error('faq_question_and_answer_required');}
   else if(type==='vault'){p.title=clean(input.title,200);p.content=clean(input.content,30000);p.visibility=clean(input.visibility,30)||'workspace';p.tags=arr(input.tags);if(!p.title||!p.content)throw new Error('vault_title_and_content_required');}
