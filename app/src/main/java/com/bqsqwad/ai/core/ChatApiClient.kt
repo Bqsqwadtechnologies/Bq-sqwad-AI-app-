@@ -67,8 +67,8 @@ class ChatApiClient(
     suspend fun streamMessage(
         message: String,
         capability: String = "chat",
-        system: String? = null,
-        onDelta: (String) -> Unit
+        onDelta: (String) -> Unit,
+        system: String? = null
     ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
         val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
