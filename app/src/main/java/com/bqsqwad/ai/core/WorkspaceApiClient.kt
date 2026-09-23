@@ -39,6 +39,11 @@ class WorkspaceApiClient {
         return SearchReply(List(a.length()){i->val x=a.getJSONObject(i);SearchSource(x.optString("title"),x.optString("url"),x.optString("snippet").ifBlank{null})},b.optDouble("creditsCharged",0.0),b.optString("answer").takeIf{it.isNotBlank()})
     }
 
+    suspend fun featureSettings():JSONObject = request("/feature-settings","GET")
+
+    suspend fun updateFeatureSettings(workspaceId:String, settings:JSONObject):JSONObject =
+        request("/feature-settings", payload=JSONObject().put("workspaceId", workspaceId).put("settings", settings))
+
     suspend fun memory():JSONObject = request("/memory","GET")
 
     suspend fun remember(text:String, source:String="chat"):JSONObject =
