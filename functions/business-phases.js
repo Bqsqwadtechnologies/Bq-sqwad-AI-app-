@@ -1,4 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { COMMERCIAL_CATALOG } from "./plan-catalog.js";
 
 const db = () => getFirestore();
 
@@ -24,6 +26,131 @@ export const BUSINESS_COLLECTIONS = Object.freeze({
 });
 
 function workspaceRef(id) { return db().collection(BUSINESS_COLLECTIONS.workspaces).doc(id); }
+
+const BUSINESS_FEATURE_GROUPS = Object.freeze({
+  assistant: ["AI Chat", "Business AI Employee", "Custom AI Assistants"],
+  knowledge: ["Knowledge Base", "Knowledge Vault", "FAQ Knowledge Base", "Business Knowledge", "Custom AI Training"],
+  crm: ["CRM", "CRM Integration", "Lead Capture", "Appointment Booking", "Business CRM"],
+  channels: ["One-Click Multi-Channel Deploy", "Shared Inbox", "Omnichannel AI", "Business Channels"],
+  automation: ["AI Workflow Automation", "Business Automation", "Business Workflows"],
+  analytics: ["Analytics Dashboard", "Advanced Analytics", "Business Analytics"],
+  advanced: ["Voice AI", "OCR Document Reading", "PDF Analysis", "Image Understanding", "AI Agent Builder"]
+});
+
+function businessCatalogPlans() {
+  return Array.isArray(COMMERCIAL_CATALOG?.sections?.business) ? COMMERCIAL_CATALOG.sections.business : [];
+}
+
+async function effectiveBusinessPlan(uid, workspace) {
+  const dbi = db();
+  const adminUser = await getAuth().getUser(uid);
+  const claims = adminUser.customClaims || {};
+  const isAdmin = adminUser.email === "isaacoshiomole0@gmail.com" &&
+    (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+  if (isAdmin) {
+    const testSnap = await dbi.collection("adminBusinessTestSessions").doc(uid).get();
+    if (testSnap.exists) {
+      const test = testSnap.data() || {};
+      const expires = test.expiresAt?.toDate?.()?.getTime?.() || Number(test.expiresAt || 0);
+      if (test.enabled === true && (!expires || expires > Date.now())) {
+        const testPlan = businessCatalogPlans().find(p => p.id === String(test.planId || ""));
+        if (testPlan && testPlan.active !== false) {
+          return { plan: testPlan, source: "admin_test", adminTest: true, expiresAt: test.expiresAt || null };
+        }
+      }
+    }
+  }
+
+  const planId = clean(workspace?.planId, 100);
+  const plan = businessCatalogPlans().find(p => p.id === planId);
+  if (!plan || plan.active === false) throw new Error("business_plan_unavailable");
+
+  const entitlementSnap = await dbi.collection("entitlements").doc(uid).get();
+  const entitlement = entitlementSnap.exists ? (entitlementSnap.data() || {}) : {};
+  const entitlementPlanId = clean(entitlement.planId, 100);
+  const state = clean(entitlement.status || entitlement.state, 40).toLowerCase();
+  const active = entitlement.active !== false && ["", "active", "trialing", "grace"].includes(state);
+  const end = entitlement.endDate?.toDate?.()?.getTime?.() || Number(entitlement.endDate || 0);
+  if (!entitlementPlanId || entitlementPlanId !== planId || !active || (end && end <= Date.now())) {
+    throw new Error("business_plan_entitlement_required");
+  }
+  return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null };
+}
+
+function expandInheritedBusinessFeatures(planId, seen = new Set()) {
+  if (seen.has(planId)) return [];
+  seen.add(planId);
+  const plan = businessCatalogPlans().find(p => p.id === planId);
+  if (!plan) return [];
+  const own = Array.isArray(plan.features) ? plan.features.map(String) : [];
+  const inherited = [];
+  for (const feature of own) {
+    const match = feature.match(/^Everything in (.+)$/i);
+    if (!match) continue;
+    const parent = businessCatalogPlans().find(p => p.name.toLowerCase() === match[1].trim().toLowerCase());
+    if (parent) inherited.push(...expandInheritedBusinessFeatures(parent.id, seen));
+  }
+  return Array.from(new Set([...inherited, ...own.filter(x => !/^Everything in /i.test(x))]));
+}
+
+function planHasBusinessFeature(planId, group) {
+  const features = expandInheritedBusinessFeatures(planId).map(x => x.toLowerCase());
+  const wanted = BUSINESS_FEATURE_GROUPS[group] || [];
+  return wanted.some(item => features.includes(item.toLowerCase()));
+}
+
+function limitValue(plan, key) {
+  const value = plan?.limits?.[key];
+  if (value == null || value === "unlimited" || String(value).includes("unlimited")) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function requireBusinessPlan(uid, workspaceId, group = null) {
+  const ref = workspaceRef(workspaceId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("business_workspace_not_found");
+  const context = await effectiveBusinessPlan(uid, snap.data());
+  if (group && !planHasBusinessFeature(context.plan.id, group)) {
+    throw new Error("business_feature_not_in_plan");
+  }
+  return context;
+}
+
+async function enforceBusinessLimit(uid, workspaceId, key, currentValue) {
+  const context = await requireBusinessPlan(uid, workspaceId);
+  const limit = limitValue(context.plan, key);
+  if (limit != null && Number(currentValue || 0) >= limit) {
+    throw new Error("business_limit_reached:" + key);
+  }
+  return context;
+}
+
+function usageWarnings(workspace, plan) {
+  const usage = obj(workspace?.usage);
+  const limits = obj(plan?.limits);
+  const candidates = [
+    ["messages", Number(usage.messages || 0), limitValue(plan, "aiMessagesPerMonth"), "AI messages"],
+    ["storage", Number(usage.storageGb || 0), limitValue(plan, "storageGb"), "storage"],
+    ["assistants", Number(usage.assistants || 0), limitValue(plan, "assistants"), "assistants"],
+    ["teamMembers", Number(usage.teamMembers || 0), limitValue(plan, "teamMembers"), "team members"]
+  ];
+  return candidates.filter(([,used,limit]) => limit != null && limit > 0 && used / limit >= 0.8).map(([key,used,limit,label]) => ({
+    key, used, limit, percentage: Math.min(100, Math.round(used / limit * 100)), severity: used >= limit ? "limit" : "warning",
+    message: used >= limit ? label + " limit reached." : label + " is approaching the plan limit.",
+    recommendation: "Review eligible add-ons or upgrade the Business plan before the current billing period ends."
+  }));
+}
+
+async function eligibleBusinessAddOns(planId) {
+  const configured = await db().collection("addOns").where("enabled", "==", true).get();
+  const fallback = COMMERCIAL_CATALOG.sections.businessAddOns || [];
+  const rows = configured.empty ? fallback : configured.docs.map(d => ({ id: d.id, ...d.data() }));
+  return rows.filter(x => !Array.isArray(x.eligiblePlanIds) || x.eligiblePlanIds.length === 0 || x.eligiblePlanIds.map(String).includes(planId))
+    .slice(0, 20)
+    .map(x => ({ id: String(x.id), name: String(x.name || x.id), description: String(x.description || ""), quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : [], price: x.price || x.priceUsd || null }));
+}
+
 
 async function memberRole(uid, workspaceId) {
   const snap = await db().collection(BUSINESS_COLLECTIONS.members).doc(workspaceId + "_" + uid).get();
@@ -94,6 +221,7 @@ export async function businessKnowledgeForWorkspace(uid, workspaceId, limit = 50
 export async function businessWorkspace(uid, input = {}) {
   const workspaceId = await ensureWorkspace(uid, input);
   await requireBusinessAccess(uid, workspaceId);
+  await requireBusinessPlan(uid, workspaceId);
   const [workspace, members, assistants, knowledge, contacts, leads, pipelines, appointments] = await Promise.all([
     workspaceRef(workspaceId).get(),
     listOwned(BUSINESS_COLLECTIONS.members, workspaceId),
@@ -102,23 +230,35 @@ export async function businessWorkspace(uid, input = {}) {
     listOwned(BUSINESS_COLLECTIONS.contacts, workspaceId),
     listOwned(BUSINESS_COLLECTIONS.leads, workspaceId),
     listOwned(BUSINESS_COLLECTIONS.pipelines, workspaceId),
-    listOwned(BUSINESS_COLLECTIONS.appointments, workspaceId)
+    listOwned(BUSINESS_COLLECTIONS.appointments, workspaceId),
+    listOwned(BUSINESS_COLLECTIONS.inbox, workspaceId),
+    listOwned(BUSINESS_COLLECTIONS.automations, workspaceId),
+    listOwned(BUSINESS_COLLECTIONS.leadCaptures, workspaceId)
   ]);
   if (!workspace.exists) throw new Error("business_workspace_not_found");
   const workspaceData = sanitizeDoc(workspace.id, workspace.data());
+  const planContext = await effectiveBusinessPlan(uid, workspaceData);
+  const warnings = usageWarnings(workspaceData, planContext.plan);
+  const recommendedAddOns = warnings.length ? await eligibleBusinessAddOns(planContext.plan.id) : [];
   return {
     workspaceId,
     ...workspaceData,
     workspace: workspaceData,
     assistantName: assistants[0]?.name || "Business AI Assistant",
     members, assistants, knowledge, contacts, leads, pipelines, appointments,
-    trainingAssets: [],
-    inbox: [],
-    automations: [],
+    inbox: inbox || [],
+    automations: automations || [],
+    leadCaptures: leadCaptures || [],
+    trainingAssets: Array.isArray(workspaceData.trainingAssets) ? workspaceData.trainingAssets : [],
+    planContext: { id: planContext.plan.id, name: planContext.plan.name, source: planContext.source, adminTest: planContext.adminTest === true, expiresAt: planContext.expiresAt || null },
+    enabledFeatureGroups: Object.keys(BUSINESS_FEATURE_GROUPS).filter(key => planHasBusinessFeature(planContext.plan.id, key)),
+    usageWarnings: warnings,
+    recommendedAddOns,
     analytics: {
       members: members.length, assistants: assistants.length, knowledge: knowledge.length,
       contacts: contacts.length, leads: leads.length, pipelines: pipelines.length, appointments: appointments.length,
-      requests: 0
+      inbox: (inbox || []).length, automations: (automations || []).length, leadCaptures: (leadCaptures || []).length,
+      requests: Number(workspaceData.usage?.messages || 0)
     }
   };
 }
@@ -137,6 +277,9 @@ export async function createBusinessRecord(uid, type, input) {
   if (!collection) throw new Error("unsupported_business_record");
   const workspaceId = await ensureWorkspace(uid, input);
   await requireBusinessAccess(uid, workspaceId, type === "activity" ? "member" : "manager");
+  const group = ["assistant"].includes(type) ? "assistant" : ["knowledge"].includes(type) ? "knowledge" : ["contact","lead","pipeline","appointment"].includes(type) ? "crm" : null;
+  const planContext = await requireBusinessPlan(uid, workspaceId, group);
+  if (type === "assistant") await enforceBusinessLimit(uid, workspaceId, "assistants", (await listOwned(BUSINESS_COLLECTIONS.assistants, workspaceId)).length);
   const ref = db().collection(collection).doc();
   const payload = { ...obj(input), workspaceId, ownerUid: uid, createdBy: uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
   delete payload.workspaceId;
@@ -284,6 +427,7 @@ export async function runBusinessAutomation(uid, automationId, event = {}) {
   const automation = snap.data();
   const workspaceId = clean(automation.workspaceId, 120);
   await requireBusinessAccess(uid, workspaceId, "manager");
+  await requireBusinessPlan(uid, workspaceId, "automation");
   if (automation.enabled === false) return { ok: true, skipped: true, reason: "disabled" };
   const conditions = Array.isArray(automation.conditions) ? automation.conditions.slice(0, 30) : [];
   const matches = conditions.every(c => {
