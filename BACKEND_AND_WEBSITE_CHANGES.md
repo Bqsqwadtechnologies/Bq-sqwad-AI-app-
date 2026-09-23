@@ -408,3 +408,13 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Business Plan Builder is now a real server workflow with credit reservation, audit activity and safeguards against fabricated legal/regulatory/financial guarantees.
 - Business Enterprise controls are restricted to the Business Enterprise plan.
 - These controls reduce billing/access ambiguity but do not constitute legal advice or a guarantee of compliance with every jurisdiction or industry regulation. Business customers should receive the applicable Terms, Privacy Policy, data-processing terms and sector-specific agreements before relying on regulated workflows.
+
+
+## 2026-09-23 — Business verification and social hardening follow-up
+- Added explicit server-side confirmation for Business plan deactivation; reactivation remains immediate and all status changes remain audit logged.
+- Added a 30-minute server scheduler for Business usage-threshold notifications. The notification record includes current usage/limit, severity, and matching eligible add-on recommendations. Notifications are deduplicated per workspace/limit/month.
+- Repaired malformed social integration control flow and callback configuration serialization in `functions/social-integrations.js`.
+- The social backend currently supports OAuth account connections for Facebook Pages, Instagram, YouTube, TikTok and X, with workspace/channel-plan enforcement and server-only token storage.
+- YouTube refresh-token handling and resumable video publishing remain server-side.
+- External providers that require their own developer application, OAuth approval, or API credentials are not marked live until those provider-side requirements are configured and tested.
+- The website and native app continue to use the existing Firebase/backend architecture; no second payment backend or client-side provider secret was introduced.
