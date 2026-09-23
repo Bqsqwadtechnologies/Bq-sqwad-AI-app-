@@ -1057,7 +1057,7 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Learn more • \${w.title}") },
+                title = { Text("Learn more • ${w.title}") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
             )
         }
@@ -1073,10 +1073,10 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
             item { SurfaceCard("What this feature does", featureLongDescription(w)) }
             item { SurfaceCard("How it works", featureHowItWorks(w)) }
             item { SurfaceCard("Permissions & controls", featurePermissions(w)) }
-            item { SurfaceCard("Privacy", "This feature has a dedicated privacy section: \${featurePrivacyHeading(w)}. Use the Privacy button on the feature screen to open that section directly.") }
+            item { SurfaceCard("Privacy", "This feature has a dedicated privacy section: ${featurePrivacyHeading(w)}. Use the Privacy button on the feature screen to open that section directly.") }
             item {
                 Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                    Text("Return to \${w.title}")
+                    Text("Return to ${w.title}")
                 }
             }
         }
