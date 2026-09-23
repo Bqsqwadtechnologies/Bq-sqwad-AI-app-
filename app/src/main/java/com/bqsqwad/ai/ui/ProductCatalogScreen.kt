@@ -55,6 +55,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
     var contactOptions by remember { mutableStateOf(emptyList<PublicContactOption>()) }
+    var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         loading=true; error=null; offline=false
@@ -65,6 +66,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); contactOptions=parseContactOptions(live); entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 credits=runCatching{api.credits()}.getOrNull()
+                playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
                     val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
@@ -165,6 +167,87 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
+                credits?.let { balance ->
+                    item {
+                        Surface(
+                            shape=RoundedCornerShape(24.dp),
+                            tonalElevation=6.dp,
+                            modifier=Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(14.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Live credit balance", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
+                                        Text("Shared across eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    BqStatusBadge("LIVE")
+                                }
+                                Text(
+                                    String.format(java.util.Locale.US, "%.2f", balance.optDouble("available", 0.0)),
+                                    style=MaterialTheme.typography.displaySmall,
+                                    fontWeight=FontWeight.Bold,
+                                    color=MaterialTheme.colorScheme.primary
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("Available", style=MaterialTheme.typography.labelLarge)
+                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
+                                        }
+                                    }
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("Reserved", style=MaterialTheme.typography.labelLarge)
+                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("reserved", 0.0)), fontWeight=FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                Text("The backend is authoritative for balance, reservations and credit deductions.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+
+                if (playManagement?.optBoolean("hasSubscription", false) == true) {
+                    item {
+                        val autoRenew = playManagement?.optBoolean("autoRenewEnabled", false) == true
+                        Surface(
+                            shape=RoundedCornerShape(22.dp),
+                            tonalElevation=4.dp,
+                            modifier=Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Text("Google Play subscription", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                Text(
+                                    if (autoRenew) "Auto-renewal is ON. Google Play will renew this subscription unless you turn it off there."
+                                    else "Auto-renewal is OFF. Access remains available until the current paid period ends.",
+                                    color=if (autoRenew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                                    fontWeight=FontWeight.SemiBold
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    Button(
+                                        onClick = {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playManagement?.optString("managementUrl"))))
+                                        },
+                                        modifier=Modifier.weight(1f)
+                                    ) { Text("Manage subscription") }
+                                    OutlinedButton(
+                                        onClick = {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playManagement?.optString("paymentMethodManagementUrl"))))
+                                        },
+                                        modifier=Modifier.weight(1f)
+                                    ) { Text("Payment method") }
+                                }
+                                Text(
+                                    "Auto-renewal and payment methods are controlled by Google Play. BQ Sqwad AI does not store or silently remove your Google payment method.",
+                                    style=MaterialTheme.typography.bodySmall,
+                                    color=MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (entitlements.isNotEmpty()) {
                     val expiring = entitlements.filter { daysUntil(it.endDate) in 0L..7L }
                     if (expiring.isNotEmpty()) item {
