@@ -33,7 +33,7 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise")
+    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -153,6 +153,26 @@ fun BusinessWorkspaceScreen() {
             }
             "Enterprise" -> {
                 BusinessEnterprisePanel(api, data.optString("workspaceId"), { error = it })
+            }
+            "Settings" -> {
+                val settings = data.optJSONObject("settings") ?: JSONObject()
+                var assistantEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("assistantEnabled", true)) }
+                var automationEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("automationEnabled", true)) }
+                var notificationsEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("notificationsEnabled", true)) }
+                var webSearchEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("webSearchEnabled", true)) }
+                Text("Business AI settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("These settings are persisted in the business workspace and apply to its AI and automation behavior.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(
+                    Triple("Business AI enabled", assistantEnabled) { next:Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
+                    Triple("Automation enabled", automationEnabled) { next:Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
+                    Triple("Notifications enabled", notificationsEnabled) { next:Boolean -> notificationsEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), notificationsEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
+                    Triple("Web Search for business workflows", webSearchEnabled) { next:Boolean -> webSearchEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), webSearchEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } }
+                ).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(row.first)
+                        Switch(row.second, onCheckedChange = row.third)
+                    }
+                }
             }
             "Channels" -> {
                 SocialChannelsPanel(api, error = { error = it })
