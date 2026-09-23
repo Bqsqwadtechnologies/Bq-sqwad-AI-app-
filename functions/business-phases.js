@@ -507,3 +507,93 @@ export async function updateBusinessExtended(uid,type,id,input){
   const ref=db().collection(collection).doc(id); const snap=await ref.get(); if(!snap.exists)throw new Error('business_record_not_found'); const workspaceId=clean(snap.data()?.workspaceId,120); await requireBusinessAccess(uid,workspaceId,'manager'); await requireBusinessPlan(uid,workspaceId);
   const p=obj(input); delete p.workspaceId;delete p.ownerUid;delete p.createdBy;delete p.createdAt;delete p.updatedAt;delete p.id;p.updatedAt=FieldValue.serverTimestamp(); await ref.set(p,{merge:true}); return sanitizeDoc(id,(await ref.get()).data());
 }
+
+
+export async function getBusinessTestSession(uid) {
+  const snap = await db().collection("adminBusinessTestSessions").doc(uid).get();
+  if (!snap.exists) return { enabled: false };
+  const x = snap.data() || {};
+  const expires = x.expiresAt?.toDate?.()?.getTime?.() || Number(x.expiresAt || 0);
+  if (x.enabled !== true || (expires && expires <= Date.now())) return { enabled: false, planId: String(x.planId || ""), expired: true };
+  return { enabled: true, planId: String(x.planId || ""), expiresAt: x.expiresAt || null, startedAt: x.startedAt || null };
+}
+
+export async function setBusinessTestSession(uid, planId, enabled = true, durationMinutes = 120) {
+  const id = clean(planId, 100);
+  const plan = businessCatalogPlans().find(p => p.id === id);
+  if (!plan || plan.module !== "business") throw new Error("business_test_plan_not_found");
+  const ref = db().collection("adminBusinessTestSessions").doc(uid);
+  if (!enabled) {
+    await ref.set({ enabled: false, planId: id, endedAt: FieldValue.serverTimestamp(), updatedBy: uid }, { merge: true });
+    return { enabled: false, planId: id };
+  }
+  const minutes = Math.min(24 * 60, Math.max(5, Number(durationMinutes || 120)));
+  await ref.set({
+    enabled: true,
+    planId: id,
+    startedAt: FieldValue.serverTimestamp(),
+    expiresAt: new Date(Date.now() + minutes * 60 * 1000),
+    updatedBy: uid
+  }, { merge: true });
+  return getBusinessTestSession(uid);
+}
+
+export async function runBusinessPlanTestSuite(uid, planId) {
+  const session = await getBusinessTestSession(uid);
+  if (!session.enabled || session.planId !== String(planId || "")) throw new Error("business_test_session_required");
+  const plan = businessCatalogPlans().find(p => p.id === session.planId);
+  if (!plan) throw new Error("business_test_plan_not_found");
+  const checks = [];
+  const workspaceId = "admin-test-" + crypto.randomUUID();
+  const now = FieldValue.serverTimestamp();
+  const workspace = workspaceRef(workspaceId);
+  await workspace.set({
+    ownerUid: uid, name: "Admin Business Test — " + plan.name, slug: workspaceId,
+    planId: plan.id, status: "active",
+    settings: { timezone: "UTC", currency: "USD", assistantEnabled: true, automationEnabled: true, notificationsEnabled: true, webSearchEnabled: true },
+    usage: { messages: 0, contacts: 0, leads: 0, knowledgeItems: 0, assistants: 0 },
+    createdAt: now, updatedAt: now
+  });
+  await db().collection(BUSINESS_COLLECTIONS.members).doc(workspaceId + "_" + uid).set({ workspaceId, uid, role: "owner", status: "active", permissions: ["*"], createdAt: now, updatedAt: now });
+
+  async function check(name, fn) {
+    try { const value = await fn(); checks.push({ name, status: "passed", value: value == null ? null : value }); }
+    catch (error) { checks.push({ name, status: "failed", error: error?.message || String(error) }); }
+  }
+
+  try {
+    const context = await requireBusinessPlan(uid, workspaceId);
+    checks.push({ name: "plan entitlement", status: "passed", planId: context.plan.id, source: context.source });
+    await check("workspace read", async () => (await businessWorkspace(uid, { workspaceId })).workspaceId === workspaceId);
+    if (planHasBusinessFeature(plan.id, "assistant")) await check("assistant CRUD", async () => (await createBusinessRecord(uid, "assistant", { workspaceId, name: "Admin Test Assistant", instructions: "Test only" })).id);
+    if (planHasBusinessFeature(plan.id, "knowledge")) await check("knowledge CRUD", async () => (await createBusinessRecord(uid, "knowledge", { workspaceId, title: "Admin Test Knowledge", content: "Test only" })).id);
+    if (planHasBusinessFeature(plan.id, "crm")) {
+      await check("CRM contact", async () => (await createBusinessRecord(uid, "contact", { workspaceId, name: "Admin Test Contact", email: "admin-test@example.invalid" })).id);
+      await check("CRM lead", async () => (await createBusinessRecord(uid, "lead", { workspaceId, name: "Admin Test Lead", source: "admin-test" })).id);
+      await check("CRM pipeline", async () => (await createBusinessRecord(uid, "pipeline", { workspaceId, name: "Admin Test Pipeline" })).id);
+      await check("CRM appointment", async () => (await createBusinessRecord(uid, "appointment", { workspaceId, title: "Admin Test Appointment", startAt: new Date().toISOString(), endAt: new Date(Date.now()+3600000).toISOString() })).id);
+    }
+    if (planHasBusinessFeature(plan.id, "channels")) {
+      await check("unified inbox", async () => (await createBusinessExtended(uid, "inbox", { workspaceId, sender: "admin-test", channel: "test", message: "Test inbox message" })).id);
+      await check("lead capture", async () => (await createBusinessExtended(uid, "leadCapture", { workspaceId, name: "Admin Test Form", source: "test", fields: ["name","email"] })).id);
+    }
+    if (planHasBusinessFeature(plan.id, "automation")) {
+      const automation = await createBusinessExtended(uid, "automation", { workspaceId, name: "Admin Test Automation", enabled: true, conditions: [{ field: "source", operator: "equals", value: "admin-test" }], actions: [{ type: "create_lead", name: "Automation Test Lead", source: "admin-test" }] });
+      await check("automation execution", async () => (await runBusinessAutomation(uid, automation.id, { source: "admin-test" })).ok === true);
+    }
+    const snapshot = await businessWorkspace(uid, { workspaceId });
+    checks.push({ name: "usage and warnings", status: "passed", warnings: snapshot.usageWarnings || [], recommendedAddOns: snapshot.recommendedAddOns || [] });
+  } finally {
+    const collections = Object.values(BUSINESS_COLLECTIONS);
+    for (const collection of collections) {
+      const snap = await db().collection(collection).where("workspaceId", "==", workspaceId).limit(200).get();
+      if (!snap.empty) {
+        const batch = db().batch();
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+    await workspace.delete();
+  }
+  return { ok: checks.every(x => x.status === "passed"), planId: plan.id, planName: plan.name, checks };
+}
