@@ -23,6 +23,7 @@ import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialCli
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
+import { generateImage, createVideo, getVideoJob } from "./generation.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -788,6 +789,56 @@ export const bqSqwadApi = onRequest(
         } finally {
           await gate.release();
         }
+      }
+
+      if (req.method === "POST" && path === "ai/image") {
+        const prompt = String(body.prompt || body.message || "").trim();
+        if (!prompt) return send(res, 400, { error: "image_prompt_required" });
+        const gate = await authorizeCapability(user.uid, "capability_image_generation");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "image_generation");
+          const result = await generateImage(user.uid, prompt, {
+            size: body.size,
+            quality: body.quality
+          });
+          await commitCredits(user.uid, reservation.reservationId, result.providerId);
+          gate.commit();
+          return send(res, 200, { ...result, creditsCharged: reservation.amount });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "video/generate") {
+        const prompt = String(body.prompt || "").trim();
+        if (!prompt) return send(res, 400, { error: "video_prompt_required" });
+        const gate = await authorizeCapability(user.uid, "capability_video_generation");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "video_generation");
+          const result = await createVideo(user.uid, prompt, {
+            seconds: body.seconds,
+            size: body.size
+          });
+          await commitCredits(user.uid, reservation.reservationId, "openai");
+          gate.commit();
+          return send(res, 200, { ...result, creditsCharged: reservation.amount });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "GET" && path.startsWith("video/jobs/")) {
+        const jobId = path.slice("video/jobs/".length).trim();
+        if (!jobId || jobId.includes("/")) return send(res, 400, { error: "invalid_video_job_id" });
+        return send(res, 200, await getVideoJob(user.uid, jobId));
       }
 
       if (req.method === "POST" && path === "ai") {
