@@ -44,11 +44,17 @@ function send(res, status, value) {
 }
 
 async function deleteUserCollectionRecords(db, collection, uid, options = {}) {
-  const snap = await db.collection(collection).where("uid", "==", uid).limit(500).get();
-  const batch = db.batch();
-  snap.docs.forEach(doc => batch.delete(doc.ref));
-  if (snap.size) await batch.commit();
-  return snap.size;
+  let deleted = 0;
+  while (true) {
+    const snap = await db.collection(collection).where("uid", "==", uid).limit(450).get();
+    if (snap.empty) break;
+    let batch = db.batch();
+    snap.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    deleted += snap.size;
+    if (snap.size < 450) break;
+  }
+  return deleted;
 }
 
 async function deleteUserAccountData(uid) {
