@@ -2,6 +2,7 @@ package com.bqsqwad.ai.domain
 
 enum class Workspace(val title: String, val description: String) {
     CHAT("Main Chat", "Fast AI conversation, voice input and image generation"),
+    VIDEO("Video Generation", "Dedicated AI video generation workspace with credit-controlled render jobs"),
     SEARCH("Web Search", "Current information with source-aware answers"),
     CAMERA("AI Live Camera", "Live vision, device actions and location assistance"),
     VOICE("Live Voice AI", "Natural voice conversation with interruption support"),
