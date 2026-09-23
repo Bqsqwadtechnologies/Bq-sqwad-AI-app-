@@ -95,13 +95,20 @@ export async function businessWorkspace(uid, input = {}) {
     listOwned(BUSINESS_COLLECTIONS.appointments, workspaceId)
   ]);
   if (!workspace.exists) throw new Error("business_workspace_not_found");
+  const workspaceData = sanitizeDoc(workspace.id, workspace.data());
   return {
     workspaceId,
-    workspace: sanitizeDoc(workspace.id, workspace.data()),
+    ...workspaceData,
+    workspace: workspaceData,
+    assistantName: assistants[0]?.name || "Business AI Assistant",
     members, assistants, knowledge, contacts, leads, pipelines, appointments,
+    trainingAssets: [],
+    inbox: [],
+    automations: [],
     analytics: {
       members: members.length, assistants: assistants.length, knowledge: knowledge.length,
-      contacts: contacts.length, leads: leads.length, pipelines: pipelines.length, appointments: appointments.length
+      contacts: contacts.length, leads: leads.length, pipelines: pipelines.length, appointments: appointments.length,
+      requests: 0
     }
   };
 }
