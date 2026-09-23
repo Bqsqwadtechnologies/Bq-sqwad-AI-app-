@@ -58,6 +58,10 @@ fun OrganizationStudioWorkspace() {
     var aiDirectorEnabled by remember { mutableStateOf(true) }
     var autoSwitchEnabled by remember { mutableStateOf(false) }
     var productionStatus by remember { mutableStateOf("idle") }
+    var scheduledName by remember { mutableStateOf("") }
+    var scheduledPrompt by remember { mutableStateOf("") }
+    var scheduledSchedule by remember { mutableStateOf("daily") }
+    var scheduledTasks by remember { mutableStateOf(org.json.JSONArray()) }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
@@ -109,6 +113,9 @@ fun OrganizationStudioWorkspace() {
     LaunchedEffect(Unit) {
         refresh()
         refreshProduction()
+        runCatching { api.organizationScheduledTasks() }
+            .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
+            .onFailure { error = it.message ?: "Scheduled AI tasks could not be loaded." }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -579,6 +586,71 @@ fun OrganizationStudioWorkspace() {
                 }
             }
         }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Scheduled AI", style = MaterialTheme.typography.titleLarge)
+                    Text("Create organization-scoped AI tasks that run automatically on the backend. Schedules are server-persisted and use the shared credit system.")
+                    OutlinedTextField(scheduledName, { scheduledName = it }, Modifier.fillMaxWidth(), label = { Text("Task name") })
+                    OutlinedTextField(scheduledPrompt, { scheduledPrompt = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("AI task prompt") })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("hourly", "daily", "weekly").forEach { option ->
+                            FilterChip(selected = scheduledSchedule == option, onClick = { scheduledSchedule = option }, label = { Text(option.replaceFirstChar { it.uppercase() }) })
+                        }
+                    }
+                    Button(
+                        enabled = scheduledName.isNotBlank() && scheduledPrompt.isNotBlank(),
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    api.createOrganizationScheduledTask(scheduledName, scheduledPrompt, scheduledSchedule)
+                                }.onSuccess {
+                                    scheduledName = ""
+                                    scheduledPrompt = ""
+                                    runCatching { api.organizationScheduledTasks() }
+                                        .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
+                                }.onFailure { e -> error = e.message ?: "Scheduled task could not be created." }
+                            }
+                        }
+                    ) { Text("Create scheduled task") }
+                    if (scheduledTasks.length() == 0) {
+                        Text("No scheduled AI tasks yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        for (i in 0 until scheduledTasks.length()) {
+                            val task = scheduledTasks.optJSONObject(i) ?: continue
+                            val id = task.optString("id")
+                            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(task.optString("name"), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                        Text(task.optString("schedule").replaceFirstChar { it.uppercase() })
+                                    }
+                                    Text(task.optString("lastStatus", "pending"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    task.optString("nextRunAt").takeIf { it.isNotBlank() }?.let { Text("Next run: " + it.take(19).replace("T", " "), style = MaterialTheme.typography.bodySmall) }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = {
+                                            scope.launch {
+                                                runCatching { api.runOrganizationScheduledTask(id) }
+                                                    .onSuccess { runCatching { api.organizationScheduledTasks() }.onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() } }
+                                                    .onFailure { e -> error = e.message ?: "Scheduled task failed." }
+                                            }
+                                        }) { Text("Run now") }
+                                        OutlinedButton(onClick = {
+                                            scope.launch {
+                                                runCatching { api.updateOrganizationScheduledTask(id, org.json.JSONObject().put("enabled", task.optBoolean("enabled", true).not())) }
+                                                    .onSuccess { runCatching { api.organizationScheduledTasks() }.onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() } }
+                                                    .onFailure { e -> error = e.message ?: "Task state could not be changed." }
+                                            }
+                                        }) { Text(if (task.optBoolean("enabled", true)) "Pause" else "Resume") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item { error?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
     }
 }
