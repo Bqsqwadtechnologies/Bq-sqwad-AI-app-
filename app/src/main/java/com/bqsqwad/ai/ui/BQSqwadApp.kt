@@ -529,7 +529,7 @@ private fun MainShell(modifier: Modifier) {
     var adminAuthorized by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        adminAuthorized = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
+        adminAuthorized = runCatching { WorkspaceApiClient().adminAccess().optBoolean("allowed") }.getOrDefault(false)
     }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
