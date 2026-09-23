@@ -11,16 +11,12 @@ jobs:
     name: Report debug signing certificate
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: android
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -28,10 +24,33 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Generate and print debug SHA-1
+      - name: Find Android Gradle project
         shell: bash
         run: |
           set -euo pipefail
+
+          GRADLEW_PATH="$(find . -type f -name gradlew -print -quit)"
+
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "ERROR: gradlew was not found in the repository."
+            exit 1
+          fi
+
+          GRADLE_DIR="$(dirname "$GRADLEW_PATH")"
+
+          echo "Found Gradle project:"
+          echo "$GRADLE_DIR"
+
+          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
+
+      - name: Generate debug signing report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd "$GRADLE_DIR"
+
+          chmod +x ./gradlew
 
           report="$(./gradlew signingReport 2>&1)"
 
