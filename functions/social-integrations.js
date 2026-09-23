@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getProviderSecret, setProviderSecret } from "./secret-store.js";
+import { requireBusinessAccess, requireBusinessPlan } from "./business-phases.js";
 
 const CANONICAL_CALLBACK_BASE_URL = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 const CANONICAL_CALLBACK_URL = CANONICAL_CALLBACK_BASE_URL + "/social/oauth/callback";
@@ -148,14 +149,23 @@ export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerif
 
 export async function saveSocialAccount(platform, tokenData, metadata = {}, actorUid) {
   const id = crypto.randomUUID();
+  const workspaceId = clean(metadata.workspaceId, 120);
+  if (workspaceId) {
+    await requireBusinessAccess(actorUid, workspaceId, "manager");
+    await requireBusinessPlan(actorUid, workspaceId, "channels");
+  }
+  const expiresIn = Number(tokenData.expires_in || 0);
   await accountRef(id).set({
     id,
     platform,
     uid: actorUid,
+    workspaceId: workspaceId || null,
     token: tokenData.access_token || tokenData.accessToken || null,
     refreshToken: tokenData.refresh_token || null,
-    expiresIn: tokenData.expires_in || null,
+    expiresIn: expiresIn || null,
+    expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
     metadata,
+
     status: "connected",
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
@@ -169,10 +179,37 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   const snap = await ref.get();
   if (!snap.exists || clean(snap.data()?.uid, 160) !== uid) throw new Error("social_account_not_found");
   const account = snap.data();
+  const workspaceId = clean(input.workspaceId || account.workspaceId, 120);
+  if (workspaceId) {
+    await requireBusinessAccess(uid, workspaceId, "manager");
+    await requireBusinessPlan(uid, workspaceId, "channels");
+  } else {
+    throw new Error("business_workspace_required");
+  }
   const platform = clean(account.platform, 40);
-  const token = clean(account.token, 10000);
+  let token = clean(account.token, 10000);
   const text = clean(input.text, 5000);
   if (!token) throw new Error("social_account_token_missing");
+  if (platform === "youtube" && account.refreshToken && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now()) {
+    const secret = await getProviderSecret("youtube_client_secret");
+    if (secret) {
+      const refresh = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: String((await getSocialConfig()).platforms?.youtube?.clientId || ""),
+          client_secret: secret,
+          refresh_token: String(account.refreshToken),
+          grant_type: "refresh_token"
+        })
+      });
+      const refreshed = await refresh.json();
+      if (refresh.ok && refreshed.access_token) {
+        token = String(refreshed.access_token);
+        await ref.set({ token, expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 3600) * 1000), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+    }
+  }
   if (!text && !input.mediaUrl) throw new Error("social_content_required");
   const metadata = account.metadata || {};
   let response;
@@ -203,6 +240,42 @@ export async function publishSocialPost(uid, accountId, input = {}) {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ creation_id: creation.id, access_token: token })
     });
+  } else if (platform === "youtube") {
+    const mediaUrl = clean(input.mediaUrl, 4000);
+    if (!mediaUrl) throw new Error("youtube_video_required");
+    const title = clean(input.title || text.split("\n")[0] || "BQ Sqwad AI Business Video", 100);
+    const description = clean(input.description || text, 5000);
+    const privacyStatus = ["private","unlisted","public"].includes(String(input.privacyStatus || "")) ? String(input.privacyStatus) : "private";
+    const media = await fetch(mediaUrl);
+    if (!media.ok) throw new Error("youtube_media_fetch_failed");
+    const contentType = media.headers.get("content-type") || "video/*";
+    if (!contentType.startsWith("video/") && contentType !== "application/octet-stream") throw new Error("youtube_video_content_type_required");
+    const bytes = new Uint8Array(await media.arrayBuffer());
+    const metadataBody = JSON.stringify({
+      snippet: { title, description, categoryId: clean(input.categoryId || "22", 20) },
+      status: { privacyStatus }
+    });
+    const init = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": contentType,
+        "X-Upload-Content-Length": String(bytes.byteLength)
+      },
+      body: metadataBody
+    });
+    const location = init.headers.get("location");
+    if (!init.ok || !location) {
+      const initRaw = await init.text();
+      throw new Error("youtube_upload_session_failed:" + initRaw.slice(0, 500));
+    }
+    response = await fetch(location, {
+      method: "PUT",
+      headers: { "Content-Type": contentType, "Content-Length": String(bytes.byteLength) },
+      body: bytes
+    });
+  }
   } else {
     throw new Error("social_publish_not_supported_for_platform");
   }
@@ -212,7 +285,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   try { result = JSON.parse(raw); } catch {}
   const publishRef = getFirestore().collection("socialPublishJobs").doc();
   await publishRef.set({
-    uid, accountId, platform, status: "published", text, result,
+    uid, accountId, workspaceId, platform, status: "published", text, result,
     createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
   });
   return { ok: true, jobId: publishRef.id, platform, status: "published", result };
