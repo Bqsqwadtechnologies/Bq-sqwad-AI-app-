@@ -40,7 +40,12 @@ export const CORE_CAPABILITY_OPTIONS = [
   ["capability_image_generation","Image generation capability","capabilities","openai",null,["gemini"]],
   ["capability_video_generation","Video generation capability","capabilities","openai",null,["gemini"]],
   ["capability_file_analysis","File analysis capability","capabilities","openai",null,["gemini"]],
-  ["capability_organization_studio","Organization Studio AI capability","capabilities","openai",null,["gemini"]]
+  ["capability_organization_studio","Organization Studio AI capability","capabilities","openai",null,["gemini"]],
+  ["capability_truth_guard","TruthGuard AI capability","capabilities","openai",null,["gemini"]],
+  ["capability_frontier_lab","Frontier Lab capability","capabilities","openai",null,["gemini"]],
+  ["capability_data_analysis","Data Analyst capability","capabilities","openai",null,["gemini"]],
+  ["capability_codron","Codron capability","codron","openai",null,["gemini"]],
+  ["capability_ai_agent","AI Agent capability","agents","openai",null,["gemini"]]
 ];
 
 export const ADVANCED_ADMIN_OPTIONS = [
