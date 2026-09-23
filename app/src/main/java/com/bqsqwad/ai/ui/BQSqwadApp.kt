@@ -528,6 +528,8 @@ private fun MainShell(modifier: Modifier) {
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
+    var featureSettings by remember { mutableStateOf<Workspace?>(null) }
+    var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -652,8 +654,11 @@ private fun MainShell(modifier: Modifier) {
                         featureHub = false
                         workspace = selected
                     }
-                }
+                },
+                onAdvancedFeature = { selected -> featureHub = false; advancedFeature = selected }
             )
+            featureSettings != null -> FeatureSettingsScreen(featureSettings!!) { featureSettings = null }
+            advancedFeature != null -> AdvancedFeatureScreen(advancedFeature!!) { advancedFeature = null }
             plans -> ProductCatalogScreen { plans = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
             featureInfo != null -> FeatureInfoScreen(featureInfo!!) { featureInfo = null }
@@ -670,7 +675,8 @@ private fun MainShell(modifier: Modifier) {
                 email,
                 onBack = { workspace = null },
                 onLearnMore = { featureInfo = workspace!! },
-                onPrivacy = { featurePrivacy = workspace!! }
+                onPrivacy = { featurePrivacy = workspace!! },
+                onSettings = { featureSettings = workspace!! }
             )
             else -> MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
@@ -1215,7 +1221,22 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
 }
 
 @Composable
-private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit) {
+private data class AppFeature(val id: String, val title: String, val description: String, val capability: String, val webSearch: Boolean = false)
+
+private val ADVANCED_APP_FEATURES = listOf(
+    AppFeature("codron", "Codron AI", "AI coding, repository understanding, debugging and controlled code changes.", "codron"),
+    AppFeature("ai_agent", "AI Agent", "Task-oriented agents with tools, memory, execution history and controlled automation.", "ai_agent"),
+    AppFeature("deep_research", "Deep Research", "Multi-step research with web evidence, source collection and report generation.", "deep_research", true),
+    AppFeature("knowledge_graph", "Knowledge Graph", "Connect people, facts, documents and relationships into searchable knowledge.", "knowledge_graph"),
+    AppFeature("semantic_file_search", "Semantic File Search", "Find relevant information across supported uploaded files by meaning, not only filenames.", "semantic_file_search"),
+    AppFeature("conversation_intelligence", "Conversation Intelligence", "Extract important facts, topics, actions and summaries from conversations.", "conversation_intelligence"),
+    AppFeature("project_workspaces", "Project Workspaces", "Keep related conversations, files, instructions and memory together.", "project_workspaces"),
+    AppFeature("ai_reports", "AI-Generated Reports", "Turn conversations and structured data into organized reports and exports.", "ai_reports"),
+    AppFeature("scheduled_tasks", "Scheduled Tasks", "Run supported AI tasks on a schedule and keep execution history.", "scheduled_tasks")
+)
+
+@Composable
+private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () -> Unit, onWorkspace: (Workspace) -> Unit, onAdvancedFeature: (AppFeature) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("BQ Sqwad AI Workspaces") }, navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }, actions = {
     IconButton(onClick = onHistory) { Icon(Icons.Default.History, "Chat history") }
     IconButton(onClick = onPlans) { Icon(Icons.Default.CreditCard, "Plans") }
@@ -1223,6 +1244,29 @@ private fun FeatureHub(onBack: () -> Unit, onPlans: () -> Unit, onHistory: () ->
         LazyColumn(Modifier.padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             item { Text("Core workspaces", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }) { w -> FeatureCard(w.title, w.description) { onWorkspace(w) } }
+            item {
+                Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("All AI features", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("The + button above Main Chat opens the complete AI feature hub. Feature access remains controlled by the live backend catalog.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            item { Text("Advanced AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            items(ADVANCED_APP_FEATURES) { feature ->
+                Card(onClick = { onAdvancedFeature(feature) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(46.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(feature.title, fontWeight = FontWeight.Bold)
+                            Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Open ${feature.title}")
+                    }
+                }
+            }
             item { Text("Live product catalog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item { Text("Plan features, limits, and availability are loaded from the backend catalog. Product screens do not hard-code commercial entitlements.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             item { Text("Admin configuration controls what is available without requiring an app release.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -1236,7 +1280,8 @@ private fun WorkspaceScreen(
     email: String,
     onBack: () -> Unit,
     onLearnMore: () -> Unit,
-    onPrivacy: () -> Unit
+    onPrivacy: () -> Unit,
+    onSettings: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -1249,6 +1294,9 @@ private fun WorkspaceScreen(
                     }
                     IconButton(onClick = onPrivacy) {
                         Icon(Icons.Default.Lock, contentDescription = "${w.title} privacy")
+                    }
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "${w.title} settings")
                     }
                 }
             )
@@ -1291,6 +1339,58 @@ private fun WorkspaceScreen(
                 Workspace.ADMIN -> AdminControlCenter()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(feature.title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }
+    ) { p ->
+        Column(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = RoundedCornerShape(22.dp), tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(feature.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Uses the shared BQ Sqwad AI runtime and server-controlled capability configuration.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch)
+        }
+    }
+}
+
+@Composable
+private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bq_feature_settings", Context.MODE_PRIVATE) }
+    val prefix = workspace.name.lowercase()
+    var webSearch by remember { mutableStateOf(prefs.getBoolean(prefix + ".web_search", workspace == Workspace.SEARCH || workspace == Workspace.TRUTH_GUARD || workspace == Workspace.FRONTIER_LAB)) }
+    var memory by remember { mutableStateOf(prefs.getBoolean(prefix + ".memory", workspace == Workspace.PERSONAL || workspace == Workspace.COMPANION)) }
+    var notifications by remember { mutableStateOf(prefs.getBoolean(prefix + ".notifications", true)) }
+    var saveHistory by remember { mutableStateOf(prefs.getBoolean(prefix + ".history", true)) }
+    var autoRun by remember { mutableStateOf(prefs.getBoolean(prefix + ".auto_run", false)) }
+    fun save(key: String, value: Boolean) { prefs.edit().putBoolean(prefix + "." + key, value).apply() }
+    Scaffold(topBar = { TopAppBar(title = { Text(workspace.title + " Settings") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }) }) { p ->
+        LazyColumn(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
+            item { Surface(shape = RoundedCornerShape(22.dp), tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(workspace.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text(workspace.description, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+            item { FeatureSettingSwitch("Web Search", "Allow this workspace to use configured web-search evidence when supported.", webSearch) { webSearch = it; save("web_search", it) } }
+            item { FeatureSettingSwitch("Memory", "Use saved memory where this workspace supports it.", memory) { memory = it; save("memory", it) } }
+            item { FeatureSettingSwitch("Notifications", "Allow this workspace to surface supported job and activity notifications.", notifications) { notifications = it; save("notifications", it) } }
+            item { FeatureSettingSwitch("Save history", "Save completed workspace conversations to your account history.", saveHistory) { saveHistory = it; save("history", it) } }
+            item { FeatureSettingSwitch("Automatic runs", "Allow supported background or scheduled actions for this workspace.", autoRun) { autoRun = it; save("auto_run", it) } }
+            item { Text("Sensitive permissions such as camera, microphone and screen capture are requested only when the feature actually needs them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+@Composable
+private fun FeatureSettingSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
     }
 }
