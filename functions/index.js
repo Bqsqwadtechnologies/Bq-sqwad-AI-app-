@@ -1166,7 +1166,7 @@ export const bqSqwadApi = onRequest(
       if (path === "admin/runtime" || path.startsWith("admin/runtime/")) {
         await adminFromRequest(req);
         const parts = path.split("/");
-        const type = String(req.query?.type || body.type || parts[3] || "agents").trim();
+        const type = String(req.query?.type || body.type || parts[2] || "agents").trim();
         if (!["jobs","workflows","agents","evaluations","plugins"].includes(type)) {
           return send(res, 400, { error: "invalid_runtime_type" });
         }
