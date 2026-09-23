@@ -1150,6 +1150,17 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, record });
       }
 
+      // Lightweight UI gate: verifies the server-side super-admin identity without step-up.
+      // Sensitive admin operations still require adminFromRequest() and step-up authentication.
+      if (req.method === "GET" && path === "admin/access") {
+        try {
+          await assertSuperAdmin(user);
+          return send(res, 200, { allowed: true });
+        } catch {
+          return send(res, 403, { allowed: false, error: "Admin access required" });
+        }
+      }
+
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
       // The legacy adminControls store and endpoints are intentionally removed.
       if (req.method === "GET" && path === "admin/play-catalog") {
