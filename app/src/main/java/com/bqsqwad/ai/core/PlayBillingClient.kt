@@ -4,6 +4,8 @@ import android.app.Activity
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.ProductType
 import com.android.billingclient.api.BillingClientStateListener
+import com.android.billingclient.api.PurchasesUpdatedListener
+import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
@@ -134,7 +136,7 @@ class PlayBillingClient(
     fun restorePurchases() {
         if (!connected) return
         client.queryPurchasesAsync(
-            BillingClient.QueryPurchasesParams.newBuilder().setProductType(ProductType.SUBS).build()
+            QueryPurchasesParams.newBuilder().setProductType(ProductType.SUBS).build()
         ) { _, purchases -> purchases.forEach(::verifyWithBackend) }
         client.queryPurchasesAsync(
             BillingClient.QueryPurchasesParams.newBuilder().setProductType(ProductType.INAPP).build()
