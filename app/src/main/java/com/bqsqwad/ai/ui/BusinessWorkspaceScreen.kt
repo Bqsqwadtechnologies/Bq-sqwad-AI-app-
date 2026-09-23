@@ -1,8 +1,6 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -22,6 +20,7 @@ fun BusinessWorkspaceScreen() {
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var extended by remember { mutableStateOf(JSONObject()) }
 
     fun load() {
         loading = true; error = null
@@ -32,9 +31,9 @@ fun BusinessWorkspaceScreen() {
             loading = false
         }
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Team","Assistants","Knowledge","Contacts","Leads","Pipeline","Appointments")
+    val tabs = listOf("Overview","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture")
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -87,6 +86,66 @@ fun BusinessWorkspaceScreen() {
                     }
                 }
                 Records(data.optJSONArray("knowledge") ?: JSONArray(), "Knowledge")
+            }
+            "FAQs" -> {
+                RecordCreateForm("FAQ", listOf("question","answer")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessExtended("faq", JSONObject().put("workspaceId", data.optString("workspaceId")).put("question", values[0]).put("answer", values[1])) }
+                            .onFailure { error = it.message ?: "FAQ could not be saved." }
+                            .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
+                        saving = false
+                    }
+                }
+                Records(extended.optJSONArray("faqs") ?: JSONArray(), "FAQ")
+            }
+            "Vault" -> {
+                RecordCreateForm("Business Vault", listOf("title","content")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessExtended("vault", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("content", values[1])) }
+                            .onFailure { error = it.message ?: "Vault item could not be saved." }
+                            .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
+                        saving = false
+                    }
+                }
+                Records(extended.optJSONArray("vault") ?: JSONArray(), "Vault")
+            }
+            "Inbox" -> {
+                RecordCreateForm("Inbox message", listOf("sender","channel","message")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessExtended("inbox", JSONObject().put("workspaceId", data.optString("workspaceId")).put("sender", values[0]).put("channel", values[1]).put("message", values[2])) }
+                            .onFailure { error = it.message ?: "Inbox message could not be saved." }
+                            .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
+                        saving = false
+                    }
+                }
+                Records(extended.optJSONArray("inbox") ?: JSONArray(), "Inbox")
+            }
+            "Automation" -> {
+                RecordCreateForm("Automation", listOf("name")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessExtended("automation", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("enabled", true)) }
+                            .onFailure { error = it.message ?: "Automation could not be saved." }
+                            .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
+                        saving = false
+                    }
+                }
+                Records(extended.optJSONArray("automations") ?: JSONArray(), "Automation")
+            }
+            "Lead Capture" -> {
+                RecordCreateForm("Lead capture form", listOf("name","source")) { values ->
+                    saving = true
+                    scope.launch {
+                        runCatching { api.createBusinessExtended("leadCapture", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("source", values[1])) }
+                            .onFailure { error = it.message ?: "Lead capture form could not be created." }
+                            .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
+                        saving = false
+                    }
+                }
+                Records(extended.optJSONArray("leadCaptures") ?: JSONArray(), "Lead capture")
             }
             "Contacts" -> {
                 RecordCreateForm("Contact", listOf("name","email","phone","company")) { values ->
@@ -171,9 +230,9 @@ private fun RecordCreateForm(title: String, fields: List<String>, onSave: (List<
 @Composable
 private fun Records(array: JSONArray, title: String) {
     if (array.length() == 0) SurfaceCard(title, "No records yet.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        items((0 until array.length()).map { array.optJSONObject(it) ?: JSONObject() }) { item ->
-            SurfaceCard(title, item.toString())
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        (0 until minOf(array.length(), 50)).forEach { i ->
+            SurfaceCard(title, (array.optJSONObject(i) ?: JSONObject()).toString())
         }
     }
 }
