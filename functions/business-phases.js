@@ -591,10 +591,10 @@ export async function runBusinessPlanTestSuite(uid, planId) {
       await check("CRM lead", async () => (await createBusinessRecord(uid, "lead", { workspaceId, name: "Admin Test Lead", source: "admin-test" })).id);
       await check("CRM pipeline", async () => (await createBusinessRecord(uid, "pipeline", { workspaceId, name: "Admin Test Pipeline" })).id);
       await check("CRM appointment", async () => (await createBusinessRecord(uid, "appointment", { workspaceId, title: "Admin Test Appointment", startAt: new Date().toISOString(), endAt: new Date(Date.now()+3600000).toISOString() })).id);
+      await check("lead capture", async () => (await createBusinessExtended(uid, "leadCapture", { workspaceId, name: "Admin Test Form", source: "test", fields: ["name","email"] })).id);
     }
     if (planHasBusinessFeature(plan.id, "channels")) {
       await check("unified inbox", async () => (await createBusinessExtended(uid, "inbox", { workspaceId, sender: "admin-test", channel: "test", message: "Test inbox message" })).id);
-      await check("lead capture", async () => (await createBusinessExtended(uid, "leadCapture", { workspaceId, name: "Admin Test Form", source: "test", fields: ["name","email"] })).id);
     }
     if (planHasBusinessFeature(plan.id, "automation")) {
       const automation = await createBusinessExtended(uid, "automation", { workspaceId, name: "Admin Test Automation", enabled: true, conditions: [{ field: "source", operator: "equals", value: "admin-test" }], actions: [{ type: "create_lead", name: "Automation Test Lead", source: "admin-test" }] });
