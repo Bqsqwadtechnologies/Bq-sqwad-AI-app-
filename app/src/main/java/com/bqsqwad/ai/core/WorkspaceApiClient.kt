@@ -83,6 +83,8 @@ class WorkspaceApiClient {
 
     suspend fun credits():JSONObject = request("/credits","GET")
 
+    suspend fun playSubscriptionManagement():JSONObject = request("/play/subscription-management","GET")
+
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
 
     suspend fun organization(): JSONObject = request("/organization","GET")
