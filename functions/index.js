@@ -997,21 +997,33 @@ export const bqSqwadApi = onRequest(
           ? (pricingDoc.data()?.config || {})
           : { creditsPerSearch: 1, creditsPerDeepResearch: 5, maxResults: 10, dailyUserLimit: null };
         if (pricingDoc.exists && pricingDoc.data()?.enabled === false) return send(res, 403, { error: "web_search_disabled" });
-        const charge = body.deepResearch ? Number(pricing.creditsPerDeepResearch ?? 5) : Number(pricing.creditsPerSearch ?? 1);
-        const capability = body.deepResearch ? "deep_research" : "web_search";
+        const deepResearch = Boolean(body.deepResearch);
+        const charge = deepResearch ? Number(pricing.creditsPerDeepResearch ?? 5) : Number(pricing.creditsPerSearch ?? 1);
+        const capability = deepResearch ? "deep_research" : "web_search";
         const gate = await authorizeCapability(user.uid, "capability_" + capability);
         const effectiveCharge = Math.max(charge, gate.creditCost);
         const reservation = await reserveCredits(user.uid, effectiveCharge, capability);
-        let result;
         try {
-          result = await callTavily({
+          const result = await callTavily({
             query,
             maxResults: Math.min(Number(body.maxResults || pricing.maxResults || 10), Number(pricing.maxResults || 10)),
-            deepResearch: Boolean(body.deepResearch)
+            deepResearch
           });
-          await commitCredits(user.uid, reservation.reservationId, "tavily");
+          let answer = null;
+          if (deepResearch) {
+            const sources = (result.sources || []).map((source, index) =>
+              "[" + (index + 1) + "] " + String(source.title || "") + "\nURL: " + String(source.url || "") + "\n" + String(source.snippet || "")
+            ).join("\n\n");
+            const synthesis = await runAi({
+              capability: "deep_research",
+              message: "Research question: " + query + "\n\nSearch sources:\n" + sources,
+              system: "Synthesize a factual research answer from the supplied search sources. Cite claims using [1], [2], etc. Do not invent facts or citations. Clearly say when the sources do not establish an answer."
+            });
+            answer = synthesis.text;
+          }
+          await commitCredits(user.uid, reservation.reservationId, deepResearch ? "tavily+ai" : "tavily");
           gate.commit();
-          return send(res, 200, { ...result, creditsCharged: reservation.amount });
+          return send(res, 200, { ...result, answer, creditsCharged: reservation.amount });
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
           throw error;
