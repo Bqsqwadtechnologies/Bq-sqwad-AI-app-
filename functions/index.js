@@ -22,7 +22,7 @@ import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
@@ -1461,6 +1461,7 @@ export const bqSqwadApi = onRequest(
         const planId = String(body.planId || "").trim();
         if (!planId) return send(res, 400, { error: "business_plan_id_required" });
         const active = body.active !== false;
+        if (!active && body.confirmDeactivation !== true) return send(res, 400, { error: "business_plan_deactivation_confirmation_required" });
         await getFirestore().collection("businessPlanStatus").doc(planId).set({
           planId, active, updatedBy: admin.uid, updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
@@ -1957,4 +1958,8 @@ export const googlePlayRtdn = onMessagePublished({ topic: "google-play-rtdn", re
 });
 export const bqSqwadOrganizationScheduler = onSchedule({ schedule: "every 5 minutes", region: "europe-west1" }, async () => {
   await runDueOrganizationScheduledTasks();
+});
+
+export const bqSqwadBusinessUsageWarnings = onSchedule({ schedule: "every 30 minutes", region: "europe-west1" }, async () => {
+  await runBusinessUsageWarnings();
 });
