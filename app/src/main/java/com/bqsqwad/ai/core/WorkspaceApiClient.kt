@@ -184,6 +184,24 @@ class WorkspaceApiClient {
             if (instagramAccountId != null) put("instagramAccountId", instagramAccountId.take(120))
         })
 
+    suspend fun businessAdvancedAi(payload: JSONObject): JSONObject =
+        request("/business/advanced-ai", payload=payload)
+
+    suspend fun businessAdvancedAiJobs(workspaceId:String? = null): JSONObject =
+        request("/business/advanced-ai/jobs" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
+
+    suspend fun businessIntegrations(workspaceId:String): JSONObject =
+        request("/business/integrations?workspaceId=" + java.net.URLEncoder.encode(workspaceId, "UTF-8"), "GET")
+
+    suspend fun configureBusinessIntegration(payload:JSONObject): JSONObject =
+        request("/business/integrations", payload=payload)
+
+    suspend fun businessEnterprise(workspaceId:String): JSONObject =
+        request("/business/enterprise?workspaceId=" + java.net.URLEncoder.encode(workspaceId, "UTF-8"), "GET")
+
+    suspend fun updateBusinessEnterprise(workspaceId:String, config:JSONObject): JSONObject =
+        request("/business/enterprise", "PATCH", JSONObject(config.toString()).put("workspaceId", workspaceId))
+
     suspend fun businessAssistant(message:String): JSONObject =
         request("/business/assistant", payload=JSONObject().put("message", message.take(8000)))
 
