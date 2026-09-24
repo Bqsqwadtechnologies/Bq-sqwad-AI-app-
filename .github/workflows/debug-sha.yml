@@ -23,10 +23,11 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "9.7.1"
 
       - name: Generate signing report
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --stacktrace signingReport
+          gradle --no-daemon --stacktrace signingReport
