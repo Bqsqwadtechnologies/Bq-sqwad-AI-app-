@@ -880,8 +880,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            val pulseTransition = rememberInfiniteTransition(label = "bqPulse")
-            val pulse by pulseTransition.animateFloat(
+            val logoPulseTransition = rememberInfiniteTransition(label = "bqPulse")
+            val logoPulse by logoPulseTransition.animateFloat(
                 initialValue = 0.35f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -922,7 +922,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .size(116.dp)
                                         .border(
                                             2.dp,
-                                            Color(0xFF1457FF).copy(alpha = 0.55f + (pulse * 0.45f)),
+                                            Color(0xFF1457FF).copy(alpha = 0.55f + (logoPulse * 0.45f)),
                                             CircleShape
                                         ),
                                     shape = CircleShape,
