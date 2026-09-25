@@ -1,5 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { decryptSecret } from "./secret-store.js";
+import { decryptSecret, encryptSecret, getProviderSecret } from "./secret-store.js";
 import { assertMediaRights } from "./media-rights.js";
 
 const ACCOUNTS = "socialAccounts";
@@ -14,6 +14,23 @@ async function youtubeToken(uid, accountId) {
   const account = snap.data() || {};
   if (String(account.uid || "") !== String(uid) || account.platform !== "youtube") throw new Error("youtube_account_not_found");
   let token = account.accessTokenSecret?.ciphertext ? decryptSecret(account.accessTokenSecret) : clean(account.token, 10000);
+  const expiresAt = account.expiresAt?.toDate?.()?.getTime?.() || 0;
+  if ((!token || (expiresAt && expiresAt <= Date.now() + 60000)) && account.refreshTokenSecret?.ciphertext) {
+    const secret = await getProviderSecret("youtube_client_secret");
+    if (!secret) throw new Error("youtube_client_secret_missing");
+    const refreshToken = decryptSecret(account.refreshTokenSecret);
+    const configSnap = await getFirestore().collection("socialIntegrations").doc("global").get();
+    const clientId = String(configSnap.data()?.platforms?.youtube?.clientId || "");
+    const refresh = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: clientId, client_secret: secret, refresh_token: refreshToken, grant_type: "refresh_token" })
+    });
+    const refreshed = await refresh.json();
+    if (!refresh.ok || !refreshed.access_token) throw new Error("youtube_token_refresh_failed");
+    token = String(refreshed.access_token);
+    await ref.set({ accessTokenSecret: encryptSecret(token), expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 3600) * 1000), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
   if (!token) throw new Error("youtube_access_token_missing");
   return { ref, account, token };
 }
@@ -22,9 +39,7 @@ async function youtubeRequest(uid, accountId, path, init = {}) {
   const { ref, account, token } = await youtubeToken(uid, accountId);
   const headers = { ...(init.headers || {}), Authorization: "Bearer " + token };
   let response = await fetch(YOUTUBE_API + path, { ...init, headers });
-  if (response.status === 401 && account.refreshTokenSecret?.ciphertext) {
-    throw new Error("youtube_token_refresh_required");
-  }
+  if (response.status === 401) throw new Error("youtube_authorization_expired");
   const raw = await response.text();
   let body = {};
   try { body = JSON.parse(raw); } catch {}
