@@ -1450,8 +1450,15 @@ private fun capabilityDescription(id: String): String = when (id) {
     else -> "Connected BQ Sqwad AI capability controlled by the server-side feature catalog."
 }
 
+private val ADMIN_ONLY_CAPABILITIES = setOf(
+    "admin_experimentation", "feature_rollout_percentages", "emergency_kill_switches",
+    "provider_health_checks", "ai_incident_replay", "model_version_rollback",
+    "admin_capability_marketplace", "security_event_monitoring", "ai_abuse_risk_detection",
+    "rate_limiting", "abuse_protection", "incident_system", "ai_evaluation_center"
+)
+
 private val ADVANCED_APP_FEATURES: List<AppFeature>
-    get() = NativeFeatureRegistry.advanced.map { entry ->
+    get() = NativeFeatureRegistry.advanced.filterNot { it.id in ADMIN_ONLY_CAPABILITIES }.map { entry ->
         AppFeature(
             id = entry.id,
             title = entry.title,
@@ -2006,7 +2013,7 @@ private fun AiTaskWorkspace(
         }
         if (streamingResult.isNotBlank()) SurfaceCard("Live result", streamingResult)
         if (result.isNotBlank()) SurfaceCard("Result", result)
-        SurfaceCard("Live catalog", "Availability, limits, access and feature configuration are controlled by the admin backend.")
+        SurfaceCard("Live catalog", "Availability, limits and access are controlled by the secure BQ Sqwad AI service.")
     }
 }
 
@@ -2065,7 +2072,7 @@ private fun DataAnalysisWorkspace() {
         if (streaming.isNotBlank()) SurfaceCard("Live analysis", streaming)
         if (result.isNotBlank()) SurfaceCard("AI report", result)
         if (dataText.isNotBlank()) SurfaceCard("Dataset preview", dataText.lineSequence().take(8).joinToString("\\n"))
-        SurfaceCard("Credits", "Data analysis uses the shared backend credit system. Admin-configured capability pricing is authoritative.")
+        SurfaceCard("Credits", "Data analysis uses the shared backend credit system and the current service pricing configuration.")
     }
 }
 
