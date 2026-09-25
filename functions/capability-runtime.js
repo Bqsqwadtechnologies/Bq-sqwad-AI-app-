@@ -96,11 +96,11 @@ export async function authorizeCapability(uid, controlId) {
     }
   }
   const plans = Array.isArray(effectiveControl.allowedPlanIds)
-    ? control.allowedPlanIds.map(String).filter(Boolean)
+    ? effectiveControl.allowedPlanIds.map(String).filter(Boolean)
     : [];
   if (plans.length && !plans.includes(planId)) throw new Error("plan_not_entitled");
 
-  const dailyLimit = control.dailyLimit == null ? null : Math.max(0, Number(control.dailyLimit));
+  const dailyLimit = effectiveControl.dailyLimit == null ? null : Math.max(0, Number(effectiveControl.dailyLimit));
   let dailyRef = null;
   if (dailyLimit !== null) {
     dailyRef = db.collection("capabilityUsage").doc(uid + "_" + controlId + "_" + dayKey());
