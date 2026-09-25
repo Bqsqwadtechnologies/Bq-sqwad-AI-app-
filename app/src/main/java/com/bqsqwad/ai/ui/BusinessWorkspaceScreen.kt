@@ -1,8 +1,11 @@
+import android.content.Intent
+import android.net.Uri
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -328,31 +331,136 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
     var accounts by remember { mutableStateOf(JSONArray()) }
     var text by remember { mutableStateOf("") }
     var accountId by remember { mutableStateOf("") }
+    var connecting by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
+    val context = LocalContext.current
+
+    suspend fun refreshAccounts() {
         runCatching { api.socialAccounts(workspaceId) }
-            .onSuccess { accounts = it.optJSONArray("accounts") ?: JSONArray() }
+            .onSuccess {
+                accounts = it.optJSONArray("accounts") ?: JSONArray()
+                if (accountId.isNotBlank() &&
+                    (0 until accounts.length()).none { i -> accounts.optJSONObject(i)?.optString("id") == accountId }
+                ) {
+                    accountId = ""
+                }
+            }
             .onFailure { error(it.message ?: "Social channels could not be loaded.") }
     }
+
+    LaunchedEffect(workspaceId) {
+        refreshAccounts()
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Connected Channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Connect supported social accounts through the secure OAuth flow, then publish from one workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (accounts.length() == 0) SurfaceCard("No connected channels", "Connect a social account from the account/OAuth flow.")
+        Text(
+            "Connect YouTube or X securely, then publish and manage the connected account from this workspace.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                enabled = connecting == null,
+                onClick = {
+                    connecting = "youtube"
+                    scope.launch {
+                        runCatching {
+                            api.startSocialOAuth(
+                                "youtube",
+                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                workspaceId
+                            )
+                        }.onSuccess { result ->
+                            val url = result.optString("authorizationUrl")
+                            if (url.isBlank()) error("YouTube OAuth URL was not returned.")
+                            else {
+                                runCatching {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    context.startActivity(intent)
+                                }.onFailure { error(it.message ?: "Could not open YouTube sign-in.") }
+                            }
+                        }.onFailure { error(it.message ?: "YouTube connection failed.") }
+                        delay(1500)
+                        repeat(20) {
+                            refreshAccounts()
+                            if ((0 until accounts.length()).any { i -> accounts.optJSONObject(i)?.optString("platform") == "youtube" }) return@repeat
+                            delay(1500)
+                        }
+                        connecting = null
+                    }
+                }
+            ) { Text(if (connecting == "youtube") "Connecting…" else "Connect YouTube") }
+
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                enabled = connecting == null,
+                onClick = {
+                    connecting = "x"
+                    scope.launch {
+                        runCatching {
+                            api.startSocialOAuth(
+                                "x",
+                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                workspaceId
+                            )
+                        }.onSuccess { result ->
+                            val url = result.optString("authorizationUrl")
+                            if (url.isBlank()) error("X OAuth URL was not returned.")
+                            else {
+                                runCatching {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    LocalContext.current.startActivity(intent)
+                                }.onFailure { error(it.message ?: "Could not open X sign-in.") }
+                            }
+                        }.onFailure { error(it.message ?: "X connection failed.") }
+                        delay(1500)
+                        repeat(20) {
+                            refreshAccounts()
+                            if ((0 until accounts.length()).any { i -> accounts.optJSONObject(i)?.optString("platform") == "x" }) return@repeat
+                            delay(1500)
+                        }
+                        connecting = null
+                    }
+                }
+            ) { Text(if (connecting == "x") "Connecting…" else "Connect X") }
+        }
+
+        if (accounts.length() == 0) {
+            SurfaceCard("No connected channels", "Connect YouTube or X above to add a channel.")
+        }
+
         for (i in 0 until accounts.length()) {
             val a = accounts.optJSONObject(i) ?: continue
             val id = a.optString("id")
             OutlinedButton(onClick = { accountId = id }) {
-                Text(a.optString("platform").replaceFirstChar { it.uppercase() } + if (accountId == id) " • Selected" else "")
+                Text(
+                    a.optString("platform").replaceFirstChar { it.uppercase() } +
+                        if (accountId == id) " • Selected" else ""
+                )
             }
         }
-        OutlinedTextField(value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Post text") })
-        Button(enabled = accountId.isNotBlank() && text.isNotBlank(), onClick = {
-            scope.launch {
-                runCatching { api.publishSocial(accountId, text) }
-                    .onFailure { error(it.message ?: "Publishing failed.") }
-                    .onSuccess { text = "" }
+
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Post text") }
+        )
+        Button(
+            enabled = accountId.isNotBlank() && text.isNotBlank(),
+            onClick = {
+                scope.launch {
+                    runCatching { api.publishSocial(accountId, text) }
+                        .onFailure { error(it.message ?: "Publishing failed.") }
+                        .onSuccess { text = "" }
+                }
             }
-        }) { Text("Publish") }
+        ) { Text("Publish") }
     }
 }
 
