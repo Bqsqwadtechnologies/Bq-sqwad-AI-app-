@@ -72,15 +72,31 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
 @Composable
 private fun AuthGate(modifier: Modifier) {
-    // Chat remains the entry surface. Protected actions require Firebase authentication and server-verified consent.
+    // The native shell is deliberately independent of network/auth startup. Firebase and consent
+    // synchronization happen after the first frame so the app never blocks on a spinner.
     val auth = remember { FirebaseAuth.getInstance() }
     var user by remember { mutableStateOf(auth.currentUser) }
+
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { updated -> user = updated.currentUser }
         auth.addAuthStateListener(listener)
         onDispose { auth.removeAuthStateListener(listener) }
     }
-    if (user == null) MainShell(modifier) else ConsentGate(modifier)
+
+    MainShell(modifier)
+
+    LaunchedEffect(user?.uid) {
+        val signedIn = user ?: return@LaunchedEffect
+        runCatching { WorkspaceApiClient().consent() }
+            .onSuccess { consent ->
+                val prefs = androidx.compose.ui.platform.LocalContext.current
+                    .getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putBoolean("required_accepted", consent.optBoolean("requiredAccepted"))
+                    .putBoolean("training_consent", consent.optBoolean("trainingConsent"))
+                    .apply()
+            }
+    }
 }
 
 private fun authSignOutForConsent() {
@@ -1748,7 +1764,7 @@ private fun WorkspaceScreen(
         }
     ) { p ->
         if (w == Workspace.ADMIN) {
-            if (!adminAuthorized || !email.equals("isaacoshiomole0@gmail.com", ignoreCase = true)) {
+            if (!adminAuthorized) {
                 AccessDenied()
                 return@Scaffold
             }
@@ -1771,15 +1787,15 @@ private fun WorkspaceScreen(
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
-                Workspace.TRUTH_GUARD -> AiTaskWorkspace("TruthGuard AI", "Evidence-aware fact checking with web-search evidence.", "truth_guard", false, true)
+                Workspace.TRUTH_GUARD -> TruthGuardWorkspace()
                 Workspace.FRONTIER_LAB -> AiTaskWorkspace("Frontier Lab", "Advanced AI experimentation with optional web-search evidence.", "frontier_lab", false, true)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
-                Workspace.PERSONAL -> AiTaskWorkspace("Personal Intelligence", "Permission-based memory, goals, AI birthday, organization and cloud sync.", "personal_intelligence", true)
-                Workspace.LIFE -> AiTaskWorkspace("Life Matters", "Planning, reminders, calendar assistance, routines and practical guidance.", "life_matters", false)
+                Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
+                Workspace.LIFE -> LifeMattersWorkspace()
                 Workspace.COMPANION -> CompanionWorkspace()
-                Workspace.LEARNING -> AiTaskWorkspace("Learning Studio", "Subjects, tutoring, homework, revision and exam preparation.", "learning_studio", false)
+                Workspace.LEARNING -> LearningStudioWorkspace()
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
