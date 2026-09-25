@@ -29,7 +29,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
-private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>)
+private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
@@ -281,7 +281,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                if(false && features.isNotEmpty() && plans.isNotEmpty()) item {
+                if(features.isNotEmpty() && plans.isNotEmpty()) item {
                     Surface(shape=RoundedCornerShape(18.dp),tonalElevation=2.dp,modifier=Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                             Text("Feature matrix",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
@@ -302,6 +302,22 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
+                if (plans.isNotEmpty()) {
+                    item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
+                    plans.sortedWith(compareBy<LivePlan> { it.module }.thenBy { it.id }).forEach { plan ->
+                        item(key="plan:"+plan.id) {
+                            LivePlanCard(
+                                plan=plan,
+                                playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
+                                playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
+                                billing=billing,
+                                onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                onStatus={ status=it }
+                            )
+                        }
+                    }
+                }
+
                 val groups=catalog.groupBy { entry ->
                     plans.firstOrNull { it.id==entry.planId }?.module?.ifBlank { null } ?: "Products"
                 }.toList()
@@ -335,6 +351,70 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         ContactSalesDialog(selection.planId, selection.planName, selection.features, selection.billingPeriod, onDismiss = { contactPlan = null }) { notice ->
             salesNotice = notice
             contactPlan = null
+        }
+    }
+}
+
+@Composable
+private fun LivePlanCard(
+    plan: LivePlan,
+    playEntry: PlayCatalogEntry?,
+    playProduct: ProductDetails?,
+    billing: PlayBillingClient?,
+    onContact: () -> Unit,
+    onStatus: (String) -> Unit
+) {
+    val priceText = plan.price.entries.joinToString(" • ") { (period, value) ->
+        val numeric = value.toDoubleOrNull()
+        val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
+        period.replaceFirstChar { it.uppercase() } + ": " + shown
+    }.ifBlank { if (plan.contactSales) "Contact Sales" else "Price not configured" }
+    Card(
+        Modifier.fillMaxWidth(),
+        shape=RoundedCornerShape(20.dp),
+        border=if(plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(plan.name.ifBlank{"Plan"}, style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                    Text(plan.module.ifBlank{"General"}, style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if(plan.popular) BqStatusBadge("POPULAR")
+            }
+            Text(priceText, style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
+            if(plan.trialEligible && plan.trialDays > 0) {
+                Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
+            }
+            plan.features.take(8).forEach { Text("• "+it, style=MaterialTheme.typography.bodySmall) }
+            if(plan.features.size > 8) Text("+"+(plan.features.size-8)+" more features", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = {
+                    when {
+                        plan.contactSales || plan.paymentChannel == "contact_sales" -> onContact()
+                        plan.paymentChannel == "website" -> {
+                            onStatus("This plan is managed on the BQ Sqwad AI website.")
+                            runCatching {
+                                val context = androidx.compose.ui.platform.LocalContext.current
+                            }
+                        }
+                        plan.playEligible && playEntry != null && playProduct != null && billing?.isReady() == true -> {
+                            val result=billing.launchPurchase(playProduct.productId, playEntry.basePlanId)
+                            onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started. Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
+                        }
+                        else -> onStatus("This plan is not currently purchasable on this device.")
+                    }
+                },
+                modifier=Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    when {
+                        plan.contactSales || plan.paymentChannel=="contact_sales" -> "Contact Sales"
+                        plan.paymentChannel=="website" -> "Subscribe on website"
+                        else -> "Get"
+                    }
+                )
+            }
         }
     }
 }
@@ -429,7 +509,26 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{
     val a=body.optJSONArray("plans")?:JSONArray()
-    return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(p.optString("id"),p.optString("name"),p.optString("module"),List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},limits)}.filter{it.id.isNotBlank()}
+    return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(
+            p.optString("id"),
+            p.optString("name"),
+            p.optString("module"),
+            List(f.length()){n->f.optString(n)}.filter{it.isNotBlank()},
+            limits,
+            run {
+                val priceObject=p.optJSONObject("price") ?: JSONObject()
+                val values=mutableMapOf<String,String>()
+                priceObject.keys().forEach { key -> values[key]=priceObject.optString(key) }
+                values
+            },
+            p.optInt("trialDays",0),
+            p.optBoolean("trialEligible",false),
+            p.optString("offerId").ifBlank{null},
+            p.optString("paymentChannel").ifBlank{if(p.optBoolean("playEligible",false))"play" else "website"},
+            p.optBoolean("playEligible",false),
+            p.optBoolean("contactSales",false),
+            p.optBoolean("popular",false)
+        )}.filter{it.id.isNotBlank()}
 }
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
 @Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
