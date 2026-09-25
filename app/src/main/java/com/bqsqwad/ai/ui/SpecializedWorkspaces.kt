@@ -57,6 +57,7 @@ $evidence"""
 
     WorkspaceFrame(
         title = "TruthGuard AI",
+        style = WorkspaceVisualStyle.TRUTH_GUARD,
         subtitle = "Evidence-first claim checking with source-aware analysis.",
         icon = Icons.Default.Verified
     ) {
@@ -129,6 +130,7 @@ Teach step by step, check understanding, and do not simply give answers when a l
 
     WorkspaceFrame(
         title = "Learning Studio",
+        style = WorkspaceVisualStyle.LEARNING,
         subtitle = "Tutor, lessons, homework support, revision and progress-oriented learning.",
         icon = Icons.Default.School
     ) {
@@ -190,6 +192,7 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
 
     WorkspaceFrame(
         title = "Life Matters",
+        style = WorkspaceVisualStyle.LIFE,
         subtitle = "Goals, routines, planning, practical guidance and personal organization.",
         icon = Icons.Default.FavoriteBorder
     ) {
@@ -248,6 +251,7 @@ ${memory.optString("context", "")}"""
 
     WorkspaceFrame(
         title = "Personal Intelligence",
+        style = WorkspaceVisualStyle.PERSONAL,
         subtitle = "Organize projects, goals, notes and personal context with account-controlled memory.",
         icon = Icons.Default.Psychology
     ) {
@@ -271,13 +275,32 @@ ${memory.optString("context", "")}"""
     }
 }
 
+private enum class WorkspaceVisualStyle {
+    TRUTH_GUARD, LEARNING, LIFE, PERSONAL
+}
+
 @Composable
 private fun WorkspaceFrame(
     title: String,
     subtitle: String,
+    style: WorkspaceVisualStyle,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val container = when (style) {
+        WorkspaceVisualStyle.TRUTH_GUARD -> scheme.tertiaryContainer
+        WorkspaceVisualStyle.LEARNING -> scheme.primaryContainer
+        WorkspaceVisualStyle.LIFE -> scheme.secondaryContainer
+        WorkspaceVisualStyle.PERSONAL -> scheme.surfaceVariant
+    }
+    val onContainer = when (style) {
+        WorkspaceVisualStyle.TRUTH_GUARD -> scheme.onTertiaryContainer
+        WorkspaceVisualStyle.LEARNING -> scheme.onPrimaryContainer
+        WorkspaceVisualStyle.LIFE -> scheme.onSecondaryContainer
+        WorkspaceVisualStyle.PERSONAL -> scheme.onSurfaceVariant
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -295,16 +318,42 @@ private fun WorkspaceFrame(
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = {
-                item {
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = container,
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
                     Column(
-                        Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        content = content
-                    )
+                        Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(icon, contentDescription = null, tint = onContainer)
+                            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = onContainer)
+                        }
+                        Text(
+                            when (style) {
+                                WorkspaceVisualStyle.TRUTH_GUARD -> "Evidence workspace • claims → research → sources → analysis"
+                                WorkspaceVisualStyle.LEARNING -> "Study workspace • learn → practise → revise → measure"
+                                WorkspaceVisualStyle.LIFE -> "Planning workspace • goals → routines → tasks → action"
+                                WorkspaceVisualStyle.PERSONAL -> "Private workspace • projects → notes → memory → organization"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = onContainer
+                        )
+                    }
                 }
             }
-        )
+            item {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = content
+                )
+            }
+        }
     }
 }
