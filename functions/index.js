@@ -1910,17 +1910,45 @@ export const bqSqwadApi = onRequest(
         const providers = await Promise.all(
           listProviderSecretStatuses()
         );
+        const configuredRoutes = config.options
+          .filter(x => String(x.id).startsWith("capability_"))
+          .map(x => ({
+            capability: String(x.id).replace(/^capability_/, ""),
+            primaryProviderId: x.providerId || "openai",
+            primaryModelId: x.modelId || "gpt-5.6-luna",
+            fallbackProviderIds: x.config?.fallbackProviderIds || ["gemini"],
+            enabled: x.enabled !== false && x.killSwitch !== true
+          }));
+        const routeMap = new Map(configuredRoutes.map(x => [x.capability, x]));
+        [
+          "chat",
+          "deep_research",
+          "knowledge_graphs",
+          "semantic_file_search",
+          "conversation_intelligence",
+          "project_workspaces",
+          "ai_generated_reports",
+          "scheduled_ai_tasks",
+          "truth_guard",
+          "learning_studio",
+          "life_matters",
+          "personal_intelligence",
+          "companion"
+        ].forEach(capability => {
+          if (!routeMap.has(capability)) {
+            routeMap.set(capability, {
+              capability,
+              primaryProviderId: "openai",
+              primaryModelId: "gpt-5.6-luna",
+              fallbackProviderIds: ["gemini"],
+              enabled: true,
+              source: "default"
+            });
+          }
+        });
         return send(res, 200, {
           providers,
-          routes: config.options
-            .filter(x => String(x.id).startsWith("capability_"))
-            .map(x => ({
-              capability: String(x.id).replace(/^capability_/, ""),
-              primaryProviderId: x.providerId,
-              primaryModelId: x.modelId,
-              fallbackProviderIds: x.config?.fallbackProviderIds || [],
-              enabled: x.enabled && !x.killSwitch
-            })),
+          routes: Array.from(routeMap.values()),
           webSearchPricing: config.options.find(x => x.id === "web_search_pricing")?.config || {}
         });
       }
