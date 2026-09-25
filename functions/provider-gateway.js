@@ -24,7 +24,9 @@ export async function getRoute(capability) {
     return {
       primaryProviderId: data.providerId || "openai",
       primaryModelId: data.modelId || DEFAULT_MODELS.openai,
-      fallbackProviderIds: Array.isArray(config.fallbackProviderIds) ? config.fallbackProviderIds : [],
+      fallbackProviderIds: Array.isArray(config.fallbackProviderIds)
+        ? config.fallbackProviderIds
+        : ((data.providerId || "openai") === "openai" ? ["gemini"] : []),
       fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
       enabled: data.enabled !== false && data.killSwitch !== true
     };
