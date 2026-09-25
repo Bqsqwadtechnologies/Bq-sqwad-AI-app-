@@ -38,6 +38,7 @@ fun TruthGuardWorkspace() {
             runCatching {
                 val api = WorkspaceApiClient()
                 val research = api.workspaceResearch(input, deepResearch = depth == "Deep")
+                sources = research.sources
                 val evidence = research.sources.joinToString("\n\n") {
                     "Source: ${it.title}\nURL: ${it.url}\n${it.snippet.orEmpty()}"
                 }
@@ -49,8 +50,6 @@ $evidence"""
                 api.workspaceAi("truth_guard", input, system)
             }.onSuccess {
                 analysis = it.optString("text").ifBlank { it.optString("answer") }
-                val research = WorkspaceApiClient().workspaceResearch(input, deepResearch = false)
-                sources = research.sources
             }.onFailure { error = it.message ?: "TruthGuard could not complete the check." }
             busy = false
         }
