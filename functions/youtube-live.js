@@ -1,6 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { decryptSecret, encryptSecret, getProviderSecret } from "./secret-store.js";
-import { assertMediaRights } from "./media-rights.js";
 
 const ACCOUNTS = "socialAccounts";
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
@@ -52,7 +51,6 @@ export async function getYouTubeChannel(uid, accountId) {
 }
 
 export async function createYouTubeLiveSession(uid, accountId, input = {}) {
-  await assertMediaRights(uid, { rightsId: input.rightsId, workspaceId: input.workspaceId });
   const title = clean(input.title, 100);
   if (!title) throw new Error("youtube_live_title_required");
   const scheduledStartTime = new Date(input.scheduledStartTime || Date.now() + 60000);
@@ -113,6 +111,9 @@ export async function createYouTubeLiveSession(uid, accountId, input = {}) {
     title,
     privacyStatus,
     status: "created",
+    rightsId: clean(input.rightsId, 160) || null,
+    workspaceId: clean(input.workspaceId, 160) || null,
+    destinationId: clean(input.destinationId, 160) || null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   });
