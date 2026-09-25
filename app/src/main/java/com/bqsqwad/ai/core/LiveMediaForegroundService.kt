@@ -22,6 +22,8 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_LIVE_SESSION_ID = "live_session_id"
         const val EXTRA_RIGHTS_ID = "rights_id"
         const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
+        const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
+        const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
         const val ACTION_STOP = "stop"
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
@@ -43,6 +45,8 @@ class LiveMediaForegroundService : Service() {
     private var rightsId: String? = null
     private var liveEndpoint: String? = null
     private var organizationStreamer: OrganizationLiveStreamer? = null
+    private var youtubeAccountId: String? = null
+    private var youtubeBroadcastId: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +67,8 @@ class LiveMediaForegroundService : Service() {
         liveSessionId = intent?.getStringExtra(EXTRA_LIVE_SESSION_ID)?.trim()?.takeIf { it.isNotBlank() } ?: liveSessionId
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
+        youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
+        youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
@@ -270,7 +276,16 @@ class LiveMediaForegroundService : Service() {
         realtimeVoice = null
         cameraSession?.stop()
         cameraSession = null
-        runBlocking { runCatching { organizationStreamer?.stop() } }
+        runBlocking {
+            runCatching { organizationStreamer?.stop() }
+            val accountId = youtubeAccountId
+            val broadcastId = youtubeBroadcastId
+            if (!accountId.isNullOrBlank() && !broadcastId.isNullOrBlank()) {
+                runCatching {
+                    WorkspaceApiClient().transitionYouTubeLive(accountId, broadcastId, "complete")
+                }
+            }
+        }
         organizationStreamer = null
         screenSession?.stop()
         screenSession = null
