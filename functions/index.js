@@ -1663,10 +1663,19 @@ export const bqSqwadApi = onRequest(
           module: String(data.module || data.product || ""),
           features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
           limits: data.limits && typeof data.limits === "object" ? data.limits : {},
+          price: data.price && typeof data.price === "object" ? data.price : {},
+          trialDays: Number(data.trialDays || 0),
+          trialEligible: data.trialEligible === true,
+          offerId: data.offerId ? String(data.offerId) : null,
+          paymentChannel: String(data.paymentChannel || (data.playEligible ? "play" : (data.contactSales ? "contact_sales" : "website"))),
+          playEligible: data.playEligible === true,
+          contactSales: data.contactSales === true,
+          popular: data.popular === true || data.badge === "popular",
           badge: data.badge ? String(data.badge) : null,
           highlighted: data.highlighted === true,
           sortOrder: Number(data.sortOrder || 0),
           visible: data.visible !== false,
+          active: data.active !== false,
           version: Number(data.version || 1),
           effectiveDate: data.effectiveDate || null
         });
@@ -1706,7 +1715,10 @@ export const bqSqwadApi = onRequest(
         });
         return send(res, 200, {
           version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
-          plans: plansSnap.docs.map(d => safePlan(d.id, d.data())).filter(x => x.visible),
+          plans: (plansSnap.empty
+            ? Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item))
+            : plansSnap.docs.map(d => safePlan(d.id, d.data()))
+          ).filter(x => x.visible && x.active),
           products,
           publicContactSales,
           features: features.filter(x => x.visible),
