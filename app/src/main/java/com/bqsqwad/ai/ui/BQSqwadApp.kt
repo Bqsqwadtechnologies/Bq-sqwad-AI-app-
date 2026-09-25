@@ -733,6 +733,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var imageMode by remember { mutableStateOf(false) }
     var historyId by remember { mutableStateOf<String?>(null) }
+    var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -744,6 +745,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
+        val activeCapability = selectedAdvanced?.capability ?: "chat"
+        val activeSystem = selectedAdvanced?.let { "You are operating in the BQ Sqwad AI ${it.title} mode. Use the capabilities of this mode when relevant, while remaining accurate about what you can and cannot do." }
         if (imageMode && text.isNotBlank() && attachments.isEmpty()) {
             val promptText = text.trim()
             message = ""
@@ -796,7 +799,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val image = imageParts.first()
                     ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType)
                 } else {
-                    ChatApiClient().streamMessage(actualPrompt, onDelta = { delta ->
+                    ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
@@ -870,6 +873,44 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
                 IconButton(onClick = openSettings) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings")
+                }
+            }
+            if (ADVANCED_APP_FEATURES.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Advanced AI", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            selectedAdvanced?.title ?: "Main Chat",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    LazyRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = selectedAdvanced == null,
+                                onClick = { selectedAdvanced = null },
+                                label = { Text("Main Chat") },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp)) }
+                            )
+                        }
+                        items(ADVANCED_APP_FEATURES) { feature ->
+                            FilterChip(
+                                selected = selectedAdvanced?.id == feature.id,
+                                onClick = { selectedAdvanced = if (selectedAdvanced?.id == feature.id) null else feature },
+                                label = { Text(feature.title, maxLines = 1) },
+                                leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(16.dp)) }
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(6.dp))
