@@ -6,6 +6,17 @@ const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
 
 function clean(v, n = 500) { return String(v ?? "").trim().slice(0, n); }
 
+async function resolveYouTubeAccountId(uid, accountId) {
+  const explicit = clean(accountId, 160);
+  if (explicit) return explicit;
+  const snap = await getFirestore().collection(ACCOUNTS)
+    .where("uid", "==", uid)
+    .where("platform", "==", "youtube")
+    .limit(1).get();
+  if (snap.empty) throw new Error("youtube_account_not_connected");
+  return snap.docs[0].id;
+}
+
 async function youtubeToken(uid, accountId) {
   const ref = getFirestore().collection(ACCOUNTS).doc(clean(accountId, 160));
   const snap = await ref.get();
@@ -51,6 +62,7 @@ export async function getYouTubeChannel(uid, accountId) {
 }
 
 export async function createYouTubeLiveSession(uid, accountId, input = {}) {
+  accountId = await resolveYouTubeAccountId(uid, accountId);
   const title = clean(input.title, 100);
   if (!title) throw new Error("youtube_live_title_required");
   const scheduledStartTime = new Date(input.scheduledStartTime || Date.now() + 60000);
