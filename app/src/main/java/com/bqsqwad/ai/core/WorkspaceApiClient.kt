@@ -146,6 +146,12 @@ class WorkspaceApiClient {
     suspend fun setOrganizationMemberStatus(memberId:String, status:String):JSONObject =
         request("/organization/member-state",payload=JSONObject().put("memberId",memberId.take(200)).put("status",status.take(20)))
 
+    suspend fun transitionYouTubeLive(accountId: String, broadcastId: String, status: String): JSONObject =
+        request("/organization/production/youtube/live/transition", payload=JSONObject()
+            .put("accountId", accountId)
+            .put("broadcastId", broadcastId)
+            .put("status", status))
+
     suspend fun createYouTubeLive(payload: JSONObject): JSONObject =
         request("/organization/production/youtube/live", payload=payload)
 
