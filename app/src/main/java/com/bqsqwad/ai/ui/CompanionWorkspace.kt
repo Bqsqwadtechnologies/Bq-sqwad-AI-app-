@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.bqsqwad.ai.core.ChatApiClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 
@@ -138,11 +137,12 @@ fun CompanionWorkspace() {
                     notice = null
                     scope.launch {
                         runCatching {
-                            ChatApiClient().sendMessage(
-                                "Personality: $personality. Respond as a supportive AI companion. User: $text",
-                                "companion"
+                            WorkspaceApiClient().workspaceAi(
+                                "companion",
+                                text,
+                                "You are BQ Sqwad AI Companion. Personality: $personality. Be supportive, respectful, and honest about limits. Do not claim to be human or create dependency."
                             )
-                        }.onSuccess { messages.add(CompanionMessage(false, it.text)) }
+                        }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
                             .onFailure { notice = it.message ?: "Companion response failed." }
                         busy = false
                     }
@@ -157,9 +157,10 @@ fun CompanionWorkspace() {
                 busy = true
                 scope.launch {
                     runCatching {
-                        ChatApiClient().sendMessage(
-                            "Personality: $personality. $prompt",
-                            "companion"
+                        WorkspaceApiClient().workspaceAi(
+                            "companion",
+                            prompt,
+                            "You are BQ Sqwad AI Companion. Personality: $personality. Give a brief supportive daily check-in without pretending to be a human."
                         )
                     }.onSuccess { messages.add(CompanionMessage(false, it.text)) }
                         .onFailure { notice = it.message ?: "Check-in failed." }
