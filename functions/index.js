@@ -22,6 +22,7 @@ import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, getYouTubeLiveStatus } from "./youtube-live.js";
+import { createMediaRights, listPendingMediaRights, reviewMediaRights } from "./media-rights.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
@@ -244,6 +245,10 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await updateEnterpriseConfig(user.uid, String(body.workspaceId || "").trim(), body.config || body));
       }
 
+
+      if (req.method === "POST" && path === "media-rights") {
+        return send(res, 200, await createMediaRights(user.uid, body));
+      }
 
       if (req.method === "GET" && path === "social/accounts") {
         const workspace = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
@@ -1788,6 +1793,16 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "admin/config") {
         await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
+      }
+
+      if (req.method === "POST" && path === "admin/media-rights/review") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await reviewMediaRights(admin.uid, String(body.rightsId || ""), String(body.decision || ""), String(body.note || "")));
+      }
+
+      if (req.method === "GET" && path === "admin/media-rights/pending") {
+        await adminFromRequest(req);
+        return send(res, 200, { items: await listPendingMediaRights() });
       }
 
       if (req.method === "GET" && path === "admin/social-integrations") {
