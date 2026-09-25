@@ -418,3 +418,10 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - YouTube refresh-token handling and resumable video publishing remain server-side.
 - External providers that require their own developer application, OAuth approval, or API credentials are not marked live until those provider-side requirements are configured and tested.
 - The website and native app continue to use the existing Firebase/backend architecture; no second payment backend or client-side provider secret was introduced.
+
+
+## 2026-09-25 — OpenAI streaming reliability
+- Updated `functions/provider-gateway.js` SSE parsing to accept both LF and CRLF event separators.
+- This fixes a server-side buffering condition where valid `response.output_text.delta` events could remain unparsed and the Android client could surface an AI streaming error instead of receiving the response.
+- OpenAI credentials remain server-side through the existing provider secret store; no API key was added to the Android app.
+- The current OpenAI default model remains `gpt-5.6-luna`, which is an available Responses API model.
