@@ -424,6 +424,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
         LegalConsentLinks()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
+}
 
 @Composable
 private fun LegalConsentLinks() {
