@@ -783,7 +783,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
                         }
-                    }
+                    })
                 }
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
@@ -1215,7 +1215,8 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
 }
 
 private fun featureLongDescription(w: Workspace): String = when (w) {
-    Workspace.VIDEO -> "AI video creation and video-focused workflows using the configured BQ Sqwad AI capabilities."\n    Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
+    Workspace.VIDEO -> "AI video creation and video-focused workflows using the configured BQ Sqwad AI capabilities."
+    Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
     Workspace.SEARCH -> "Search the web through the configured backend, with source-aware results and direct links that open in the device browser."
     Workspace.TRUTH_GUARD -> "Review claims against web sources and separate evidence from unsupported conclusions."
     Workspace.FRONTIER_LAB -> "Explore advanced AI capabilities using the authenticated, credit-controlled AI runtime."
@@ -1285,7 +1286,6 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.ADMIN -> "Admin Control Center"
 }
 
-@Composable
 private data class AppFeature(val id: String, val title: String, val description: String, val capability: String, val webSearch: Boolean = false)
 
 private val PRIMARY_ADVANCED_FEATURES = listOf(
@@ -1925,7 +1925,7 @@ private fun AiTaskWorkspace(
                         }
                         val reply = ChatApiClient().streamMessage(requestText, capability, onDelta = { delta ->
                             streamingResult += delta
-                        }
+                        })
                         result = reply.text
                     } catch (t: Throwable) {
                         error = t.message ?: "Request failed"
