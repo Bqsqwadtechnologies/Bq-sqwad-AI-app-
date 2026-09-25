@@ -208,10 +208,10 @@ fun BusinessWorkspaceScreen() {
                 Text("Business AI settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("These settings are persisted in the business workspace and apply to its AI and automation behavior.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 listOf(
-                    Triple("Business AI enabled", assistantEnabled) { next:Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
-                    Triple("Automation enabled", automationEnabled) { next:Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
-                    Triple("Notifications enabled", notificationsEnabled) { next:Boolean -> notificationsEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), notificationsEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } },
-                    Triple("Web Search for business workflows", webSearchEnabled) { next:Boolean -> webSearchEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), webSearchEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } } }
+                    Triple("Business AI enabled", assistantEnabled) { next: Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
+                    Triple("Automation enabled", automationEnabled) { next: Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
+                    Triple("Notifications enabled", notificationsEnabled) { next: Boolean -> notificationsEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), notificationsEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
+                    Triple("Web Search for business workflows", webSearchEnabled) { next: Boolean -> webSearchEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), webSearchEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit }
                 ).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(row.first)
