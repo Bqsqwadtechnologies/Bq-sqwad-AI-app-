@@ -21,6 +21,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
+import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, getYouTubeLiveStatus } from "./youtube-live.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
@@ -643,6 +644,41 @@ export const bqSqwadApi = onRequest(
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
         try { const result = await addProductionEvent(user.uid, body); gate.commit(); return send(res, 200, result); }
         finally { await gate.release(); }
+      }
+
+      if (req.method === "GET" && path === "social/youtube/channel") {
+        const workspace = await businessWorkspace(user.uid, { workspaceId: req.query?.workspaceId });
+        await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+        return send(res, 200, await getYouTubeChannel(user.uid, String(req.query?.accountId || "")));
+      }
+
+      if (req.method === "POST" && path === "organization/production/youtube/live") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+          await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+          const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/youtube/live/transition") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await transitionYouTubeLive(user.uid, String(body.accountId || ""), String(body.broadcastId || ""), String(body.status || ""));
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "GET" && path === "organization/production/youtube/live/status") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await getYouTubeLiveStatus(user.uid, String(req.query?.accountId || ""), String(req.query?.broadcastId || ""));
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
       }
 
       if (req.method === "GET" && path === "business/workspace") {
