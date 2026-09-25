@@ -1,5 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { decryptSecret } from "./secret-store.js";
+import { assertMediaRights } from "./media-rights.js";
 
 const ACCOUNTS = "socialAccounts";
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
@@ -36,6 +37,7 @@ export async function getYouTubeChannel(uid, accountId) {
 }
 
 export async function createYouTubeLiveSession(uid, accountId, input = {}) {
+  await assertMediaRights(uid, { rightsId: input.rightsId, workspaceId: input.workspaceId });
   const title = clean(input.title, 100);
   if (!title) throw new Error("youtube_live_title_required");
   const scheduledStartTime = new Date(input.scheduledStartTime || Date.now() + 60000);
