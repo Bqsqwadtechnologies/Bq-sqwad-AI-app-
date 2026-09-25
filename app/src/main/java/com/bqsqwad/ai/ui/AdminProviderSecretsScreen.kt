@@ -89,11 +89,8 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
                     "Choose a known provider or enter another backend provider ID. Only the server receives the secret.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(CORE_PROVIDERS) { (id, label) ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    CORE_PROVIDERS.forEach { (id, label) ->
                         FilterChip(
                             selected = providerId == id,
                             onClick = { providerId = id; error = null },
