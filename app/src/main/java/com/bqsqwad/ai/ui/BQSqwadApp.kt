@@ -1694,39 +1694,6 @@ private fun FeatureHub(
             }
 
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ADVANCED_APP_FEATURES.forEach { feature ->
-                        Card(
-                            onClick = { onAdvancedFeature(feature) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(15.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-                                Column(Modifier.weight(1f)) {
-                                    Text(feature.title, fontWeight = FontWeight.Bold)
-                                    Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                                }
-                                Icon(Icons.Default.ChevronRight, null)
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
