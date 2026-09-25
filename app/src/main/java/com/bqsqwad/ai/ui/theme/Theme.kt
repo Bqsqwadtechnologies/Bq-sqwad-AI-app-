@@ -7,7 +7,11 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
 private val BQSignature = Color(0xFF5BA9FF)
@@ -130,8 +134,19 @@ private fun paletteScheme(p: ThemePalette, dark: Boolean) =
 fun BQSqwadTheme(content: @Composable () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
-    val mode = prefs.getString("theme_mode", "system") ?: "system"
-    val accentName = prefs.getString("accent_palette", "signature") ?: "signature"
+    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
+    var accentName by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                "theme_mode" -> mode = prefs.getString(key, "system") ?: "system"
+                "accent_palette" -> accentName = prefs.getString(key, "signature") ?: "signature"
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val systemDark = isSystemInDarkTheme()
     val normalized = mode.lowercase()
     val dark = when (normalized) {
