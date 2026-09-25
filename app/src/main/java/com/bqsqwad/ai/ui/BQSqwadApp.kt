@@ -523,8 +523,9 @@ private fun MainShell(modifier: Modifier) {
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        adminAuthorized = runCatching { WorkspaceApiClient().adminAccess().optBoolean("allowed") }.getOrDefault(false)
+    LaunchedEffect(email) {
+        adminAuthorized = email.equals("isaacoshiomole0@gmail.com", ignoreCase = true) &&
+            runCatching { WorkspaceApiClient().adminAccess().optBoolean("allowed") }.getOrDefault(false)
     }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
@@ -664,6 +665,7 @@ private fun MainShell(modifier: Modifier) {
             workspace != null -> WorkspaceScreen(
                 workspace!!,
                 email,
+                adminAuthorized,
                 onBack = { workspace = null },
                 onLearnMore = { featureInfo = workspace!! },
                 onPrivacy = { featurePrivacy = workspace!! },
@@ -1675,6 +1677,7 @@ private fun FeatureHub(
 private fun WorkspaceScreen(
     w: Workspace,
     email: String,
+    adminAuthorized: Boolean,
     onBack: () -> Unit,
     onLearnMore: () -> Unit,
     onPrivacy: () -> Unit,
@@ -1700,6 +1703,10 @@ private fun WorkspaceScreen(
         }
     ) { p ->
         if (w == Workspace.ADMIN) {
+            if (!adminAuthorized || !email.equals("isaacoshiomole0@gmail.com", ignoreCase = true)) {
+                AccessDenied()
+                return@Scaffold
+            }
             var allowed by remember { mutableStateOf<Boolean?>(null) }
             LaunchedEffect(Unit) {
                 allowed = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
@@ -1707,10 +1714,7 @@ private fun WorkspaceScreen(
             when (allowed) {
                 null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 true -> Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
-                    when (w) {
-                        Workspace.ADMIN -> AdminControlCenter()
-                        else -> Unit
-                    }
+                    AdminControlCenter()
                 }
                 false -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
                     AccessDenied()
