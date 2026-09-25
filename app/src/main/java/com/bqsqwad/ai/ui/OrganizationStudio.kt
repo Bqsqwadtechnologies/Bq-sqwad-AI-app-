@@ -1,6 +1,8 @@
 package com.bqsqwad.ai.ui
 
 import android.content.Intent
+import androidx.core.content.ContextCompat
+import com.bqsqwad.ai.core.LiveMediaForegroundService
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,6 +60,8 @@ fun OrganizationStudioWorkspace() {
     var aiDirectorEnabled by remember { mutableStateOf(true) }
     var autoSwitchEnabled by remember { mutableStateOf(false) }
     var productionStatus by remember { mutableStateOf("idle") }
+    var liveSessionId by remember { mutableStateOf<String?>(null) }
+    var liveEndpoint by remember { mutableStateOf<String?>(null) }
     var scheduledName by remember { mutableStateOf("") }
     var scheduledPrompt by remember { mutableStateOf("") }
     var scheduledSchedule by remember { mutableStateOf("daily") }
@@ -426,6 +430,74 @@ fun OrganizationStudioWorkspace() {
                             }
                         ) { Icon(Icons.Default.Cast, null); Text(" Display") }
                     }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("YouTube live production", style = MaterialTheme.typography.titleLarge)
+                    Text("Organization AI creates the provider session server-side, then the native camera broadcaster sends H.264 video and AAC audio directly to the provider ingestion endpoint.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            enabled = liveSessionId == null && !busy,
+                            onClick = {
+                                busy = true
+                                error = null
+                                scope.launch {
+                                    try {
+                                        val workspace = api.businessWorkspace()
+                                        val result = api.createYouTubeLive(
+                                            org.json.JSONObject()
+                                                .put("workspaceId", workspace.optString("workspaceId"))
+                                                .put("title", name.ifBlank { "BQ Sqwad AI Live" })
+                                                .put("privacyStatus", "private")
+                                                .put("enableAutoStart", true)
+                                                .put("enableAutoStop", true)
+                                                .put("resolution", "1080p")
+                                                .put("frameRate", "30fps")
+                                        )
+                                        val sessionId = result.optString("sessionId").takeIf { it.isNotBlank() }
+                                            ?: error("YouTube live session was not created.")
+                                        val endpoint = result.optString("ingestionAddress").takeIf { it.isNotBlank() }
+                                            ?: error("YouTube did not return an ingestion address.")
+                                        val streamName = result.optString("streamName").takeIf { it.isNotBlank() }
+                                            ?: error("YouTube did not return a stream key.")
+                                        liveSessionId = sessionId
+                                        liveEndpoint = endpoint
+                                        val intent = Intent(context, LiveMediaForegroundService::class.java).apply {
+                                            putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                                            putExtra(LiveMediaForegroundService.EXTRA_LIVE_SESSION_ID, sessionId)
+                                            putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, endpoint + "/" + streamName)
+                                        }
+                                        ContextCompat.startForegroundService(context, intent)
+                                        outputStatus = "YouTube live is connecting"
+                                    } catch (t: Throwable) {
+                                        liveSessionId = null
+                                        liveEndpoint = null
+                                        error = t.message ?: "YouTube live could not start."
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            }
+                        ) { Icon(Icons.Default.PlayArrow, null); Text(" Start YouTube Live") }
+
+                        Button(
+                            enabled = liveSessionId != null,
+                            onClick = {
+                                context.startService(
+                                    Intent(context, LiveMediaForegroundService::class.java)
+                                        .setAction(LiveMediaForegroundService.ACTION_STOP)
+                                )
+                                liveSessionId = null
+                                liveEndpoint = null
+                                outputStatus = "Live stopped"
+                            }
+                        ) { Text("Stop Live") }
+                    }
+                    Text("Session: " + (liveSessionId ?: "not running"))
                 }
             }
         }
