@@ -30,17 +30,20 @@ android {
             val keyAlias = System.getenv("KEY_ALIAS")
             val keyPassword = System.getenv("KEY_PASSWORD")
 
-            if (!keystorePath.isNullOrBlank() &&
+            val signingValuesPresent = !keystorePath.isNullOrBlank() &&
                 !keystorePassword.isNullOrBlank() &&
                 !keyAlias.isNullOrBlank() &&
                 !keyPassword.isNullOrBlank()
-            ) {
-                signingConfig = signingConfigs.create("releaseCi") {
-                    storeFile = file(keystorePath)
-                    storePassword = keystorePassword
-                    this.keyAlias = keyAlias
-                    this.keyPassword = keyPassword
-                }
+
+            check(signingValuesPresent) {
+                "Release signing is not configured. Set KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD before building a release artifact."
+            }
+
+            signingConfig = signingConfigs.create("releaseCi") {
+                storeFile = file(requireNotNull(keystorePath))
+                storePassword = requireNotNull(keystorePassword)
+                this.keyAlias = requireNotNull(keyAlias)
+                this.keyPassword = requireNotNull(keyPassword)
             }
         }
     }
