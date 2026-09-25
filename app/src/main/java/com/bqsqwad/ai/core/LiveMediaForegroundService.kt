@@ -21,6 +21,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_DENSITY = "density"
         const val EXTRA_LIVE_SESSION_ID = "live_session_id"
         const val EXTRA_RIGHTS_ID = "rights_id"
+        const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
         const val ACTION_STOP = "stop"
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
@@ -40,6 +41,8 @@ class LiveMediaForegroundService : Service() {
     private var realtimeVoice: RealtimeVoiceSession? = null
     private var liveSessionId: String? = null
     private var rightsId: String? = null
+    private var liveEndpoint: String? = null
+    private var organizationStreamer: OrganizationLiveStreamer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -59,6 +62,7 @@ class LiveMediaForegroundService : Service() {
         lens = intent?.getIntExtra(EXTRA_LENS, lens) ?: lens
         liveSessionId = intent?.getStringExtra(EXTRA_LIVE_SESSION_ID)?.trim()?.takeIf { it.isNotBlank() } ?: liveSessionId
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
+        liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
@@ -133,12 +137,33 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun startCamera() {
-        if (cameraSession != null) return
+        if (organizationStreamer != null || cameraSession != null) return
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             writeError("Camera permission is required.")
             stopSelf()
             return
         }
+        val endpoint = liveEndpoint
+        if (!endpoint.isNullOrBlank()) {
+            val broadcaster = OrganizationLiveStreamer(
+                this,
+                onState = { state -> writeState(state == "live" || state == "connecting", state) },
+                onError = { writeError(it) }
+            )
+            organizationStreamer = broadcaster
+            serviceScope.launch {
+                try {
+                    broadcaster.startCamera(endpoint)
+                    writeState(true, "live")
+                } catch (t: Throwable) {
+                    organizationStreamer = null
+                    writeError(t.message ?: "Live broadcaster could not start.")
+                    stopSelf()
+                }
+            }
+            return
+        }
+
         val session = LiveCameraCaptureSession(
             this,
             lens,
@@ -245,6 +270,8 @@ class LiveMediaForegroundService : Service() {
         realtimeVoice = null
         cameraSession?.stop()
         cameraSession = null
+        runBlocking { runCatching { organizationStreamer?.stop() } }
+        organizationStreamer = null
         screenSession?.stop()
         screenSession = null
         serviceScope.cancel()
