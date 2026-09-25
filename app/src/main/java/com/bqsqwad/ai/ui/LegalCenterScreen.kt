@@ -148,6 +148,10 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Business AI"
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
     Workspace.ADMIN -> "Admin Control Center"
+    Workspace.VIDEO -> "Video Generation"
+    Workspace.TRUTH_GUARD -> "TruthGuard AI"
+    Workspace.FRONTIER_LAB -> "Frontier Lab"
+    Workspace.DATA_ANALYSIS -> "Data Analyst"
 }
 
 private fun featurePrivacyDetail(w: Workspace): String = when (w) {
@@ -162,6 +166,10 @@ private fun featurePrivacyDetail(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Business workspace data is scoped to authorized business workspaces. Connected providers receive only the data required for an enabled integration."
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio data is processed for the organization's configured tools and workflows, subject to workspace access controls."
     Workspace.ADMIN -> "Administrative configuration is restricted by server-side authorization; provider secrets and security material are kept server-side."
+    Workspace.VIDEO -> "Video-generation requests and generated media are processed for the requested render workflow; generated content and job metadata are account-scoped where applicable."
+    Workspace.TRUTH_GUARD -> "TruthGuard requests, claims and source information are processed to provide evidence-aware fact checking and claim review."
+    Workspace.FRONTIER_LAB -> "Frontier Lab requests and experiment data are processed for advanced AI experimentation and research workflows."
+    Workspace.DATA_ANALYSIS -> "Data-analysis inputs and generated reports are processed to provide calculations, structured analysis and visualizations."
 }
 
 @Composable
