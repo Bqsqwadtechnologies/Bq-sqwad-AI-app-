@@ -880,7 +880,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val pulse by rememberInfiniteTransition(label = "chatLogoPulse").animateFloat(\n                initialValue = 0f,\n                targetValue = 1f,\n                animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse),\n                label = "chatLogoPulseValue"\n            )\n            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (messages.isEmpty()) {
                     item {
                         val floatTransition = rememberInfiniteTransition(label = "bqFloatingLogo")
@@ -2358,6 +2358,530 @@ private fun VoiceWorkspace() {
     }
 }
 
+
+
+@Composable
+fun DeviceIntelligencePanel(featureName: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var command by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    SurfaceCard(
+        "Device Intelligence",
+        "Use $featureName to control supported Android device actions. Main Chat does not expose this control panel."
+    )
+    OutlinedTextField(
+        value = command,
+        onValueChange = { command = it; status = null },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Ask the device assistant") },
+        placeholder = { Text("Turn on the torch, raise volume, open Calendar…") },
+        maxLines = 3
+    )
+    Button(
+        enabled = !busy && command.isNotBlank(),
+        onClick = {
+            val requested = command.trim()
+            busy = true
+            status = null
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    DeviceIntelligenceClient().interpret(requested)
+                }.onSuccess { result ->
+                    val executor = DeviceCommandExecutor(context)
+                    val failures = result.actions.mapNotNull { action ->
+                        executor.execute(action).exceptionOrNull()?.message
+                    }
+                    scope.launch(Dispatchers.Main) {
+                        busy = false
+                        status = buildString {
+                            append(result.message.ifBlank { "Device command processed." })
+                            if (result.actions.isNotEmpty()) {
+                                append(" Executed ")
+                                append(result.actions.size)
+                                append(" supported action(s).")
+                            }
+                            if (failures.isNotEmpty()) {
+                                append(" Some actions could not be completed: ")
+                                append(failures.joinToString("; "))
+                            }
+                            if (result.creditsCharged > 0) {
+                                append(" Credits used: ")
+                                append(result.creditsCharged)
+                            }
+                        }
+                    }
+                }.onFailure {
+                    scope.launch(Dispatchers.Main) {
+                        busy = false
+                        status = it.message ?: "Device intelligence failed."
+                    }
+                }
+            }
+            command = ""
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(if (busy) "Processing device command…" else "Run device command")
+    }
+    status?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+}
+
+@Composable
+private fun PlansSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    var status by remember { mutableStateOf("Connecting to Google Play…") }
+    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
+    var products by remember { mutableStateOf(emptyList<com.android.billingclient.api.ProductDetails>()) }
+
+    DisposableEffect(activity) {
+        if (activity == null) {
+            status = "Google Play billing is unavailable in this context."
+            onDispose { }
+        } else {
+            val manager = PlayBillingClient(activity) { state ->
+                status = when (state.status) {
+                    "success" -> state.message
+                    "pending" -> state.message
+                    "verifying" -> state.message
+                    else -> state.message
+                }
+            }
+            billing = manager
+            manager.start()
+            status = "Loading Play products…"
+            onDispose {
+                manager.close()
+                billing = null
+            }
+        }
+    }
+
+    LaunchedEffect(billing) {
+        repeat(12) {
+            kotlinx.coroutines.delay(500)
+            val current = billing
+            if (current?.isReady() == true) {
+                products = current.availableProducts()
+                status = if (products.isEmpty()) {
+                    "No approved Play products are configured yet."
+                } else {
+                    "Prices are supplied by Google Play."
+                }
+                if (products.isNotEmpty()) return@LaunchedEffect
+            }
+        }
+        if (products.isEmpty()) status = "Google Play is unavailable. Retry when connected."
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        LazyColumn(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item {
+                Text("Credits & Plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Google Play is the only native purchase path. The app never hard-codes a purchase price.")
+            }
+            item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+                OutlinedButton(
+                    onClick = {
+                        billing?.restorePurchases()
+                        status = "Restoring purchases…"
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = billing?.isReady() == true
+                ) { Text("Restore purchases") }
+            }
+            if (products.isEmpty()) {
+                item { SurfaceCard("Price unavailable", "Approved Play product mappings must be configured before native purchases can be offered.") }
+            }
+            items(products, key = { it.productId }) { product ->
+                val price = product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
+                    ?: product.subscriptionOfferDetails?.firstOrNull()?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(product.name, fontWeight = FontWeight.Bold)
+                        Text(product.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(price ?: "Price unavailable", style = MaterialTheme.typography.titleMedium)
+                        Button(
+                            onClick = {
+                                val result = billing?.launchPurchase(product.productId)
+                                if (result == null) status = "This product is not currently available."
+                                else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                                    status = result.debugMessage.ifBlank { "Purchase could not be started." }
+                                } else {
+                                    status = "Purchase started. Access unlocks only after server verification."
+                                }
+                            },
+                            enabled = price != null && billing?.isReady() == true,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Purchase with Google Play") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val scope = rememberCoroutineScope()
+
+    var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
+    var accent by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+    var trainingConsent by remember { mutableStateOf(prefs.getBoolean("training_consent", false)) }
+    var chatHistory by remember { mutableStateOf(prefs.getBoolean("chat_history", true)) }
+    var autoSave by remember { mutableStateOf(prefs.getBoolean("auto_save", true)) }
+    var memory by remember { mutableStateOf(prefs.getBoolean("memory_enabled", true)) }
+    var webSearch by remember { mutableStateOf(prefs.getBoolean("web_search_enabled", true)) }
+    var voiceReplies by remember { mutableStateOf(prefs.getBoolean("voice_replies", true)) }
+    var cameraEnhance by remember { mutableStateOf(prefs.getBoolean("camera_enhance", true)) }
+    var companionMemory by remember { mutableStateOf(prefs.getBoolean("companion_memory", true)) }
+    var truthGuardSources by remember { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
+    var notifications by remember { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
+    var sound by remember { mutableStateOf(prefs.getBoolean("sound_enabled", true)) }
+    var vibration by remember { mutableStateOf(prefs.getBoolean("vibration_enabled", true)) }
+    var reduceMotion by remember { mutableStateOf(prefs.getBoolean("reduce_motion", false)) }
+    var compactUi by remember { mutableStateOf(prefs.getBoolean("compact_ui", false)) }
+    var consentStatus by remember { mutableStateOf<String?>(null) }
+    var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var entitlements by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var loadingAccount by remember { mutableStateOf(true) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    var deletingAccount by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    var playManagement by remember { mutableStateOf<JSONObject?>(null) }
+
+    fun putBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+    fun saveTheme(value: String) {
+        themeMode = value
+        prefs.edit().putString("theme_mode", value).apply()
+        (context as? android.app.Activity)?.recreate()
+    }
+    fun saveAccent(value: String) {
+        accent = value
+        prefs.edit().putString("accent_palette", value).apply()
+        (context as? android.app.Activity)?.recreate()
+    }
+
+    LaunchedEffect(Unit) {
+        loadingAccount = true
+        val api = WorkspaceApiClient()
+        credits = runCatching { api.credits() }.getOrNull()
+        playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
+        entitlements = runCatching {
+            val a = api.entitlements().optJSONArray("items") ?: JSONArray()
+            List(a.length()) { i -> a.getJSONObject(i) }
+        }.getOrDefault(emptyList())
+        loadingAccount = false
+    }
+
+    val modes = listOf("system", "light", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
+    val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
+    val balance = credits?.optDouble("available", 0.0) ?: 0.0
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Settings", fontWeight = FontWeight.Bold)
+                        Text("Customize your BQ Sqwad AI experience", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
+            )
+        }
+    ) { p ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(p),
+            contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 36.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(26.dp),
+                    tonalElevation = 3.dp
+                ) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            BqLogo(52.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text("Your account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text(FirebaseAuth.getInstance().currentUser?.email ?: "Signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Column(Modifier.padding(14.dp)) {
+                                    Text("Credits", style = MaterialTheme.typography.labelLarge)
+                                    Text(if (loadingAccount) "…" else String.format(java.util.Locale.US, "%.0f", balance), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text("Available", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                Column(Modifier.padding(14.dp)) {
+                                    Text("Plans", style = MaterialTheme.typography.labelLarge)
+                                    Text(entitlements.size.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text("Verified access", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FeatureCard("Account protection", "Password, Google sign-in, passkeys and device protection.", onOpenAccountProtection)
+                    FeatureCard("Privacy & Legal Center", "Consent, privacy topics, Terms and data controls.", onOpenLegalCenter)
+                    FeatureCard("Android permissions", "Review camera, microphone, notifications and other OS permissions.") {
+                        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
+                    }
+                }
+            }
+
+            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage and Google Play subscriptions") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Live credit balance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(String.format(java.util.Locale.US, "%.0f credits", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Shared by eligible AI features. The backend remains the source of truth.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
+                        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp) {
+                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Google Play billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(if (billing.optBoolean("autoRenewEnabled", false)) "Auto-renewal is on" else "Auto-renewal is off", fontWeight = FontWeight.Bold)
+                                Text("Google Play controls renewal, payment methods and subscription changes.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("managementUrl")))) }, Modifier.weight(1f)) { Text("Manage") }
+                                    OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("paymentMethodManagementUrl")))) }, Modifier.weight(1f)) { Text("Payment") }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { SettingsSectionTitle("Appearance", "Theme, color and interface density") }
+            item {
+                SurfaceCard("Theme", "Choose how BQ Sqwad AI looks across the native app.")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(modes) { mode ->
+                        FilterChip(selected = themeMode == mode, onClick = { saveTheme(mode) }, label = { Text(mode.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+            item {
+                SurfaceCard("Accent", "Choose the interface accent while keeping the BQ identity.")
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(accents) { name ->
+                        FilterChip(selected = accent == name, onClick = { saveAccent(name) }, label = { Text(name.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.weight(1f)) { SettingsToggleCard("Compact UI", "Tighter spacing", compactUi) { compactUi = it; putBoolean("compact_ui", it) } }
+                    Box(Modifier.weight(1f)) { SettingsToggleCard("Reduce motion", "Fewer animations", reduceMotion) { reduceMotion = it; putBoolean("reduce_motion", it) } }
+                }
+            }
+
+            item { SettingsSectionTitle("Chat & intelligence", "Control how the assistant works for you") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsToggleCard("Conversation history", "Save conversations for History.", chatHistory) { chatHistory = it; putBoolean("chat_history", it) }
+                    SettingsToggleCard("Automatic saving", "Save completed conversations and supported attachments.", autoSave) { autoSave = it; putBoolean("auto_save", it) }
+                    SettingsToggleCard("Personal memory", "Use the memory system you control.", memory) {
+                        memory = it; putBoolean("memory_enabled", it)
+                        scope.launch { runCatching { WorkspaceApiClient().setMemoryEnabled(it) } }
+                    }
+                    SettingsToggleCard("Web Search", "Allow supported AI features to use server-controlled web search.", webSearch) { webSearch = it; putBoolean("web_search_enabled", it) }
+                }
+            }
+
+            item { SettingsSectionTitle("Live AI", "Voice, camera and Companion controls") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsToggleCard("Live Voice replies", "Enable spoken replies where supported.", voiceReplies) { voiceReplies = it; putBoolean("voice_replies", it) }
+                    SettingsToggleCard("Camera enhancement", "Use available visual processing enhancements.", cameraEnhance) { cameraEnhance = it; putBoolean("camera_enhance", it) }
+                    SettingsToggleCard("Companion memory", "Allow Companion to use its configured memory controls.", companionMemory) { companionMemory = it; putBoolean("companion_memory", it) }
+                }
+            }
+
+            item { SettingsSectionTitle("AI features", "Feature-specific controls stay inside their workspaces") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsToggleCard("TruthGuard evidence sources", "Show source-backed evidence and reliability details.", truthGuardSources) { truthGuardSources = it; putBoolean("truthguard_sources", it) }
+                    FeatureCard("Learning Studio", "Learning behavior, courses and tutoring controls live in its workspace.")
+                    FeatureCard("Life Matters", "Life guidance, routines and saved insights live in its workspace.")
+                    FeatureCard("Business Workspace", "Assistants, channels, inbox, leads, catalog and integrations.")
+                    FeatureCard("Organization Studio", "Organization knowledge, memory, production and team controls.")
+                    FeatureCard("Data Analyst", "Analysis preferences and saved analysis controls.")
+                    FeatureCard("Frontier Lab", "Advanced capabilities and provider-controlled experiments.")
+                }
+            }
+
+            item { SettingsSectionTitle("Notifications & feedback", "Stay informed without losing control") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsToggleCard("Notifications", "Plan, generation, business and security notifications.", notifications) { notifications = it; putBoolean("notifications_enabled", it) }
+                    SettingsToggleCard("Sound", "Use app sounds where supported.", sound) { sound = it; putBoolean("sound_enabled", it) }
+                    SettingsToggleCard("Vibration", "Use haptic feedback where supported.", vibration) { vibration = it; putBoolean("vibration_enabled", it) }
+                }
+            }
+
+            item { SettingsSectionTitle("Privacy & data", "Your consent and account data") }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SurfaceCard("AI training consent", if (trainingConsent) "Optional training consent is on." else "Optional training consent is off.")
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = trainingConsent, onCheckedChange = { enabled ->
+                            trainingConsent = enabled
+                            prefs.edit().putBoolean("training_consent", enabled).apply()
+                            consentStatus = "Saving consent…"
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().updateTrainingConsent(enabled) }
+                                    .onSuccess { consentStatus = "Training consent updated." }
+                                    .onFailure { consentStatus = "Could not update consent. Try again." }
+                            }
+                        })
+                        Spacer(Modifier.width(8.dp))
+                        Text("Allow non-private training activity to improve the service.", Modifier.weight(1f))
+                    }
+                    consentStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    FeatureCard("Privacy Policy", "Read the complete BQ Sqwad AI Privacy Policy.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) }
+                    FeatureCard("Terms & Conditions", "Read the complete BQ Sqwad AI Terms & Conditions.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) }
+                    FeatureCard("Delete account and data", "Permanently delete the account and associated app data.") { showDeleteAccount = true; deleteError = null }
+                }
+            }
+
+            item { SettingsSectionTitle("About", "BQ Sqwad AI") }
+            item {
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    tonalElevation = 2.dp
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("The AI That Grows With You")
+                        Text("BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("com.bqsqwad.ai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteAccount) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingAccount) showDeleteAccount = false },
+            title = { Text("Delete account and data?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This permanently removes your account and associated app data. This action cannot be undone.")
+                    Text("Some records may be retained when required by applicable financial, tax, fraud-prevention or security obligations.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !deletingAccount, onClick = {
+                    deletingAccount = true
+                    scope.launch {
+                        runCatching { AccountDeletionClient().deleteAccount() }
+                            .onSuccess { FirebaseAuth.getInstance().signOut(); showDeleteAccount = false; onBack() }
+                            .onFailure { deleteError = it.message ?: "Account deletion failed." }
+                        deletingAccount = false
+                    }
+                }) { Text(if (deletingAccount) "Deleting…" else "Delete") }
+            },
+            dismissButton = { TextButton(enabled = !deletingAccount, onClick = { showDeleteAccount = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionTitle(title: String, subtitle: String) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SettingsToggleCard(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.SemiBold)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
+        }
+    }
+}
+
+@Composable private fun FeatureCard(title: String, body: String, onClick: (() -> Unit)? = null) {
+    if (onClick != null) {
+        BqNavigationCard(title = title, body = body, onClick = onClick)
+    } else {
+        BqCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+    }
+}
+
+@Composable private fun AccessDenied() { Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("Admin access required", fontWeight = FontWeight.Bold) } }
+
+private fun shareText(context: Context, text: String) {
+    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) }, "Share"))
+}
+
+private fun speakTextWhenReady(context: Context, text: String, onError: (String) -> Unit) {
+    if (text.isBlank()) return
+    lateinit var engine: TextToSpeech
+    engine = TextToSpeech(context) { status ->
+        if (status != TextToSpeech.SUCCESS) {
+            onError("Text-to-speech could not initialize.")
+            engine.shutdown()
+            return@TextToSpeech
+        }
+        val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "bq_read_aloud")
+        if (result == TextToSpeech.ERROR) {
+            onError("Text-to-speech could not start.")
+            engine.shutdown()
+        }
+    }
+    engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) = Unit
+        override fun onDone(utteranceId: String?) { engine.shutdown() }
+        override fun onError(utteranceId: String?) { onError("Text-to-speech playback failed."); engine.shutdown() }
+    })
+}
 
 
 @Composable private fun WallpaperBackground(index: Int) {
