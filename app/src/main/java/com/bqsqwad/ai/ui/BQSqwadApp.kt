@@ -49,6 +49,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
 import com.bqsqwad.ai.core.*
@@ -270,27 +271,6 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
 
-        OutlinedButton(
-            onClick = {
-                busy = true
-                error = null
-                notice = null
-                scope.launch {
-                    try {
-                        PasskeyClient(context).signInWithPasskey()
-                        notice = "Passkey sign-in successful."
-                        onAuthenticated()
-                    } catch (t: Throwable) {
-                        error = t.message ?: "Passkey sign-in failed."
-                    } finally {
-                        busy = false
-                    }
-                }
-            },
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (busy) "Signing in with passkey…" else "Sign in with passkey") }
-
         TextButton(onClick = onOpenSignUp, enabled = !busy) {
             Text("Don't have an account? Sign up")
         }
@@ -476,12 +456,15 @@ private fun friendlyAuthError(error: Exception?): String {
 
 private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): com.google.firebase.auth.FirebaseUser {
     val credentialManager = CredentialManager.create(context)
-    val googleIdOption = GetGoogleIdOption.Builder()
-        .setServerClientId("848359744340-etobns9cu6fjrqfo511kln2bape737cg.apps.googleusercontent.com")
-        .setFilterByAuthorizedAccounts(false)
-        .build()
+
+    // This is the explicit Google button flow. It avoids presenting the
+    // generic Credential Manager sheet (which can include passkeys) and lets
+    // users add/re-authenticate a Google account when necessary.
+    val googleOption = GetSignInWithGoogleOption.Builder(
+        "848359744340-kk08ve8dlk9o80584ijl214d6h25m2gt.apps.googleusercontent.com"
+    ).build()
     val request = GetCredentialRequest.Builder()
-        .addCredentialOption(googleIdOption)
+        .addCredentialOption(googleOption)
         .build()
 
     val result = credentialManager.getCredential(context, request)
@@ -497,25 +480,29 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
         task.addOnCompleteListener { completed ->
             if (completed.isSuccessful) {
                 completed.result?.let(continuation::resume)
-                    ?: continuation.resumeWithException(IllegalStateException("Firebase did not return an authentication result."))
+                    ?: continuation.resumeWithException(
+                        IllegalStateException("Firebase did not return an authentication result.")
+                    )
             } else {
                 continuation.resumeWithException(
                     completed.exception ?: IllegalStateException("Firebase Google authentication failed.")
                 )
             }
         }
-        continuation.invokeOnCancellation { /* Firebase Task cancellation is not supported; completion is ignored after cancellation. */ }
+        continuation.invokeOnCancellation { }
     }
-    return authResult.user ?: throw IllegalStateException("Firebase did not return a signed-in user.")
+    return authResult.user
+        ?: throw IllegalStateException("Firebase did not return a signed-in user.")
 }
 
 private fun friendlyGoogleAuthError(error: Throwable): String {
     return when (error) {
-        is GetCredentialException -> "Google sign-in was cancelled or could not be completed. Please try again."
-        is TimeoutCancellationException -> "Google sign-in was cancelled or could not be completed. Please try again."
-        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "Google sign-in was cancelled or could not be completed. Please try again."
-        is com.google.firebase.FirebaseNetworkException -> "Google sign-in was cancelled or could not be completed. Please try again."
-        else -> "Google sign-in was cancelled or could not be completed. Please try again."
+        is GetCredentialException -> "Google sign-in could not be completed. Please choose a Google account and try again."
+        is TimeoutCancellationException -> "Google sign-in timed out. Please try again."
+        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "This Google account is already linked to another sign-in method."
+        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
+        else -> error.message?.takeIf { it.isNotBlank() }
+            ?: "Google sign-in could not be completed. Please try again."
     }
 }
 
@@ -1022,56 +1009,126 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 label = "composerPulseValue"
             )
             val composerBlue = Color(0xFF1457FF).copy(alpha = 0.55f + (pulse * 0.45f))
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterEnd
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding(),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().border(2.dp, composerBlue, composerShape),
+                    modifier = Modifier
+                        .size(58.dp)
+                        .border(
+                            2.dp,
+                            Color(0xFF1457FF).copy(alpha = 0.75f + pulse * 0.25f),
+                            CircleShape
+                        ),
+                    shape = CircleShape,
+                    color = Color(0xFF1457FF),
+                    shadowElevation = 18.dp
+                ) {
+                    IconButton(
+                        onClick = openFeatures,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Open AI Features",
+                            tint = Color.White,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(2.dp, composerBlue, composerShape),
                     shape = composerShape,
                     color = Color.White,
                     shadowElevation = 10.dp
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 8.dp, end = 58.dp, top = 7.dp, bottom = 7.dp),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        Column(modifier = Modifier.width(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier.width(52.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             IconButton(
                                 onClick = {
                                     micError = null
-                                    speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                        putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                        putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your message")
-                                    })
+                                    speechLauncher.launch(
+                                        Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                            putExtra(
+                                                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                            )
+                                            putExtra(
+                                                android.speech.RecognizerIntent.EXTRA_PROMPT,
+                                                "Speak your message"
+                                            )
+                                        }
+                                    )
                                 },
                                 enabled = !busy
                             ) {
-                                Icon(Icons.Default.Mic, contentDescription = "Speech to text", tint = Color(0xFF1457FF))
+                                Icon(
+                                    Icons.Default.Mic,
+                                    contentDescription = "Speech to text",
+                                    tint = Color(0xFF1457FF)
+                                )
                             }
                             IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
-                                Icon(Icons.Default.AttachFile, contentDescription = "Upload attachment", tint = Color(0xFF1457FF))
+                                Icon(
+                                    Icons.Default.AttachFile,
+                                    contentDescription = "Upload attachment",
+                                    tint = Color(0xFF1457FF)
+                                )
                             }
                         }
+
                         OutlinedTextField(
                             value = message,
                             onValueChange = { value ->
                                 micError = null
                                 message = value
                             },
-                            placeholder = { Text("Message BQ Sqwad AI", color = Color(0xFF667085)) },
-                            modifier = Modifier.weight(1f).heightIn(min = 68.dp),
+                            placeholder = {
+                                Text(
+                                    "Message BQ Sqwad AI",
+                                    color = Color(0xFF667085)
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 68.dp),
                             minLines = 2,
                             maxLines = 6,
+                            textStyle = LocalTextStyle.current.copy(
+                                color = Color.Black,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Black),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                disabledTextColor = Color.Black,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                                 disabledBorderColor = Color.Transparent,
                                 errorBorderColor = Color.Transparent,
                                 focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent
                             )
                         )
+
                         IconButton(
                             enabled = message.isNotBlank() || attachments.isNotEmpty() || busy,
                             onClick = {
@@ -1095,27 +1152,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 modifier = Modifier.size(28.dp)
                             )
                         }
-                    }
-                }
-                Surface(
-                    modifier = Modifier
-                        .padding(end = 6.dp)
-                        .size(58.dp)
-                        .border(2.dp, Color(0xFF1457FF).copy(alpha = 0.75f + pulse * 0.25f), CircleShape),
-                    shape = CircleShape,
-                    color = Color(0xFF1457FF),
-                    shadowElevation = 18.dp
-                ) {
-                    IconButton(
-                        onClick = openFeatures,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Open AI Features",
-                            tint = Color.White,
-                            modifier = Modifier.size(34.dp)
-                        )
                     }
                 }
             }
