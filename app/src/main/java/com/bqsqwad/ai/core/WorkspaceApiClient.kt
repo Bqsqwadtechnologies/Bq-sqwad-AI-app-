@@ -166,6 +166,9 @@ class WorkspaceApiClient {
     suspend fun setOrganizationProductionState(payload: JSONObject): JSONObject =
         request("/organization/production/state", payload=payload)
 
+    suspend fun enforceLiveContentPolicy(payload: JSONObject): JSONObject =
+        request("/organization/production/live/content-policy", payload=payload)
+
     suspend fun updateOrganizationProductionHealth(payload: JSONObject): JSONObject =
         request("/organization/production/health", payload=payload)
 
