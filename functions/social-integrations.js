@@ -209,7 +209,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     : clean(account.token, 10000);
   const text = clean(input.text, 5000);
   if (!token) throw new Error("social_account_token_missing");
-  if (platform === "youtube" && account.refreshToken && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now()) {
+  if (platform === "youtube" && account.refreshTokenSecret?.ciphertext && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now() + 60000) {
     const secret = await getProviderSecret("youtube_client_secret");
     if (secret) {
       const refresh = await fetch("https://oauth2.googleapis.com/token", {
