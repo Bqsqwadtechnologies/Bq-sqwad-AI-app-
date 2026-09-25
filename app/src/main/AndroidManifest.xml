@@ -23,6 +23,13 @@
         android:theme="@style/Theme.BQSqwadAI">
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
         <service
+            android:name=".core.BqFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
             android:name=".core.LiveMediaForegroundService"
             android:exported="false"
             android:foregroundServiceType="camera|microphone|mediaProjection|connectedDevice" />
