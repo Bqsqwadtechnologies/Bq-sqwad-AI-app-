@@ -1788,7 +1788,7 @@ private fun WorkspaceScreen(
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
                 Workspace.TRUTH_GUARD -> TruthGuardWorkspace()
-                Workspace.FRONTIER_LAB -> AiTaskWorkspace("Frontier Lab", "Advanced AI experimentation with optional web-search evidence.", "frontier_lab", false, true)
+                Workspace.FRONTIER_LAB -> FrontierLabWorkspace()
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
