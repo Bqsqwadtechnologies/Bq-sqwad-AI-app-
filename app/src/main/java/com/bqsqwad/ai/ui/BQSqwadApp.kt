@@ -524,8 +524,11 @@ private fun MainShell(modifier: Modifier) {
     var adminAuthorized by remember { mutableStateOf(false) }
 
     LaunchedEffect(email) {
-        adminAuthorized = email.equals("isaacoshiomole0@gmail.com", ignoreCase = true) &&
-            runCatching { WorkspaceApiClient().adminAccess().optBoolean("allowed") }.getOrDefault(false)
+        // The backend is authoritative for admin visibility. Normal users never receive
+        // an Admin workspace merely because of a client-side email comparison.
+        adminAuthorized = runCatching {
+            WorkspaceApiClient().adminAccess().optBoolean("allowed")
+        }.getOrDefault(false)
     }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
@@ -662,15 +665,25 @@ private fun MainShell(modifier: Modifier) {
                 onOpenLegalCenter = { legalCenter = true }
             )
             history -> HistoryScreen { history = false }
-            workspace != null -> WorkspaceScreen(
-                workspace!!,
-                email,
-                adminAuthorized,
-                onBack = { workspace = null },
-                onLearnMore = { featureInfo = workspace!! },
-                onPrivacy = { featurePrivacy = workspace!! },
-                onSettings = { featureSettings = workspace!! }
-            )
+            workspace != null -> {
+                if (workspace == Workspace.ADMIN) {
+                    if (adminAuthorized) {
+                        AdminOnlyWorkspace(onBack = { workspace = null })
+                    } else {
+                        AccessDenied()
+                    }
+                } else {
+                    WorkspaceScreen(
+                        workspace!!,
+                        email,
+                        adminAuthorized,
+                        onBack = { workspace = null },
+                        onLearnMore = { featureInfo = workspace!! },
+                        onPrivacy = { featurePrivacy = workspace!! },
+                        onSettings = { featureSettings = workspace!! }
+                    )
+                }
+            }
             else -> MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 openHub = { drawerOpen = true },
@@ -1676,6 +1689,31 @@ private fun FeatureHub(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AdminOnlyWorkspace(onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Admin Control Center") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
+                }
+            )
+        }
+    ) { p ->
+        Column(
+            Modifier.fillMaxSize().padding(p).padding(16.dp)
+        ) {
+            AdminControlCenter()
         }
     }
 }
