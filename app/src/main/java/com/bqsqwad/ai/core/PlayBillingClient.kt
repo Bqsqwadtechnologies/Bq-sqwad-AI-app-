@@ -224,7 +224,38 @@ class PlayBillingClient(
                 if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Purchase verification failed"))
                 val verified = runCatching { JSONObject(raw).optBoolean("ok", false) }.getOrDefault(false)
                 if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
-                onPurchaseState(PlayPurchaseState("success", "Purchase successful. Your entitlement is now active after server verification."))
+
+                // Google Play requires non-consumable/subscription purchases to be acknowledged.
+                // Credit products are consumable and must be consumed after successful server verification.
+                // Never acknowledge or consume before backend verification succeeds.
+                val catalogItem = products.firstOrNull()?.let { catalog[it] }
+                if (catalogItem?.consumable == true && catalogItem.productType == ProductType.INAPP) {
+                    client.consumeAsync(
+                        com.android.billingclient.api.ConsumeParams.newBuilder()
+                            .setPurchaseToken(purchase.purchaseToken)
+                            .build()
+                    ) { consumeResult ->
+                        if (consumeResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                            onPurchaseState(PlayPurchaseState("warning", "Purchase was verified, but Google Play could not finish the credit delivery step. Restore purchases after the connection is available."))
+                        } else {
+                            onPurchaseState(PlayPurchaseState("success", "Purchase verified and credits delivered."))
+                        }
+                    }
+                } else if (!purchase.isAcknowledged) {
+                    client.acknowledgePurchase(
+                        com.android.billingclient.api.AcknowledgePurchaseParams.newBuilder()
+                            .setPurchaseToken(purchase.purchaseToken)
+                            .build()
+                    ) { acknowledgeResult ->
+                        if (acknowledgeResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                            onPurchaseState(PlayPurchaseState("success", "Purchase verified and acknowledged. Your entitlement is now active."))
+                        } else {
+                            onPurchaseState(PlayPurchaseState("warning", "Purchase was verified, but Google Play acknowledgement is still pending. Restore purchases after the connection is available."))
+                        }
+                    }
+                } else {
+                    onPurchaseState(PlayPurchaseState("success", "Purchase verified. Your entitlement is now active."))
+                }
             }
         }.start()
     }
