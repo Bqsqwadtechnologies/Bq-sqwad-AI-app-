@@ -206,10 +206,3 @@ fun SurfaceCard(title: String, body: String) {
     }
 }
 
-@Composable
-fun DeviceIntelligencePanel(featureName: String) {
-    SurfaceCard(
-        "Device intelligence",
-        "$featureName uses device capabilities only when the relevant feature is active and permission has been granted."
-    )
-}
