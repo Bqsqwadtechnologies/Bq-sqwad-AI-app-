@@ -140,8 +140,7 @@ class ChatApiClient(
             // authenticated endpoint uses the configured provider fallback route.
             val fallback = sendMessage(message, capability, system)
             if (fallback.text.isBlank()) throw t
-            onDelta(fallback.text)
-            fallback
+            // The caller will replace the streamed draft with the complete fallback reply.\n            // Do not emit the whole fallback as a delta or the UI would duplicate text.\n            fallback
         }
     }
 
