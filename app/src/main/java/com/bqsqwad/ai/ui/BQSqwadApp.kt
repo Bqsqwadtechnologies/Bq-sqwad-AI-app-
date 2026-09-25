@@ -1114,7 +1114,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 color = Color.Black,
                                 fontWeight = FontWeight.Medium
                             ),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Black),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.Black,
                                 unfocusedTextColor = Color.Black,
