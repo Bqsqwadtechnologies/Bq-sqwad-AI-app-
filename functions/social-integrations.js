@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getProviderSecret, setProviderSecret, encryptSecret, decryptSecret } from "./secret-store.js";
 import { requireBusinessAccess, requireBusinessPlan } from "./business-phases.js";
+import { assertMediaRights } from "./media-rights.js";
 
 const CANONICAL_CALLBACK_BASE_URL = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 const CANONICAL_CALLBACK_URL = CANONICAL_CALLBACK_BASE_URL + "/social/oauth/callback";
@@ -229,6 +230,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     }
   }
   if (!text && !input.mediaUrl) throw new Error("social_content_required");
+  if (input.mediaUrl) await assertMediaRights(uid, { rightsId: input.rightsId, workspaceId });
   const metadata = account.metadata || {};
   let response;
   if (platform === "x") {
