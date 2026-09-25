@@ -778,7 +778,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val image = imageParts.first()
                     ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType)
                 } else {
-                    ChatApiClient().streamMessage(actualPrompt) { delta ->
+                    ChatApiClient().streamMessage(actualPrompt, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
@@ -880,7 +880,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            val pulse by rememberInfiniteTransition(label = "chatLogoPulse").animateFloat(\n                initialValue = 0f,\n                targetValue = 1f,\n                animationSpec = infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse),\n                label = "chatLogoPulseValue"\n            )\n            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (messages.isEmpty()) {
                     item {
                         val floatTransition = rememberInfiniteTransition(label = "bqFloatingLogo")
@@ -1215,7 +1215,7 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
 }
 
 private fun featureLongDescription(w: Workspace): String = when (w) {
-    Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
+    Workspace.VIDEO -> "AI video creation and video-focused workflows using the configured BQ Sqwad AI capabilities."\n    Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
     Workspace.SEARCH -> "Search the web through the configured backend, with source-aware results and direct links that open in the device browser."
     Workspace.TRUTH_GUARD -> "Review claims against web sources and separate evidence from unsupported conclusions."
     Workspace.FRONTIER_LAB -> "Explore advanced AI capabilities using the authenticated, credit-controlled AI runtime."
@@ -1923,7 +1923,7 @@ private fun AiTaskWorkspace(
                         } else {
                             "Workspace: " + title + "\nUser request: " + prompt
                         }
-                        val reply = ChatApiClient().streamMessage(requestText, capability) { delta ->
+                        val reply = ChatApiClient().streamMessage(requestText, capability, onDelta = { delta ->
                             streamingResult += delta
                         }
                         result = reply.text
@@ -2005,7 +2005,7 @@ private fun DataAnalysisWorkspace() {
                         try {
                             val bounded = dataText.take(120000)
                             val request = "DATASET: " + fileName + "\\nROWS: " + rows + "\\nCOLUMNS: " + columns + "\\nUSER REQUEST: " + prompt.trim() + "\\n\\nDATA:\\n" + bounded
-                            val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace") { delta -> scope.launch(Dispatchers.Main) { streaming += delta } }
+                            val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace", onDelta = { delta -> scope.launch(Dispatchers.Main) { streaming += delta } })
                             scope.launch(Dispatchers.Main) { result = reply.text; busy = false }
                         } catch (t: Throwable) { scope.launch(Dispatchers.Main) { error = t.message ?: "Data analysis failed."; busy = false } }
                     }
