@@ -19,6 +19,8 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_WIDTH = "width"
         const val EXTRA_HEIGHT = "height"
         const val EXTRA_DENSITY = "density"
+        const val EXTRA_LIVE_SESSION_ID = "live_session_id"
+        const val EXTRA_RIGHTS_ID = "rights_id"
         const val ACTION_STOP = "stop"
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
@@ -36,6 +38,8 @@ class LiveMediaForegroundService : Service() {
     private var prompt = "Describe what is visible."
     private var lens = android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
     private var realtimeVoice: RealtimeVoiceSession? = null
+    private var liveSessionId: String? = null
+    private var rightsId: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -53,6 +57,8 @@ class LiveMediaForegroundService : Service() {
         if (requestedMode.isNotBlank()) mode = requestedMode
         prompt = intent?.getStringExtra(EXTRA_PROMPT)?.takeIf { it.isNotBlank() } ?: prompt
         lens = intent?.getIntExtra(EXTRA_LENS, lens) ?: lens
+        liveSessionId = intent?.getStringExtra(EXTRA_LIVE_SESSION_ID)?.trim()?.takeIf { it.isNotBlank() } ?: liveSessionId
+        rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
@@ -180,8 +186,36 @@ class LiveMediaForegroundService : Service() {
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         serviceScope.launch {
             try {
-                val result = ChatApiClient().analyzeCameraFrame(prompt, encoded, mimeType)
+                val policyPrompt = if (liveSessionId != null) {
+                    "Analyze this live frame for protected broadcast content. Return ONLY JSON with protectedBroadcastDetected, confidence, and reason. Mark true only when the frame appears to show television, sports, movie, news, or other third-party protected programming being captured from a screen or TV."
+                } else prompt
+                val result = ChatApiClient().analyzeCameraFrame(policyPrompt, encoded, mimeType)
                 writeState(true, result.text)
+                val sessionId = liveSessionId
+                if (sessionId != null) {
+                    val decision = runCatching {
+                        val raw = result.text.substringAfter("{").substringBeforeLast("}")
+                        org.json.JSONObject("{$raw}")
+                    }.getOrNull()
+                    if (decision?.optBoolean("protectedBroadcastDetected", false) == true) {
+                        val confidence = decision.optDouble("confidence", 0.0).coerceIn(0.0, 1.0)
+                        if (confidence >= 0.85) {
+                            val response = WorkspaceApiClient().enforceLiveContentPolicy(
+                                org.json.JSONObject()
+                                    .put("sessionId", sessionId)
+                                    .put("rightsId", rightsId)
+                                    .put("protectedBroadcastDetected", true)
+                                    .put("confidence", confidence)
+                                    .put("detectionSource", "android_live_vision")
+                            )
+                            if (!response.optBoolean("allowed", true)) {
+                                writeError(response.optString("message", "Live stream stopped by protected-content policy."))
+                                stopSelf()
+                                return@launch
+                            }
+                        }
+                    }
+                }
             } catch (t: Throwable) {
                 writeError(t.message ?: "AI live analysis failed.")
             } finally {
