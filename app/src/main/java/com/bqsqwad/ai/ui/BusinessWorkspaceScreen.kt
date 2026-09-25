@@ -416,7 +416,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                             else {
                                 runCatching {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    LocalContext.current.startActivity(intent)
+                                    context.startActivity(intent)
                                 }.onFailure { error(it.message ?: "Could not open X sign-in.") }
                             }
                         }.onFailure { error(it.message ?: "X connection failed.") }
