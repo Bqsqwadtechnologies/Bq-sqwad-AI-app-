@@ -17,6 +17,14 @@ data class AdminProviderSecretStatus(
     val updatedAt: String?
 )
 
+data class AdminProviderRoute(
+    val capability: String,
+    val primaryProviderId: String?,
+    val primaryModelId: String?,
+    val fallbackProviderIds: List<String>,
+    val enabled: Boolean
+)
+
 class AdminProviderClient(
     private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
 ) {
@@ -25,11 +33,11 @@ class AdminProviderClient(
     suspend fun savePlanCatalog(catalog: JSONObject): JSONObject =
         request("POST", "/admin/plan-catalog", JSONObject().put("catalog", catalog))
 
-    suspend fun statuses(): List<AdminProviderSecretStatus> =
+    suspend fun providerOverview(): Pair<List<AdminProviderSecretStatus>, List<AdminProviderRoute>> =
         request("GET", "/admin/providers", null).let { root ->
-            val array = root.optJSONArray("providers") ?: JSONArray()
-            (0 until array.length()).map { i ->
-                val o = array.getJSONObject(i)
+            val providers = root.optJSONArray("providers") ?: JSONArray()
+            val statuses = (0 until providers.length()).map { i ->
+                val o = providers.getJSONObject(i)
                 AdminProviderSecretStatus(
                     providerId = o.optString("providerId"),
                     configured = o.optBoolean("configured", false),
@@ -37,7 +45,39 @@ class AdminProviderClient(
                     updatedAt = o.optString("updatedAt").takeIf { it.isNotBlank() && it != "null" }
                 )
             }
+            val routeArray = root.optJSONArray("routes") ?: JSONArray()
+            val routes = (0 until routeArray.length()).map { i ->
+                val o = routeArray.getJSONObject(i)
+                val fallback = o.optJSONArray("fallbackProviderIds") ?: JSONArray()
+                AdminProviderRoute(
+                    capability = o.optString("capability"),
+                    primaryProviderId = o.optString("primaryProviderId").takeIf { it.isNotBlank() && it != "null" },
+                    primaryModelId = o.optString("primaryModelId").takeIf { it.isNotBlank() && it != "null" },
+                    fallbackProviderIds = (0 until fallback.length()).map { fallback.optString(it) }.filter { it.isNotBlank() },
+                    enabled = o.optBoolean("enabled", true)
+                )
+            }
+            statuses to routes
         }
+
+    suspend fun statuses(): List<AdminProviderSecretStatus> = providerOverview().first
+
+    suspend fun saveRoute(
+        capability: String,
+        primaryProviderId: String,
+        primaryModelId: String?,
+        fallbackProviderIds: List<String>,
+        enabled: Boolean = true
+    ) {
+        request("POST", "/admin/route", JSONObject().apply {
+            put("capabilityId", capability)
+            put("primaryProviderId", primaryProviderId)
+            if (primaryModelId.isNullOrBlank()) put("primaryModelId", JSONObject.NULL)
+            else put("primaryModelId", primaryModelId)
+            put("fallbackProviderIds", JSONArray(fallbackProviderIds))
+            put("enabled", enabled)
+        })
+    }
 
     suspend fun save(providerId: String, secret: String) {
         request("POST", "/admin/provider-secret", JSONObject().apply {
