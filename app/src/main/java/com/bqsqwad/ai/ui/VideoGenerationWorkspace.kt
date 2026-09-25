@@ -47,7 +47,7 @@ fun VideoGenerationWorkspace() {
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            Text("Video Generation", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("AI Video Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)\n            Text("Prompt → render job → progress → output. Designed as a production workspace rather than a generic chat screen.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 "Dedicated render workspace. Video jobs consume the centrally configured video-generation credit cost.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
