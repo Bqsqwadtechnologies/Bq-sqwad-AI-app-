@@ -23,6 +23,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
 import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, getYouTubeLiveStatus } from "./youtube-live.js";
 import { createMediaRights, listPendingMediaRights, reviewMediaRights } from "./media-rights.js";
+import { enforceProtectedContentPolicy } from "./live-content-policy.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
@@ -672,6 +673,15 @@ export const bqSqwadApi = onRequest(
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
         try {
           const result = await transitionYouTubeLive(user.uid, String(body.accountId || ""), String(body.broadcastId || ""), String(body.status || ""));
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/live/content-policy") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await enforceProtectedContentPolicy(user.uid, body);
           gate.commit();
           return send(res, 200, result);
         } finally { await gate.release(); }
