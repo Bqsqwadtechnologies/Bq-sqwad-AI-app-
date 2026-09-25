@@ -1,11 +1,16 @@
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getProviderSecret, setProviderSecret } from "./secret-store.js";
+import { getProviderSecret, setProviderSecret, encryptSecret, decryptSecret } from "./secret-store.js";
 import { requireBusinessAccess, requireBusinessPlan } from "./business-phases.js";
 
 const CANONICAL_CALLBACK_BASE_URL = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 const CANONICAL_CALLBACK_URL = CANONICAL_CALLBACK_BASE_URL + "/social/oauth/callback";
 const CANONICAL_WEB_ORIGIN = "https://bqsqwadai.com";
+
+const DEFAULT_CLIENT_IDS = {
+  youtube: "848359744340-jeevhbunr9ari8dh7632gi8btli90vd0.apps.googleusercontent.com",
+  x: "eWVPR2FtMVYtajRfV09ETy1LQlg6MTpjaQ"
+};
 
 const CONFIG = "socialIntegrations";
 const ACCOUNTS = "socialAccounts";
@@ -27,7 +32,7 @@ const PLATFORMS = {
     label: "YouTube",
     authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
-    defaultScopes: ["https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/youtube.upload"]
+    defaultScopes: ["https://www.googleapis.com/auth/youtube", "https://www.googleapis.com/auth/youtube.force-ssl", "https://www.googleapis.com/auth/youtube.readonly", "https://www.googleapis.com/auth/youtube.upload"]
   },
   tiktok: {
     label: "TikTok",
@@ -66,7 +71,14 @@ export async function getSocialConfig() {
     testMode: data.testMode !== false,
     callbackBaseUrl: CANONICAL_CALLBACK_URL,
     javascriptOrigin: CANONICAL_WEB_ORIGIN,
-    platforms: data.platforms || {}
+    platforms: Object.fromEntries(Object.entries(PLATFORMS).map(([id, p]) => {
+      const configured = data.platforms?.[id] || {};
+      return [id, {
+        enabled: configured.enabled === true,
+        clientId: clean(configured.clientId || DEFAULT_CLIENT_IDS[id] || "", 500),
+        scopes: Array.isArray(configured.scopes) && configured.scopes.length ? configured.scopes : p.defaultScopes
+      }];
+    }))
   };
 }
 
@@ -156,17 +168,20 @@ export async function saveSocialAccount(platform, tokenData, metadata = {}, acto
     await requireBusinessPlan(actorUid, workspaceId, "channels");
   }
   const expiresIn = Number(tokenData.expires_in || 0);
+  const accessToken = String(tokenData.access_token || tokenData.accessToken || "");
+  const refreshToken = String(tokenData.refresh_token || "");
+  if (!accessToken) throw new Error("social_access_token_missing");
   await accountRef(id).set({
     id,
     platform,
     uid: actorUid,
     workspaceId: workspaceId || null,
-    token: tokenData.access_token || tokenData.accessToken || null,
-    refreshToken: tokenData.refresh_token || null,
+    accessTokenSecret: encryptSecret(accessToken),
+    refreshTokenSecret: refreshToken ? encryptSecret(refreshToken) : null,
     expiresIn: expiresIn || null,
     expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
+    grantedScopes: String(tokenData.scope || "").split(/\s+/).filter(Boolean).slice(0, 80),
     metadata,
-
     status: "connected",
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
@@ -188,7 +203,9 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     throw new Error("business_workspace_required");
   }
   const platform = clean(account.platform, 40);
-  let token = clean(account.token, 10000);
+  let token = account.accessTokenSecret?.ciphertext
+    ? decryptSecret(account.accessTokenSecret)
+    : clean(account.token, 10000);
   const text = clean(input.text, 5000);
   if (!token) throw new Error("social_account_token_missing");
   if (platform === "youtube" && account.refreshToken && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now()) {
@@ -200,14 +217,14 @@ export async function publishSocialPost(uid, accountId, input = {}) {
         body: new URLSearchParams({
           client_id: String((await getSocialConfig()).platforms?.youtube?.clientId || ""),
           client_secret: secret,
-          refresh_token: String(account.refreshToken),
+          refresh_token: account.refreshTokenSecret?.ciphertext ? decryptSecret(account.refreshTokenSecret) : String(account.refreshToken || ""),
           grant_type: "refresh_token"
         })
       });
       const refreshed = await refresh.json();
       if (refresh.ok && refreshed.access_token) {
         token = String(refreshed.access_token);
-        await ref.set({ token, expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 3600) * 1000), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        await ref.set({ accessTokenSecret: encryptSecret(token), expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 3600) * 1000), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       }
     }
   }
