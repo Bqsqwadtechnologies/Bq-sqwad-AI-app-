@@ -28,7 +28,11 @@ class ChatApiClient(
         return Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
     }
 
-    suspend fun sendMessage(message: String, capability: String = "chat"): ChatReply =
+    suspend fun sendMessage(
+        message: String,
+        capability: String = "chat",
+        system: String? = null
+    ): ChatReply =
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
             val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
