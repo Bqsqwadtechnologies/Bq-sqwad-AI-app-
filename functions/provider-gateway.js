@@ -101,10 +101,12 @@ export async function streamOpenAI({ model, message, system, onEvent }) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split("\n\n");
+      // OpenAI SSE can use either LF or CRLF separators. Normalize both so
+      // response.output_text.delta events are never left buffered indefinitely.
+      const events = buffer.split(/\\r?\\n\\r?\\n/);
       buffer = events.pop() || "";
       for (const event of events) {
-        const data = event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+        const data = event.split(/\\r?\\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
         if (!data || data === "[DONE]") continue;
         let parsed;
         try { parsed = JSON.parse(data); } catch { continue; }
