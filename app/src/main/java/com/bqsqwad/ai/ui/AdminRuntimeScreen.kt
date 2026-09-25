@@ -16,6 +16,7 @@ import com.bqsqwad.ai.core.AdminRuntimeRecord
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminRuntimeScreen(onBack: () -> Unit) {
     val client = remember { AdminRuntimeClient() }
