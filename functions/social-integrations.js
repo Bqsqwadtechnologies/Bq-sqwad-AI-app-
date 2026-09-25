@@ -209,6 +209,37 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     : clean(account.token, 10000);
   const text = clean(input.text, 5000);
   if (!token) throw new Error("social_account_token_missing");
+  if (platform === "x" && account.refreshTokenSecret?.ciphertext && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now() + 60000) {
+    const secret = await getProviderSecret("x_client_secret");
+    const refreshToken = decryptSecret(account.refreshTokenSecret);
+    const clientId = String((await getSocialConfig()).platforms?.x?.clientId || "");
+    if (secret && clientId && refreshToken) {
+      const refresh = await fetch("https://api.x.com/2/oauth2/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": "Basic " + Buffer.from(clientId + ":" + secret).toString("base64")
+        },
+        body: new URLSearchParams({
+          refresh_token: refreshToken,
+          grant_type: "refresh_token",
+          client_id: clientId
+        })
+      });
+      const refreshed = await refresh.json();
+      if (refresh.ok && refreshed.access_token) {
+        token = String(refreshed.access_token);
+        const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
+        await ref.set({
+          accessTokenSecret: encryptSecret(token),
+          refreshTokenSecret: encryptSecret(nextRefreshToken),
+          expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 7200) * 1000),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
+  }
+
   if (platform === "youtube" && account.refreshTokenSecret?.ciphertext && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now() + 60000) {
     const secret = await getProviderSecret("youtube_client_secret");
     if (secret) {
