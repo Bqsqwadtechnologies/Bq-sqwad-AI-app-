@@ -132,6 +132,7 @@ export async function createYouTubeLiveSession(uid, accountId, input = {}) {
 
   return {
     sessionId: sessionRef.id,
+    accountId,
     platform: "youtube",
     broadcastId: broadcast.id,
     streamId: stream.id,
