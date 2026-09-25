@@ -1693,7 +1693,6 @@ private fun FeatureHub(
                 }
             }
 
-            item { Text("Advanced AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ADVANCED_APP_FEATURES.forEach { feature ->
