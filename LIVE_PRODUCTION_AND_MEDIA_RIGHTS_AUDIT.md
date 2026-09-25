@@ -33,3 +33,16 @@ Secrets remain server-side. Client IDs may be public application identifiers; cl
 
 ## Automation
 No GitHub Actions workflow was started automatically as part of this change.
+
+
+## Protected broadcast auto-stop enforcement
+
+The production control plane now supports normal live starts without requiring a rights record. When a live camera session supplies a server live-session ID, Android vision analysis can flag likely protected broadcast content. A server-side policy endpoint then checks for verified media rights. If protected content is detected with no verified authorization, the policy records a compliance event and, for a YouTube session, transitions the YouTube broadcast to complete. The Android live service also stops locally and displays the policy message.
+
+This is intentionally scoped to detected protected-content violations; it does not stop ordinary live streams.
+
+The detection is a signal, not a legal determination. Verified ownership/licensing remains the authorization source. Provider enforcement and legal rights are separate controls.
+
+## Verified remaining transport limitation
+
+The current Android capture implementation samples JPEG frames for AI analysis and preview. It does not contain a production H.264/AAC encoder plus RTMP/SRT publishing transport. Organization Studio currently registers/configures destinations but does not establish a complete camera-to-provider media pipeline. Therefore the repository must not claim that phone camera -> YouTube/X live media transport is fully end-to-end until that transport is implemented and tested on a real device.
