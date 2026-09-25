@@ -76,6 +76,7 @@ private fun AuthGate(modifier: Modifier) {
     // synchronization happen after the first frame so the app never blocks on a spinner.
     val auth = remember { FirebaseAuth.getInstance() }
     var user by remember { mutableStateOf(auth.currentUser) }
+    val context = LocalContext.current
 
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { updated -> user = updated.currentUser }
@@ -89,8 +90,7 @@ private fun AuthGate(modifier: Modifier) {
         val signedIn = user ?: return@LaunchedEffect
         runCatching { WorkspaceApiClient().consent() }
             .onSuccess { consent ->
-                val prefs = androidx.compose.ui.platform.LocalContext.current
-                    .getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
+                val prefs = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
                 prefs.edit()
                     .putBoolean("required_accepted", consent.optBoolean("requiredAccepted"))
                     .putBoolean("training_consent", consent.optBoolean("trainingConsent"))
