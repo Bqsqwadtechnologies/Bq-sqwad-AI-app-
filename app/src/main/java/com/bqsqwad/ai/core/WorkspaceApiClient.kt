@@ -321,4 +321,14 @@ class WorkspaceApiClient {
 
     suspend fun updateTrainingConsent(trainingConsent:Boolean):JSONObject =
         request("/consent/training",payload=JSONObject().put("trainingConsent",trainingConsent))
+
+    suspend fun workspaceAi(capability:String, message:String, system:String? = null):JSONObject =
+        request("/ai", payload=JSONObject().apply {
+            put("capability", capability.take(64))
+            put("message", message.take(12000))
+            if (!system.isNullOrBlank()) put("system", system.take(12000))
+        })
+
+    suspend fun workspaceResearch(query:String, deepResearch:Boolean = false):SearchReply =
+        search(query, deepResearch)
 }
