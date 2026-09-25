@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -39,14 +41,39 @@ fun BusinessWorkspaceScreen() {
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
     val tabs = listOf("Overview","Analytics","Plan Builder","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Workspace, knowledge and CRM data are isolated to the authenticated business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ScrollableTabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0)) {
-            tabs.forEach { label -> Tab(tab == label, { tab = label }, text = { Text(label) }) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Business Workspace", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    data.optString("name").ifBlank { "My Business" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "AI, customers, team, knowledge, channels and automation in one connected workspace.",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = { tab = "Overview" }, label = { Text("Dashboard") })
+                    AssistChip(onClick = { tab = "Inbox" }, label = { Text("Inbox") })
+                    AssistChip(onClick = { tab = "Channels" }, label = { Text("Channels") })
+                    AssistChip(onClick = { tab = "Advanced AI" }, label = { Text("AI") })
+                }
+            }
+        }
+        Text("Workspace tools", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
+            items(tabs) { label ->
+                FilterChip(selected = tab == label, onClick = { tab = label }, label = { Text(label) })
+            }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { SurfaceCard("Error", it) }
+        error?.let { SurfaceCard("Workspace error", it) }
 
         when (tab) {
             "Overview" -> {
