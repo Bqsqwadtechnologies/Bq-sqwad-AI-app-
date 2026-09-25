@@ -7,12 +7,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import com.bqsqwad.ai.core.GenerationApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun VideoGenerationWorkspace() {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var prompt by remember { mutableStateOf("") }
     var seconds by remember { mutableStateOf("8") }
@@ -99,8 +103,44 @@ fun VideoGenerationWorkspace() {
                     if (status == "queued" || status == "in_progress") LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
                     if (jobId != null) Text("Job: $jobId", style = MaterialTheme.typography.labelSmall)
                     if (contentUrl != null) {
-                        Text("Video ready. Open the generated MP4 from the link below.", color = MaterialTheme.colorScheme.primary)
-                        TextButton(onClick = { /* URL is intentionally exposed for the app/browser layer */ }) { Text(contentUrl!!) }
+                        Text("Video ready.", color = MaterialTheme.colorScheme.primary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contentUrl)))
+                                }.onFailure { error = it.message ?: "The generated video could not be opened." }
+                            }) { Text("Open video") }
+                            OutlinedButton(onClick = {
+                                val url = contentUrl
+                                if (!url.isNullOrBlank()) {
+                                    runCatching {
+                                        context.startActivity(Intent(Intent.ACTION_SEND).apply {
+                                            type = "video/mp4"
+                                            putExtra(Intent.EXTRA_TEXT, url)
+                                        })
+                                    }.onFailure { error = it.message ?: "The video could not be shared." }
+                                }
+                            }) { Text("Share") }
+                        }
+                    }
+                    if (status == "failed" && !busy) {
+                        OutlinedButton(onClick = {
+                            busy = true
+                            error = null
+                            contentUrl = null
+                            scope.launch {
+                                runCatching { GenerationApiClient().createVideo(prompt, seconds, size) }
+                                    .onSuccess {
+                                        jobId = it.jobId
+                                        status = it.status
+                                        progress = it.progress
+                                    }
+                                    .onFailure {
+                                        error = it.message ?: "Video retry failed."
+                                        busy = false
+                                    }
+                            }
+                        }) { Text("Retry render") }
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
