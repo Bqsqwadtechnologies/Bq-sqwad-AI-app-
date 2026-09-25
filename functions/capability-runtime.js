@@ -11,6 +11,30 @@ function dayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const DEFAULT_RUNTIME_CAPABILITIES = new Set([
+  "capability_chat",
+  "capability_deep_research",
+  "capability_knowledge_graphs",
+  "capability_semantic_file_search",
+  "capability_conversation_intelligence",
+  "capability_project_workspaces",
+  "capability_ai_generated_reports",
+  "capability_scheduled_ai_tasks",
+  "capability_truth_guard",
+  "capability_learning_studio",
+  "capability_life_matters",
+  "capability_personal_intelligence",
+  "capability_companion",
+  "capability_codron",
+  "capability_web_research",
+  "capability_multimodal_images",
+  "capability_multifile_reasoning",
+  "capability_document_analysis",
+  "capability_audio_analysis",
+  "capability_video_analysis"
+]);
+
+
 export async function authorizeCapability(uid, controlId) {
   const db = getFirestore();
   const adminUser = await getAuth().getUser(uid);
@@ -19,19 +43,30 @@ export async function authorizeCapability(uid, controlId) {
   const snap = await db.collection("adminAdvancedOptions").doc(controlId).get();
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
-  if (!control && !isSuperAdmin) throw new Error("capability_not_configured:" + controlId);
-  if (isSuperAdmin) return { control, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
+  if (!control && !isSuperAdmin && !DEFAULT_RUNTIME_CAPABILITIES.has(controlId)) {
+    throw new Error("capability_not_configured:" + controlId);
+  }
+  const effectiveControl = control || {
+    id: controlId,
+    enabled: true,
+    killSwitch: false,
+    rolloutPercent: 100,
+    creditCost: 0,
+    allowedPlanIds: [],
+    config: { fallbackEnabled: true, fallbackProviderIds: ["gemini"] }
+  };
+  if (isSuperAdmin) return { control: effectiveControl, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
 
-  if (control.enabled === false || control.killSwitch === true) {
+  if (effectiveControl.enabled === false || effectiveControl.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
   }
 
-  const operational = control.config && typeof control.config === "object" ? control.config : {};
+  const operational = effectiveControl.config && typeof effectiveControl.config === "object" ? effectiveControl.config : {};
   if (operational.maintenanceMode === true) {
     throw new Error("capability_maintenance:" + controlId);
   }
 
-  const rollout = Math.min(100, Math.max(0, Number(control.rolloutPercent ?? 100)));
+  const rollout = Math.min(100, Math.max(0, Number(effectiveControl.rolloutPercent ?? 100)));
   if (rollout <= 0) throw new Error("capability_not_rolled_out:" + controlId);
   if (rollout < 100) {
     const bucket = Number.parseInt(requirementHash(uid + ":" + controlId), 16) % 100;
@@ -60,7 +95,7 @@ export async function authorizeCapability(uid, controlId) {
       throw new Error("plan_expired");
     }
   }
-  const plans = Array.isArray(control.allowedPlanIds)
+  const plans = Array.isArray(effectiveControl.allowedPlanIds)
     ? control.allowedPlanIds.map(String).filter(Boolean)
     : [];
   if (plans.length && !plans.includes(planId)) throw new Error("plan_not_entitled");
@@ -133,7 +168,7 @@ export async function authorizeCapability(uid, controlId) {
   return {
     control,
     planId,
-    creditCost: Math.max(0, Number(control.creditCost || 0)),
+    creditCost: Math.max(0, Number(effectiveControl.creditCost || 0)),
     commit: () => { committed = true; },
     release: async () => {
       if (released) return;
