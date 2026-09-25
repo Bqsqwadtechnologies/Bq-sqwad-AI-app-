@@ -183,6 +183,31 @@ export const bqSqwadApi = onRequest(
       }
 
       const user = await userFromRequest(req);
+
+      if (req.method === "POST" && path === "notifications/token") {
+        const tokenValue = String(body.token || "").trim();
+        const platform = String(body.platform || "android").trim().slice(0, 40);
+        if (!tokenValue || tokenValue.length > 4096) return send(res, 400, { error: "notification_token_required" });
+        const tokenHash = crypto.createHash("sha256").update(tokenValue).digest("hex");
+        await getFirestore().collection("notificationTokens").doc(user.uid + "_" + tokenHash).set({
+          uid: user.uid,
+          token: tokenValue,
+          tokenHash,
+          platform,
+          enabled: true,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        return send(res, 200, { ok: true, registered: true });
+      }
+
+      if (req.method === "DELETE" && path === "notifications/token") {
+        const tokenValue = String(body.token || "").trim();
+        if (!tokenValue) return send(res, 400, { error: "notification_token_required" });
+        const tokenHash = crypto.createHash("sha256").update(tokenValue).digest("hex");
+        await getFirestore().collection("notificationTokens").doc(user.uid + "_" + tokenHash).delete();
+        return send(res, 200, { ok: true, removed: true });
+      }
+
       if (path !== "consent" && path !== "consent/training" && path !== "account") {
         await requireRequiredConsent(user.uid);
       }
