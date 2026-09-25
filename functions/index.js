@@ -291,11 +291,14 @@ export const bqSqwadApi = onRequest(
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
         if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
         const codeVerifier = platform === "x" ? crypto.randomBytes(32).toString("base64url") : null;
+        const codeChallenge = codeVerifier
+          ? crypto.createHash("sha256").update(codeVerifier).digest("base64url")
+          : null;
         await getFirestore().collection("socialOAuthStates").doc(state).set({
           uid: user.uid, platform, workspaceId: workspace.workspaceId, redirectUri, codeVerifier,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), createdAt: FieldValue.serverTimestamp()
         });
-        const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeVerifier);
+        const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeChallenge);
         return send(res, 200, { authorizationUrl, state });
       }
 
