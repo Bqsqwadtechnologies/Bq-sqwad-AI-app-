@@ -425,3 +425,14 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - This fixes a server-side buffering condition where valid `response.output_text.delta` events could remain unparsed and the Android client could surface an AI streaming error instead of receiving the response.
 - OpenAI credentials remain server-side through the existing provider secret store; no API key was added to the Android app.
 - The current OpenAI default model remains `gpt-5.6-luna`, which is an available Responses API model.
+
+
+## AI provider control plane — 2026-09-25
+
+- OpenAI remains the default server-side provider for general AI capabilities.
+- Gemini is the standard fallback for general AI routes when no explicit admin route overrides it.
+- Device-command routing remains Gemini-specific because that capability uses Gemini function calling.
+- Admin provider secrets are stored encrypted in Firestore through the existing `adminProviderSecrets` collection.
+- Added/verified admin endpoints for provider status, secure secret replacement/removal, and capability routing.
+- The native Admin Control Center now exposes secure provider-key management and server-side primary/fallback routing without displaying stored secret values.
+- Added provider status coverage for OpenAI, Gemini, Tavily, YouTube OAuth, X OAuth, TikTok OAuth, Meta and legacy Paystack credentials.
