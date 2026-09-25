@@ -72,3 +72,34 @@ export async function providerSecretStatus(providerId) {
     updatedAt: doc.data()?.updatedAt?.toDate?.()?.toISOString() || null
   };
 }
+
+
+export async function deleteProviderSecret(providerId, actorUid) {
+  const db = getFirestore();
+  await db.collection(COLLECTION).doc(providerId).delete();
+  await db.collection("adminSecretAudit").add({
+    providerId,
+    action: "remove",
+    actorUid,
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true, providerId, removed: true };
+}
+
+export async function listProviderSecretStatuses() {
+  const providerIds = [
+    "openai",
+    "gemini",
+    "tavily",
+    "youtube_client_secret",
+    "x_client_secret",
+    "tiktok_client_secret",
+    "meta_app_secret",
+    "paystack",
+    "paystack_public"
+  ];
+  const snap = await getFirestore().collection(COLLECTION).get();
+  const known = new Set(providerIds);
+  snap.docs.forEach(doc => known.add(doc.id));
+  return Array.from(known).sort().map(providerId => providerSecretStatus(providerId));
+}
