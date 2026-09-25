@@ -1,6 +1,7 @@
+package com.bqsqwad.ai.ui
+
 import android.content.Intent
 import android.net.Uri
-package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -11,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 
