@@ -191,3 +191,25 @@ fun BqNavigationCard(title: String, body: String, onClick: () -> Unit, modifier:
         }
     }
 }
+
+
+@Composable
+fun SurfaceCard(title: String, body: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun DeviceIntelligencePanel(featureName: String) {
+    SurfaceCard(
+        "Device intelligence",
+        "$featureName uses device capabilities only when the relevant feature is active and permission has been granted."
+    )
+}
