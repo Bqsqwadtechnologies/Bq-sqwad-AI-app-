@@ -1952,9 +1952,32 @@ private fun AiTaskWorkspace(
         }
     }
 
+    val quickPrompts = when (title) {
+        "TruthGuard AI" -> listOf("Check this claim", "Compare the strongest sources", "Find missing context")
+        "Learning Studio" -> listOf("Teach me this topic", "Quiz me", "Build a study plan")
+        "Life Matters" -> listOf("Help me plan today", "Organize my priorities", "Help me think through a decision")
+        "Personal Intelligence" -> listOf("Review my goals", "Organize my plans", "Summarize what matters")
+        "Frontier Lab" -> listOf("Explore this idea", "Design a prototype", "Analyze the trade-offs")
+        else -> listOf("Explain this clearly", "Create a step-by-step plan", "Summarize the key points")
+    }
+
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(description, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+        Text("Quick actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
+            items(quickPrompts) { quick ->
+                AssistChip(onClick = { prompt = quick }, label = { Text(quick) })
+            }
+        }
         OutlinedTextField(
             prompt,
             { prompt = it; error = null },
