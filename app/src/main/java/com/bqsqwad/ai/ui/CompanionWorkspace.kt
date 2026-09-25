@@ -162,7 +162,7 @@ fun CompanionWorkspace() {
                             prompt,
                             "You are BQ Sqwad AI Companion. Personality: $personality. Give a brief supportive daily check-in without pretending to be a human."
                         )
-                    }.onSuccess { messages.add(CompanionMessage(false, it.text)) }
+                    }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
                         .onFailure { notice = it.message ?: "Check-in failed." }
                     busy = false
                 }
