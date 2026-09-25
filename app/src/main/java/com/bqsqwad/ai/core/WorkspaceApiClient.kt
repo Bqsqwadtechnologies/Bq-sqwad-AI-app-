@@ -229,8 +229,11 @@ class WorkspaceApiClient {
 
     suspend fun socialAccounts(workspaceId: String): JSONObject = request("/social/accounts?workspaceId=" + java.net.URLEncoder.encode(workspaceId, "UTF-8"), "GET")
 
-    suspend fun startSocialOAuth(platform:String, redirectUri:String): JSONObject =
-        request("/social/oauth/start", payload=JSONObject().put("platform", platform.take(40)).put("redirectUri", redirectUri.take(1000)))
+    suspend fun startSocialOAuth(platform:String, redirectUri:String, workspaceId:String): JSONObject =
+        request("/social/oauth/start", payload=JSONObject()
+            .put("platform", platform.take(40))
+            .put("redirectUri", redirectUri.take(1000))
+            .put("workspaceId", workspaceId.take(120)))
 
     suspend fun publishSocial(accountId:String, text:String, mediaUrl:String? = null, pageId:String? = null, instagramAccountId:String? = null): JSONObject =
         request("/social/publish", payload=JSONObject().apply {
