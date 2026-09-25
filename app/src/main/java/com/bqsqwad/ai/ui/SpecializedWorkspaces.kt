@@ -97,6 +97,65 @@ $evidence"""
     }
 }
 
+
+
+@Composable
+fun FrontierLabWorkspace() {
+    val scope = rememberCoroutineScope()
+    var mode by remember { mutableStateOf("Experiment") }
+    var prompt by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun runExperiment() {
+        val input = prompt.trim()
+        if (input.isBlank() || busy) return
+        busy = true
+        error = null
+        scope.launch {
+            runCatching {
+                WorkspaceApiClient().workspaceAi(
+                    "frontier_lab",
+                    input,
+                    """You are BQ Sqwad AI Frontier Lab.
+Mode: $mode
+Explore advanced AI ideas, prototypes, technical reasoning and structured experiments.
+Separate established facts from hypotheses. Do not claim an experiment was executed unless the backend actually executed it."""
+                )
+            }.onSuccess { result = it.optString("text").ifBlank { it.optString("answer") } }
+                .onFailure { error = it.message ?: "Frontier Lab could not complete the experiment." }
+            busy = false
+        }
+    }
+
+    WorkspaceFrame(
+        title = "Frontier Lab",
+        subtitle = "Advanced experimentation, technical exploration and structured AI research.",
+        style = WorkspaceVisualStyle.FRONTIER,
+        icon = Icons.Default.Science
+    ) {
+        Text("Experiment mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Experiment", "Prototype", "Research", "Architecture").forEach {
+                FilterChip(selected = mode == it, onClick = { mode = it }, label = { Text(it) })
+            }
+        }
+        OutlinedTextField(
+            value = prompt,
+            onValueChange = { prompt = it; error = null },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 5,
+            placeholder = { Text("Describe the AI experiment, prototype or research problem…") }
+        )
+        Button(onClick = ::runExperiment, enabled = prompt.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) {
+            Text(if (busy) "Running…" else "Run in Frontier Lab")
+        }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        result?.let { SurfaceCard("Lab result", it) }
+    }
+}
+
 @Composable
 fun LearningStudioWorkspace() {
     val scope = rememberCoroutineScope()
@@ -276,7 +335,7 @@ ${memory.optString("context", "")}"""
 }
 
 private enum class WorkspaceVisualStyle {
-    TRUTH_GUARD, LEARNING, LIFE, PERSONAL
+    TRUTH_GUARD, LEARNING, LIFE, PERSONAL, FRONTIER
 }
 
 @Composable
@@ -293,12 +352,14 @@ private fun WorkspaceFrame(
         WorkspaceVisualStyle.LEARNING -> scheme.primaryContainer
         WorkspaceVisualStyle.LIFE -> scheme.secondaryContainer
         WorkspaceVisualStyle.PERSONAL -> scheme.surfaceVariant
+        WorkspaceVisualStyle.FRONTIER -> scheme.primaryContainer
     }
     val onContainer = when (style) {
         WorkspaceVisualStyle.TRUTH_GUARD -> scheme.onTertiaryContainer
         WorkspaceVisualStyle.LEARNING -> scheme.onPrimaryContainer
         WorkspaceVisualStyle.LIFE -> scheme.onSecondaryContainer
         WorkspaceVisualStyle.PERSONAL -> scheme.onSurfaceVariant
+        WorkspaceVisualStyle.FRONTIER -> scheme.onPrimaryContainer
     }
 
     Scaffold(
@@ -340,6 +401,7 @@ private fun WorkspaceFrame(
                                 WorkspaceVisualStyle.LEARNING -> "Study workspace • learn → practise → revise → measure"
                                 WorkspaceVisualStyle.LIFE -> "Planning workspace • goals → routines → tasks → action"
                                 WorkspaceVisualStyle.PERSONAL -> "Private workspace • projects → notes → memory → organization"
+                                WorkspaceVisualStyle.FRONTIER -> "Lab workspace • experiments → prototypes → research → architecture"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = onContainer
