@@ -146,18 +146,23 @@ export async function authorizeCapability(uid, controlId) {
   let dailyRef = null;
   if (dailyLimit !== null) {
     dailyRef = db.collection("capabilityUsage").doc(uid + "_" + controlId + "_" + dayKey());
-    await db.runTransaction(async tx => {
-      const usage = await tx.get(dailyRef);
-      const used = Number(usage.exists ? usage.data()?.count || 0 : 0);
-      if (used >= dailyLimit) throw new Error("daily_capability_limit_reached");
-      tx.set(dailyRef, {
-        uid,
-        capability: controlId,
-        date: dayKey(),
-        count: used + 1,
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
-    });
+    try {
+      await db.runTransaction(async tx => {
+        const usage = await tx.get(dailyRef);
+        const used = Number(usage.exists ? usage.data()?.count || 0 : 0);
+        if (used >= dailyLimit) throw new Error("daily_capability_limit_reached");
+        tx.set(dailyRef, {
+          uid,
+          capability: controlId,
+          date: dayKey(),
+          count: used + 1,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+    } catch (error) {
+      if (monthlyRef) await releaseMonthlyUsage(db, monthlyRef, uid, controlId);
+      throw error;
+    }
   }
 
   const minuteLimit = operational.rateLimitPerMinute == null
@@ -175,6 +180,7 @@ export async function authorizeCapability(uid, controlId) {
         tx.set(minuteRef, { uid, capability: controlId, minute: minuteKey, count: used + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       });
     } catch (error) {
+      if (monthlyRef) await releaseMonthlyUsage(db, monthlyRef, uid, controlId);
       if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
       throw error;
     }
