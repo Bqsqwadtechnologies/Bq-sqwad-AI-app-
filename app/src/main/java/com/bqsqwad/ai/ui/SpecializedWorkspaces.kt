@@ -559,6 +559,7 @@ private enum class WorkspaceVisualStyle {
     TRUTH_GUARD, LEARNING, LIFE, PERSONAL, FRONTIER
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WorkspaceFrame(
     title: String,
