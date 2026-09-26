@@ -431,7 +431,11 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    "Access and refresh tokens are encrypted server-side and are never stored in the Android app. Disconnecting removes the stored connection and BQ Sqwad AI attempts to revoke the X authorization remotely. X can still control the final permission and revocation state.",
+                    "Access and refresh tokens are encrypted server-side and are never stored in the Android app. Disconnecting deletes the stored connection and attempts remote OAuth revocation. If X reports a revocation failure, the local connection is still removed; you can also revoke BQ Sqwad AI from your X account settings.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "X is not used as a live-broadcast destination in BQ Sqwad AI. This connection is for authorized social publishing and account actions. Live broadcasting remains on supported live-ingest destinations such as YouTube.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
