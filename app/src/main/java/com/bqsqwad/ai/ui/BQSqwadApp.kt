@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Base64
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
@@ -2262,7 +2263,6 @@ private fun SearchWorkspace() {
 }
 
 @Composable
-@Composable
 private fun CameraWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -2282,6 +2282,7 @@ private fun CameraWorkspace() {
     var liveServiceActive by remember { mutableStateOf(false) }
     var liveServiceMode by remember { mutableStateOf("") }
     var liveAnswer by remember { mutableStateOf("") }
+    val cameraLog = remember { mutableStateListOf<String>() }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (it) {
@@ -2414,7 +2415,32 @@ private fun CameraWorkspace() {
                     modifier = Modifier.fillMaxSize(),
                     lensFacing = lens,
                     captureEveryMs = 1800L,
-                    onFrame = {}
+                    onFrame = { bytes ->
+                        if (!active || analyzing) return@NativeCameraPreview
+                        val now = System.currentTimeMillis()
+                        if (now - lastAnalysisAt < 1600L) return@NativeCameraPreview
+                        lastAnalysisAt = now
+                        analyzing = true
+                        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                        scope.launch(Dispatchers.IO) {
+                            runCatching { ChatApiClient().analyzeCameraFrame(prompt, encoded, "image/jpeg") }
+                                .onSuccess { result ->
+                                    scope.launch(Dispatchers.Main) {
+                                        cameraLog.add("Asked: " + prompt)
+                                        cameraLog.add("BQ Sqwad AI: " + result.text)
+                                        answer = result.text
+                                        analyzing = false
+                                    }
+                                }
+                                .onFailure { errorValue ->
+                                    scope.launch(Dispatchers.Main) {
+                                        cameraLog.add("Error: " + (errorValue.message ?: "Camera analysis failed."))
+                                        error = errorValue.message ?: "Camera analysis failed."
+                                        analyzing = false
+                                    }
+                                }
+                        }
+                    }
                 )
                 Surface(
                     modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
@@ -2440,7 +2466,10 @@ private fun CameraWorkspace() {
                 }) { Text("Apply camera question") }
             }
             if (analyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (answer.isNotBlank()) SurfaceCard("BQ Sqwad AI", answer)
+            if (cameraLog.isNotEmpty()) {
+                SurfaceCard("Live activity", cameraLog.takeLast(12).joinToString("\n"))
+            }
+            if (answer.isNotBlank()) SurfaceCard("Latest AI answer", answer)
         } else {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
