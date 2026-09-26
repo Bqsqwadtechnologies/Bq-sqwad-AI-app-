@@ -8,6 +8,8 @@ import io.github.thibaultbee.streampack.core.streamers.single.SingleStreamer
 import io.github.thibaultbee.streampack.core.streamers.single.cameraSingleStreamer
 import io.github.thibaultbee.streampack.core.interfaces.startStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -25,7 +27,12 @@ class OrganizationLiveStreamer(
     private var streamer: SingleStreamer? = null
     private var endpoint: String? = null
 
-    suspend fun startCamera(endpointUrl: String) = withContext(Dispatchers.IO) {
+    companion object {
+        private val _activeStreamer = MutableStateFlow<SingleStreamer?>(null)
+        val activeStreamer: StateFlow<SingleStreamer?> = _activeStreamer
+    }
+
+    suspend fun startCamera(endpointUrl: String, lensFacing: Int = android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) = withContext(Dispatchers.IO) {
         require(endpointUrl.startsWith("rtmp://") || endpointUrl.startsWith("rtmps://")) {
             "Unsupported live endpoint."
         }
@@ -42,15 +49,25 @@ class OrganizationLiveStreamer(
 
         try {
             onState("connecting")
-            val next = cameraSingleStreamer(context = context.applicationContext)
+            val cameraManager = context.getSystemService(android.hardware.camera2.CameraManager::class.java)
+                ?: throw IllegalStateException("Camera service is unavailable.")
+            val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                runCatching {
+                    cameraManager.getCameraCharacteristics(id)
+                        .get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) == lensFacing
+                }.getOrDefault(false)
+            } ?: throw IllegalStateException("The selected camera is not available for online streaming.")
+            val next = cameraSingleStreamer(context = context.applicationContext, cameraId = cameraId)
             next.startStream(endpointUrl)
             streamer = next
+            _activeStreamer.value = next
             endpoint = endpointUrl
             onState("live")
         } catch (t: Throwable) {
             onError(t.message ?: "Live broadcaster could not connect.")
             runCatching { streamer?.release() }
             streamer = null
+            _activeStreamer.value = null
             endpoint = null
             throw t
         }
@@ -64,6 +81,7 @@ class OrganizationLiveStreamer(
         runCatching { current.close() }
         runCatching { current.release() }
         streamer = null
+        _activeStreamer.value = null
         endpoint = null
         onState("stopped")
     }
