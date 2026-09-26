@@ -19,6 +19,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: bq-sqwad-release-main
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: ubuntu-latest
