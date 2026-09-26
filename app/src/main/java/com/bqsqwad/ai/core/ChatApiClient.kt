@@ -138,9 +138,11 @@ class ChatApiClient(
             if (t is kotlinx.coroutines.CancellationException) throw t
             // Keep chat usable when SSE/provider streaming is unavailable. The normal
             // authenticated endpoint uses the configured provider fallback route.
-            val fallback = sendMessage(message, capability, system)
+            val fallback: ChatReply = sendMessage(message, capability, system)
             if (fallback.text.isBlank()) throw t
-            // The caller will replace the streamed draft with the complete fallback reply.\n            // Do not emit the whole fallback as a delta or the UI would duplicate text.\n            fallback
+            // The caller replaces the streamed draft with the complete fallback reply.
+            // Do not emit the whole fallback as a delta or the UI would duplicate text.
+            return@withTimeout fallback
         }
     }
 
