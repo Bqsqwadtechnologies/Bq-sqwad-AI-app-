@@ -11,6 +11,22 @@ function dayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function monthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+const DEFAULT_ALLOWED_PLAN_IDS = {
+  capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"]
+};
+
+const DEFAULT_MONTHLY_LIMITS = {
+  capability_truth_guard: {
+    truthguardfree: 5,
+    tgplus: 150,
+    tgpro: 1000
+  }
+};
+
 const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_chat",
   "capability_deep_research",
@@ -97,10 +113,34 @@ export async function authorizeCapability(uid, controlId) {
       throw new Error("plan_expired");
     }
   }
-  const plans = Array.isArray(effectiveControl.allowedPlanIds)
+  const configuredPlans = Array.isArray(effectiveControl.allowedPlanIds)
     ? effectiveControl.allowedPlanIds.map(String).filter(Boolean)
     : [];
-  if (plans.length && !plans.includes(planId)) throw new Error("plan_not_entitled");
+  const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
+  if (plans.length) {
+    if (planId && !plans.includes(planId)) throw new Error("plan_not_entitled");
+    if (!planId && !plans.includes(controlId === "capability_truth_guard" ? "truthguardfree" : "")) {
+      throw new Error("plan_not_entitled");
+    }
+  }
+
+  const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[planId || "truthguardfree"] ?? null;
+  let monthlyRef = null;
+  if (monthlyLimit !== null && Number.isFinite(Number(monthlyLimit))) {
+    monthlyRef = db.collection("capabilityUsageMonthly").doc(uid + "_" + controlId + "_" + monthKey());
+    await db.runTransaction(async tx => {
+      const usage = await tx.get(monthlyRef);
+      const used = Number(usage.exists ? usage.data()?.count || 0 : 0);
+      if (used >= Number(monthlyLimit)) throw new Error("monthly_capability_limit_reached");
+      tx.set(monthlyRef, {
+        uid,
+        capability: controlId,
+        month: monthKey(),
+        count: used + 1,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+  }
 
   const dailyLimit = effectiveControl.dailyLimit == null ? null : Math.max(0, Number(effectiveControl.dailyLimit));
   let dailyRef = null;
@@ -159,6 +199,7 @@ export async function authorizeCapability(uid, controlId) {
         }, { merge: true });
       });
     } catch (error) {
+      if (monthlyRef) await releaseMonthlyUsage(db, monthlyRef, uid, controlId);
       if (dailyRef) await releaseDailyUsage(db, dailyRef, uid, controlId);
       if (minuteRef) await releaseRateLimit(db, minuteRef);
       throw error;
@@ -176,6 +217,9 @@ export async function authorizeCapability(uid, controlId) {
       if (released) return;
       released = true;
       if (concurrencyRef) await releaseConcurrency(db, concurrencyRef);
+      if (monthlyRef && !committed) {
+        await releaseMonthlyUsage(db, monthlyRef, uid, controlId);
+      }
       if (dailyRef && !committed) {
         await releaseDailyUsage(db, dailyRef, uid, controlId);
       }
@@ -204,6 +248,25 @@ async function releaseRateLimit(db, ref) {
     const current = Number(snap.data()?.count || 0);
     if (current <= 1) tx.delete(ref);
     else tx.update(ref, { count: current - 1, updatedAt: FieldValue.serverTimestamp() });
+  });
+}
+
+async function releaseMonthlyUsage(db, ref, uid, controlId) {
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const current = Number(snap.data()?.count || 0);
+    if (current <= 1) {
+      tx.delete(ref);
+      return;
+    }
+    tx.update(ref, {
+      uid,
+      capability: controlId,
+      month: monthKey(),
+      count: current - 1,
+      updatedAt: FieldValue.serverTimestamp()
+    });
   });
 }
 
