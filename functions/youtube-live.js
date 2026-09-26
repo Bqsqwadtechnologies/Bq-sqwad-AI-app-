@@ -25,6 +25,9 @@ async function youtubeToken(uid, accountId) {
   if (String(account.uid || "") !== String(uid) || account.platform !== "youtube") throw new Error("youtube_account_not_found");
   let token = account.accessTokenSecret?.ciphertext ? decryptSecret(account.accessTokenSecret) : clean(account.token, 10000);
   const expiresAt = account.expiresAt?.toDate?.()?.getTime?.() || 0;
+  if (expiresAt && expiresAt <= Date.now() + 60000 && !account.refreshTokenSecret?.ciphertext) {
+    throw new Error("youtube_refresh_token_missing");
+  }
   if ((!token || (expiresAt && expiresAt <= Date.now() + 60000)) && account.refreshTokenSecret?.ciphertext) {
     const secret = await getProviderSecret("youtube_client_secret");
     if (!secret) throw new Error("youtube_client_secret_missing");
