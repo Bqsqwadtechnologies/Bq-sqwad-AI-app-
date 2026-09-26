@@ -147,7 +147,6 @@ private fun LifeMathisGateCard(
     onOpenPlans: () -> Unit,
     onStatus: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val periods = listOf("monthly", "yearly").filter { plan.price.containsKey(it) }
     var selectedPeriod by remember(plan.id) {
         mutableStateOf(periods.firstOrNull { it == "monthly" } ?: periods.firstOrNull() ?: "")
