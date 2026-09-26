@@ -94,7 +94,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                     .firstOrNull { activeIds.contains(it) }
                     ?: "truthguardfree"
                 val catalogPlans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
-                if (catalogPlans.length() == 0) error("TruthGuard catalog is unavailable.")
+                if (catalogPlans.length() == 0) throw IllegalStateException("TruthGuard catalog is unavailable.")
                 history = api.truthGuardHistory().mapNotNull { row ->
                     TruthGuardHistoryItem(
                         id = row.optString("id"),
