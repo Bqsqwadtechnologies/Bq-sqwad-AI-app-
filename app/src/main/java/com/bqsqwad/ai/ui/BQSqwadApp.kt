@@ -2525,7 +2525,17 @@ private fun VoiceWorkspace() {
             state = liveUiState.status.ifBlank { "stopped" }
         }
     }
-    val targetVoiceScale = if (active) 1f + (liveUiState.audioLevel * 0.42f) else 1f
+    val idleTransition = rememberInfiniteTransition(label = "voiceIdle")
+    val idlePulse by idleTransition.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1.015f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "voiceIdlePulse"
+    )
+    val targetVoiceScale = if (active) 1f + (liveUiState.audioLevel * 0.42f) else idlePulse
     val voiceScale by animateFloatAsState(
         targetValue = targetVoiceScale,
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
