@@ -237,7 +237,14 @@ async function validateXAccessToken(accessToken) {
 export async function saveSocialAccount(platform, tokenData, metadata = {}, actorUid) {
   const id = crypto.randomUUID();
   const workspaceId = clean(metadata.workspaceId, 120);
-  if (workspaceId) {
+  const organizationId = clean(metadata.organizationId, 120);
+  if (organizationId) {
+    const orgSnap = await getFirestore().collection("organizationWorkspaces").doc(organizationId).get();
+    const member = (orgSnap.data()?.members || []).find(item => String(item.id || "") === String(actorUid) && item.status !== "inactive");
+    if (!orgSnap.exists || !member || !["owner", "admin", "editor"].includes(String(member.role || ""))) {
+      throw new Error("organization_social_access_denied");
+    }
+  } else if (workspaceId) {
     await requireBusinessAccess(actorUid, workspaceId, "manager");
     await requireBusinessPlan(actorUid, workspaceId, "channels");
   }
