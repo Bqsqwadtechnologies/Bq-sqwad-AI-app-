@@ -165,7 +165,11 @@ export const bqSqwadApi = onRequest(
         const expires = stateData.expiresAt?.toDate?.()?.getTime?.() || Date.parse(String(stateData.expiresAt || ""));
         if (!Number.isFinite(expires) || expires < Date.now()) return send(res, 400, { error: "oauth_state_expired" });
         const tokens = await exchangeSocialOAuth(String(stateData.platform), code, String(stateData.redirectUri || ""), stateData.codeVerifier || null);
-        const account = await saveSocialAccount(String(stateData.platform), tokens, { workspaceId: String(stateData.workspaceId || ""), providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null } }, String(stateData.uid));
+        const account = await saveSocialAccount(String(stateData.platform), tokens, {
+          workspaceId: String(stateData.workspaceId || ""),
+          organizationId: String(stateData.organizationId || ""),
+          providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null }
+        }, String(stateData.uid));
         await stateRef.delete();
         return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
       }
@@ -306,6 +310,51 @@ export const bqSqwadApi = onRequest(
         });
         const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeChallenge);
         return send(res, 200, { authorizationUrl, state });
+      }
+
+      if (req.method === "GET" && path === "organization/social/accounts") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const orgId = String(req.query?.organizationId || user.uid).trim();
+          const org = await getOrganization(orgId);
+          const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+          if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+          const accountsSnap = await getFirestore().collection("socialAccounts")
+            .where("uid", "==", user.uid)
+            .where("platform", "==", "youtube")
+            .limit(25).get();
+          gate.commit();
+          return send(res, 200, {
+            accounts: accountsSnap.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter(account => String(account.metadata?.organizationId || "") === orgId)
+              .map(account => ({ id: account.id, platform: account.platform, status: account.status, metadata: account.metadata || {} }))
+          });
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/social/oauth/start") {
+        const platform = String(body.platform || "").trim();
+        if (platform !== "youtube") return send(res, 400, { error: "organization_live_platform_not_supported" });
+        const orgId = String(body.organizationId || user.uid).trim();
+        const org = await getOrganization(orgId);
+        const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+        if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+        const config = await getSocialConfig();
+        const state = crypto.randomUUID();
+        const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
+        if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
+        await getFirestore().collection("socialOAuthStates").doc(state).set({
+          uid: user.uid,
+          platform,
+          organizationId: orgId,
+          redirectUri,
+          codeVerifier: null,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          createdAt: FieldValue.serverTimestamp()
+        });
+        const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, null);
+        return send(res, 200, { authorizationUrl, state, organizationId: orgId });
       }
 
       if (req.method === "POST" && path === "social/x/action") {
@@ -702,10 +751,16 @@ export const bqSqwadApi = onRequest(
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
         let reservation = null;
         try {
-          const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
-          await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
-          // Live streaming uses the same shared credit balance as chat and live voice.
-          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          const organizationId = String(body.organizationId || "").trim();
+          if (organizationId) {
+            const org = await getOrganization(organizationId);
+            const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+            if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+          } else {
+            const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+            await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+          }
+          reservation = await reserveCredits(user.uid, gate.creditCost, "youtube_live");
           const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
           await commitCredits(user.uid, reservation?.reservationId, "youtube_live");
           gate.commit();
