@@ -173,7 +173,7 @@ export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerif
   let parsed;
   try { parsed = JSON.parse(raw); } catch { throw new Error("social_token_exchange_invalid_json"); }
   if (platform === "x") {
-    const granted = String(parsed.scope || "").split(/\\s+/).filter(Boolean);
+    const granted = String(parsed.scope || "").split(/\s+/).filter(Boolean);
     if (!granted.includes("tweet.write")) throw new Error("x_write_scope_missing");
     if (!granted.includes("users.read")) throw new Error("x_users_scope_missing");
   }
