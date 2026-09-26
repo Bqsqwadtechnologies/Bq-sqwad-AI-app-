@@ -509,3 +509,15 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Wired the Life Mathis plan gate into the Life workspace while preserving the existing planning/goals/routines/tasks feature surface.
 - The global catalog keeps Business AI first and renders workspace plans from the canonical BQ Sqwad AI catalog rather than displaying a separate Google Play catalog.
 - Existing server-side `capability_life_matters` entitlement and monthly-limit enforcement remains authoritative.
+
+
+## 2026-09-26 — Main Chat / Credits / Admin Verification
+- Kept the native app on the existing Firebase + Cloud Functions backend; no second AI backend was introduced.
+- Main Chat continues to use the existing OpenAI primary route with the configured Gemini fallback through `provider-gateway.js`.
+- Super-admin access is now unlimited server-side for AI capability entitlement/credit charging; customer balances are still charged normally.
+- Business AI now gives the sole super-admin unrestricted verification access without requiring a customer Business entitlement.
+- Added a protected admin endpoint to grant credits to a customer by email, with an admin audit record and a `creditLedger` entry.
+- Added the corresponding Admin Control Center action for granting free credits.
+- Main Chat Private Chat mode intentionally skips Chat History persistence.
+- Main Chat header was consolidated around the existing BQ logo, horizontal `BQ Sqwad AI` branding, overflow actions, and account/settings icon.
+- Android activity now requests `adjustResize` and the composer uses navigation-bar + IME insets so the keyboard does not cover typed text.
