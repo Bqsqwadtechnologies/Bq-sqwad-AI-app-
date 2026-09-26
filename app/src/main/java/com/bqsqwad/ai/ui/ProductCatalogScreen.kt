@@ -456,11 +456,6 @@ private fun LivePlanCard(
                 }
                 if(plan.popular) BqStatusBadge("POPULAR")
             }
-            Text("Plan ID: " + plan.id, style=MaterialTheme.typography.bodySmall, fontWeight=FontWeight.SemiBold)
-            plan.productId?.let { Text("Subscription ID: " + it, style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (plan.basePlans.isNotEmpty()) {
-                Text("Base plans: " + plan.basePlans.joinToString(" • "), style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             if (supportedPeriods.size > 1) {
                 LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     items(supportedPeriods) { period ->
@@ -472,8 +467,20 @@ private fun LivePlanCard(
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
             }
-            plan.features.take(8).forEach { Text("• "+it, style=MaterialTheme.typography.bodySmall) }
-            if(plan.features.size > 8) Text("+"+(plan.features.size-8)+" more features", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if (plan.features.isNotEmpty()) {
+                Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
+                plan.features.forEach { Text("• " + it, style=MaterialTheme.typography.bodySmall) }
+            }
+            if (plan.limits.isNotEmpty()) {
+                Text("Plan capacity", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
+                plan.limits.forEach { (key, value) ->
+                    Text(
+                        key.replace('_', ' ').replaceFirstChar { it.uppercase() } + ": " + value,
+                        style=MaterialTheme.typography.bodySmall,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Button(
                 onClick = {
                     when {
@@ -499,7 +506,8 @@ private fun LivePlanCard(
                     when {
                         plan.contactSales || plan.paymentChannel=="contact_sales" -> "Contact Sales"
                         plan.paymentChannel=="website" -> "Subscribe on website"
-                        else -> "Get"
+                        plan.playEligible -> "Continue with Google Play"
+                        else -> "Unavailable"
                     }
                 )
             }
