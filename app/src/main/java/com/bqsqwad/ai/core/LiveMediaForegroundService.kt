@@ -185,21 +185,10 @@ class LiveMediaForegroundService : Service() {
             return
         }
 
-        val session = LiveCameraCaptureSession(
-            this,
-            lens,
-            onFrame = { bytes -> analyzeFrame(bytes, "image/jpeg") },
-            onError = { writeError(it.message ?: "Camera capture failed.") }
-        )
-        try {
-            session.start()
-            cameraSession = session
-            writeState(true, "")
-        } catch (t: Throwable) {
-            runCatching { session.stop() }
-            writeError(t.message ?: "Camera could not start.")
-            stopSelf()
-        }
+        // The Compose NativeCameraPreview owns the actual Camera2 device while this
+        // foreground service owns the visible live-session lifecycle. Keeping one camera
+        // owner avoids Camera2 contention between the UI preview and the analyzer.
+        writeState(true, "active")
     }
 
     private fun startScreen(intent: Intent?) {
