@@ -27,9 +27,16 @@ class WorkspaceApiClient {
         if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
         val status=c.responseCode
         val stream=if(status in 200..299)c.inputStream else c.errorStream
-        val raw=stream.bufferedReader().use{it.readText()}
-        val body=runCatching{JSONObject(raw)}.getOrElse{JSONObject().put("error","Invalid server response")}
-        if(status !in 200..299) error(body.optString("error","Request failed"))
+        val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+        val body=runCatching{JSONObject(raw)}.getOrNull()
+        if(status !in 200..299) {
+            val serverError=body?.optString("error").orEmpty()
+            val detail=serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
+            error("HTTP $status: $detail")
+        }
+        if(body == null) {
+            error("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+        }
         body
     }
 
