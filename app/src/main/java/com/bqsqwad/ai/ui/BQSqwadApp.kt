@@ -56,6 +56,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
 import com.bqsqwad.ai.core.*
 import com.bqsqwad.ai.domain.Workspace
+import io.github.thibaultbee.streampack.compose.SourcePreview
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -2496,49 +2497,57 @@ private fun CameraWorkspace() {
             if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (screenAnswer.isNotBlank()) SurfaceCard("BQ Sqwad AI", screenAnswer)
         } else if (granted && active) {
+            val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
             Box(
                 Modifier.fillMaxWidth().height(280.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.Black)
             ) {
-                NativeCameraPreview(
-                    modifier = Modifier.fillMaxSize(),
-                    lensFacing = lens,
-                    captureEveryMs = 1800L,
-                    onFrame = { bytes ->
-                        val now = System.currentTimeMillis()
-                        if (active && !analyzing && now - lastAnalysisAt >= 1600L) {
-                        lastAnalysisAt = now
-                        analyzing = true
-                        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                        scope.launch(Dispatchers.IO) {
-                            runCatching { ChatApiClient().analyzeCameraFrame(prompt, encoded, "image/jpeg") }
-                                .onSuccess { result ->
-                                    scope.launch(Dispatchers.Main) {
-                                        cameraLog.add("Asked: " + prompt)
-                                        cameraLog.add("BQ Sqwad AI: " + result.text)
-                                        answer = result.text
-                                        analyzing = false
-                                    }
+                if (streamOnline && streamingPreview != null) {
+                    SourcePreview(
+                        videoSource = streamingPreview!!,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    NativeCameraPreview(
+                        modifier = Modifier.fillMaxSize(),
+                        lensFacing = lens,
+                        captureEveryMs = 1800L,
+                        onFrame = { bytes ->
+                            val now = System.currentTimeMillis()
+                            if (active && !analyzing && now - lastAnalysisAt >= 1600L) {
+                                lastAnalysisAt = now
+                                analyzing = true
+                                val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                scope.launch(Dispatchers.IO) {
+                                    runCatching { ChatApiClient().analyzeCameraFrame(prompt, encoded, "image/jpeg") }
+                                        .onSuccess { result ->
+                                            scope.launch(Dispatchers.Main) {
+                                                cameraLog.add("Asked: " + prompt)
+                                                cameraLog.add("BQ Sqwad AI: " + result.text)
+                                                answer = result.text
+                                                analyzing = false
+                                            }
+                                        }
+                                        .onFailure { errorValue ->
+                                            scope.launch(Dispatchers.Main) {
+                                                cameraLog.add("Error: " + (errorValue.message ?: "Camera analysis failed."))
+                                                answer = errorValue.message ?: "Camera analysis failed."
+                                                analyzing = false
+                                            }
+                                        }
                                 }
-                                .onFailure { errorValue ->
-                                    scope.launch(Dispatchers.Main) {
-                                        cameraLog.add("Error: " + (errorValue.message ?: "Camera analysis failed."))
-                                        answer = errorValue.message ?: "Camera analysis failed."
-                                        analyzing = false
-                                    }
-                                }
+                            }
                         }
-                        }
-                    }
-                )
+                    )
+                }
                 Surface(
                     modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
                     shape = RoundedCornerShape(10.dp),
                     color = Color.Black.copy(alpha = 0.62f)
                 ) {
                     Text(
-                        if (liveServiceActive) "● LIVE CAMERA" else "Connecting…",
+                        if (streamOnline) "● STREAMING ONLINE" else if (liveServiceActive) "● LIVE CAMERA" else "Connecting…",
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
