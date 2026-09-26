@@ -66,6 +66,7 @@ fun OrganizationStudioWorkspace() {
     var scheduledPrompt by remember { mutableStateOf("") }
     var scheduledSchedule by remember { mutableStateOf("daily") }
     var scheduledTasks by remember { mutableStateOf(org.json.JSONArray()) }
+    var connectedPlatforms by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
@@ -120,6 +121,19 @@ fun OrganizationStudioWorkspace() {
         runCatching { api.organizationScheduledTasks() }
             .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
             .onFailure { error = it.message ?: "Scheduled AI tasks could not be loaded." }
+        runCatching {
+            val business = api.businessWorkspace()
+            api.socialAccounts(business.optString("workspaceId"))
+        }.onSuccess { body ->
+            val accounts = body.optJSONArray("accounts") ?: org.json.JSONArray()
+            val next = mutableMapOf<String, Boolean>()
+            for (i in 0 until accounts.length()) {
+                val account = accounts.optJSONObject(i) ?: continue
+                val platform = account.optString("platform").lowercase()
+                if (platform.isNotBlank()) next[platform] = account.optString("status", "unknown") == "connected"
+            }
+            connectedPlatforms = next
+        }.onFailure { /* disconnected status remains fail-closed */ }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -634,15 +648,18 @@ fun OrganizationStudioWorkspace() {
                         Column(Modifier.width(150.dp)) {
                             Text("Platform", style = MaterialTheme.typography.labelMedium)
                             listOf("youtube" to "YouTube Live", "x" to "X (post-event)").forEach { (id, label) ->
+                                val connected = connectedPlatforms[id] == true
                                 FilterChip(
                                     selected = destinationType == id,
+                                    enabled = connected,
                                     onClick = { destinationType = id },
-                                    label = { Text(label, maxLines = 1) }
+                                    label = { Text(if (connected) label else "$label • Not connected", maxLines = 1) }
                                 )
                             }
                         }
                     }
-                    Button(enabled = destinationName.isNotBlank(), onClick = {
+                    Text("Only connected platforms can be selected. YouTube supports live ingest; X is post-event publishing only.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(enabled = destinationName.isNotBlank() && connectedPlatforms[destinationType] == true, onClick = {
                         scope.launch {
                             runCatching {
                                 api.upsertOrganizationProductionDestination(org.json.JSONObject()
