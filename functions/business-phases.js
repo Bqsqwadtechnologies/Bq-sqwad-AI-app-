@@ -196,6 +196,7 @@ export async function listAdminBusinessSubscriptions() {
     const existing = rows.get(key) || {};
     const override = await dbi.collection("businessSubscriptionOverrides").doc(key).get();
     rows.set(key, {
+      ...existing,
       id: key,
       uid,
       planId,
@@ -207,8 +208,7 @@ export async function listAdminBusinessSubscriptions() {
       startDate: x.startDate?.toDate?.()?.toISOString?.() || x.startDate || null,
       endDate: x.endDate?.toDate?.()?.toISOString?.() || x.endDate || null,
       active: override.exists ? override.data()?.active !== false : true,
-      overrideSource: override.exists ? "admin" : null,
-      ...existing
+      overrideSource: override.exists ? "admin" : null
     });
   };
 
