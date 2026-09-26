@@ -82,11 +82,13 @@ private fun AuthGate(modifier: Modifier) {
     val auth = remember { FirebaseAuth.getInstance() }
     var user by remember { mutableStateOf(auth.currentUser) }
     var consentAccepted by remember { mutableStateOf<Boolean?>(null) }
+    var emailVerified by remember { mutableStateOf(auth.currentUser?.isEmailVerified ?: true) }
     val context = LocalContext.current
 
     DisposableEffect(auth) {
         val listener = FirebaseAuth.AuthStateListener { updated ->
             user = updated.currentUser
+            emailVerified = updated.currentUser?.isEmailVerified ?: true
             consentAccepted = if (updated.currentUser == null) null else false
         }
         auth.addAuthStateListener(listener)
@@ -100,7 +102,9 @@ private fun AuthGate(modifier: Modifier) {
             return@LaunchedEffect
         }
 
+        emailVerified = signedIn.isEmailVerified
         consentAccepted = null
+        if (!signedIn.isEmailVerified) return@LaunchedEffect
         val result = runCatching { WorkspaceApiClient().consent() }
         result.onSuccess { consent ->
             val accepted = consent.optBoolean("requiredAccepted", false)
@@ -118,8 +122,60 @@ private fun AuthGate(modifier: Modifier) {
 
     when {
         user == null -> MainShell(modifier)
+        !emailVerified -> EmailVerificationGate(modifier)
         consentAccepted == true -> MainShell(modifier)
         else -> ConsentGate(modifier)
+    }
+}
+
+@Composable
+private fun EmailVerificationGate(modifier: Modifier) {
+    val auth = remember { FirebaseAuth.getInstance() }
+    var busy by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun refreshVerification() {
+        val current = auth.currentUser ?: return
+        busy = true
+        notice = null
+        error = null
+        current.reload().addOnCompleteListener { task ->
+            busy = false
+            if (task.isSuccessful && auth.currentUser?.isEmailVerified == true) {
+                notice = "Email verified. Checking your required consent…"
+            } else if (task.isSuccessful) {
+                error = "Your email is not verified yet. Open the verification email, then tap Check again."
+            } else {
+                error = task.exception?.message ?: "Could not refresh your account status."
+            }
+        }
+    }
+
+    AuthSurface {
+        Text("Verify your email", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Please verify your email address before continuing. This is separate from the required Terms and Privacy consent.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(onClick = { refreshVerification() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Text(if (busy) "Checking…" else "I verified my email — check again")
+        }
+        OutlinedButton(
+            onClick = {
+                val current = auth.currentUser ?: return@OutlinedButton
+                busy = true
+                error = null
+                current.sendEmailVerification().addOnCompleteListener { task ->
+                    busy = false
+                    if (task.isSuccessful) notice = "A new verification email was sent."
+                    else error = task.exception?.message ?: "Could not send the verification email."
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Resend verification email") }
+        TextButton(onClick = { auth.signOut() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+        notice?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 
@@ -132,8 +188,10 @@ private fun ConsentGate(modifier: Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
+    var serverAccepted by remember { mutableStateOf(false) }
     var accepted by remember { mutableStateOf(false) }
     var trainingConsent by remember { mutableStateOf(false) }
+    var completed by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -143,7 +201,8 @@ private fun ConsentGate(modifier: Modifier) {
         scope.launch {
             runCatching { WorkspaceApiClient().consent() }
                 .onSuccess {
-                    accepted = it.optBoolean("requiredAccepted")
+                    serverAccepted = it.optBoolean("requiredAccepted")
+                    accepted = serverAccepted
                     trainingConsent = it.optBoolean("trainingConsent")
                 }
                 .onFailure { error = it.message ?: "Could not verify consent." }
@@ -153,12 +212,12 @@ private fun ConsentGate(modifier: Modifier) {
 
     LaunchedEffect(Unit) { refresh() }
 
-    if (loading) {
+    if (completed) {
+        MainShell(modifier)
+    } else if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-    } else if (accepted) {
-        MainShell(modifier)
     } else {
         AuthSurface {
             Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -194,9 +253,12 @@ private fun ConsentGate(modifier: Modifier) {
                         scope.launch {
                             runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
                                 .onSuccess {
+                                    serverAccepted = true
+                                    completed = true
                                     context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
                                         .putString("policy_version", "2026-09")
                                         .putLong("required_consent_at", System.currentTimeMillis())
+                                        .putBoolean("required_accepted", true)
                                         .putBoolean("training_consent", trainingConsent)
                                         .apply()
                                 }
