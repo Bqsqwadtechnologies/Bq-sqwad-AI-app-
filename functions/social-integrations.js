@@ -423,7 +423,8 @@ export async function publishSocialPost(uid, accountId, input = {}) {
         accessTokenSecret: encryptSecret(refreshed.accessToken),
         refreshTokenSecret: encryptSecret(refreshed.refreshToken),
         expiresAt: refreshed.expiresAt,
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp(),
+        status: "connected"
       }, { merge: true });
       response = await fetch("https://api.x.com/2/tweets", {
         method: "POST",
@@ -531,6 +532,18 @@ export async function disconnectSocialAccount(uid, accountId) {
           body: new URLSearchParams({ token, token_type_hint: "access_token", client_id: clientId })
         });
         if (!revoke.ok) revokeError = "x_remote_revoke_failed";
+        const refreshToken = account.refreshTokenSecret?.ciphertext ? decryptSecret(account.refreshTokenSecret) : "";
+        if (refreshToken) {
+          const refreshRevoke = await fetch("https://api.x.com/2/oauth2/revoke", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Authorization": "Basic " + Buffer.from(clientId + ":" + secret).toString("base64")
+            },
+            body: new URLSearchParams({ token: refreshToken, token_type_hint: "refresh_token", client_id: clientId })
+          });
+          if (!refreshRevoke.ok) revokeError = "x_remote_revoke_failed";
+        }
       }
     } catch {
       revokeError = "x_remote_revoke_failed";
