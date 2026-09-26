@@ -1968,7 +1968,7 @@ private fun WorkspaceScreen(
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.LEARNING -> LearningStudioWorkspace()
-                Workspace.BUSINESS -> BusinessWorkspaceScreen()
+                Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
