@@ -628,10 +628,19 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Streaming destinations", style = MaterialTheme.typography.titleLarge)
-                    Text("Configure YouTube, Facebook, TikTok, Instagram or professional broadcast destination metadata. Credentials are not stored in the APK.")
+                    Text("Choose a connected live destination. YouTube is supported for live broadcast; X is available for post-event publishing when live ingest is not supported. Credentials are never stored in the APK.")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(destinationName, { destinationName = it }, Modifier.weight(1f), label = { Text("Destination name") })
-                        OutlinedTextField(destinationType, { destinationType = it }, Modifier.width(120.dp), label = { Text("Platform") })
+                        Column(Modifier.width(150.dp)) {
+                            Text("Platform", style = MaterialTheme.typography.labelMedium)
+                            listOf("youtube" to "YouTube Live", "x" to "X (post-event)").forEach { (id, label) ->
+                                FilterChip(
+                                    selected = destinationType == id,
+                                    onClick = { destinationType = id },
+                                    label = { Text(label, maxLines = 1) }
+                                )
+                            }
+                        }
                     }
                     Button(enabled = destinationName.isNotBlank(), onClick = {
                         scope.launch {
