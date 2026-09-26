@@ -457,3 +457,36 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Organization scheduler now supports weekly recurring tasks in addition to hourly/daily/minute schedules.
 - Provider credentials remain server-side through `adminProviderSecrets`; OpenAI remains the default provider and Gemini remains available as fallback/configurable provider. YouTube and X OAuth client secrets are resolved from the same encrypted provider-secret store; OAuth access/refresh tokens remain encrypted server-side.
 - Google Play subscription management remains Google-authoritative: admin/user controls must open the Play management surface rather than fabricating a cancellation or reactivation in Firestore.
+
+
+## 2026-09-26 — Authentication, Consent, Live Credits & Organization AI verification
+
+### Authentication / consent
+- Fixed the authenticated root flow so a signed-in account cannot enter Main Chat merely by checking the consent checkbox.
+- Required consent is now treated as server state; the UI checkbox is only the user's pending choice.
+- Main Chat is entered from the consent screen only after `POST/consent` save succeeds.
+- Rejecting the required consent signs the Firebase account out and returns the app to the signed-out shell/auth path.
+- Added an explicit email-verification checkpoint for password accounts before required consent. The checkpoint supports resend, refresh/check-again, and sign-out. Google-authenticated accounts continue when Firebase reports them verified.
+- App relaunch re-checks the server consent state rather than trusting the local preference as an authorization decision.
+
+### Entitlement / workspace gating
+- Current Android workspace access is enforced through `WorkspaceAccessGate` and loaded from the live catalog plus `GET /entitlements`.
+- Server-verified admin Test Mode is the only navigation bypass for protected workspaces.
+- `AdminConfigScreen` and the old `CapabilityGate` name are no longer present in the current Android source; `WorkspaceAccessGate` is the active navigation gate.
+
+### Shared credits
+- Current backend `POST /realtime/session` reserves credits under the shared `chat` pool and reverses the reservation on configuration/upstream failure.
+- Current YouTube live-start route `POST /organization/production/youtube/live` also reserves and commits from the same `chat` pool and reverses on failure.
+- Therefore Chat, Live Voice, and starting an Organization YouTube Live session use the same shared credit balance. Live-session status transitions do not charge a second start fee.
+
+### Provider secrets / social streaming
+- OpenAI remains the default provider.
+- Gemini remains available as a configured provider/fallback.
+- Provider secrets are handled by the encrypted backend secret store; the Android client receives status/configuration metadata, not secret values.
+- YouTube live creation reads `youtube_client_secret` from the server secret store.
+- X OAuth/publishing reads `x_client_secret` from the server secret store.
+- X is presented as post-event publishing where live ingest is not available; the Organization AI / Studio destination UI does not claim fabricated X live-ingest support.
+
+### Verification boundary
+- Source-level route and state tracing was performed against the current `main` source.
+- A real Firebase test-account flow, physical-device camera/microphone session, staging Functions deployment, Google Play sandbox purchase, signed release APK/AAB build, and live device smoke test still require the user's Android/CI environment. They are not claimed as completed by this source audit alone.
