@@ -190,6 +190,47 @@ export async function updateHealth(uid, health = {}) {
   return getProduction(uid);
 }
 
+export async function getOrganizationAiLiveConfig(uid) {
+  const production = await getProduction(uid);
+  return {
+    mode: production.aiLive?.mode || "host_only",
+    privacyAccepted: production.aiLive?.privacyAccepted === true,
+    privacyVersion: String(production.aiLive?.privacyVersion || ""),
+    viewerReplies: production.aiLive?.viewerReplies === true,
+    screenAwareness: production.aiLive?.screenAwareness === true,
+    commentModeration: production.aiLive?.commentModeration || "strict",
+    hostOnly: production.aiLive?.mode === "host_only",
+    creditRatePerMinute: Number(production.aiLive?.creditRatePerMinute || 0.25)
+  };
+}
+
+export async function updateOrganizationAiLiveConfig(uid, patch = {}) {
+  const current = await getOrganizationAiLiveConfig(uid);
+  const allowedModes = new Set(["host_only", "moderated_audience", "full_audience"]);
+  const mode = allowedModes.has(String(patch.mode || "")) ? String(patch.mode) : current.mode;
+  const modeRules = {
+    host_only: { viewerReplies: false, screenAwareness: false, commentModeration: "strict", creditRatePerMinute: 0.25 },
+    moderated_audience: { viewerReplies: true, screenAwareness: false, commentModeration: "strict", creditRatePerMinute: 0.55 },
+    full_audience: { viewerReplies: true, screenAwareness: true, commentModeration: "strict", creditRatePerMinute: 0.95 }
+  };
+  const defaults = modeRules[mode];
+  if (patch.privacyAccepted !== true && current.privacyAccepted !== true) {
+    throw new Error("organization_ai_live_privacy_required");
+  }
+  const aiLive = {
+    mode,
+    privacyAccepted: true,
+    privacyVersion: clean(patch.privacyVersion || current.privacyVersion || "2026-09", 40),
+    viewerReplies: mode === "host_only" ? false : patch.viewerReplies !== false,
+    screenAwareness: mode === "full_audience" ? patch.screenAwareness !== false : false,
+    commentModeration: "strict",
+    creditRatePerMinute: defaults.creditRatePerMinute,
+    updatedAt: new Date().toISOString()
+  };
+  await refFor(uid).set({ aiLive, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return getOrganizationAiLiveConfig(uid);
+}
+
 export async function addProductionEvent(uid, event = {}) {
   const db = getFirestore();
   const ref = db.collection("organizationProductionEvents").doc();
