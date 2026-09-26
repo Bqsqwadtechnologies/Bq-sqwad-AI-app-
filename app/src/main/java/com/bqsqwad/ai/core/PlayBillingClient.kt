@@ -56,7 +56,7 @@ class PlayBillingClient(
         .build()
 
     private val details = mutableMapOf<String, ProductDetails>()
-    private val catalog = mutableMapOf<String, PlayCatalogItem>()
+    private val catalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
     private var connected = false
 
     fun start() {
@@ -113,8 +113,9 @@ class PlayBillingClient(
             .setProductDetails(product)
         val offerToken = when (product.productType) {
             ProductType.SUBS -> {
-                val preferredBasePlan = basePlanId ?: catalog[productId]?.basePlanId
-                val preferredOfferId = offerId ?: catalog[productId]?.offerId ?: catalog[productId]?.trialOfferId
+                val mapping = catalog[productId].orEmpty().firstOrNull { basePlanId.isNullOrBlank() || it.basePlanId == basePlanId }
+                val preferredBasePlan = basePlanId ?: mapping?.basePlanId
+                val preferredOfferId = offerId ?: mapping?.offerId ?: mapping?.trialOfferId
                 val offersForBasePlan = product.subscriptionOfferDetails?.filter { detail ->
                     preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
                 }.orEmpty()
@@ -164,15 +165,17 @@ class PlayBillingClient(
                     val id = item.optString("productId")
                     val type = item.optString("productType")
                     if (id.isBlank() || (type != ProductType.SUBS && type != ProductType.INAPP)) continue
-                    catalog[id] = PlayCatalogItem(
-                        planId = item.optString("planId"),
-                        productId = id,
-                        basePlanId = item.optString("basePlanId").ifBlank { null },
-                        offerId = item.optString("offerId").ifBlank { null },
-                        trialOfferId = item.optString("trialOfferId").ifBlank { null },
-                        productType = type,
-                        enabled = item.optBoolean("enabled", false),
-                        consumable = item.optBoolean("consumable", false)
+                    catalog.getOrPut(id) { mutableListOf() }.add(
+                        PlayCatalogItem(
+                            planId = item.optString("planId"),
+                            productId = id,
+                            basePlanId = item.optString("basePlanId").ifBlank { null },
+                            offerId = item.optString("offerId").ifBlank { null },
+                            trialOfferId = item.optString("trialOfferId").ifBlank { null },
+                            productType = type,
+                            enabled = item.optBoolean("enabled", false),
+                            consumable = item.optBoolean("consumable", false)
+                        )
                     )
                     products += QueryProductDetailsParams.Product.newBuilder()
                         .setProductId(id)
@@ -206,8 +209,11 @@ class PlayBillingClient(
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
                     .put("purchaseTime", purchase.purchaseTime)
-                    .put("basePlanId", purchase.products.firstOrNull()?.let { productId -> catalog[productId]?.basePlanId } ?: "")
-                    .put("offerId", purchase.products.firstOrNull()?.let { productId -> catalog[productId]?.offerId } ?: "")
+                    // Do not claim a base plan from the client during verification.
+                    // Google Play's purchase token is authoritative; the backend reads
+                    // the verified line item and checks the actual yearly/monthly base plan.
+                    .put("basePlanId", "")
+                    .put("offerId", "")
                     .put("obfuscatedAccountId", purchase.accountIdentifiers?.obfuscatedAccountId ?: "")
                 val connection = (URL("$baseUrl/play/verify").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
