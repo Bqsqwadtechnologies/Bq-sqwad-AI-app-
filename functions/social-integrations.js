@@ -10,7 +10,7 @@ const CANONICAL_WEB_ORIGIN = "https://bqsqwadai.com";
 
 const DEFAULT_CLIENT_IDS = {
   youtube: "848359744340-jeevhbunr9ari8dh7632gi8btli90vd0.apps.googleusercontent.com",
-  x: "eWVPR2FtMVYtajRfV09ETy1LQlg6MTpjaQ"
+  x: ""
 };
 
 const CONFIG = "socialIntegrations";
