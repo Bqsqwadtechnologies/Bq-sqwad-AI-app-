@@ -41,6 +41,8 @@ export async function authorizeCapability(uid, controlId) {
   const adminClaims = adminUser.customClaims || {};
   const isSuperAdmin = adminUser.email === "isaacoshiomole0@gmail.com" && (adminClaims.admin === true || adminClaims.superAdmin === true || adminClaims.role === "admin" || adminClaims.role === "super_admin");
   const snap = await db.collection("adminAdvancedOptions").doc(controlId).get();
+  const testModeSnap = await db.collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+  const adminTestMode = isSuperAdmin && testModeSnap.exists && testModeSnap.data()?.enabled === true;
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
   if (!control && !isSuperAdmin && !DEFAULT_RUNTIME_CAPABILITIES.has(controlId)) {
@@ -55,7 +57,7 @@ export async function authorizeCapability(uid, controlId) {
     allowedPlanIds: [],
     config: { fallbackEnabled: true, fallbackProviderIds: ["gemini"] }
   };
-  if (isSuperAdmin) return { control: effectiveControl, planId: "admin", creditCost: 0, commit: () => {}, release: async () => {} };
+  // Paid/test capability bypass is available to the super-admin only while the server-side Test Mode switch is ON.\n  // With Test Mode OFF, the admin follows the same entitlement/rollout path as a normal user.\n  if (adminTestMode) return { control: effectiveControl, planId: "admin-test", creditCost: 0, commit: () => {}, release: async () => {} };
 
   if (effectiveControl.enabled === false || effectiveControl.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
