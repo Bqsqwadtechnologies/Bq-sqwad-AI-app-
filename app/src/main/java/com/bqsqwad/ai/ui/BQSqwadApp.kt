@@ -806,7 +806,8 @@ private fun MainShell(modifier: Modifier) {
                         onBack = { workspace = null },
                         onLearnMore = { featureInfo = workspace!! },
                         onPrivacy = { featurePrivacy = workspace!! },
-                        onSettings = { featureSettings = workspace!! }
+                        onSettings = { featureSettings = workspace!! },
+                        onOpenPlans = { plans = true }
                     )
                 }
             }
@@ -1874,7 +1875,8 @@ private fun WorkspaceScreen(
     onBack: () -> Unit,
     onLearnMore: () -> Unit,
     onPrivacy: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onOpenPlans: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -1928,7 +1930,7 @@ private fun WorkspaceScreen(
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
-                Workspace.LIFE -> LifeMattersWorkspace()
+                Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace()
                 Workspace.LEARNING -> LearningStudioWorkspace()
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
