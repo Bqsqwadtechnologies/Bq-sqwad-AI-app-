@@ -2362,7 +2362,7 @@ private fun SearchWorkspace() {
 }
 
 @Composable
-private fun CameraWorkspace() {
+fun CameraWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
@@ -2652,8 +2652,9 @@ private fun CameraWorkspace() {
 }
 
 @Composable
-private fun VoiceWorkspace() {
+fun VoiceWorkspace() {
     val context = LocalContext.current
+    val voiceLogState = rememberLazyListState()
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
     var permissionExplanation by remember { mutableStateOf(false) }
