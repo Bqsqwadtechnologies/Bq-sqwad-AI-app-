@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -17,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +53,11 @@ fun AdminControlCenter() {
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
     var testModeSaving by remember { mutableStateOf(false) }
+    var showGrantCredits by remember { mutableStateOf(false) }
+    var grantEmail by remember { mutableStateOf("") }
+    var grantAmount by remember { mutableStateOf("100") }
+    var grantReason by remember { mutableStateOf("Admin free-credit grant") }
+    var grantSaving by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -117,6 +125,41 @@ fun AdminControlCenter() {
         return
     }
 
+    if (showGrantCredits) {
+        AlertDialog(
+            onDismissRequest = { if (!grantSaving) showGrantCredits = false },
+            title = { Text("Grant Free Credits") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Add server-side credits to a customer balance. This is recorded in the admin audit ledger.")
+                    OutlinedTextField(grantEmail, { grantEmail = it }, label = { Text("User email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(grantAmount, { grantAmount = it }, label = { Text("Credits") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(grantReason, { grantReason = it }, label = { Text("Reason") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !grantSaving && grantEmail.isNotBlank() && (grantAmount.toDoubleOrNull() ?: 0.0) > 0,
+                    onClick = {
+                        grantSaving = true
+                        scope.launch {
+                            runCatching { client.grantCredits(grantEmail, grantAmount.toDouble(), grantReason) }
+                                .onSuccess {
+                                    error = null
+                                    showGrantCredits = false
+                                    grantEmail = ""
+                                    grantAmount = "100"
+                                }
+                                .onFailure { error = it.message ?: "Credit grant failed." }
+                            grantSaving = false
+                        }
+                    }
+                ) { Text(if (grantSaving) "Granting…" else "Grant credits") }
+            },
+            dismissButton = { TextButton(onClick = { showGrantCredits = false }, enabled = !grantSaving) { Text("Cancel") } }
+        )
+    }
+
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -142,6 +185,7 @@ fun AdminControlCenter() {
                 )
             }
         }
+        OutlinedButton(onClick = { showGrantCredits = true }, modifier = Modifier.fillMaxWidth()) { Text("Grant Free Credits to User") }
         OutlinedButton(onClick = { showContactSales = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Contact Sales Inbox") }
         OutlinedButton(onClick = { showProviderSecrets = true }, modifier = Modifier.fillMaxWidth()) { Text("Open API & Provider Secrets") }
         OutlinedButton(onClick = { showSecurity = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin Security & Authenticator") }
