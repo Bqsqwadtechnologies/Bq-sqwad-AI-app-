@@ -415,6 +415,19 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
             "Connect YouTube or X securely, then publish and manage the connected account from this workspace.",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("X privacy & control", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "BQ Sqwad AI only uses the X account permissions needed for the connected features. It does not ask for your X password, sell your X data, or read private X content outside permissions granted by X. It only publishes or manages content when you explicitly use a connected feature or configured automation.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Access and refresh tokens are encrypted server-side and are never stored in the Android app. You can disconnect X at any time; BQ Sqwad AI removes the stored connection and attempts to revoke the X token.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
 
         Row(
             Modifier.fillMaxWidth(),
@@ -494,11 +507,23 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
         for (i in 0 until accounts.length()) {
             val a = accounts.optJSONObject(i) ?: continue
             val id = a.optString("id")
-            OutlinedButton(onClick = { accountId = id }) {
-                Text(
-                    a.optString("platform").replaceFirstChar { it.uppercase() } +
-                        if (accountId == id) " • Selected" else ""
-                )
+            val platform = a.optString("platform")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(modifier = Modifier.weight(1f), onClick = { accountId = id }) {
+                    Text(platform.replaceFirstChar { it.uppercase() } + if (accountId == id) " • Selected" else "")
+                }
+                if (platform == "x") {
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            runCatching { api.disconnectSocialAccount(id) }
+                                .onSuccess {
+                                    if (accountId == id) accountId = ""
+                                    refreshAccounts()
+                                }
+                                .onFailure { error(it.message ?: "X account could not be disconnected.") }
+                        }
+                    }) { Text("Disconnect") }
+                }
             }
         }
 
