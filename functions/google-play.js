@@ -71,6 +71,16 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     : canonicalPlayProducts();
   const productMappings = products.filter(p => p.productId === productId && p.enabled === true);
   if (!productMappings.length) throw new Error("play_product_not_configured");
+
+  // The admin plan catalog is authoritative for commercial availability.
+  // A stale Play projection must never reopen a plan that the admin deactivated.
+  const planCatalogSnap = await db.collection("planCatalog").doc("config").get();
+  if (planCatalogSnap.exists) {
+    const sections = planCatalogSnap.data()?.catalog?.sections || {};
+    const allPlans = Object.values(sections).flat().filter(Boolean);
+    const plan = allPlans.find(p => String(p.id || "") === String(productMappings[0].planId || ""));
+    if (plan && plan.active === false) throw new Error("play_plan_deactivated");
+  }
   const requestedMapping = productMappings.find(p => !requestedBasePlanId || String(p.basePlanId || "") === String(requestedBasePlanId)) || productMappings[0];
 
   const existingRef = db.collection("playPurchases").doc(crypto.createHash("sha256").update(purchaseToken).digest("hex"));
