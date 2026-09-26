@@ -49,6 +49,8 @@ async function effectiveBusinessPlan(uid, workspace) {
   const isAdmin = adminUser.email === "isaacoshiomole0@gmail.com" &&
     (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
   if (isAdmin) {
+    const unrestricted = businessCatalogPlans().find(p => p.id === "bizenterprise") || businessCatalogPlans().find(p => p.id === "bizbusiness") || businessCatalogPlans()[0];
+    if (unrestricted) return { plan: { ...unrestricted, limits: { ...(unrestricted.limits || {}), aiMessagesPerMonth: "unlimited under fair use" } }, source: "admin_unlimited", adminTest: true, expiresAt: null, features: expandInheritedBusinessFeatures(unrestricted.id) };
     const testSnap = await dbi.collection("adminBusinessTestSessions").doc(uid).get();
     if (testSnap.exists) {
       const test = testSnap.data() || {};
