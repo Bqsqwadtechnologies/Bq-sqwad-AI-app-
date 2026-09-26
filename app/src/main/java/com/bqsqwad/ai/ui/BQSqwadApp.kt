@@ -255,7 +255,6 @@ private fun ConsentGate(modifier: Modifier) {
                         scope.launch {
                             runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
                                 .onSuccess {
-                                    serverAccepted = true
                                     completed = true
                                     context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
                                         .putString("policy_version", "2026-09")
