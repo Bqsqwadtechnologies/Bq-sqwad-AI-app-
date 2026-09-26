@@ -158,7 +158,9 @@ class PlayBillingClient(
                 }
                 val raw = connection.inputStream.bufferedReader().use { it.readText() }
                 val catalogJson = JSONObject(raw).optJSONArray("products") ?: JSONArray()
+                catalog.clear()
                 val products = mutableListOf<QueryProductDetailsParams.Product>()
+                val seenProducts = mutableSetOf<String>()
                 for (i in 0 until catalogJson.length()) {
                     val item = catalogJson.getJSONObject(i)
                     if (!item.optBoolean("enabled", false)) continue
@@ -177,10 +179,12 @@ class PlayBillingClient(
                             consumable = item.optBoolean("consumable", false)
                         )
                     )
-                    products += QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(id)
-                        .setProductType(type)
-                        .build()
+                    if (seenProducts.add(id + ":" + type)) {
+                        products += QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(id)
+                            .setProductType(type)
+                            .build()
+                    }
                 }
                 if (products.isEmpty()) return@runCatching
                 client.queryProductDetailsAsync(
