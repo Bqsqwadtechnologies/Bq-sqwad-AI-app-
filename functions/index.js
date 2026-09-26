@@ -25,7 +25,7 @@ import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, get
 import { createMediaRights, listPendingMediaRights, reviewMediaRights } from "./media-rights.js";
 import { enforceProtectedContentPolicy } from "./live-content-policy.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings } from "./business-phases.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
@@ -1885,6 +1885,22 @@ export const bqSqwadApi = onRequest(
         const admin = await adminFromRequest(req);
         const planId = String(body.planId || "");
         return send(res, 200, await runBusinessPlanTestSuite(admin.uid, planId));
+      }
+
+      if (req.method === "GET" && path === "admin/business/subscriptions") {
+        await adminFromRequest(req);
+        return send(res, 200, { items: await listAdminBusinessSubscriptions() });
+      }
+
+      if (req.method === "POST" && path === "admin/business/subscription-status") {
+        const admin = await adminFromRequest(req);
+        const uid = String(body.uid || "").trim();
+        const planId = String(body.planId || "").trim();
+        const active = body.active === true;
+        if (!uid || !planId) return send(res, 400, { error: "business_subscription_target_required" });
+        return send(res, 200, await setAdminBusinessSubscriptionStatus(
+          admin.uid, uid, planId, active, body.confirmDeactivation === true
+        ));
       }
 
       if (req.method === "POST" && path === "admin/business/plan-status") {
