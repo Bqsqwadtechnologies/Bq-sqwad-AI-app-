@@ -1,14 +1,6 @@
 name: BQ Sqwad AI — Deploy Firebase Backend
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "functions/**"
-      - "firebase.json"
-      - "firestore.rules"
-      - ".github/workflows/deploy-functions.yml"
   workflow_dispatch:
 
 permissions:
