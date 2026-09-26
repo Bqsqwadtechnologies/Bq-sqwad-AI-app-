@@ -78,7 +78,35 @@ fun BusinessWorkspaceScreen() {
         when (tab) {
             "Overview" -> {
                 SurfaceCard("Workspace", data.optString("name").ifBlank { "My Business" })
-                SurfaceCard("Plan", data.optString("planId").ifBlank { "bizstarter" })
+                val planContext = data.optJSONObject("planContext") ?: JSONObject()
+                val planName = planContext.optString("name").ifBlank { data.optString("planId").ifBlank { "Business Starter" } }
+                SurfaceCard(
+                    "Business Dashboard",
+                    buildString {
+                        append(planName)
+                        if (planContext.optBoolean("popular", false)) append(" • Popular")
+                        if (planContext.optBoolean("trialEligible", false) && planContext.optInt("trialDays", 0) > 0) {
+                            append(" • " + planContext.optInt("trialDays") + "-day trial eligible")
+                        }
+                        val expires = planContext.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" }
+                        if (expires != null) append(" • Access through " + expires)
+                        if (planContext.optBoolean("adminTest", false)) append(" • Admin Test Mode")
+                    }
+                )
+                val limits = planContext.optJSONObject("limits") ?: JSONObject()
+                if (limits.length() > 0) {
+                    Text("Plan limits & included capacity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    limits.keys().forEach { key ->
+                        Text(key.replace('_', ' ').replaceFirstChar { it.uppercase() } + ": " + limits.optString(key), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                val planFeatures = planContext.optJSONArray("features") ?: JSONArray()
+                if (planFeatures.length() > 0) {
+                    SurfaceCard(
+                        "Included features",
+                        (0 until minOf(planFeatures.length(), 12)).map { planFeatures.optString(it) }.filter { it.isNotBlank() }.joinToString(" • ")
+                    )
+                }
                 val a = data.optJSONObject("analytics") ?: JSONObject()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Column(Modifier.weight(1f)) { SurfaceCard("Members", a.optInt("members").toString()) }
