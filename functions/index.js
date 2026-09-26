@@ -20,7 +20,7 @@ import { getOrganization, updateOrganization, updateOrganizationSettings, addOrg
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost } from "./social-integrations.js";
+import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost, manageXAction } from "./social-integrations.js";
 import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, getYouTubeLiveStatus } from "./youtube-live.js";
 import { createMediaRights, listPendingMediaRights, reviewMediaRights } from "./media-rights.js";
 import { enforceProtectedContentPolicy } from "./live-content-policy.js";
@@ -300,6 +300,12 @@ export const bqSqwadApi = onRequest(
         });
         const authorizationUrl = await beginSocialOAuth(platform, state, redirectUri, codeChallenge);
         return send(res, 200, { authorizationUrl, state });
+      }
+
+      if (req.method === "POST" && path === "social/x/action") {
+        const accountId = String(body.accountId || "").trim();
+        if (!accountId) return send(res, 400, { error: "social_account_required" });
+        return send(res, 200, await manageXAction(user.uid, accountId, body));
       }
 
       if (req.method === "POST" && path === "social/publish") {
