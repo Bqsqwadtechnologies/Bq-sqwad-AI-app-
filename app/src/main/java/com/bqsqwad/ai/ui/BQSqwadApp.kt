@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -2347,6 +2348,7 @@ private fun CameraWorkspace() {
     var liveServiceMode by remember { mutableStateOf("") }
     var liveAnswer by remember { mutableStateOf("") }
     val cameraLog = remember { mutableStateListOf<String>() }
+    val cameraLogState = rememberLazyListState()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (it) {
@@ -2384,6 +2386,10 @@ private fun CameraWorkspace() {
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
+    val voiceLogState = rememberLazyListState()
+    LaunchedEffect(liveUiState.log.size) {
+        if (liveUiState.log.isNotEmpty()) voiceLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
+    }
     LaunchedEffect(liveUiState) {
         liveServiceActive = liveUiState.active
         liveServiceMode = liveUiState.mode
@@ -2666,12 +2672,12 @@ private fun VoiceWorkspace() {
                     tonalElevation = 2.dp
                 ) {
                     LazyColumn(
+                        state = voiceLogState,
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(liveUiState.log.takeLast(30)) { entry ->
-                            Text(entry, style = MaterialTheme.typography.bodySmall)
-                        }
+                        item { Text("Live transcript", fontWeight = FontWeight.SemiBold) }
+                        items(liveUiState.log.takeLast(40)) { entry -> Text(entry, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
             }
