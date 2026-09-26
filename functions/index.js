@@ -2041,15 +2041,21 @@ export const bqSqwadApi = onRequest(
             : blockedPeriods.map(period => ({name:item.name,billingPeriod:period,price:"Contact Sales",features:item.features || [],limits:item.limits || {}}));
           return rows.map(row => ({...row,module:item.module,contactSales:true}));
         });
+        const configuredSections = planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
+          ? planCatalogSnap.data().catalog.sections
+          : null;
+        const configuredPlans = configuredSections
+          ? Object.values(configuredSections).flat().map(item => safePlan(item.id, item))
+          : [];
+        const sourcePlans = configuredPlans.length > 0
+          ? configuredPlans
+          : (!plansSnap.empty
+              ? plansSnap.docs.map(d => safePlan(d.id, d.data()))
+              : Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item)));
+
         return send(res, 200, {
           version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
-          plans: (
-            planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
-              ? Object.values(planCatalogSnap.data().catalog.sections).flat().map(item => safePlan(item.id, item))
-              : plansSnap.empty
-                ? Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item))
-                : plansSnap.docs.map(d => safePlan(d.id, d.data()))
-          ).filter(x => x.visible && x.active),
+          plans: sourcePlans.filter(x => x.visible && x.active),
           products,
           publicContactSales,
           features: features.filter(x => x.visible),
