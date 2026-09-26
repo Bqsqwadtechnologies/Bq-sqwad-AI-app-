@@ -688,12 +688,19 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "organization/production/youtube/live") {
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        let reservation = null;
         try {
           const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
           await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+          // Live streaming uses the same shared credit balance as chat and live voice.
+          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
           const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
+          await commitCredits(user.uid, reservation?.reservationId, "youtube_live");
           gate.commit();
-          return send(res, 200, result);
+          return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
         } finally { await gate.release(); }
       }
 
