@@ -122,14 +122,17 @@ private fun AuthGate(modifier: Modifier) {
 
     when {
         user == null -> MainShell(modifier)
-        !emailVerified -> EmailVerificationGate(modifier)
+        !emailVerified -> EmailVerificationGate(modifier, onVerified = {
+            emailVerified = true
+            consentAccepted = null
+        })
         consentAccepted == true -> MainShell(modifier)
         else -> ConsentGate(modifier)
     }
 }
 
 @Composable
-private fun EmailVerificationGate(modifier: Modifier) {
+private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
     val auth = remember { FirebaseAuth.getInstance() }
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -143,6 +146,7 @@ private fun EmailVerificationGate(modifier: Modifier) {
         current.reload().addOnCompleteListener { task ->
             busy = false
             if (task.isSuccessful && auth.currentUser?.isEmailVerified == true) {
+                onVerified()
                 notice = "Email verified. Checking your required consent…"
             } else if (task.isSuccessful) {
                 error = "Your email is not verified yet. Open the verification email, then tap Check again."
