@@ -29,7 +29,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
-private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false)
+private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
@@ -513,6 +513,11 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
                 val values=mutableMapOf<String,String>()
                 priceObject.keys().forEach { key -> values[key]=priceObject.optString(key) }
                 values
+            },
+            p.optString("productId").ifBlank { null },
+            run {
+                val baseArray = p.optJSONArray("basePlans") ?: JSONArray()
+                List(baseArray.length()) { n -> baseArray.optString(n) }.filter { it.isNotBlank() }
             },
             p.optInt("trialDays",0),
             p.optBoolean("trialEligible",false),
