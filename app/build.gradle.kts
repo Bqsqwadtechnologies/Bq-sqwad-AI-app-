@@ -14,6 +14,8 @@ android {
         targetSdk = 37
         versionCode = 5
         versionName = "1.0.5"
+        val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
+        buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
     }
 
     buildTypes {
