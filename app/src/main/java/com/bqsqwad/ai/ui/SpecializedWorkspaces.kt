@@ -383,7 +383,7 @@ Teach step by step, check understanding, and do not simply give answers when a l
 }
 
 @Composable
-fun LifeMattersWorkspace() {
+fun LifeMattersWorkspace(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var focus by remember { mutableStateOf("Planning") }
     var request by remember { mutableStateOf("") }
@@ -410,6 +410,8 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
             busy = false
         }
     }
+
+    LifeMathisPlanGate(onOpenPlans = onOpenPlans)
 
     WorkspaceFrame(
         title = "Life Matters",
