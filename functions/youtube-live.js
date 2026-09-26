@@ -113,6 +113,7 @@ export async function createYouTubeLiveSession(uid, accountId, input = {}) {
   const db = getFirestore();
   const sessionRef = db.collection("organizationProductionLiveSessions").doc();
   const ingestion = stream.cdn?.ingestionInfo || {};
+  const liveChatId = bound.snippet?.liveChatId || broadcast.snippet?.liveChatId || null;
   await sessionRef.set({
     id: sessionRef.id,
     uid,
@@ -120,7 +121,7 @@ export async function createYouTubeLiveSession(uid, accountId, input = {}) {
     platform: "youtube",
     broadcastId: broadcast.id,
     streamId: stream.id,
-    liveChatId: bound.snippet?.liveChatId || broadcast.snippet?.liveChatId || null,
+    liveChatId,
     ingestionAddress: ingestion.ingestionAddress || null,
     streamName: ingestion.streamName || null,
     title,
@@ -132,6 +133,16 @@ export async function createYouTubeLiveSession(uid, accountId, input = {}) {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   });
+
+  await db.collection("organizationProduction").doc(uid).set({
+    activeYouTubeLiveSessionId: sessionRef.id,
+    activeYouTubeAccountId: accountId,
+    activeYouTubeBroadcastId: broadcast.id,
+    activeYouTubeLiveChatId: liveChatId,
+    activeYouTubeIngestionAddress: ingestion.ingestionAddress || null,
+    activeYouTubeStreamName: ingestion.streamName || null,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
 
   return {
     sessionId: sessionRef.id,
