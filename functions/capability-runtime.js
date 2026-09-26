@@ -1,5 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { COMMERCIAL_CATALOG } from "./plan-catalog.js";
 
 function requirementHash(value) {
   let hash = 2166136261;
@@ -122,14 +123,34 @@ export async function authorizeCapability(uid, controlId) {
     ? effectiveControl.allowedPlanIds.map(String).filter(Boolean)
     : [];
   const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
-  if (plans.length) {
-    if (planId && !plans.includes(planId)) throw new Error("plan_not_entitled");
-    if (!planId && !plans.includes(controlId === "capability_truth_guard" ? "truthguardfree" : "")) {
+
+  // Resolve plan availability from the same canonical catalog used by the native catalog.
+  // This prevents a deactivated free plan from silently continuing to grant access.
+  const planCatalogSnap = await db.collection("planCatalog").doc("config").get();
+  const catalogSections = planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
+    ? planCatalogSnap.data().catalog.sections
+    : COMMERCIAL_CATALOG.sections;
+  const catalogPlans = Object.values(catalogSections || {}).flat().filter(Boolean);
+  const catalogById = new Map(catalogPlans.map(item => [String(item.id || ""), item]));
+  const activePlans = plans.filter(id => catalogById.get(id)?.active !== false);
+  const freePlanId = activePlans.find(id => {
+    const item = catalogById.get(id);
+    return item?.productType === "free" || item?.price?.free != null || item?.paymentChannel === "free";
+  }) || null;
+
+  if (activePlans.length) {
+    if (planId) {
+      if (!activePlans.includes(planId)) throw new Error("plan_not_entitled");
+    } else if (!freePlanId) {
       throw new Error("plan_not_entitled");
+    } else {
+      // No paid entitlement exists; use the active free tier for this capability.
+      // The monthly limit below is then enforced against the free plan.
     }
   }
 
-  const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[planId || "truthguardfree"] ?? null;
+  const effectivePlanId = planId || freePlanId || "";
+  const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[effectivePlanId] ?? null;
   let monthlyRef = null;
   if (monthlyLimit !== null && Number.isFinite(Number(monthlyLimit))) {
     monthlyRef = db.collection("capabilityUsageMonthly").doc(uid + "_" + controlId + "_" + monthKey());
@@ -140,6 +161,7 @@ export async function authorizeCapability(uid, controlId) {
       tx.set(monthlyRef, {
         uid,
         capability: controlId,
+        planId: effectivePlanId || null,
         month: monthKey(),
         count: used + 1,
         updatedAt: FieldValue.serverTimestamp()
@@ -221,7 +243,7 @@ export async function authorizeCapability(uid, controlId) {
   let committed = false;
   return {
     control,
-    planId,
+    planId: effectivePlanId || null,
     creditCost: Math.max(0, Number(effectiveControl.creditCost || 0)),
     commit: () => { committed = true; },
     release: async () => {
