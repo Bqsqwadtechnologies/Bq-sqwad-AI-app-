@@ -162,6 +162,21 @@ class WorkspaceApiClient {
     suspend fun createYouTubeLive(payload: JSONObject): JSONObject =
         request("/organization/production/youtube/live", payload=payload)
 
+    suspend fun organizationYouTubeAccounts(organizationId: String): JSONObject =
+        request("/organization/social/accounts?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8"), "GET")
+
+    suspend fun startOrganizationYouTubeOAuth(organizationId: String, redirectUri: String): JSONObject =
+        request("/organization/social/oauth/start", payload=JSONObject()
+            .put("organizationId", organizationId)
+            .put("platform", "youtube")
+            .put("redirectUri", redirectUri.take(1000)))
+
+    suspend fun organizationAiLiveConfig(): JSONObject =
+        request("/organization/production/ai-live", "GET")
+
+    suspend fun updateOrganizationAiLiveConfig(payload: JSONObject): JSONObject =
+        request("/organization/production/ai-live", payload=payload)
+
     suspend fun organizationProduction(): JSONObject = request("/organization/production","GET")
 
     suspend fun updateOrganizationProductionConfig(payload: JSONObject): JSONObject =
