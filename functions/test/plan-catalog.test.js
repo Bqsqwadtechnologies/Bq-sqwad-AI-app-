@@ -66,16 +66,23 @@ test("credit subscriptions use internal credit IDs with weekly monthly base plan
   }
 });
 
-test("Business plans are website-managed and excluded from Google Play", () => {
+test("Business plans match the canonical Play/website payment channels", () => {
   const plans = COMMERCIAL_CATALOG.sections.business;
   assert.ok(plans.length >= 7);
+  const expectedPlayEligible = new Map([
+    ["bizstarter", true],
+    ["bizbasic", true],
+    ["bizstandard", true],
+    ["bizprofessional", false],
+    ["bizbusiness", true],
+    ["bizenterprise", true],
+    ["businessenterprise", false]
+  ]);
   for (const plan of plans) {
     assert.equal(plan.module, "business");
-    if (plan.id === "bizprofessional") {
-      assert.equal(plan.playEligible, false);
+    assert.equal(plan.playEligible, expectedPlayEligible.get(plan.id), plan.id + " has unexpected Play eligibility");
+    if (plan.id === "bizprofessional" || plan.id === "businessenterprise") {
       assert.equal(plan.paymentChannel, "website");
-    } else {
-      assert.equal(plan.playEligible, false, plan.id + " must not be a Play product");
     }
     assert.ok(Array.isArray(plan.features) && plan.features.length > 0, plan.id + " needs feature entitlements");
     assert.ok(plan.limits && typeof plan.limits === "object", plan.id + " needs limits");
