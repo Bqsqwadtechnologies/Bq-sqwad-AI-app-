@@ -135,7 +135,11 @@ export async function beginSocialOAuth(platform, state, redirectUri, codeChallen
     state
   });
   if (platform === "youtube") params.set("access_type", "offline");
-  if (platform === "x") { params.set("code_challenge", codeChallenge || ""); params.set("code_challenge_method", "S256"); }
+  if (platform === "x") {
+    if (!codeChallenge) throw new Error("x_pkce_challenge_missing");
+    params.set("code_challenge", codeChallenge);
+    params.set("code_challenge_method", "S256");
+  }
   return p.authorizationUrl + "?" + params.toString();
 }
 
@@ -155,10 +159,25 @@ export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerif
     grant_type: "authorization_code"
   });
   if (platform === "x" && codeVerifier) body.set("code_verifier", codeVerifier);
-  const response = await fetch(p.tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  const headers = { "Content-Type": "application/x-www-form-urlencoded" };
+  if (platform === "x") {
+    headers.Authorization = "Basic " + Buffer.from(pc.clientId + ":" + secret).toString("base64");
+    body.delete("client_secret");
+  }
+  const response = await fetch(p.tokenUrl, { method: "POST", headers, body });
   const raw = await response.text();
-  if (!response.ok) throw new Error("social_token_exchange_failed:" + raw.slice(0, 500));
-  return JSON.parse(raw);
+  if (!response.ok) {
+    const detail = raw.replace(/[\\r\\n]+/g, " ").slice(0, 700);
+    throw new Error((platform === "x" ? "x_token_exchange_failed:" : "social_token_exchange_failed:") + detail);
+  }
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("social_token_exchange_invalid_json"); }
+  if (platform === "x") {
+    const granted = String(parsed.scope || "").split(/\\s+/).filter(Boolean);
+    if (!granted.includes("tweet.write")) throw new Error("x_write_scope_missing");
+    if (!granted.includes("users.read")) throw new Error("x_users_scope_missing");
+  }
+  return parsed;
 }
 
 export async function saveSocialAccount(platform, tokenData, metadata = {}, actorUid) {
@@ -217,7 +236,10 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     const secret = await getProviderSecret("x_client_secret");
     const refreshToken = decryptSecret(account.refreshTokenSecret);
     const clientId = String((await getSocialConfig()).platforms?.x?.clientId || "");
-    if (secret && clientId && refreshToken) {
+    if (!secret) throw new Error("x_client_secret_missing");
+    if (!clientId) throw new Error("x_client_id_missing");
+    if (!refreshToken) throw new Error("x_refresh_token_missing");
+    {
       const refresh = await fetch("https://api.x.com/2/oauth2/token", {
         method: "POST",
         headers: {
@@ -230,17 +252,20 @@ export async function publishSocialPost(uid, accountId, input = {}) {
           client_id: clientId
         })
       });
-      const refreshed = await refresh.json();
-      if (refresh.ok && refreshed.access_token) {
-        token = String(refreshed.access_token);
-        const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
-        await ref.set({
-          accessTokenSecret: encryptSecret(token),
-          refreshTokenSecret: encryptSecret(nextRefreshToken),
-          expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 7200) * 1000),
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
+      const refreshedRaw = await refresh.text();
+      let refreshed = {};
+      try { refreshed = JSON.parse(refreshedRaw); } catch {}
+      if (!refresh.ok || !refreshed.access_token) {
+        throw new Error("x_token_refresh_failed:" + refreshedRaw.replace(/[\\r\\n]+/g, " ").slice(0, 700));
       }
+      token = String(refreshed.access_token);
+      const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
+      await ref.set({
+        accessTokenSecret: encryptSecret(token),
+        refreshTokenSecret: encryptSecret(nextRefreshToken),
+        expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 7200) * 1000),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
     }
   }
 
@@ -269,6 +294,8 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   const metadata = account.metadata || {};
   let response;
   if (platform === "x") {
+    const scopes = new Set((account.grantedScopes || []).map(String));
+    if (scopes.size && !scopes.has("tweet.write")) throw new Error("x_write_scope_missing_reconnect_required");
     response = await fetch("https://api.x.com/2/tweets", {
       method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
       body: JSON.stringify({ text: text || "" })
@@ -336,7 +363,10 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     throw new Error("social_publish_not_supported_for_platform");
   }
   const raw = await response.text();
-  if (!response.ok) throw new Error("social_publish_failed:" + raw.slice(0, 700));
+  if (!response.ok) {
+    const detail = raw.replace(/[\\r\\n]+/g, " ").slice(0, 900);
+    throw new Error((platform === "x" ? "x_publish_failed:" : "social_publish_failed:") + detail);
+  }
   let result = {};
   try { result = JSON.parse(raw); } catch {}
   const publishRef = getFirestore().collection("socialPublishJobs").doc();
