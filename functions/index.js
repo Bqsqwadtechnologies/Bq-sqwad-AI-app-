@@ -2049,11 +2049,20 @@ export const bqSqwadApi = onRequest(
         const configuredPlans = configuredSections
           ? Object.values(configuredSections).flat().map(item => safePlan(item.id, item))
           : [];
+        const canonicalPlans = Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item));
+        const configuredIds = new Set(configuredPlans.map(item => String(item.id || "")));
+        // Firestore configuration wins for any plan the admin has edited, while the
+        // canonical catalog fills missing plan IDs so one partially seeded section
+        // can never make another workspace disappear from the native catalog.
+        const mergedConfiguredPlans = [
+          ...configuredPlans,
+          ...canonicalPlans.filter(item => !configuredIds.has(String(item.id || "")))
+        ];
         const sourcePlans = configuredPlans.length > 0
-          ? configuredPlans
+          ? mergedConfiguredPlans
           : (!plansSnap.empty
               ? plansSnap.docs.map(d => safePlan(d.id, d.data()))
-              : Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item)));
+              : canonicalPlans);
 
         return send(res, 200, {
           version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
