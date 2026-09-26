@@ -48,6 +48,8 @@ fun AdminControlCenter() {
     var showRuntime by remember { mutableStateOf(false) }
     var showBusinessTest by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
+    var testMode by remember { mutableStateOf(false) }
+    var testModeSaving by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -55,6 +57,7 @@ fun AdminControlCenter() {
             .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
         loading = false
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
+        runCatching { client.testMode() }.onSuccess { testMode = it }
     }
 
     val sections = listOf(
@@ -118,6 +121,27 @@ fun AdminControlCenter() {
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
+        Card(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Admin Test Mode", fontWeight = FontWeight.Bold)
+                    Text("Server-controlled QA access. When OFF, admin navigation follows normal entitlement rules.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = testMode,
+                    enabled = !testModeSaving,
+                    onCheckedChange = { enabled ->
+                        testModeSaving = true
+                        scope.launch {
+                            runCatching { client.setTestMode(enabled) }
+                                .onSuccess { testMode = it }
+                                .onFailure { error = it.message ?: "Could not change Admin Test Mode." }
+                            testModeSaving = false
+                        }
+                    }
+                )
+            }
+        }
         OutlinedButton(onClick = { showContactSales = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Contact Sales Inbox") }
         OutlinedButton(onClick = { showProviderSecrets = true }, modifier = Modifier.fillMaxWidth()) { Text("Open API & Provider Secrets") }
         OutlinedButton(onClick = { showSecurity = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin Security & Authenticator") }
