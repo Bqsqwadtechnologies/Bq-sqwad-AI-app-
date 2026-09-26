@@ -390,6 +390,7 @@ fun LifeMattersWorkspace(onOpenPlans: () -> Unit = {}) {
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var accessGranted by remember { mutableStateOf(false) }
 
     fun runLife() {
         val input = request.trim()
@@ -411,12 +412,18 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
         }
     }
 
-    LifeMathisPlanGate(onOpenPlans = onOpenPlans)
+    LifeMathisPlanGate(
+        onOpenPlans = onOpenPlans,
+        onStatus = { error = it },
+        onAccessGranted = { accessGranted = it }
+    )
+
+    if (!accessGranted) return
 
     WorkspaceFrame(
-        title = "Life Matters",
+        title = "Life Mathis",
         style = WorkspaceVisualStyle.LIFE,
-        subtitle = "Goals, routines, planning, practical guidance and personal organization.",
+        subtitle = "Life planning, goals, routines, tasks and grounded personal guidance.",
         icon = Icons.Default.FavoriteBorder
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
