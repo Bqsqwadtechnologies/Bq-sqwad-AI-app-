@@ -166,6 +166,16 @@ export async function transitionYouTubeLive(uid, accountId, broadcastId, status)
   await getFirestore().collection("organizationProductionLiveSessions")
     .where("uid","==",uid).where("accountId","==",accountId).where("broadcastId","==",broadcastId).limit(1).get()
     .then(async snap => { if (!snap.empty) await snap.docs[0].ref.set({ status: String(status), updatedAt: FieldValue.serverTimestamp() }, { merge:true }); });
+  if (String(status) === "complete") {
+    await getFirestore().collection("organizationProduction").doc(uid).set({
+      activeYouTubeLiveSessionId: null,
+      activeYouTubeBroadcastId: null,
+      activeYouTubeLiveChatId: null,
+      activeYouTubeIngestionAddress: null,
+      activeYouTubeStreamName: null,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
   return result;
 }
 
