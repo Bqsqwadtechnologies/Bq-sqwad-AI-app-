@@ -1073,6 +1073,45 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await getVideoJob(user.uid, jobId));
       }
 
+      if (req.method === "GET" && path === "truthguard/history") {
+        const snap = await getFirestore().collection("truthGuardChecks")
+          .where("uid", "==", user.uid)
+          .limit(100)
+          .get();
+        const items = snap.docs.map(doc => {
+          const data = doc.data() || {};
+          return {
+            id: doc.id,
+            claim: String(data.claim || ""),
+            analysis: String(data.analysis || ""),
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || null)
+          };
+        }).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        return send(res, 200, { items });
+      }
+
+      if (req.method === "POST" && path === "truthguard/check") {
+        const claim = String(body.claim || "").trim().slice(0, 12000);
+        const analysis = String(body.analysis || "").trim().slice(0, 30000);
+        if (!claim || !analysis) return send(res, 400, { error: "truthguard_check_required" });
+        const rawSources = Array.isArray(body.sources) ? body.sources : [];
+        const sources = rawSources.slice(0, 20).map(source => ({
+          title: String(source?.title || "").slice(0, 500),
+          url: String(source?.url || "").slice(0, 2000),
+          snippet: String(source?.snippet || "").slice(0, 4000)
+        }));
+        const ref = getFirestore().collection("truthGuardChecks").doc();
+        await ref.set({
+          uid: user.uid,
+          claim,
+          analysis,
+          sources,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, id: ref.id });
+      }
+
       if (req.method === "POST" && path === "ai") {
         const capability = String(body.capability || "chat").trim();
         if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
