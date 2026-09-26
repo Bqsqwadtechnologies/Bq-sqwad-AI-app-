@@ -8,11 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminAdvancedClient
-import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -36,12 +34,10 @@ fun LifeMathisPlanGate(
     onStatus: (String) -> Unit = {},
     onAccessGranted: (Boolean) -> Unit = {}
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var plans by remember { mutableStateOf(emptyList<LifeMathisGatePlan>()) }
     var activePlanId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var serverAccessGranted by remember { mutableStateOf(false) }
 
     fun refresh() {
         scope.launch {
@@ -87,8 +83,7 @@ fun LifeMathisPlanGate(
                 } else false
 
                 val freeAvailable = parsed.any { it.id == "lifemathisfree" }
-                serverAccessGranted = serverTestMode || activePlanId != null || freeAvailable
-                onAccessGranted(serverAccessGranted)
+                onAccessGranted(serverTestMode || activePlanId != null || freeAvailable)
                 plans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
             }.onFailure { onStatus(it.message ?: "Life Mathis plans could not be loaded.") }
             loading = false
@@ -152,6 +147,10 @@ private fun LifeMathisGateCard(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
                     Text(plan.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Plan ID: " + plan.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (plan.basePlans.isNotEmpty()) {
+                Text("Base plans: " + plan.basePlans.joinToString(" • "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
                     if (active) Text("Current verified access", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                 }
                 if (isFree) BqStatusBadge("FREE")
