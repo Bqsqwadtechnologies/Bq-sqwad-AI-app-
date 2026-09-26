@@ -370,12 +370,55 @@ private fun LivePlanCard(
         val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
         period.replaceFirstChar { it.uppercase() } + ": " + shown
     }.ifBlank { if (plan.contactSales) "Contact Sales" else "Price not configured" }
+    val truthGuard = plan.module.equals("truthguard", ignoreCase = true)
+    val tierContainer = when (plan.id) {
+        "truthguardfree" -> MaterialTheme.colorScheme.surfaceVariant
+        "tgplus" -> MaterialTheme.colorScheme.primaryContainer
+        "tgpro" -> MaterialTheme.colorScheme.secondaryContainer
+        "tgteam" -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val tierLabel = when (plan.id) {
+        "truthguardfree" -> "STARTER"
+        "tgplus" -> "PLUS"
+        "tgpro" -> "PRO"
+        "tgteam" -> "TEAM"
+        else -> null
+    }
     Card(
         Modifier.fillMaxWidth(),
-        shape=RoundedCornerShape(20.dp),
+        shape=RoundedCornerShape(22.dp),
         border=if(plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            if (truthGuard) {
+                Surface(
+                    color=tierContainer,
+                    shape=RoundedCornerShape(16.dp),
+                    modifier=Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement=Arrangement.SpaceBetween,
+                        verticalAlignment=Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("TruthGuard AI", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
+                            Text(
+                                when(plan.id) {
+                                    "truthguardfree" -> "Essential claim checks"
+                                    "tgplus" -> "Live evidence intelligence"
+                                    "tgpro" -> "Deep verification suite"
+                                    "tgteam" -> "Collaborative verification"
+                                    else -> "Evidence-first verification"
+                                },
+                                style=MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        tierLabel?.let { Text(it, style=MaterialTheme.typography.labelMedium, fontWeight=FontWeight.Bold) }
+                    }
+                }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(plan.name.ifBlank{"Plan"}, style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
