@@ -111,6 +111,13 @@ class AdminAdvancedClient(
         }
     }
 
+    suspend fun testMode(): Boolean =
+        request("GET", "/admin/test-mode", null).optBoolean("enabled", false)
+
+    suspend fun setTestMode(enabled: Boolean): Boolean =
+        request("POST", "/admin/test-mode", JSONObject().put("enabled", enabled))
+            .optJSONObject("option")?.optBoolean("enabled", enabled) ?: enabled
+
     suspend fun update(option: AdvancedAdminOption): AdvancedAdminOption {
         val body = JSONObject().apply {
             put("id", option.id)
