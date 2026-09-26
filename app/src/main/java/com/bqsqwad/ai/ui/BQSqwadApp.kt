@@ -632,6 +632,7 @@ private fun MainShell(modifier: Modifier) {
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
+    var signInRequired by remember { mutableStateOf(false) }
 
     LaunchedEffect(email) {
         // The backend is authoritative for admin visibility. Normal users never receive
@@ -657,7 +658,12 @@ private fun MainShell(modifier: Modifier) {
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
         drawerOpen = false
-        if (selected == Workspace.ADMIN) {
+        // Guest browsing is allowed in Main Chat, but every other workspace is
+        // account-scoped and must require Firebase authentication first.
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            workspace = null
+            signInRequired = true
+        } else if (selected == Workspace.ADMIN) {
             if (adminAuthorized) workspace = selected else paywallWorkspace = selected
         } else if (accessLoading) {
             paywallWorkspace = selected
@@ -824,6 +830,18 @@ private fun MainShell(modifier: Modifier) {
                 openPlugins = { featureHub = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
                 onPrivacy = { featurePrivacy = Workspace.CHAT }
+            )
+        }
+    }
+
+    if (signInRequired) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
+        ) {
+            SignInScreen(
+                onOpenSignUp = { signInRequired = false; workspace = null },
+                onAuthenticated = { signInRequired = false }
             )
         }
     }
@@ -3324,7 +3342,7 @@ private fun speakTextWhenReady(context: Context, text: String, onError: (String)
 }
 
 
-@Composable @Composable
+@Composable
 private fun WallpaperBackground(index: Int) {
     val colors = MaterialTheme.colorScheme
     val dark = colors.background.luminance() < 0.5f
