@@ -138,7 +138,7 @@ fun OrganizationStudioWorkspace() {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Organization Studio AI", style = MaterialTheme.typography.headlineSmall)
+                    Text("Organization AI / Studio", style = MaterialTheme.typography.headlineSmall)
                     Text(
                         "Native organization control for production, shared knowledge, AI behavior, channels, members and broadcast orchestration.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -230,7 +230,7 @@ fun OrganizationStudioWorkspace() {
                                         }.orEmpty()
                                         val settings = org?.optJSONObject("settings")
                                         val system = listOf(
-                                            "You are the BQ Sqwad AI Organization Studio assistant.",
+                                            "You are the BQ Sqwad AI Organization AI / Studio assistant.",
                                             "Keep organization data isolated from unrelated personal workspace data.",
                                             "Do not invent organization facts.",
                                             "Organization: " + (org?.optString("name") ?: "My Organization"),
@@ -522,7 +522,7 @@ fun OrganizationStudioWorkspace() {
                                 try {
                                     val streamed = StringBuilder()
                                     val reply = ChatApiClient().streamMessage(
-                                        "Organization Studio AI production director request:\n$directorPrompt",
+                                        "Organization AI / Studio production director request:\n$directorPrompt",
                                         "organization_studio",
                                         onDelta = { delta ->
                                             streamed.append(delta)
