@@ -12,9 +12,17 @@ import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 
 private data class CompanionMessage(val fromUser: Boolean, val text: String)
+private data class CompanionPlan(
+    val id: String,
+    val name: String,
+    val price: Map<String, String>,
+    val features: List<String>,
+    val trialDays: Int,
+    val trialEligible: Boolean
+)
 
 @Composable
-fun CompanionWorkspace() {
+fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var personality by remember { mutableStateOf("Caring") }
     var mode by remember { mutableStateOf("Chat") }
@@ -22,12 +30,71 @@ fun CompanionWorkspace() {
     var busy by remember { mutableStateOf(false) }
     var memoryEnabled by remember { mutableStateOf(true) }
     var notice by remember { mutableStateOf<String?>(null) }
+    var loadingAccess by remember { mutableStateOf(true) }
+    var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
+    var companionPlans by remember { mutableStateOf(emptyList<CompanionPlan>()) }
     val messages = remember { mutableStateListOf<CompanionMessage>() }
 
+    fun hasPlan(vararg ids: String): Boolean = currentPlan?.id in ids
+    val memoryUnlocked = hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
+    val voiceUnlocked = hasPlan("companionplus", "companionpremium", "companionultimate")
+    val cameraUnlocked = hasPlan("companionpremium", "companionultimate")
+
+    fun selectMode(next: String) {
+        val unlocked = when (next) {
+            "Voice" -> voiceUnlocked
+            "Camera" -> cameraUnlocked
+            "Memory" -> memoryUnlocked
+            else -> true
+        }
+        if (unlocked) {
+            mode = next
+            notice = null
+        } else {
+            notice = when (next) {
+                "Voice" -> "Companion Voice requires Companion Plus or higher."
+                "Camera" -> "Companion Camera requires Companion Premium or Ultimate."
+                "Memory" -> "Companion Memory requires Companion Basic or higher."
+                else -> "This Companion feature requires an eligible plan."
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().memory() }
-            .onSuccess { memoryEnabled = it.optBoolean("enabled", true) }
-            .onFailure { notice = it.message }
+        loadingAccess = true
+        runCatching {
+            val api = WorkspaceApiClient()
+            val catalog = api.nativeCatalog()
+            val entitlements = api.entitlements()
+            val plans = parseCompanionPlans(catalog)
+            val items = entitlements.optJSONArray("items") ?: JSONArray()
+            val active = (0 until items.length())
+                .mapNotNull { items.optJSONObject(it) }
+                .firstOrNull {
+                    val id = it.optString("planId")
+                    val state = it.optString("state")
+                    id.startsWith("companion") && state in setOf("active", "grace", "on_hold", "paused")
+                }
+            val activePlanId = active?.optString("planId").orEmpty().ifBlank { "companionfree" }
+            companionPlans = plans
+            currentPlan = plans.firstOrNull { it.id == activePlanId }
+                ?: plans.firstOrNull { it.id == "companionfree" }
+            if (memoryUnlocked) {
+                runCatching { api.companionMemory() }
+                    .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
+            }
+        }.onFailure {
+            notice = it.message ?: "Could not verify your Companion plan."
+            currentPlan = null
+        }
+        loadingAccess = false
+    }
+
+    if (loadingAccess) {
+        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
     }
 
     Column(
@@ -42,13 +109,30 @@ fun CompanionWorkspace() {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI Companion", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "A personal space for conversation, memory, voice and camera interactions.",
+                    "Your plan controls Companion memory, voice and camera capabilities. Access is verified against the BQ Sqwad AI catalog and server entitlement.",
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Chat", "Voice", "Camera", "Memory").forEach { item ->
-                        FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text(currentPlan?.name ?: "Plan unavailable", fontWeight = FontWeight.Bold)
+                        currentPlan?.price?.entries?.joinToString(" • ") { (period, value) ->
+                            period.replaceFirstChar { it.uppercase() } + ": $" + value
+                        }?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (currentPlan?.trialEligible == true && (currentPlan?.trialDays ?: 0) > 0) {
+                            Text(currentPlan?.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        }
                     }
+                    if (currentPlan?.id != "companionultimate") {
+                        OutlinedButton(onClick = onOpenPlans) { Text("View plans") }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat") })
+                    FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text(if (voiceUnlocked) "Voice" else "Voice • Plus+") })
+                    FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text(if (cameraUnlocked) "Camera" else "Camera • Premium+") })
+                    FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "Memory • Basic+") })
                 }
             }
         }
@@ -78,7 +162,7 @@ fun CompanionWorkspace() {
                         onCheckedChange = { enabled ->
                             memoryEnabled = enabled
                             scope.launch {
-                                runCatching { WorkspaceApiClient().setMemoryEnabled(enabled) }
+                                runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(enabled) }
                                     .onFailure { notice = it.message ?: "Memory setting could not be saved." }
                             }
                         }
@@ -98,7 +182,11 @@ fun CompanionWorkspace() {
 
         SurfaceCard(
             "Memory",
-            if (memoryEnabled) "Enabled — your companion can use permitted account memory." else "Disabled — the companion will not use saved memory."
+            if (memoryUnlocked) {
+                                    if (memoryEnabled) "Enabled — your companion can use permitted account memory." else "Disabled — you control it."
+                                } else {
+                                    "Locked until Companion Basic or higher. View plans to unlock memory."
+                                }
         )
 
         notice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -158,7 +246,7 @@ fun CompanionWorkspace() {
                 scope.launch {
                     runCatching {
                         WorkspaceApiClient().workspaceAi(
-                            "companion",
+                            "companion_checkin",
                             prompt,
                             "You are BQ Sqwad AI Companion. Personality: $personality. Give a brief supportive daily check-in without pretending to be a human."
                         )
@@ -170,4 +258,28 @@ fun CompanionWorkspace() {
             modifier = Modifier.fillMaxWidth()
         ) { Text("Daily check-in") }
     }
+}
+
+
+private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
+    val array = body.optJSONArray("plans") ?: JSONArray()
+    return List(array.length()) { i ->
+        val p = array.optJSONObject(i) ?: JSONObject()
+        val priceObject = p.optJSONObject("price") ?: JSONObject()
+        val price = mutableMapOf<String, String>()
+        val keys = priceObject.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            price[key] = priceObject.opt(key).toString()
+        }
+        val featuresArray = p.optJSONArray("features") ?: JSONArray()
+        CompanionPlan(
+            id = p.optString("id"),
+            name = p.optString("name"),
+            price = price,
+            features = List(featuresArray.length()) { index -> featuresArray.optString(index) },
+            trialDays = p.optInt("trialDays", 0),
+            trialEligible = p.optBoolean("trialEligible", false)
+        )
+    }.filter { it.id.startsWith("companion") && it.id.isNotBlank() }
 }
