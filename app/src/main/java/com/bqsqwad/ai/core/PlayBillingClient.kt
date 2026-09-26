@@ -238,13 +238,13 @@ class PlayBillingClient(
                 // Google Play requires non-consumable/subscription purchases to be acknowledged.
                 // Credit products are consumable and must be consumed after successful server verification.
                 // Never acknowledge or consume before backend verification succeeds.
-                val catalogItem = products.firstOrNull()?.let { catalog[it] }
+                val catalogItem = products.firstOrNull()?.let { catalog[it]?.firstOrNull() }
                 if (catalogItem?.consumable == true && catalogItem.productType == ProductType.INAPP) {
                     client.consumeAsync(
                         com.android.billingclient.api.ConsumeParams.newBuilder()
                             .setPurchaseToken(purchase.purchaseToken)
                             .build()
-                    ) { consumeResult ->
+                    ) { consumeResult, _ ->
                         if (consumeResult.responseCode != BillingClient.BillingResponseCode.OK) {
                             onPurchaseState(PlayPurchaseState("warning", "Purchase was verified, but Google Play could not finish the credit delivery step. Restore purchases after the connection is available."))
                         } else {
