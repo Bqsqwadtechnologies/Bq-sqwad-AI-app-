@@ -818,6 +818,8 @@ private fun MainShell(modifier: Modifier) {
                 openHub = { drawerOpen = true },
                 openFeatures = { featureHub = true },
                 openSettings = { settings = true },
+                openHistory = { history = true },
+                openPlugins = { featureHub = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
                 onPrivacy = { featurePrivacy = Workspace.CHAT }
             )
@@ -847,7 +849,7 @@ private fun MainShell(modifier: Modifier) {
 private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -866,6 +868,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var imageMode by remember { mutableStateOf(false) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
+    var privateChat by remember { mutableStateOf(false) }
+    var statusText by remember { mutableStateOf("Ready") }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -925,6 +929,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         messages.add(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
         error = null
+        statusText = "Connecting to BQ Sqwad AI…"
         streamJob = scope.launch(Dispatchers.IO) {
             try {
                 val reply = if (imageParts.isNotEmpty()) {
@@ -943,17 +948,25 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     if (current != null) messages[aiIndex] = current.copy(text = reply.text)
                     busy = false
                     streamJob = null
-                    val snapshot = messages.map { HistoryMessage(it.mine, it.text, it.id, it.prompt) }
-                    runCatching {
-                        historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
-                    }.onFailure { error = "The response was generated, but chat history could not be saved." }
+                    statusText = "Done."
+                    if (!privateChat) {
+                        val snapshot = messages.map { HistoryMessage(it.mine, it.text, it.id, it.prompt) }
+                        runCatching {
+                            historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
+                        }.onFailure { error = "The response was generated, but chat history could not be saved." }
+                    }
                 }
             } catch (t: Throwable) {
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
-                    if (t !is kotlinx.coroutines.CancellationException) error = t.message ?: "AI request failed"
+                    if (t !is kotlinx.coroutines.CancellationException) {
+                        error = t.message ?: "AI request failed"
+                        statusText = "Request failed. You can try again."
+                    } else {
+                        statusText = "Stopped."
+                    }
                     busy = false
                     streamJob = null
                 }
@@ -1217,6 +1230,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .imePadding(),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
