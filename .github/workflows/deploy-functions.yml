@@ -41,6 +41,20 @@ jobs:
         working-directory: functions
         run: npm install
 
+      - name: Verify Firebase secret is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON}" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON is present."
+          elif [ -n "${FIREBASE_TOKEN}" ]; then
+            echo "FIREBASE_TOKEN is present; using token authentication."
+          else
+            echo "FIREBASE_SERVICE_ACCOUNT_JSON is missing from the GitHub Actions secret context."
+            echo "Expected repository secret name: FIREBASE_SERVICE_ACCOUNT_JSON"
+            exit 1
+          fi
+
       - name: Validate backend JavaScript
         working-directory: functions
         run: npm run check
