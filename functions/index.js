@@ -297,6 +297,8 @@ export const bqSqwadApi = onRequest(
         const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
         await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
         const config = await getSocialConfig();
+        const secretId = platform === "youtube" ? "youtube_client_secret" : platform === "tiktok" ? "tiktok_client_secret" : platform === "x" ? "x_client_secret" : (platform === "facebook" || platform === "instagram") ? "meta_app_secret" : null;
+        if (secretId && !(await getProviderSecret(secretId))) throw new Error(secretId + "_missing_configure_in_admin_provider_secrets");
         const state = crypto.randomUUID();
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
         if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
@@ -341,6 +343,7 @@ export const bqSqwadApi = onRequest(
         const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
         if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
         const config = await getSocialConfig();
+        if (!(await getProviderSecret("youtube_client_secret"))) throw new Error("youtube_client_secret_missing_configure_in_admin_provider_secrets");
         const state = crypto.randomUUID();
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
         if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
