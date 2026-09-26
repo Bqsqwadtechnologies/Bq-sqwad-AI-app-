@@ -8,7 +8,18 @@ import android.util.Base64
 import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.util.concurrent.atomic.AtomicBoolean
+
+data class LiveMediaUiState(
+    val active: Boolean = false,
+    val mode: String = "",
+    val status: String = "stopped",
+    val answer: String = "",
+    val audioLevel: Float = 0f,
+    val log: List<String> = emptyList()
+)
 
 class LiveMediaForegroundService : Service() {
     companion object {
@@ -31,6 +42,8 @@ class LiveMediaForegroundService : Service() {
         private const val CHANNEL_ID = "bq_live_media"
         private const val NOTIFICATION_ID = 4101
         private const val PREFS = "bq_live_media"
+        private val _uiState = MutableStateFlow(LiveMediaUiState())
+        val uiState: StateFlow<LiveMediaUiState> = _uiState
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -125,7 +138,9 @@ class LiveMediaForegroundService : Service() {
                         clientSecret = secret,
                         model = model,
                         onState = { state -> writeState(true, state) },
-                        onError = { error -> writeError(error) }
+                        onError = { error -> writeError(error) },
+                        onAudioLevel = { level -> updateAudioLevel(level) },
+                        onTranscript = { speaker, text -> appendLog("$speaker: $text") }
                     ).also { it.start() }
                 }
             } catch (t: Throwable) {
@@ -221,6 +236,10 @@ class LiveMediaForegroundService : Service() {
                     "Analyze this live frame for protected broadcast content. Return ONLY JSON with protectedBroadcastDetected, confidence, and reason. Mark true only when the frame appears to show television, sports, movie, news, or other third-party protected programming being captured from a screen or TV."
                 } else prompt
                 val result = ChatApiClient().analyzeCameraFrame(policyPrompt, encoded, mimeType)
+                if (liveSessionId == null) {
+                    appendLog("Asked: $prompt")
+                }
+                appendLog("BQ Sqwad AI: ${result.text}")
                 writeState(true, result.text)
                 val sessionId = liveSessionId
                 if (sessionId != null) {
@@ -261,6 +280,22 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", answer)
             .apply()
+        _uiState.value = _uiState.value.copy(
+            active = active,
+            mode = mode,
+            status = answer.ifBlank { if (active) "active" else "stopped" },
+            answer = answer
+        )
+    }
+
+    private fun updateAudioLevel(level: Float) {
+        _uiState.value = _uiState.value.copy(audioLevel = level.coerceIn(0f, 1f))
+    }
+
+    private fun appendLog(entry: String) {
+        val clean = entry.trim()
+        if (clean.isBlank()) return
+        _uiState.value = _uiState.value.copy(log = (_uiState.value.log + clean).takeLast(80))
     }
 
     private fun writeError(message: String) {
@@ -269,6 +304,8 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", message)
             .apply()
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = message, audioLevel = 0f)
+        appendLog("Error: $message")
     }
 
     override fun onDestroy() {
@@ -290,6 +327,7 @@ class LiveMediaForegroundService : Service() {
         screenSession?.stop()
         screenSession = null
         serviceScope.cancel()
+        _uiState.value = LiveMediaUiState()
         writeState(false, "")
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
