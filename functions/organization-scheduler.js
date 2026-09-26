@@ -13,6 +13,7 @@ function nextRun(schedule, from = new Date()) {
   if (value === "hourly") return new Date(from.getTime() + 60 * 60 * 1000).toISOString();
   if (value === "daily") return new Date(from.getTime() + 24 * 60 * 60 * 1000).toISOString();
   if (value === "weekly") return new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  if (value === "weekly") return new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const minutes = Number(value.match(/^(\d+)m$/)?.[1] || 0);
   if (minutes >= 5) return new Date(from.getTime() + minutes * 60 * 1000).toISOString();
   throw new Error("unsupported_schedule");
