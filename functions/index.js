@@ -1989,6 +1989,8 @@ export const bqSqwadApi = onRequest(
           name: String(data.name || ""),
           description: String(data.description || ""),
           module: String(data.module || data.product || ""),
+          productId: data.productId ? String(data.productId) : null,
+          basePlans: Array.isArray(data.basePlans) ? data.basePlans.map(String).filter(Boolean) : [],
           features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
           limits: data.limits && typeof data.limits === "object" ? data.limits : {},
           price: data.price && typeof data.price === "object" ? data.price : {},
