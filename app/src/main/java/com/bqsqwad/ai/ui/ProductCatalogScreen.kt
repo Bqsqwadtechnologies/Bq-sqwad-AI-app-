@@ -318,20 +318,10 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     }
                 }
 
-                val groups=catalog.groupBy { entry ->
-                    plans.firstOrNull { it.id==entry.planId }?.module?.ifBlank { null } ?: "Products"
-                }.toList()
-                groups.forEach{(title,entries)->
-                    if(entries.isNotEmpty()){
-                        item{Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
-                        items(entries,key={it.productId+":"+(it.basePlanId?:"")}){entry->
-                            val plan=plans.firstOrNull{it.id==entry.planId}
-                            val product=playProducts.firstOrNull{it.productId==entry.productId}
-                            ProductCard(entry,plan,product,billing){status=it; if(it == "CONTACT_SALES") contactPlan = ContactSelection(entry.planId, plan?.name ?: "Product", entry.basePlanId ?: "custom", plan?.features ?: emptyList())}
-                        }
-                    }
-                }
-                if(catalog.isEmpty())item{ProductNotice("Play catalog not configured","No approved native product mappings were returned by the backend. Nothing is being invented or offered for sale.")}
+                // Google Play's product/base-plan projection is intentionally not rendered
+                // as a second catalog. It is an internal checkout mapping only. Users see
+                // the BQ Sqwad AI catalog above; Play details are queried only to resolve
+                // the selected product/base plan and launch secure checkout.
                 if(contactOptions.isNotEmpty()){
                     item{Text("Contact Sales",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
                     items(contactOptions,key={it.name+":"+it.billingPeriod}){option->
@@ -465,49 +455,6 @@ private fun LivePlanCard(
     }
 }
 
-@Composable
-private fun ProductCard(entry:PlayCatalogEntry,plan:LivePlan?,product:ProductDetails?,billing:PlayBillingClient?,onStatus:(String)->Unit){
-    val playPrice=product?.subscriptionOfferDetails?.firstOrNull{entry.basePlanId==null||it.basePlanId==entry.basePlanId}?.pricingPhases?.pricingPhaseList?.firstOrNull()?.formattedPrice
-        ?:product?.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
-    val configuredPrice=entry.priceUsd?.let { String.format(java.util.Locale.US, "$%.2f", it) }
-    val price=playPrice ?: configuredPrice
-    val title=plan?.name?.ifBlank{null}?:product?.name?.ifBlank{null}?: "Product"
-    val period=entry.billingPeriod?.replaceFirstChar { it.uppercase() } ?: entry.basePlanId?.replaceFirstChar { it.uppercase() } ?: "Purchase"
-    Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp)){
-        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
-                BqStatusBadge(if(entry.enabled)"Available" else "Unavailable")
-            }
-            HorizontalDivider()
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)){
-                    Text(price ?: "Price not configured",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.primary)
-                    Text(
-                        if(playPrice!=null) "Google Play • $period" else "Admin catalog • $period",
-                        style=MaterialTheme.typography.labelMedium,
-                        color=MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Button(
-                    onClick={
-                        if(product==null||playPrice==null||billing?.isReady()!=true) {
-                            onStatus(if(configuredPrice!=null) "Google Play is not ready for this product yet. The configured USD price is shown above." else "This product is not configured for purchase yet.")
-                        } else {
-                            val result=billing.launchPurchase(product.productId, entry.basePlanId)
-                            onStatus(
-                                if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
-                                    "Purchase started. Access unlocks only after server verification."
-                                else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started."
-                            )
-                        }
-                    },
-                    enabled=entry.enabled && product!=null && playPrice!=null && billing?.isReady()==true
-                ){ Text("Get") }
-            }
-        }
-    }
-}
 
 private fun parseUserEntitlements(body:JSONObject):List<UserEntitlement> {
     val a=body.optJSONArray("items")?:JSONArray()
