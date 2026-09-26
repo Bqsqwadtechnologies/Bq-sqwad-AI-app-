@@ -124,28 +124,27 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
         scope.launch {
             runCatching {
                 val api = WorkspaceApiClient()
-                val research = api.workspaceResearch(input, deepResearch = depth == "Deep")
-                sources = research.sources
-                val evidence = research.sources.joinToString("\n\n") {
-                    "Source: ${it.title}\nURL: ${it.url}\n${it.snippet.orEmpty()}"
+                val response = api.truthGuardCheck(input, depth == "Deep")
+                val rawSources = response.optJSONArray("sources") ?: org.json.JSONArray()
+                sources = List(rawSources.length()) { index ->
+                    val source = rawSources.optJSONObject(index) ?: org.json.JSONObject()
+                    SearchSource(
+                        source.optString("title"),
+                        source.optString("url"),
+                        source.optString("snippet").ifBlank { null }
+                    )
                 }
-                val system = """You are TruthGuard AI.
-Evaluate the supplied claim using the evidence.
-Separate supported evidence, conflicting evidence, and information that cannot be established.
-Do not invent sources. State uncertainty clearly.
-TruthGuard plan: ${activePlan.name}
-Plan capabilities: ${activePlan.features.joinToString(", ")}
-Evidence:
-$evidence"""
-                val response = api.workspaceAi("truth_guard", input, system)
-                val text = response.optString("text").ifBlank { response.optString("answer") }
-                api.saveTruthGuardCheck(input, text, research.sources)
-                text
+                response.optString("analysis").ifBlank { response.optString("answer") }
             }.onSuccess {
                 analysis = it
                 refreshWorkspace()
             }.onFailure {
-                error = it.message ?: "TruthGuard could not complete the check."
+                error = when {
+                    it.message?.contains("monthly_capability_limit_reached") == true -> "You have reached this plan's monthly TruthGuard limit."
+                    it.message?.contains("plan_not_entitled") == true -> "This TruthGuard capability is not included in your verified plan."
+                    it.message?.contains("plan_expired") == true -> "Your TruthGuard plan is no longer active. Open Plans to renew or choose another plan."
+                    else -> it.message ?: "TruthGuard could not complete the check."
+                }
             }
             busy = false
         }
