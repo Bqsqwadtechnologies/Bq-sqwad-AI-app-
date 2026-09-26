@@ -446,3 +446,14 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Provider configuration remains server-side: OpenAI is the default route, Gemini is the fallback/default alternative, and provider secrets are stored through the encrypted secret store.
 - YouTube and X OAuth use the encrypted saved client secrets and encrypted account tokens server-side; refresh logic remains server-side and no secret is placed in the APK.
 - Fixed the website-plan CTA so Android obtains LocalContext in composable scope and opens the BQ Sqwad AI website without using composable APIs inside a click callback.
+
+## 2026-09-26 — Live Camera / Live Voice / Organization AI integration pass
+
+- Restored the complete native workspace tail in `BQSqwadApp.kt` after the file had been truncated at the `CameraWorkspace()` declaration.
+- Live Camera now renders the existing native `NativeCameraPreview` while the foreground session is active instead of a static placeholder.
+- Live media UI state now has an in-process `StateFlow`; camera/voice screens no longer poll SharedPreferences every 500–750ms for live state.
+- Realtime Voice now exposes normalized PCM RMS audio levels for microphone and model output, plus finalized input/output transcript events.
+- Live Voice UI uses the real audio level for an animated speaker visual and displays a scrolling activity/transcript log.
+- Organization scheduler now supports weekly recurring tasks in addition to hourly/daily/minute schedules.
+- Provider credentials remain server-side through `adminProviderSecrets`; OpenAI remains the default provider and Gemini remains available as fallback/configurable provider. YouTube and X OAuth client secrets are resolved from the same encrypted provider-secret store; OAuth access/refresh tokens remain encrypted server-side.
+- Google Play subscription management remains Google-authoritative: admin/user controls must open the Play management surface rather than fabricating a cancellation or reactivation in Firestore.
