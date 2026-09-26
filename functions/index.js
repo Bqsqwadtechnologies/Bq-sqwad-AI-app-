@@ -1863,7 +1863,10 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "realtime/session") {
         const gate = await authorizeCapability(user.uid, "capability_live_voice");
+        let reservation = null;
         try {
+          // Live Voice consumes the same shared credit balance as Main Chat and Live Camera.
+          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
           const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
           const cfg = option.exists ? (option.data()?.config || {}) : {};
           if (option.exists && option.data()?.enabled === false) return send(res, 403, { error: "live_voice_disabled" });
@@ -1895,6 +1898,7 @@ export const bqSqwadApi = onRequest(
           if (!upstream.ok) return send(res, upstream.status, { error: bodyJson?.error?.message || "realtime_session_failed" });
           const secret = bodyJson?.value || bodyJson?.client_secret?.value;
           if (!secret) return send(res, 502, { error: "realtime_client_secret_missing" });
+          await commitCredits(user.uid, reservation?.reservationId, "openai");
           gate.commit();
           return send(res, 200, {
             clientSecret: String(secret),
@@ -1905,6 +1909,9 @@ export const bqSqwadApi = onRequest(
               maxSessionMinutes: cfg.maxSessionMinutes == null ? null : Number(cfg.maxSessionMinutes)
             }
           });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
         } finally {
           await gate.release();
         }
