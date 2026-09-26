@@ -1223,6 +1223,19 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "GET" && path === "admin/test-mode") {
+        await assertSuperAdmin(user);
+        const snap = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+        return send(res, 200, { enabled: snap.exists && snap.data()?.enabled === true, serverControlled: true });
+      }
+
+      if (req.method === "POST" && path === "admin/test-mode") {
+        const admin = await adminFromRequest(req);
+        const enabled = body.enabled === true;
+        const current = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+        return send(res, 200, { ok: true, option: await updateAdvancedAdminOption({ id: "admin_testing_mode", enabled, version: Math.max(1, Number(current.data()?.version || 1)) }, admin.uid) });
+      }
+
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
       // The legacy adminControls store and endpoints are intentionally removed.
       if (path === "admin/runtime" || path.startsWith("admin/runtime/")) {
