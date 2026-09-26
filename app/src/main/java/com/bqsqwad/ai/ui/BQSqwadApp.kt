@@ -2318,20 +2318,17 @@ private fun CameraWorkspace() {
         }
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            val prefs = context.getSharedPreferences("bq_live_media", Context.MODE_PRIVATE)
-            liveServiceActive = prefs.getBoolean("active", false)
-            liveServiceMode = prefs.getString("mode", "") ?: ""
-            liveAnswer = prefs.getString("answer", "") ?: ""
-            if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
-                screenActive = liveServiceActive
-                if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
-            } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
-                active = liveServiceActive
-                if (liveAnswer.isNotBlank()) answer = liveAnswer
-            }
-            kotlinx.coroutines.delay(750)
+    val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
+    LaunchedEffect(liveUiState) {
+        liveServiceActive = liveUiState.active
+        liveServiceMode = liveUiState.mode
+        liveAnswer = liveUiState.answer
+        if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
+            screenActive = liveServiceActive
+            if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
+        } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
+            active = liveServiceActive
+            if (liveAnswer.isNotBlank()) answer = liveAnswer
         }
     }
 
@@ -2492,23 +2489,19 @@ private fun VoiceWorkspace() {
         state = "stopped"
     }
 
-    DisposableEffect(Unit) {
-        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        val poll = object : Runnable {
-            override fun run() {
-                val prefs = context.getSharedPreferences("bq_live_media", Context.MODE_PRIVATE)
-                if (prefs.getString("mode", "") == LiveMediaForegroundService.MODE_VOICE) {
-                    active = prefs.getBoolean("active", false)
-                    state = prefs.getString("answer", "stopped") ?: "stopped"
-                }
-                handler.postDelayed(this, 500)
-            }
-        }
-        handler.post(poll)
-        onDispose {
-            handler.removeCallbacksAndMessages(null)
+    val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
+    LaunchedEffect(liveUiState) {
+        if (liveUiState.mode == LiveMediaForegroundService.MODE_VOICE) {
+            active = liveUiState.active
+            state = liveUiState.status.ifBlank { "stopped" }
         }
     }
+    val targetVoiceScale = if (active) 1f + (liveUiState.audioLevel * 0.42f) else 1f
+    val voiceScale by animateFloatAsState(
+        targetValue = targetVoiceScale,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "voiceScale"
+    )
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -2520,19 +2513,28 @@ private fun VoiceWorkspace() {
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Spacer(Modifier.height(20.dp))
-        Surface(
-            modifier = Modifier.size(190.dp),
-            shape = CircleShape,
-            tonalElevation = 12.dp,
-            shadowElevation = 16.dp
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Default.Mic,
-                    contentDescription = "Live voice",
-                    modifier = Modifier.size(72.dp)
+        Box(
+            modifier = Modifier
+                .size((190 * voiceScale).dp.coerceIn(190.dp, 270.dp))
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                    )
                 )
-            }
+                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Mic,
+                contentDescription = "Live voice",
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer
+            )
         }
 
         Text(
@@ -2551,9 +2553,25 @@ private fun VoiceWorkspace() {
 
         if (active) {
             Text(
-                "Speak naturally. The AI listens and responds with audio; speaking while it responds interrupts the response.",
+                "Speak naturally. The visual reacts to the microphone or AI audio level; speaking while it responds interrupts the response.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (liveUiState.log.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    tonalElevation = 2.dp
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(liveUiState.log.takeLast(30)) { entry ->
+                            Text(entry, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
         }
     }
 
