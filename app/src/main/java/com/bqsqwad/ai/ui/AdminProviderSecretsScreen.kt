@@ -33,6 +33,9 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
     val client = remember { AdminProviderClient() }
     var statuses by remember { mutableStateOf<List<AdminProviderSecretStatus>>(emptyList()) }
     var routes by remember { mutableStateOf<List<AdminProviderRoute>>(emptyList()) }
+    var socialEnabled by remember { mutableStateOf(false) }
+    var xEnabled by remember { mutableStateOf(false) }
+    var xClientId by remember { mutableStateOf("") }
     var providerId by remember { mutableStateOf("openai") }
     var secret by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -43,9 +46,12 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
         loading = true
         scope.launch {
             runCatching { client.providerOverview() }
-                .onSuccess { (nextStatuses, nextRoutes) ->
+                .onSuccess { (nextStatuses, nextRoutes, social) ->
                     statuses = nextStatuses
                     routes = nextRoutes
+                    socialEnabled = social.enabled
+                    xEnabled = social.xEnabled
+                    xClientId = social.xClientId
                     error = null
                 }
                 .onFailure { error = it.message ?: "Could not load provider configuration." }
@@ -155,6 +161,56 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
 
             item {
                 HorizontalDivider()
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("X OAuth connection", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            "The X client ID is configuration, not a secret. The X client secret remains encrypted in the server secret store and is never shown or stored in the APK.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Social integrations enabled")
+                            Switch(checked = socialEnabled, onCheckedChange = { socialEnabled = it })
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("X enabled")
+                            Switch(checked = xEnabled, onCheckedChange = { xEnabled = it })
+                        }
+                        OutlinedTextField(
+                            value = xClientId,
+                            onValueChange = { xClientId = it },
+                            label = { Text("X OAuth 2.0 Client ID") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            "Required X scopes: tweet.read, tweet.write, users.read, offline.access",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    loading = true
+                                    runCatching {
+                                        client.saveSocialConfig(
+                                            socialEnabled,
+                                            xEnabled,
+                                            xClientId,
+                                            listOf("tweet.read", "tweet.write", "users.read", "offline.access")
+                                        )
+                                    }.onSuccess {
+                                        message = "X OAuth configuration saved. The client secret remains server-side."
+                                    }.onFailure {
+                                        error = it.message ?: "Could not save X OAuth configuration."
+                                    }
+                                    loading = false
+                                    refresh()
+                                }
+                            },
+                            enabled = !loading && xClientId.isNotBlank()
+                        ) { Text("Save X OAuth configuration") }
+                    }
+                }
+
                 Text("Provider status", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
             }
 
