@@ -138,14 +138,13 @@ export async function authorizeCapability(uid, controlId) {
     return item?.productType === "free" || item?.price?.free != null || item?.paymentChannel === "free";
   }) || null;
 
-  if (activePlans.length) {
+  if (plans.length) {
+    // Existing paid subscribers keep access even if the admin deactivates the plan.
+    // Deactivation controls catalog visibility and new purchases, not already-granted access.
     if (planId) {
-      if (!activePlans.includes(planId)) throw new Error("plan_not_entitled");
+      if (!plans.includes(planId)) throw new Error("plan_not_entitled");
     } else if (!freePlanId) {
       throw new Error("plan_not_entitled");
-    } else {
-      // No paid entitlement exists; use the active free tier for this capability.
-      // The monthly limit below is then enforced against the free plan.
     }
   }
 
