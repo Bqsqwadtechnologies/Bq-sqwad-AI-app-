@@ -74,6 +74,8 @@ fun OrganizationStudioWorkspace() {
     var aiLiveViewerReplies by remember { mutableStateOf(false) }
     var aiLiveScreenAwareness by remember { mutableStateOf(false) }
     var aiLiveCreditsPerMinute by remember { mutableStateOf(0.25) }
+    val youtubeChatLog = remember { mutableStateListOf<String>() }
+    val processedYouTubeMessages = remember { mutableStateOf(emptySet<String>()) }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
@@ -150,6 +152,55 @@ fun OrganizationStudioWorkspace() {
                 aiLiveCreditsPerMinute = it.optDouble("creditRatePerMinute", 0.25)
             }
             .onFailure { /* first-run defaults remain safe */ }
+    }
+
+    LaunchedEffect(liveSessionId, selectedYoutubeAccountId, aiLiveMode) {
+        if (liveSessionId.isNullOrBlank() || selectedYoutubeAccountId.isBlank() || aiLiveMode == "host_only") return@LaunchedEffect
+        val organizationId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
+        while (liveSessionId != null) {
+            runCatching {
+                val session = api.organizationProduction()
+                val live = session.optString("status")
+                if (live != "idle") {
+                    val chatId = session.optString("liveChatId")
+                    if (chatId.isNotBlank()) {
+                        val body = api.organizationYouTubeLiveChat(organizationId, selectedYoutubeAccountId, chatId)
+                        val items = body.optJSONArray("items") ?: org.json.JSONArray()
+                        for (i in 0 until items.length()) {
+                            val item = items.optJSONObject(i) ?: continue
+                            val id = item.optString("id")
+                            if (id.isBlank() || processedYouTubeMessages.value.contains(id)) continue
+                            processedYouTubeMessages.value = processedYouTubeMessages.value + id
+                            val author = item.optString("author", "Viewer")
+                            val text = item.optString("text")
+                            youtubeChatLog.add("$author: $text")
+                            if (body.optBoolean("viewerReplies", false) && text.isNotBlank()) {
+                                runCatching {
+                                    api.replyToOrganizationYouTubeChat(
+                                        organizationId,
+                                        selectedYoutubeAccountId,
+                                        chatId,
+                                        text,
+                                        item.optString("authorChannelId")
+                                    )
+                                }.onSuccess { reply ->
+                                    if (reply.optBoolean("ignored", false)) return@onSuccess
+                                    val answer = reply.optString("reply")
+                                    if (answer.isNotBlank()) youtubeChatLog.add("BQ Sqwad AI: $answer")
+                                }.onFailure { e ->
+                                    youtubeChatLog.add("AI reply unavailable: " + (e.message ?: "unknown error"))
+                                }
+                            }
+                        }
+                    }
+                }
+            }.onFailure { e ->
+                if (e.message?.contains("live_chat", ignoreCase = true) == true) {
+                    youtubeChatLog.add("Live chat: " + (e.message ?: "unavailable"))
+                }
+            }
+            delay(5000)
+        }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -618,6 +669,9 @@ fun OrganizationStudioWorkspace() {
                     ) { Text("Save AI Live privacy & mode") }
 
                     Text("Session: " + (liveSessionId ?: "not running"))
+                    if (youtubeChatLog.isNotEmpty()) {
+                        SurfaceCard("YouTube live audience", youtubeChatLog.takeLast(20).joinToString("\n"))
+                    }
                 }
             }
         }
