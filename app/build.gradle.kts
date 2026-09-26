@@ -88,6 +88,7 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.thibaultbee.streampack:streampack-core:3.2.0")
     implementation("io.github.thibaultbee.streampack:streampack-rtmp:3.2.0")
+    implementation("io.github.thibaultbee.streampack:streampack-compose:3.2.0")
     implementation("androidx.biometric:biometric:1.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
