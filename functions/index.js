@@ -780,6 +780,10 @@ export const bqSqwadApi = onRequest(
             const org = await getOrganization(organizationId);
             const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
             if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+            const accountSnap = await getFirestore().collection("socialAccounts").doc(String(body.accountId || "")).get();
+            if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.metadata?.organizationId || "") !== organizationId) {
+              throw new Error("organization_youtube_account_mismatch");
+            }
           } else {
             const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
             await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
@@ -820,6 +824,10 @@ export const bqSqwadApi = onRequest(
           const org = await getOrganization(organizationId || user.uid);
           const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
           if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+          const accountSnap = await getFirestore().collection("socialAccounts").doc(String(req.query?.accountId || "")).get();
+          if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.metadata?.organizationId || "") !== (organizationId || user.uid)) {
+            throw new Error("organization_youtube_account_mismatch");
+          }
           const liveConfig = await getOrganizationAiLiveConfig(user.uid);
           const result = await listYouTubeLiveChat(user.uid, String(req.query?.accountId || ""), String(req.query?.liveChatId || ""));
           gate.commit();
@@ -835,6 +843,10 @@ export const bqSqwadApi = onRequest(
           const org = await getOrganization(organizationId || user.uid);
           const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
           if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+          const accountSnap = await getFirestore().collection("socialAccounts").doc(String(body.accountId || "")).get();
+          if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.metadata?.organizationId || "") !== (organizationId || user.uid)) {
+            throw new Error("organization_youtube_account_mismatch");
+          }
           const liveConfig = await getOrganizationAiLiveConfig(user.uid);
           if (!liveConfig.privacyAccepted) throw new Error("organization_ai_live_privacy_required");
           if (!["moderated_audience", "full_audience"].includes(liveConfig.mode) || !liveConfig.viewerReplies) {
