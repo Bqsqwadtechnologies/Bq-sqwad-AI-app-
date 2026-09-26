@@ -1,6 +1,5 @@
 package com.bqsqwad.ai.ui
 
-import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -12,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.android.billingclient.api.BillingClient
+import com.bqsqwad.ai.core.AdminAdvancedClient
 import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -34,15 +33,15 @@ private data class LifeMathisGatePlan(
 @Composable
 fun LifeMathisPlanGate(
     onOpenPlans: () -> Unit,
-    onStatus: (String) -> Unit = {}
+    onStatus: (String) -> Unit = {},
+    onAccessGranted: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
     val scope = rememberCoroutineScope()
     var plans by remember { mutableStateOf(emptyList<LifeMathisGatePlan>()) }
     var activePlanId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
+    var serverAccessGranted by remember { mutableStateOf(false) }
 
     fun refresh() {
         scope.launch {
@@ -81,27 +80,18 @@ fun LifeMathisPlanGate(
                     .firstOrNull { activeStates.contains(it.optString("state")) && it.optString("planId") in setOf("lifemathisfree", "lmstandard", "lmultimate") }
                     ?.optString("planId")
                     ?.takeIf { it.isNotBlank() }
-                    ?: parsed.firstOrNull { it.id == "lifemathisfree" }?.id
+
+                val serverAdmin = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+                val serverTestMode = if (serverAdmin) {
+                    runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
+                } else false
+
+                val freeAvailable = parsed.any { it.id == "lifemathisfree" }
+                serverAccessGranted = serverTestMode || activePlanId != null || freeAvailable
+                onAccessGranted(serverAccessGranted)
                 plans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
             }.onFailure { onStatus(it.message ?: "Life Mathis plans could not be loaded.") }
             loading = false
-        }
-    }
-
-    DisposableEffect(activity) {
-        if (activity == null) {
-            onDispose { }
-        } else {
-            val client = PlayBillingClient(activity) { state ->
-                onStatus(state.message)
-                if (state.status == "success") refresh()
-            }
-            billing = client
-            client.start()
-            onDispose {
-                client.close()
-                billing = null
-            }
         }
     }
 
@@ -204,35 +194,12 @@ private fun LifeMathisGateCard(
                 Text("+" + (plan.features.size - 7) + " more features", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            if (!isFree && plan.playEligible && plan.productId != null) {
-                Button(
-                    onClick = {
-                        val basePlan = if (selectedPeriod == "yearly") "yearly" else "monthly"
-                        if (billing?.isReady() != true) {
-                            onStatus("Checkout is not ready. Open Plans & Credits and retry.")
-                        } else {
-                            val result = billing.launchPurchase(
-                                plan.productId,
-                                basePlan,
-                                if (plan.trialEligible) "trial-3d" else null
-                            )
-                            onStatus(
-                                if (result?.responseCode == BillingClient.BillingResponseCode.OK) {
-                                    "Purchase started. Life Mathis unlocks only after server verification."
-                                } else {
-                                    result?.debugMessage?.ifBlank { "Purchase could not be started." } ?: "Purchase could not be started."
-                                }
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (selectedPeriod == "yearly") "Choose yearly" else "Choose monthly")
-                }
-            } else if (isFree) {
-                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("View all plans") }
+            if (isFree) {
+                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("Use free plan") }
             } else {
-                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("View plan options") }
+                Button(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (selectedPeriod == "yearly") "Choose yearly plan" else "Choose monthly plan")
+                }
             }
         }
     }
