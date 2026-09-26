@@ -1,20 +1,7 @@
 name: BQ Sqwad AI — Release APK & AAB
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "GitHub release tag"
-        required: true
-        default: "v1.0.5"
-      publish_release:
-        description: "Create a GitHub release and attach the signed APK/AAB"
-        required: true
-        type: boolean
-        default: true
 
 permissions:
   contents: write
