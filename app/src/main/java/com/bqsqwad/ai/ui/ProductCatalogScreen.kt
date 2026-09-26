@@ -344,7 +344,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                 LivePlanCard(
                                     plan=plan,
                                     playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
-                                    playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
+                                    playProducts=playProducts,
                                     billing=billing,
                                     onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
                                     onStatus={ status=it }
