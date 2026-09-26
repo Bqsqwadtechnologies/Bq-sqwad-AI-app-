@@ -25,6 +25,8 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pendingDeactivate by remember { mutableStateOf<String?>(null) }
+    var subscriptions by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var pendingSubscriptionToggle by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         loading = true
@@ -34,12 +36,49 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
                 val rows = catalog.optJSONArray("plans") ?: JSONArray()
                 plans = (0 until rows.length()).map { rows.getJSONObject(it) }.filter { it.optString("module") == "business" }
                 session = api.adminBusinessTestSession()
+                val subscriptionRows = api.adminBusinessSubscriptions().optJSONArray("items") ?: JSONArray()
+                subscriptions = (0 until subscriptionRows.length()).map { subscriptionRows.getJSONObject(it) }
                 if (selected.isBlank()) selected = session.optString("planId").ifBlank { plans.firstOrNull()?.optString("id").orEmpty() }
             }.onFailure { error = it.message ?: "Business test controls could not be loaded." }
             loading = false
         }
     }
     LaunchedEffect(Unit) { load() }
+
+    pendingSubscriptionToggle?.let { row ->
+        val nextActive = !row.optBoolean("active", true)
+        AlertDialog(
+            onDismissRequest = { pendingSubscriptionToggle = null },
+            title = { Text(if (nextActive) "Restore Business access?" else "Deactivate Business access?") },
+            text = {
+                Text(
+                    if (nextActive)
+                        "This restores this user's BQ Sqwad AI Business access. It does not change the Google Play subscription."
+                    else
+                        "This immediately blocks this user's Business access in BQ Sqwad AI. It does not cancel or refund the Google Play subscription."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val uid = row.optString("uid")
+                    val planId = row.optString("planId")
+                    pendingSubscriptionToggle = null
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            api.setAdminBusinessSubscriptionStatus(
+                                uid, planId, nextActive,
+                                confirmDeactivation = !nextActive
+                            )
+                        }.onFailure { error = it.message ?: "Could not change Business access." }
+                        busy = false
+                        load()
+                    }
+                }) { Text(if (nextActive) "Restore access" else "Deactivate") }
+            },
+            dismissButton = { TextButton(onClick = { pendingSubscriptionToggle = null }) { Text("Cancel") } }
+        )
+    }
 
     pendingDeactivate?.let { planId ->
         AlertDialog(
@@ -75,6 +114,59 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
                 )
             }
             error?.let { msg -> item { Text(msg, color = MaterialTheme.colorScheme.error) } }
+            item {
+                Text("Customer Business subscriptions", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Each verified Business entitlement is listed here. Deactivation is an app-access override only; Google Play remains the payment and subscription system.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (subscriptions.isEmpty()) {
+                item { SurfaceCard("No Business subscriptions found", "Verified Business entitlements will appear here automatically.") }
+            } else {
+                items(subscriptions, key = { it.optString("id") }) { row ->
+                    val active = row.optBoolean("active", true)
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(row.optString("email").ifBlank { row.optString("uid") }, style = MaterialTheme.typography.titleMedium)
+                                    Text(row.optString("planName", row.optString("planId")), fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "Source: " + row.optString("source").ifBlank { "unknown" } +
+                                            " • State: " + row.optString("state").ifBlank { "unknown" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    row.optString("endDate").takeIf { it.isNotBlank() && it != "null" }?.let {
+                                        Text("Access end: " + it.take(10), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                    Text(
+                                        if (active) "ACCESS ON" else "ACCESS OFF",
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                    Switch(
+                                        checked = active,
+                                        enabled = !busy,
+                                        onCheckedChange = { pendingSubscriptionToggle = row }
+                                    )
+                                }
+                            }
+                            Text(
+                                if (active) "Business access is enabled for this account."
+                                else "Business access is disabled by the admin override.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             item {
                 Text("Business plans", style = MaterialTheme.typography.titleLarge)
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
