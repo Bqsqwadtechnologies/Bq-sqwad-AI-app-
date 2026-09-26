@@ -90,7 +90,9 @@ export async function authorizeCapability(uid, controlId) {
     allowedPlanIds: [],
     config: { fallbackEnabled: true, fallbackProviderIds: ["gemini"] }
   };
-  // Paid/test capability bypass is available to the super-admin only while the server-side Test Mode switch is ON.\n  // With Test Mode OFF, the admin follows the same entitlement/rollout path as a normal user.\n  if (adminTestMode) return { control: effectiveControl, planId: "admin-test", creditCost: 0, commit: () => {}, release: async () => {} };
+  // The sole super-admin is always entitled to operate without consuming customer credits.
+  // Test Mode remains available for QA-specific behavior, but is not required for normal admin use.
+  if (isSuperAdmin) return { control: effectiveControl, planId: "admin-unlimited", creditCost: 0, commit: () => {}, release: async () => {} };
 
   if (effectiveControl.enabled === false || effectiveControl.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
