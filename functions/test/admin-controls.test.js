@@ -8,7 +8,7 @@ test("canonical Admin Control Center keeps exactly 40 advanced controls", () => 
 });
 
 test("core capability controls are distinct and routable", () => {
-  assert.equal(CORE_CAPABILITY_OPTIONS.length, 9);
+  assert.equal(CORE_CAPABILITY_OPTIONS.length, 15);
   const ids = CORE_CAPABILITY_OPTIONS.map(([id]) => id);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.includes("capability_chat"));
