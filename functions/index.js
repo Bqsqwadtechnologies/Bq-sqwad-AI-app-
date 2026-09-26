@@ -1467,6 +1467,64 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, version, catalog: incoming });
       }
 
+      if (req.method === "POST" && path === "admin/plan/status") {
+        const admin = await adminFromRequest(req);
+        const planId = String(body.planId || "").trim();
+        if (!/^[a-z0-9-]+$/.test(planId)) return send(res, 400, { error: "invalid_plan_id" });
+        const active = body.active === true;
+        const ref = getFirestore().collection("planCatalog").doc("config");
+        const snap = await ref.get();
+        const catalog = snap.exists ? (snap.data()?.catalog || {}) : canonicalAdminCatalog();
+        const sections = catalog.sections || {};
+        let found = false;
+        for (const section of Object.values(sections)) {
+          if (!Array.isArray(section)) continue;
+          for (const plan of section) {
+            if (String(plan?.id || "") === planId) {
+              plan.active = active;
+              found = true;
+            }
+          }
+        }
+        if (!found) return send(res, 404, { error: "plan_not_found" });
+        const version = Math.max(PLAN_CATALOG_VERSION, Number(snap.data()?.version || PLAN_CATALOG_VERSION) + 1);
+        await ref.set({ version, catalog: { ...catalog, version }, updatedBy: admin.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: false });
+        await getFirestore().collection("adminConfigAudit").add({
+          type: "plan_status_update", planId, active, actorUid: admin.uid, version, createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, planId, active, version });
+      }
+
+      if (req.method === "POST" && path === "admin/plan/popular") {
+        const admin = await adminFromRequest(req);
+        const planId = String(body.planId || "").trim();
+        if (!/^[a-z0-9-]+$/.test(planId)) return send(res, 400, { error: "invalid_plan_id" });
+        const ref = getFirestore().collection("planCatalog").doc("config");
+        const snap = await ref.get();
+        const catalog = snap.exists ? (snap.data()?.catalog || {}) : canonicalAdminCatalog();
+        const sections = catalog.sections || {};
+        let found = false;
+        for (const section of Object.values(sections)) {
+          if (!Array.isArray(section)) continue;
+          for (const plan of section) {
+            if (!plan || typeof plan !== "object") continue;
+            if (String(plan.id || "") === planId) {
+              plan.popular = true;
+              found = true;
+            } else {
+              plan.popular = false;
+            }
+          }
+        }
+        if (!found) return send(res, 404, { error: "plan_not_found" });
+        const version = Math.max(PLAN_CATALOG_VERSION, Number(snap.data()?.version || PLAN_CATALOG_VERSION) + 1);
+        await ref.set({ version, catalog: { ...catalog, version }, updatedBy: admin.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: false });
+        await getFirestore().collection("adminConfigAudit").add({
+          type: "plan_popular_update", planId, actorUid: admin.uid, version, createdAt: FieldValue.serverTimestamp()
+        });
+        return send(res, 200, { ok: true, planId, version });
+      }
+
       if (req.method === "GET" && path === "admin/security/status") {
         const admin = await assertSuperAdmin(await userFromRequest(req));
         return send(res, 200, await securityStatus());
@@ -1661,8 +1719,9 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "GET" && path === "native/catalog") {
         const db = getFirestore();
-        const [plansSnap, playSnap, featureSnap, bindingSnap, addOnSnap, businessSnap] = await Promise.all([
+        const [plansSnap, planCatalogSnap, playSnap, featureSnap, bindingSnap, addOnSnap, businessSnap] = await Promise.all([
           db.collection("plans").where("active", "==", true).get(),
+          db.collection("planCatalog").doc("config").get(),
           db.collection("playCatalog").doc("config").get(),
           db.collection("featureRegistry").get(),
           db.collection("planFeatureBindings").get(),
@@ -1728,9 +1787,12 @@ export const bqSqwadApi = onRequest(
         });
         return send(res, 200, {
           version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
-          plans: (plansSnap.empty
-            ? Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item))
-            : plansSnap.docs.map(d => safePlan(d.id, d.data()))
+          plans: (
+            planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
+              ? Object.values(planCatalogSnap.data().catalog.sections).flat().map(item => safePlan(item.id, item))
+              : plansSnap.empty
+                ? Object.values(COMMERCIAL_CATALOG.sections).flat().map(item => safePlan(item.id, item))
+                : plansSnap.docs.map(d => safePlan(d.id, d.data()))
           ).filter(x => x.visible && x.active),
           products,
           publicContactSales,
