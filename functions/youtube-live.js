@@ -161,3 +161,42 @@ export async function transitionYouTubeLive(uid, accountId, broadcastId, status)
 export async function getYouTubeLiveStatus(uid, accountId, broadcastId) {
   return youtubeRequest(uid, accountId, "/liveBroadcasts?part=id,snippet,status,contentDetails&id=" + encodeURIComponent(broadcastId));
 }
+export async function listYouTubeLiveChat(uid, accountId, liveChatId) {
+  const chatId = clean(liveChatId, 200);
+  if (!chatId) throw new Error("youtube_live_chat_id_required");
+  const result = await youtubeRequest(uid, accountId,
+    "/liveChat/messages?part=id,snippet,authorDetails&liveChatId=" + encodeURIComponent(chatId) + "&maxResults=2000"
+  );
+  return {
+    liveChatId: chatId,
+    nextPageToken: result.nextPageToken || null,
+    pollingIntervalMillis: Number(result.pollingIntervalMillis || 5000),
+    items: Array.isArray(result.items) ? result.items.map(item => ({
+      id: String(item.id || ""),
+      type: String(item.snippet?.type || ""),
+      text: String(item.snippet?.displayMessage || item.snippet?.textMessageDetails?.messageText || ""),
+      author: String(item.authorDetails?.displayName || "Viewer"),
+      authorChannelId: String(item.authorDetails?.channelId || ""),
+      publishedAt: String(item.snippet?.publishedAt || "")
+    })).filter(item => item.id && item.text) : []
+  };
+}
+
+export async function sendYouTubeLiveChatMessage(uid, accountId, liveChatId, text) {
+  const chatId = clean(liveChatId, 200);
+  const message = clean(text, 1000);
+  if (!chatId) throw new Error("youtube_live_chat_id_required");
+  if (!message) throw new Error("youtube_live_chat_message_required");
+  return youtubeRequest(uid, accountId, "/liveChat/messages?part=snippet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      snippet: {
+        liveChatId: chatId,
+        type: "textMessageEvent",
+        textMessageDetails: { messageText: message }
+      }
+    })
+  });
+}
+
