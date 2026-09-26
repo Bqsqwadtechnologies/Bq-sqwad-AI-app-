@@ -69,6 +69,16 @@ class WorkspaceApiClient {
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
 
     suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
+    suspend fun adminBusinessSubscriptions(): JSONObject = request("/admin/business/subscriptions", "GET")
+
+    suspend fun setAdminBusinessSubscriptionStatus(uid: String, planId: String, active: Boolean, confirmDeactivation: Boolean = false): JSONObject =
+        request("/admin/business/subscription-status", payload = JSONObject().apply {
+            put("uid", uid)
+            put("planId", planId)
+            put("active", active)
+            put("confirmDeactivation", confirmDeactivation)
+        })
+
     suspend fun adminBusinessTestSession(): JSONObject = request("/admin/business/test-session", "GET")
 
     suspend fun setAdminBusinessTestSession(planId: String, enabled: Boolean = true, durationMinutes: Int = 120): JSONObject =
