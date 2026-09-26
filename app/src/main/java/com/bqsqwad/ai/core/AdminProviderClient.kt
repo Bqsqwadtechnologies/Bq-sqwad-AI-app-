@@ -17,6 +17,13 @@ data class AdminProviderSecretStatus(
     val updatedAt: String?
 )
 
+data class AdminSocialConfig(
+    val enabled: Boolean,
+    val xEnabled: Boolean,
+    val xClientId: String,
+    val xScopes: List<String>
+)
+
 data class AdminProviderRoute(
     val capability: String,
     val primaryProviderId: String?,
@@ -33,7 +40,7 @@ class AdminProviderClient(
     suspend fun savePlanCatalog(catalog: JSONObject): JSONObject =
         request("POST", "/admin/plan-catalog", JSONObject().put("catalog", catalog))
 
-    suspend fun providerOverview(): Pair<List<AdminProviderSecretStatus>, List<AdminProviderRoute>> =
+    suspend fun providerOverview(): Triple<List<AdminProviderSecretStatus>, List<AdminProviderRoute>, AdminSocialConfig> =
         request("GET", "/admin/providers", null).let { root ->
             val providers = root.optJSONArray("providers") ?: JSONArray()
             val statuses = (0 until providers.length()).map { i ->
@@ -45,6 +52,16 @@ class AdminProviderClient(
                     updatedAt = o.optString("updatedAt").takeIf { it.isNotBlank() && it != "null" }
                 )
             }
+            val social = root.optJSONObject("social") ?: JSONObject()
+            val x = social.optJSONObject("x") ?: JSONObject()
+            val socialConfig = AdminSocialConfig(
+                enabled = social.optBoolean("enabled", false),
+                xEnabled = x.optBoolean("enabled", false),
+                xClientId = x.optString("clientId", ""),
+                xScopes = (x.optJSONArray("scopes") ?: JSONArray()).let { a ->
+                    (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
+                }
+            )
             val routeArray = root.optJSONArray("routes") ?: JSONArray()
             val routes = (0 until routeArray.length()).map { i ->
                 val o = routeArray.getJSONObject(i)
@@ -57,7 +74,7 @@ class AdminProviderClient(
                     enabled = o.optBoolean("enabled", true)
                 )
             }
-            statuses to routes
+            Triple(statuses, routes, socialConfig)
         }
 
     suspend fun statuses(): List<AdminProviderSecretStatus> = providerOverview().first
@@ -76,6 +93,17 @@ class AdminProviderClient(
             else put("primaryModelId", primaryModelId)
             put("fallbackProviderIds", JSONArray(fallbackProviderIds))
             put("enabled", enabled)
+        })
+    }
+
+    suspend fun saveSocialConfig(enabled: Boolean, xEnabled: Boolean, xClientId: String, xScopes: List<String>) {
+        request("POST", "/admin/social-integrations", JSONObject().apply {
+            put("enabled", enabled)
+            put("platforms", JSONObject().put("x", JSONObject().apply {
+                put("enabled", xEnabled)
+                put("clientId", xClientId.trim())
+                put("scopes", JSONArray(xScopes))
+            }))
         })
     }
 
