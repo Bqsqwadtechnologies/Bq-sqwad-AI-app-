@@ -376,18 +376,10 @@ class WorkspaceApiClient {
         return List(items.length()) { i -> items.getJSONObject(i) }
     }
 
-    suspend fun saveTruthGuardCheck(claim:String, analysis:String, sources:List<SearchSource>): JSONObject =
-        request("/truthguard/check", payload=JSONObject().apply {
-            put("claim", claim.take(12000))
-            put("analysis", analysis.take(30000))
-            put("sources", JSONArray(sources.map {
-                JSONObject().apply {
-                    put("title", it.title.take(500))
-                    put("url", it.url.take(2000))
-                    put("snippet", it.snippet.orEmpty().take(4000))
-                }
-            }))
-        })
+    suspend fun truthGuardCheck(claim:String, deepResearch:Boolean): JSONObject =
+        request("/truthguard/check", payload=JSONObject()
+            .put("claim", claim.take(12000))
+            .put("deepResearch", deepResearch))
 
     suspend fun workspaceAi(capability:String, message:String, system:String? = null):JSONObject =
         request("/ai", payload=JSONObject().apply {
