@@ -419,11 +419,19 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("X privacy & control", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "BQ Sqwad AI only uses the X account permissions needed for the connected features. It does not ask for your X password, sell your X data, or read private X content outside permissions granted by X. It only publishes or manages content when you explicitly use a connected feature or configured automation.",
+                    "Before connecting X: BQ Sqwad AI uses only the X permissions you approve for this connection. It does not ask for your X password, sell your X data, or use your X account for unrelated purposes.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    "Access and refresh tokens are encrypted server-side and are never stored in the Android app. You can disconnect X at any time; BQ Sqwad AI removes the stored connection and attempts to revoke the X token.",
+                    "What BQ Sqwad AI may do: read the public X account identity needed to identify the connected account, publish posts when you explicitly choose Publish or use an automation you configured, and perform an action you explicitly request such as reply, repost, like, or delete when that permission is granted.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "What it will not do: read your X password, access private messages or unrelated private account data, publish silently without an action or configured automation, sell your X data, or use the connection for unrelated advertising.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Access and refresh tokens are encrypted server-side and are never stored in the Android app. Disconnecting removes the stored connection and BQ Sqwad AI attempts to revoke the X authorization remotely. X can still control the final permission and revocation state.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
