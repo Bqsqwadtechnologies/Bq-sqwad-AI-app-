@@ -2416,9 +2416,8 @@ private fun CameraWorkspace() {
                     lensFacing = lens,
                     captureEveryMs = 1800L,
                     onFrame = { bytes ->
-                        if (!active || analyzing) return@NativeCameraPreview
                         val now = System.currentTimeMillis()
-                        if (now - lastAnalysisAt < 1600L) return@NativeCameraPreview
+                        if (active && !analyzing && now - lastAnalysisAt >= 1600L) {
                         lastAnalysisAt = now
                         analyzing = true
                         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
@@ -2435,10 +2434,11 @@ private fun CameraWorkspace() {
                                 .onFailure { errorValue ->
                                     scope.launch(Dispatchers.Main) {
                                         cameraLog.add("Error: " + (errorValue.message ?: "Camera analysis failed."))
-                                        error = errorValue.message ?: "Camera analysis failed."
+                                        answer = errorValue.message ?: "Camera analysis failed."
                                         analyzing = false
                                     }
                                 }
+                        }
                         }
                     }
                 )
