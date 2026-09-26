@@ -18,6 +18,7 @@ data class LiveMediaUiState(
     val status: String = "stopped",
     val answer: String = "",
     val audioLevel: Float = 0f,
+    val onlineBroadcast: Boolean = false,
     val log: List<String> = emptyList()
 )
 
@@ -273,7 +274,8 @@ class LiveMediaForegroundService : Service() {
             active = active,
             mode = mode,
             status = answer.ifBlank { if (active) "active" else "stopped" },
-            answer = answer
+            answer = answer,
+            onlineBroadcast = !liveEndpoint.isNullOrBlank()
         )
     }
 
@@ -293,7 +295,7 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", message)
             .apply()
-        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = message, audioLevel = 0f)
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = message, audioLevel = 0f, onlineBroadcast = false)
         appendLog("Error: $message")
     }
 
