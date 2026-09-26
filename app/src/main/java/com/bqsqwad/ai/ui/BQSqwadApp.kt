@@ -2408,15 +2408,28 @@ private fun CameraWorkspace() {
             if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (screenAnswer.isNotBlank()) SurfaceCard("BQ Sqwad AI", screenAnswer)
         } else if (granted && active) {
-            Surface(
-                Modifier.fillMaxWidth().height(280.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
+            Box(
+                Modifier.fillMaxWidth().height(280.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black)
             ) {
-                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
-                    Text("● Live camera foreground session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("BQ Sqwad AI is capturing camera frames through Android's visible foreground service. The session can continue while you leave the app.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (liveServiceActive) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
+                NativeCameraPreview(
+                    modifier = Modifier.fillMaxSize(),
+                    lensFacing = lens,
+                    captureEveryMs = 1800L,
+                    onFrame = {}
+                )
+                Surface(
+                    modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.Black.copy(alpha = 0.62f)
+                ) {
+                    Text(
+                        if (liveServiceActive) "● LIVE CAMERA" else "Connecting…",
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
             SurfaceCard("Live indicator", "● Camera active • Android foreground service is running and BQ Sqwad AI is receiving sampled camera frames.")
