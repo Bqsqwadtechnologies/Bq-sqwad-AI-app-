@@ -499,3 +499,13 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Paid TruthGuard access requires the corresponding verified active entitlement. Admin Test Mode remains the only server-authorized bypass.
 - Added authenticated `GET /truthguard/history` and isolated records by Firebase UID.
 - Android TruthGuard now reads its active plan from `/native/catalog` + `/entitlements`, presents tier-specific capabilities, locks Deep verification for Free, opens the live Plans catalog for upgrades, and displays saved verification history.
+
+
+## 2026-09-26 — Life Mathis plan-gate integration
+- Added a dedicated Life Mathis plan gate that reads the canonical `native/catalog` plan data and verified `/entitlements` state.
+- Life Mathis displays its own Free, Standard and Ultimate plans with monthly/yearly pricing from the canonical catalog; internal plan IDs remain implementation/admin data rather than normal-user UI.
+- Monthly and yearly subscription selection maps to the existing `monthly` and `yearly` base-plan IDs.
+- Purchase unlock messaging is explicitly server-verification based; the Android client does not grant entitlement from a local purchase claim.
+- Wired the Life Mathis plan gate into the Life workspace while preserving the existing planning/goals/routines/tasks feature surface.
+- The global catalog keeps Business AI first and renders workspace plans from the canonical BQ Sqwad AI catalog rather than displaying a separate Google Play catalog.
+- Existing server-side `capability_life_matters` entitlement and monthly-limit enforcement remains authoritative.
