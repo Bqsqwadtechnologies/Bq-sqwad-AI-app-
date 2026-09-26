@@ -82,7 +82,7 @@ test("Business plans match the canonical Play/website payment channels", () => {
     assert.equal(plan.module, "business");
     assert.equal(plan.playEligible, expectedPlayEligible.get(plan.id), plan.id + " has unexpected Play eligibility");
     if (plan.id === "bizprofessional" || plan.id === "businessenterprise") {
-      assert.equal(plan.paymentChannel, "website");
+      assert.equal(plan.paymentChannel, plan.id === "businessenterprise" ? "contact_sales" : "website");
     }
     assert.ok(Array.isArray(plan.features) && plan.features.length > 0, plan.id + " needs feature entitlements");
     assert.ok(plan.limits && typeof plan.limits === "object", plan.id + " needs limits");
