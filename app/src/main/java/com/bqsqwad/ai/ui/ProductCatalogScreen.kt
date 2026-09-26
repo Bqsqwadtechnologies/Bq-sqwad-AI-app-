@@ -461,6 +461,13 @@ private fun LivePlanCard(
             if (plan.basePlans.isNotEmpty()) {
                 Text("Base plans: " + plan.basePlans.joinToString(" • "), style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (supportedPeriods.size > 1) {
+                LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    items(supportedPeriods) { period ->
+                        FilterChip(selected=selectedPeriod == period, onClick={selectedPeriod=period}, label={Text(period.replaceFirstChar{it.uppercase()})})
+                    }
+                }
+            }
             Text(priceText, style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
@@ -479,8 +486,8 @@ private fun LivePlanCard(
                                 onStatus("Could not open the BQ Sqwad AI website.")
                             }
                         }
-                        plan.playEligible && playEntry != null && playProduct != null && billing?.isReady() == true -> {
-                            val result=billing.launchPurchase(playProduct.productId, playEntry.basePlanId)
+                        plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true -> {
+                            val result=billing.launchPurchase(selectedProduct.productId, selectedEntry.basePlanId)
                             onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
                         }
                         else -> onStatus("This plan is not currently purchasable on this device.")
