@@ -19,6 +19,7 @@ function monthKey() {
 const DEFAULT_ALLOWED_PLAN_IDS = {
   capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"],
   capability_life_matters: ["lifemathisfree", "lmstandard", "lmultimate"],
+  capability_frontier_lab: ["frontierexplorer", "frontierpro", "frontierenterprise"],
   capability_companion: ["companionfree", "companionbasic", "companionplus", "companionpremium", "companionultimate"],
   capability_companion_checkin: ["companionfree", "companionbasic", "companionplus", "companionpremium", "companionultimate"],
   capability_companion_memory: ["companionbasic", "companionplus", "companionpremium", "companionultimate"],
@@ -50,6 +51,7 @@ const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_truth_guard",
   "capability_learning_studio",
   "capability_life_matters",
+  "capability_frontier_lab",
   "capability_personal_intelligence",
   "capability_companion",
   "capability_companion_checkin",
