@@ -494,6 +494,44 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   return { ok: true, jobId: publishRef.id, platform, status: "published", result };
 }
 
+export async function disconnectSocialAccount(uid, accountId) {
+  const ref = accountRef(clean(accountId, 160));
+  const snap = await ref.get();
+  if (!snap.exists || clean(snap.data()?.uid, 160) !== uid) throw new Error("social_account_not_found");
+  const account = snap.data();
+  const platform = clean(account.platform, 40);
+  let revokeError = null;
+  if (platform === "x" && account.accessTokenSecret?.ciphertext) {
+    try {
+      const secret = await getProviderSecret("x_client_secret");
+      const config = await getSocialConfig();
+      const clientId = String(config.platforms?.x?.clientId || "");
+      const token = decryptSecret(account.accessTokenSecret);
+      if (secret && clientId && token) {
+        const revoke = await fetch("https://api.x.com/2/oauth2/revoke", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": "Basic " + Buffer.from(clientId + ":" + secret).toString("base64")
+          },
+          body: new URLSearchParams({ token, token_type_hint: "access_token", client_id: clientId })
+        });
+        if (!revoke.ok) revokeError = "x_remote_revoke_failed";
+      }
+    } catch {
+      revokeError = "x_remote_revoke_failed";
+    }
+  }
+  await ref.delete();
+  await getFirestore().collection("socialAccountAudit").add({
+    uid, accountId, platform, action: "disconnect",
+    remoteRevocationAttempted: platform === "x",
+    remoteRevocationFailed: Boolean(revokeError),
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true, disconnected: true, platform, remoteRevocationFailed: Boolean(revokeError) };
+}
+
 export async function listSocialAccounts(uid, workspaceId) {
   const query = getFirestore().collection(ACCOUNTS).where("uid", "==", uid);
   const snap = workspaceId ? await query.where("workspaceId", "==", String(workspaceId)).limit(50).get() : await query.limit(50).get();
