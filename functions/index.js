@@ -7,7 +7,7 @@ import { runAi, callTavily, callGeminiDeviceCommand, getRoute } from "./provider
 import { getProviderSecret, setProviderSecret, deleteProviderSecret, providerSecretStatus, listProviderSecretStatuses } from "./secret-store.js";
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
-import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
+import { reserveCredits, commitCredits, reverseCredits, grantCredits } from "./credits.js";
 import { authorizeCapability } from "./capability-runtime.js";
 import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } from "./runtime-controls.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
