@@ -52,6 +52,11 @@ class WorkspaceApiClient {
     suspend fun setMemoryEnabled(enabled:Boolean):JSONObject =
         request("/memory/settings",payload=JSONObject().put("enabled",enabled))
 
+    suspend fun companionMemory():JSONObject = request("/companion/memory","GET")
+
+    suspend fun setCompanionMemoryEnabled(enabled:Boolean):JSONObject =
+        request("/companion/memory",payload=JSONObject().put("enabled",enabled))
+
     suspend fun clearMemory():JSONObject = request("/memory","DELETE")
 
     suspend fun realtimeSession():JSONObject = request("/realtime/session", payload=JSONObject())
