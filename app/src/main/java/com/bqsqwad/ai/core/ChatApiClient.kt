@@ -53,11 +53,16 @@ class ChatApiClient(
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream.bufferedReader().use { it.readText() }
-            val body = runCatching { JSONObject(raw) }.getOrElse {
-                throw IllegalStateException("The AI service returned an invalid response.")
+            val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val body = runCatching { JSONObject(raw) }.getOrNull()
+            if (status !in 200..299) {
+                val serverError = body?.optString("error").orEmpty()
+                val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
+                throw IllegalStateException("HTTP $status: $detail")
             }
-            if (status !in 200..299) throw IllegalStateException(body.optString("error", "AI request failed"))
+            if (body == null) {
+                throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+            }
             val text = body.optString("text").trim()
             if (text.isBlank()) throw IllegalStateException("The AI service returned an empty response.")
             ChatReply(
@@ -170,11 +175,16 @@ class ChatApiClient(
         }
         val status = connection.responseCode
         val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val raw = stream.bufferedReader().use { it.readText() }
-        val body = runCatching { JSONObject(raw) }.getOrElse {
-            throw IllegalStateException("The vision service returned an invalid response.")
+        val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        val body = runCatching { JSONObject(raw) }.getOrNull()
+        if (status !in 200..299) {
+            val serverError = body?.optString("error").orEmpty()
+            val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
+            throw IllegalStateException("HTTP $status: $detail")
         }
-        if (status !in 200..299) throw IllegalStateException(body.optString("error", "Camera analysis failed"))
+        if (body == null) {
+            throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+        }
         ChatReply(
             text = body.optString("text").trim(),
             providerId = body.optString("providerId").takeIf { it.isNotBlank() },
