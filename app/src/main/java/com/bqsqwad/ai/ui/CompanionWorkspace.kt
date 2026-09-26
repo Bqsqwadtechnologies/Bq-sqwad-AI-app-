@@ -32,7 +32,6 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     var notice by remember { mutableStateOf<String?>(null) }
     var loadingAccess by remember { mutableStateOf(true) }
     var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
-    var companionPlans by remember { mutableStateOf(emptyList<CompanionPlan>()) }
     val messages = remember { mutableStateListOf<CompanionMessage>() }
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id in ids
@@ -76,7 +75,6 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     id.startsWith("companion") && state in setOf("active", "grace", "on_hold", "paused")
                 }
             val activePlanId = active?.optString("planId").orEmpty().ifBlank { "companionfree" }
-            companionPlans = plans
             currentPlan = plans.firstOrNull { it.id == activePlanId }
                 ?: plans.firstOrNull { it.id == "companionfree" }
             if (memoryUnlocked) {
@@ -127,6 +125,14 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     if (currentPlan?.id != "companionultimate") {
                         OutlinedButton(onClick = onOpenPlans) { Text("View plans") }
                     }
+                }
+                if (!currentPlan?.features.isNullOrEmpty()) {
+                    Text("Included in your plan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        currentPlan?.features?.joinToString(" • ").orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat") })
