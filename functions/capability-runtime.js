@@ -18,7 +18,12 @@ function monthKey() {
 
 const DEFAULT_ALLOWED_PLAN_IDS = {
   capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"],
-  capability_life_matters: ["lifemathisfree", "lmstandard", "lmultimate"]
+  capability_life_matters: ["lifemathisfree", "lmstandard", "lmultimate"],
+  capability_companion: ["companionfree", "companionbasic", "companionplus", "companionpremium", "companionultimate"],
+  capability_companion_checkin: ["companionfree", "companionbasic", "companionplus", "companionpremium", "companionultimate"],
+  capability_companion_memory: ["companionbasic", "companionplus", "companionpremium", "companionultimate"],
+  capability_companion_voice: ["companionplus", "companionpremium", "companionultimate"],
+  capability_companion_camera: ["companionpremium", "companionultimate"]
 };
 
 const DEFAULT_MONTHLY_LIMITS = {
@@ -47,6 +52,10 @@ const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_life_matters",
   "capability_personal_intelligence",
   "capability_companion",
+  "capability_companion_checkin",
+  "capability_companion_memory",
+  "capability_companion_voice",
+  "capability_companion_camera",
   "capability_codron",
   "capability_web_research",
   "capability_multimodal_images",
