@@ -2413,8 +2413,7 @@ private fun CameraWorkspace() {
         liveServiceActive = liveUiState.active
         liveServiceMode = liveUiState.mode
         liveAnswer = liveUiState.answer
-        streamOnline = liveUiState.active && liveUiState.mode == LiveMediaForegroundService.MODE_CAMERA && streamEndpoint.isNotBlank()
-        if (!liveUiState.active && streamOnline) streamOnline = false
+        streamOnline = liveUiState.onlineBroadcast
         if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
             screenActive = liveServiceActive
             if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
