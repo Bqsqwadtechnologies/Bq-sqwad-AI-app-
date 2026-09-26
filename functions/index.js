@@ -1876,10 +1876,18 @@ export const bqSqwadApi = onRequest(
           reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
           const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
           const cfg = option.exists ? (option.data()?.config || {}) : {};
-          if (option.exists && option.data()?.enabled === false) return send(res, 403, { error: "live_voice_disabled" });
+          if (option.exists && option.data()?.enabled === false) {
+            await reverseCredits(user.uid, reservation?.reservationId);
+            reservation = null;
+            return send(res, 403, { error: "live_voice_disabled" });
+          }
           const model = String(cfg.modelId || "gpt-realtime-2.1");
           const openaiKey = await getProviderSecret("openai");
-          if (!openaiKey) return send(res, 503, { error: "openai_provider_not_configured" });
+          if (!openaiKey) {
+            await reverseCredits(user.uid, reservation?.reservationId);
+            reservation = null;
+            return send(res, 503, { error: "openai_provider_not_configured" });
+          }
           const safetyId = crypto.createHash("sha256").update(String(user.uid)).digest("hex").slice(0, 64);
           const upstream = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
             method: "POST",
@@ -1902,9 +1910,17 @@ export const bqSqwadApi = onRequest(
           });
           const raw = await upstream.text();
           const bodyJson = (() => { try { return JSON.parse(raw); } catch { return {}; } })();
-          if (!upstream.ok) return send(res, upstream.status, { error: bodyJson?.error?.message || "realtime_session_failed" });
+          if (!upstream.ok) {
+            await reverseCredits(user.uid, reservation?.reservationId);
+            reservation = null;
+            return send(res, upstream.status, { error: bodyJson?.error?.message || "realtime_session_failed" });
+          }
           const secret = bodyJson?.value || bodyJson?.client_secret?.value;
-          if (!secret) return send(res, 502, { error: "realtime_client_secret_missing" });
+          if (!secret) {
+            await reverseCredits(user.uid, reservation?.reservationId);
+            reservation = null;
+            return send(res, 502, { error: "realtime_client_secret_missing" });
+          }
           await commitCredits(user.uid, reservation?.reservationId, "openai");
           gate.commit();
           return send(res, 200, {
