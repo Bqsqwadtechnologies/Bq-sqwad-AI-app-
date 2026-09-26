@@ -176,8 +176,62 @@ export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerif
     const granted = String(parsed.scope || "").split(/\s+/).filter(Boolean);
     if (!granted.includes("tweet.write")) throw new Error("x_write_scope_missing");
     if (!granted.includes("users.read")) throw new Error("x_users_scope_missing");
+    if (!granted.includes("offline.access")) throw new Error("x_offline_access_missing_reconnect_required");
+    const account = await validateXAccessToken(String(parsed.access_token || ""));
+    parsed.xAccount = {
+      id: String(account.id),
+      name: String(account.name || ""),
+      username: String(account.username || "")
+    };
   }
   return parsed;
+}
+
+async function refreshXAccessToken(account) {
+  const secret = await getProviderSecret("x_client_secret");
+  const config = await getSocialConfig();
+  const clientId = String(config.platforms?.x?.clientId || "");
+  const refreshToken = account.refreshTokenSecret?.ciphertext ? decryptSecret(account.refreshTokenSecret) : "";
+  if (!secret) throw new Error("x_client_secret_missing");
+  if (!clientId) throw new Error("x_client_id_missing");
+  if (!refreshToken) throw new Error("x_refresh_token_missing");
+
+  const refresh = await fetch("https://api.x.com/2/oauth2/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": "Basic " + Buffer.from(clientId + ":" + secret).toString("base64")
+    },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+      client_id: clientId
+    })
+  });
+  const refreshedRaw = await refresh.text();
+  let refreshed = {};
+  try { refreshed = JSON.parse(refreshedRaw); } catch {}
+  if (!refresh.ok || !refreshed.access_token) {
+    throw new Error("x_token_refresh_failed:" + refreshedRaw.replace(/[\r\n]+/g, " ").slice(0, 700));
+  }
+  const accessToken = String(refreshed.access_token);
+  const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
+  const expiresAt = new Date(Date.now() + Number(refreshed.expires_in || 7200) * 1000);
+  return { accessToken, refreshToken: nextRefreshToken, expiresAt };
+}
+
+async function validateXAccessToken(accessToken) {
+  const response = await fetch("https://api.x.com/2/users/me?user.fields=id,name,username", {
+    headers: { Authorization: "Bearer " + accessToken }
+  });
+  const raw = await response.text();
+  let parsed = {};
+  try { parsed = JSON.parse(raw); } catch {}
+  if (!response.ok || !parsed?.data?.id) {
+    const detail = raw.replace(/[\r\n]+/g, " ").slice(0, 700);
+    throw new Error("x_account_validation_failed:" + detail);
+  }
+  return parsed.data;
 }
 
 export async function saveSocialAccount(platform, tokenData, metadata = {}, actorUid) {
@@ -201,7 +255,10 @@ export async function saveSocialAccount(platform, tokenData, metadata = {}, acto
     expiresIn: expiresIn || null,
     expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
     grantedScopes: String(tokenData.scope || "").split(/\s+/).filter(Boolean).slice(0, 80),
-    metadata,
+    metadata: {
+      ...metadata,
+      ...(platform === "x" && tokenData.xAccount ? { xAccount: tokenData.xAccount } : {})
+    },
     status: "connected",
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
@@ -233,39 +290,14 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     throw new Error("x_refresh_token_missing");
   }
   if (platform === "x" && account.refreshTokenSecret?.ciphertext && xExpiresAt && xExpiresAt <= Date.now() + 60000) {
-    const secret = await getProviderSecret("x_client_secret");
-    const refreshToken = decryptSecret(account.refreshTokenSecret);
-    const clientId = String((await getSocialConfig()).platforms?.x?.clientId || "");
-    if (!secret) throw new Error("x_client_secret_missing");
-    if (!clientId) throw new Error("x_client_id_missing");
-    if (!refreshToken) throw new Error("x_refresh_token_missing");
-    const refresh = await fetch("https://api.x.com/2/oauth2/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": "Basic " + Buffer.from(clientId + ":" + secret).toString("base64")
-        },
-        body: new URLSearchParams({
-          refresh_token: refreshToken,
-          grant_type: "refresh_token",
-          client_id: clientId
-        })
-      });
-      const refreshedRaw = await refresh.text();
-      let refreshed = {};
-      try { refreshed = JSON.parse(refreshedRaw); } catch {}
-      if (!refresh.ok || !refreshed.access_token) {
-        throw new Error("x_token_refresh_failed:" + refreshedRaw.replace(/[\r\n]+/g, " ").slice(0, 700));
-      }
-      token = String(refreshed.access_token);
-      const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
-      await ref.set({
-        accessTokenSecret: encryptSecret(token),
-        refreshTokenSecret: encryptSecret(nextRefreshToken),
-        expiresAt: new Date(Date.now() + Number(refreshed.expires_in || 7200) * 1000),
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
+    const refreshed = await refreshXAccessToken(account);
+    token = refreshed.accessToken;
+    await ref.set({
+      accessTokenSecret: encryptSecret(refreshed.accessToken),
+      refreshTokenSecret: encryptSecret(refreshed.refreshToken),
+      expiresAt: refreshed.expiresAt,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
   }
 
   if (platform === "youtube" && account.refreshTokenSecret?.ciphertext && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now() + 60000) {
@@ -296,9 +328,25 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     const scopes = new Set((account.grantedScopes || []).map(String));
     if (scopes.size && !scopes.has("tweet.write")) throw new Error("x_write_scope_missing_reconnect_required");
     response = await fetch("https://api.x.com/2/tweets", {
-      method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
       body: JSON.stringify({ text: text || "" })
     });
+    if (response.status === 401 && account.refreshTokenSecret?.ciphertext) {
+      const refreshed = await refreshXAccessToken(account);
+      token = refreshed.accessToken;
+      await ref.set({
+        accessTokenSecret: encryptSecret(refreshed.accessToken),
+        refreshTokenSecret: encryptSecret(refreshed.refreshToken),
+        expiresAt: refreshed.expiresAt,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      response = await fetch("https://api.x.com/2/tweets", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text || "" })
+      });
+    }
   } else if (platform === "facebook") {
     const pageId = clean(input.pageId || metadata.pageId, 120);
     if (!pageId) throw new Error("facebook_page_id_required");
