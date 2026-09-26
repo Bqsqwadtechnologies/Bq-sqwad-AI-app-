@@ -513,6 +513,28 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await updateUserFeatureSettings(user.uid, workspaceId, body.settings || {}));
       }
 
+      if (req.method === "GET" && path === "companion/memory") {
+        const gate = await authorizeCapability(user.uid, "capability_companion_memory");
+        try {
+          const result = await getUserMemory(user.uid);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
+      if (req.method === "POST" && path === "companion/memory") {
+        const gate = await authorizeCapability(user.uid, "capability_companion_memory");
+        try {
+          const result = await setMemoryEnabled(user.uid, body.enabled === true);
+          gate.commit();
+          return send(res, 200, result);
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "GET" && path === "memory") {
         return send(res, 200, await getUserMemory(user.uid));
       }
