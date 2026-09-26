@@ -1410,7 +1410,7 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "A dedicated companion workspace with personality, memory and check-in controls governed by the account and feature configuration."
     Workspace.LEARNING -> "Learning Studio provides subject tutoring, lessons, homework help, revision and exam-preparation workflows."
     Workspace.BUSINESS -> "Business AI connects the business workspace, assistants, knowledge, contacts, leads, pipelines, inbox, automation, channels, advanced AI and enterprise configuration."
-    Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI provides professional organization intelligence, production coordination and the connected organization tools exposed by the backend."
+    Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio provides professional organization intelligence, production coordination and the connected organization tools exposed by the backend."
     Workspace.ADMIN -> "Admin Control Center manages server-side configuration, providers, billing/catalog controls, security and testing. Administrative secrets remain server-side."
 }
 
@@ -1464,7 +1464,7 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "AI Companion"
     Workspace.LEARNING -> "Learning Studio"
     Workspace.BUSINESS -> "Business AI"
-    Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
+    Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio"
     Workspace.ADMIN -> "Admin Control Center"
 }
 
