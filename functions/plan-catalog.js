@@ -251,6 +251,11 @@ export function validateCommercialCatalog(catalog = COMMERCIAL_CATALOG) {
         if (String(item.productId).includes("_")) throw new Error("underscore_product_id:" + item.productId);
         products.push(String(item.productId));
       }
+      if (item.productType === "subs" && item.playEligible && (item.billingPeriods || []).includes("yearly")) {
+        if (!(item.basePlans || []).includes("yearly")) {
+          throw new Error("yearly_base_plan_required:" + id);
+        }
+      }
       for (const tier of item.quantityTiers || []) {
         if (!/^[a-z0-9-]+$/.test(String(tier.tierId || ""))) throw new Error("invalid_tier_id:" + tier.tierId);
       }
