@@ -436,3 +436,13 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Added/verified admin endpoints for provider status, secure secret replacement/removal, and capability routing.
 - The native Admin Control Center now exposes secure provider-key management and server-side primary/fallback routing without displaying stored secret values.
 - Added provider status coverage for OpenAI, Gemini, Tavily, YouTube OAuth, X OAuth, TikTok OAuth, Meta and legacy Paystack credentials.
+
+## 2026-09-26 — Canonical catalog, Organization AI / Studio, and social/provider verification wiring
+
+- GET /native/catalog now treats planCatalog/config as the authoritative admin catalog when present, then falls back to the legacy plans collection, then the code catalog.
+- Added admin-only POST /admin/plan/status for Activate/Deactivate and POST /admin/plan/popular for the exclusive Popular flag. Both require server-side admin authorization and write audit records.
+- Google Play verification now checks the authoritative admin catalog before granting a new purchase, so a deactivated plan cannot be newly purchased even if a stale Play projection remains.
+- Renamed the native Organization workspace to Organization AI / Studio while retaining its combined organization intelligence + production/studio functionality.
+- Provider configuration remains server-side: OpenAI is the default route, Gemini is the fallback/default alternative, and provider secrets are stored through the encrypted secret store.
+- YouTube and X OAuth use the encrypted saved client secrets and encrypted account tokens server-side; refresh logic remains server-side and no secret is placed in the APK.
+- Fixed the website-plan CTA so Android obtains LocalContext in composable scope and opens the BQ Sqwad AI website without using composable APIs inside a click callback.
