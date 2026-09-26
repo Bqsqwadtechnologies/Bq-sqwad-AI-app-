@@ -391,6 +391,10 @@ private fun LivePlanCard(
     onStatus: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val supportedPeriods = plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
+    val selectedPeriod = supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty()
+    val selectedEntry = playEntry
+    val selectedProduct = playProduct
     val priceText = plan.price.entries.joinToString(" • ") { (period, value) ->
         val numeric = value.toDoubleOrNull()
         val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
@@ -451,6 +455,11 @@ private fun LivePlanCard(
                     Text(plan.module.ifBlank{"General"}, style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if(plan.popular) BqStatusBadge("POPULAR")
+            }
+            Text("Plan ID: " + plan.id, style=MaterialTheme.typography.bodySmall, fontWeight=FontWeight.SemiBold)
+            plan.productId?.let { Text("Subscription ID: " + it, style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (plan.basePlans.isNotEmpty()) {
+                Text("Base plans: " + plan.basePlans.joinToString(" • "), style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(priceText, style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
             if(plan.trialEligible && plan.trialDays > 0) {
