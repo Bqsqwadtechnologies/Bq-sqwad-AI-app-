@@ -842,6 +842,14 @@ export const bqSqwadApi = onRequest(
           }
           const viewerText = String(body.viewerText || "").trim().slice(0, 4000);
           if (!viewerText) return send(res, 400, { error: "viewer_text_required" });
+          const authorChannelId = String(body.authorChannelId || "").trim();
+          if (authorChannelId) {
+            const channel = await getYouTubeChannel(user.uid, String(body.accountId || ""));
+            const ownChannelId = String(channel.items?.[0]?.id || "");
+            if (ownChannelId && ownChannelId === authorChannelId) {
+              return send(res, 200, { ok: true, ignored: true, reason: "own_message" });
+            }
+          }
           const safeSystem = [
             "You are BQ Sqwad AI operating as an Organization live-stream assistant.",
             "Reply to the viewer concisely and respectfully.",
