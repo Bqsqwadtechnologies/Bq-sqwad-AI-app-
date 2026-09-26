@@ -1931,7 +1931,7 @@ private fun WorkspaceScreen(
                 Workspace.VOICE -> VoiceWorkspace()
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
-                Workspace.COMPANION -> CompanionWorkspace()
+                Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.LEARNING -> LearningStudioWorkspace()
                 Workspace.BUSINESS -> BusinessWorkspaceScreen()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
