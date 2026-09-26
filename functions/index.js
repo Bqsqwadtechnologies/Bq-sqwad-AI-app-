@@ -1251,9 +1251,7 @@ export const bqSqwadApi = onRequest(
           await commitCredits(user.uid, reservation?.reservationId, "openai");
           gate.commit();
           await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "success", metadata: { provider: "openai", model: configured.primaryModelId || "" } });
-          res.write("data: [DONE]
-
-");
+          res.write("data: [DONE]\n\n");
           return res.end();
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
