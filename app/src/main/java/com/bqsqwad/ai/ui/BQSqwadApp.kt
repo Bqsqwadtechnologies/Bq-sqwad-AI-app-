@@ -2347,6 +2347,9 @@ private fun CameraWorkspace() {
     var liveServiceActive by remember { mutableStateOf(false) }
     var liveServiceMode by remember { mutableStateOf("") }
     var liveAnswer by remember { mutableStateOf("") }
+    var streamEndpoint by remember { mutableStateOf("") }
+    var streamOnline by remember { mutableStateOf(false) }
+    var streamError by remember { mutableStateOf<String?>(null) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -2359,6 +2362,22 @@ private fun CameraWorkspace() {
             active = true
         }
     }
+    val streamPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (cameraOk && micOk && streamEndpoint.trim().isNotBlank()) {
+            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim()))
+            streamOnline = true
+            streamError = null
+        } else {
+            streamError = "Camera and microphone permission are required for online streaming."
+        }
+    }
+
     val screenLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
         if (result.resultCode != android.app.Activity.RESULT_OK || data == null) {
@@ -2394,6 +2413,8 @@ private fun CameraWorkspace() {
         liveServiceActive = liveUiState.active
         liveServiceMode = liveUiState.mode
         liveAnswer = liveUiState.answer
+        streamOnline = liveUiState.active && liveUiState.mode == LiveMediaForegroundService.MODE_CAMERA && streamEndpoint.isNotBlank()
+        if (!liveUiState.active && streamOnline) streamOnline = false
         if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
             screenActive = liveServiceActive
             if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
@@ -2526,6 +2547,36 @@ private fun CameraWorkspace() {
                 }
             }
             SurfaceCard("Live indicator", "● Camera active • Android foreground service is running and BQ Sqwad AI is receiving sampled camera frames.")
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Stream online with AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = streamEndpoint,
+                        onValueChange = { streamEndpoint = it; streamError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("YouTube / TikTok / custom RTMP endpoint") },
+                        singleLine = true,
+                        enabled = !streamOnline
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = active && streamEndpoint.trim().isNotBlank(),
+                            onClick = {
+                                streamPermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+                            }
+                        ) { Text(if (streamOnline) "Streaming online" else "Start online stream") }
+                        if (streamOnline) {
+                            OutlinedButton(onClick = {
+                                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                streamOnline = false
+                            }) { Text("Stop") }
+                        }
+                    }
+                    streamError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
             OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about the camera view") }, maxLines = 2)
             if (active) {
                 TextButton(onClick = {
