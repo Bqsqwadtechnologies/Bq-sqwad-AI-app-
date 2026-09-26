@@ -167,7 +167,7 @@ export async function exchangeSocialOAuth(platform, code, redirectUri, codeVerif
   const response = await fetch(p.tokenUrl, { method: "POST", headers, body });
   const raw = await response.text();
   if (!response.ok) {
-    const detail = raw.replace(/[\\r\\n]+/g, " ").slice(0, 700);
+    const detail = raw.replace(/[\r\n]+/g, " ").slice(0, 700);
     throw new Error((platform === "x" ? "x_token_exchange_failed:" : "social_token_exchange_failed:") + detail);
   }
   let parsed;
@@ -239,8 +239,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     if (!secret) throw new Error("x_client_secret_missing");
     if (!clientId) throw new Error("x_client_id_missing");
     if (!refreshToken) throw new Error("x_refresh_token_missing");
-    {
-      const refresh = await fetch("https://api.x.com/2/oauth2/token", {
+    const refresh = await fetch("https://api.x.com/2/oauth2/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -256,7 +255,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
       let refreshed = {};
       try { refreshed = JSON.parse(refreshedRaw); } catch {}
       if (!refresh.ok || !refreshed.access_token) {
-        throw new Error("x_token_refresh_failed:" + refreshedRaw.replace(/[\\r\\n]+/g, " ").slice(0, 700));
+        throw new Error("x_token_refresh_failed:" + refreshedRaw.replace(/[\r\n]+/g, " ").slice(0, 700));
       }
       token = String(refreshed.access_token);
       const nextRefreshToken = String(refreshed.refresh_token || refreshToken);
@@ -364,7 +363,7 @@ export async function publishSocialPost(uid, accountId, input = {}) {
   }
   const raw = await response.text();
   if (!response.ok) {
-    const detail = raw.replace(/[\\r\\n]+/g, " ").slice(0, 900);
+    const detail = raw.replace(/[\r\n]+/g, " ").slice(0, 900);
     throw new Error((platform === "x" ? "x_publish_failed:" : "social_publish_failed:") + detail);
   }
   let result = {};
