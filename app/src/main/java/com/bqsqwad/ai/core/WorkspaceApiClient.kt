@@ -234,6 +234,9 @@ class WorkspaceApiClient {
     suspend fun runBusinessAutomation(automationId:String, event:JSONObject = JSONObject()): JSONObject =
         request("/business/automations/run", payload=JSONObject().put("automationId", automationId.take(160)).put("event", event))
 
+    suspend fun disconnectSocialAccount(accountId: String): JSONObject =
+        request("/social/accounts/" + java.net.URLEncoder.encode(accountId, "UTF-8"), "DELETE")
+
     suspend fun socialAccounts(workspaceId: String): JSONObject = request("/social/accounts?workspaceId=" + java.net.URLEncoder.encode(workspaceId, "UTF-8"), "GET")
 
     suspend fun startSocialOAuth(platform:String, redirectUri:String, workspaceId:String): JSONObject =
