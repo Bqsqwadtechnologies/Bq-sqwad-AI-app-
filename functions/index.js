@@ -2226,9 +2226,18 @@ export const bqSqwadApi = onRequest(
             });
           }
         });
+        const socialConfig = await getSocialConfig();
         return send(res, 200, {
           providers,
           routes: Array.from(routeMap.values()),
+          social: {
+            enabled: socialConfig.enabled,
+            x: {
+              enabled: Boolean(socialConfig.platforms?.x?.enabled),
+              clientId: String(socialConfig.platforms?.x?.clientId || ""),
+              scopes: socialConfig.platforms?.x?.scopes || []
+            }
+          },
           webSearchPricing: config.options.find(x => x.id === "web_search_pricing")?.config || {}
         });
       }
