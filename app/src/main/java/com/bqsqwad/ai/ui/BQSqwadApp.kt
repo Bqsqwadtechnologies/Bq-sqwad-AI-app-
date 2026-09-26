@@ -999,25 +999,44 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = openHub) {
-                    Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu")
+                IconButton(onClick = openHub) { Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu") }
+                BqLogo(42.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Column(Modifier.weight(1f)) {
-                    BqLogo(46.dp)
-                    Spacer(Modifier.height(2.dp))
-                    Text("The AI that grows with you", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box {
+                    var menuOpen by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More chat options") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
+                        DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
+                        DropdownMenuItem(text = { Text("Plans & Credits") }, onClick = { menuOpen = false; openSettings() })
+                        DropdownMenuItem(text = { Text("Change background") }, onClick = { menuOpen = false; wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() })
+                        DropdownMenuItem(text = { Text("Learn more") }, onClick = { menuOpen = false; onLearnMore() })
+                        DropdownMenuItem(text = { Text("Privacy") }, onClick = { menuOpen = false; onPrivacy() })
+                        DropdownMenuItem(text = { Text(if (privateChat) "Turn off Private Chat" else "Private Chat — not saved") }, onClick = { menuOpen = false; privateChat = !privateChat })
+                    }
                 }
-                IconButton(onClick = { wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() }) {
-                    Icon(Icons.Default.Wallpaper, contentDescription = "Change chat background")
-                }
-                IconButton(onClick = onLearnMore) {
-                    Icon(Icons.Default.Info, contentDescription = "Learn more about Main Chat")
-                }
-                IconButton(onClick = onPrivacy) {
-                    Icon(Icons.Default.Lock, contentDescription = "Main Chat privacy")
-                }
-                IconButton(onClick = openSettings) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+                IconButton(onClick = openSettings) { Icon(Icons.Default.AccountCircle, contentDescription = "Account and settings") }
+            }
+            Text(
+                statusText,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 54.dp, top = 2.dp)
+            )
+            if (privateChat) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BqLogo(28.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Private Chat • This conversation will not be saved to Chat History.", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             if (ADVANCED_APP_FEATURES.isNotEmpty()) {
