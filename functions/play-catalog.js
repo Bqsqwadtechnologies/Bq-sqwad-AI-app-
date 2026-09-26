@@ -22,12 +22,20 @@ function entriesFor(item) {
     if (Array.isArray(item.playEligiblePeriods) && !item.playEligiblePeriods.includes(period)) return [];
     if (Array.isArray(item.proposalPeriods) && item.proposalPeriods.includes(period)) return [];
 
+    // Base-plan IDs are deliberately stable and human-readable. In particular,
+    // every annual offer is the Google Play "yearly" base plan. The BQ Sqwad
+    // catalog remains the user-facing catalog; this projection is only the
+    // private checkout mapping used to launch and verify Google Play purchases.
     let basePlanId = null;
     if (item.productType === "subs") {
-      if (period === "monthly") basePlanId = item.basePlans?.find(x => x === "monthly") || "monthly";
-      else if (period === "yearly") basePlanId = item.basePlans?.find(x => x === "yearly") || "yearly";
-      else if (period === "term") basePlanId = item.basePlans?.find(x => x === "term") || "term";
+      if (period === "yearly") basePlanId = "yearly";
+      else if (period === "monthly") basePlanId = "monthly";
+      else if (period === "term") basePlanId = "term";
       else basePlanId = item.basePlans?.find(x => x.includes(period)) || period;
+
+      if (!Array.isArray(item.basePlans) || !item.basePlans.includes(basePlanId)) {
+        throw new Error("missing_base_plan:" + item.id + ":" + basePlanId);
+      }
     }
 
     const eligibleTrial = item.trialEligible === true && item.offerId === "trial-3d" && item.productType === "subs";
