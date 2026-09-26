@@ -18,9 +18,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.ChatApiClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class ProductionSource(val id: Int, val name: String, val uri: Uri)
