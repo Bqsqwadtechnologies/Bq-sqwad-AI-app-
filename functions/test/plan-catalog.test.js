@@ -71,7 +71,12 @@ test("Business plans are website-managed and excluded from Google Play", () => {
   assert.ok(plans.length >= 7);
   for (const plan of plans) {
     assert.equal(plan.module, "business");
-    assert.equal(plan.playEligible, true, plan.id + " must remain Play-eligible");
+    if (plan.id === "bizprofessional") {
+      assert.equal(plan.playEligible, false);
+      assert.equal(plan.paymentChannel, "website");
+    } else {
+      assert.equal(plan.playEligible, true, plan.id + " must remain Play-eligible");
+    }
     assert.ok(Array.isArray(plan.features) && plan.features.length > 0, plan.id + " needs feature entitlements");
     assert.ok(plan.limits && typeof plan.limits === "object", plan.id + " needs limits");
   }
