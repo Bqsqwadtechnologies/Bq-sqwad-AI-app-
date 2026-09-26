@@ -50,3 +50,26 @@ Source inspection confirms the requested wiring, but a real Android device/emula
 8. Admin Test Mode -> only server-verified admin gets entitlement bypass.
 9. Non-admin -> no verified paid entitlement -> workspace remains behind the plan gate.
 10. Google Play purchase -> backend verification -> entitlement -> workspace access.
+
+
+## Organization AI / Studio checklist
+
+| # | Capability | Source status |
+|---|---|---|
+| 1 | Named production sources / scenes | **Wired server-side**: source and scene registries persist through Organization Production routes. Native StreamPack still has one active local camera pipeline, so true physical multi-camera live switching requires a verified multi-source broadcaster path. |
+| 2 | AI Director / automatic switching | **Partially wired**: AI Director and auto-switch controls persist and the production-director AI request is connected. Automatic physical switching is not claimed complete until the broadcaster can switch real sources during an active stream. |
+| 3 | YouTube live destination | **Wired server-side**: OAuth account tokens and client secret use the encrypted secret store; live broadcast/stream creation, ingestion credentials, transitions and status are implemented. |
+| 4 | Facebook / other simulcast destinations | **Configuration layer wired**; simultaneous native multi-destination broadcast is not claimed complete because the current native broadcaster has a single StreamPack output. |
+| 5 | Graphics overlays / lower thirds | **Deferred**: requires real-time video compositing in the active StreamPack pipeline rather than a metadata-only UI. |
+| 6 | Live captions / translation | **Partially wired** through AI capabilities, but continuous production caption/translation injection into the outgoing video is not yet a verified broadcaster feature. |
+| 7 | Scheduling / recurring programming | **Wired server-side** for organization-scoped scheduled AI tasks; a provider-specific starting-soon live broadcast countdown still requires live provider/device verification. |
+| 8 | Stream health / reconnect | **Health model wired** with fallback/reconnect policy fields and health/event endpoints; automatic physical camera/output recovery requires real-device/provider testing. |
+| 9 | Moderated viewer chat / Q&A | **Deferred**: requires a live-chat provider ingestion/moderation path and persistence beyond the current organization/channel model. |
+| 10 | Donation / giving QR overlay | **Deferred**: requires a real organization donation URL/provider and video compositing path; no fake QR or donation state is inserted. |
+| 11 | Post-event summaries / highlights | **Partially wired** through AI production capabilities; automated media extraction/highlight rendering needs a verified media-job pipeline. |
+| 12 | Attendance/check-in | **Organization member roles are wired**; viewer attendance/watch-time collection requires provider analytics events before it can be considered real. |
+| 13 | Branded sensitive-action confirmation | **Not yet fully wired** as a reusable organization-owned confirmation flow for all listed destructive/export/refund/ownership actions. |
+| 14 | Server-side sensitive-action roles | **Partially wired** through organization/member authorization; each sensitive action still needs its dedicated endpoint-level role enforcement verified before release. |
+| 15 | Session analytics | **Deferred** until real provider analytics events are ingested; the current production state/health records are not treated as viewer analytics. |
+
+This table intentionally separates real server/client wiring from provider-dependent features that cannot honestly be marked complete without the required live integration.
