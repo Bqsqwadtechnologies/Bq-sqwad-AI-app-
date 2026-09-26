@@ -1,7 +1,17 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+
+const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
+
+async function isSuperAdmin(uid) {
+  const user = await getAuth().getUser(uid);
+  const claims = user.customClaims || {};
+  return user.email === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+}
 
 export async function reserveCredits(uid, amount, capability) {
   const charge = Math.max(0, Number(amount));
+  if (await isSuperAdmin(uid)) return { reservationId: null, amount: 0, adminUnlimited: true };
   if (charge === 0) return { reservationId: null, amount: 0 };
   const db = getFirestore();
   const balanceRef = db.collection("creditBalances").doc(uid);
@@ -49,6 +59,21 @@ export async function commitCredits(uid, reservationId, providerId) {
       createdAt: FieldValue.serverTimestamp()
     });
   });
+}
+
+export async function grantCredits(adminUid, targetUid, amount, reason = "admin_grant") {
+  if (!(await isSuperAdmin(adminUid))) throw new Error("Admin access required");
+  const charge = Number(amount);
+  if (!Number.isFinite(charge) || charge <= 0) throw new Error("credit_amount_must_be_positive");
+  const db = getFirestore();
+  const balanceRef = db.collection("creditBalances").doc(targetUid);
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(balanceRef);
+    const current = snap.exists ? (snap.data() || {}) : {};
+    tx.set(balanceRef, { uid: targetUid, available: Number(current.available || 0) + charge, reserved: Number(current.reserved || 0), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.create(db.collection("creditLedger").doc(), { uid: targetUid, capability: "admin_grant", amount: charge, kind: "admin_grant", reason: String(reason || "admin_grant").slice(0, 200), actorUid: adminUid, createdAt: FieldValue.serverTimestamp() });
+  });
+  return { ok: true, uid: targetUid, amount: charge };
 }
 
 export async function reverseCredits(uid, reservationId) {
