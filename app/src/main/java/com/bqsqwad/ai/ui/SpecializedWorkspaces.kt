@@ -262,13 +262,51 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
 
 
 @Composable
-fun FrontierLabWorkspace() {
+fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf("Experiment") }
     var prompt by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var planName by remember { mutableStateOf("Frontier plan") }
+    var planFeatures by remember { mutableStateOf(emptyList<String>()) }
+    var planPrice by remember { mutableStateOf<String?>(null) }
+    var planTrial by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val api = WorkspaceApiClient()
+            val catalog = api.nativeCatalog()
+            val entitlements = api.entitlements()
+            val plans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
+            val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
+            val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.firstOrNull {
+                val id = it.optString("planId")
+                val state = it.optString("state")
+                id.startsWith("frontier") && state in setOf("active", "grace", "on_hold", "paused")
+            }
+            val id = active?.optString("planId").orEmpty().ifBlank { "frontierexplorer" }
+            val plan = (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
+            planName = plan?.optString("name").orEmpty().ifBlank { "Frontier plan" }
+            val price = plan?.optJSONObject("price")
+            if (price != null) {
+                val keys = price.keys()
+                val values = mutableListOf<String>()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    values += key.replaceFirstChar { it.uppercase() } + ": $" + price.opt(key)
+                }
+                planPrice = values.joinToString(" • ")
+            }
+            val features = plan?.optJSONArray("features") ?: org.json.JSONArray()
+            planFeatures = List(features.length()) { features.optString(it) }
+            if (plan?.optBoolean("trialEligible", false) == true) {
+                val days = plan.optInt("trialDays", 0)
+                if (days > 0) planTrial = days.toString() + "-day free trial"
+            }
+        }
+    }
 
     fun runExperiment() {
         val input = prompt.trim()
@@ -297,6 +335,18 @@ Separate established facts from hypotheses. Do not claim an experiment was execu
         style = WorkspaceVisualStyle.FRONTIER,
         icon = Icons.Default.Science
     ) {
+        SurfaceCard(
+            "Verified Frontier plan",
+            listOfNotNull(
+                planName,
+                planPrice,
+                planTrial,
+                planFeatures.takeIf { it.isNotEmpty() }?.joinToString(" • ")
+            ).joinToString(" | ")
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            OutlinedButton(onClick = onOpenPlans) { Text("View Frontier plans") }
+        }
         Text("Experiment mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Experiment", "Prototype", "Research", "Architecture").forEach {
