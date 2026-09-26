@@ -222,7 +222,7 @@ export const COMMERCIAL_CATALOG = {
 export const PLAN_CATALOG = Object.fromEntries(Object.entries(COMMERCIAL_CATALOG.sections).map(([section, rows]) => [
   section === "businessAddOns" ? "addOns" : section,
   rows.map(p => [p.id, p.name, p.price?.monthly ?? p.price?.free ?? null, p.price?.yearly ?? null, p.features || [], p.limits || {}])
-])));
+]));
 PLAN_CATALOG.trialOfferId = "trial-3d";
 PLAN_CATALOG.addOnTrial = false;
 PLAN_CATALOG.basePlanIds = ["monthly","yearly"];
