@@ -490,3 +490,12 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 ### Verification boundary
 - Source-level route and state tracing was performed against the current `main` source.
 - A real Firebase test-account flow, physical-device camera/microphone session, staging Functions deployment, Google Play sandbox purchase, signed release APK/AAB build, and live device smoke test still require the user's Android/CI environment. They are not claimed as completed by this source audit alone.
+
+## TruthGuard AI — completed plan-gated backend integration (2026-09-26)
+
+- Added a server-owned `POST /truthguard/check` flow. A TruthGuard check now performs the verified capability/plan gate, evidence retrieval, TruthGuard analysis, per-plan usage accounting, and per-user history persistence as one backend operation.
+- TruthGuard plans are explicitly recognized by the capability runtime: `truthguardfree`, `tgplus`, `tgpro`, and `tgteam`.
+- Free TruthGuard access is allowed without a paid entitlement and is limited server-side to 5 checks/month. Plus is limited to 150/month, Pro to 1,000/month, and Team uses fair-use without the hard monthly ceiling.
+- Paid TruthGuard access requires the corresponding verified active entitlement. Admin Test Mode remains the only server-authorized bypass.
+- Added authenticated `GET /truthguard/history` and isolated records by Firebase UID.
+- Android TruthGuard now reads its active plan from `/native/catalog` + `/entitlements`, presents tier-specific capabilities, locks Deep verification for Free, opens the live Plans catalog for upgrades, and displays saved verification history.
