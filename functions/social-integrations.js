@@ -45,7 +45,7 @@ const PLATFORMS = {
     label: "X",
     authorizationUrl: "https://twitter.com/i/oauth2/authorize",
     tokenUrl: "https://api.x.com/2/oauth2/token",
-    defaultScopes: ["tweet.read", "tweet.write", "users.read", "offline.access"]
+    defaultScopes: ["tweet.read", "tweet.write", "users.read", "media.write", "like.read", "like.write", "offline.access"]
   }
 };
 
@@ -266,6 +266,76 @@ export async function saveSocialAccount(platform, tokenData, metadata = {}, acto
   return { id, platform, status: "connected", metadata };
 }
 
+
+async function getValidXToken(account) {
+  let token = account.accessTokenSecret?.ciphertext ? decryptSecret(account.accessTokenSecret) : clean(account.token, 10000);
+  const expiresAt = account.expiresAt?.toDate?.()?.getTime?.() || 0;
+  if (expiresAt && expiresAt <= Date.now() + 60000) {
+    if (!account.refreshTokenSecret?.ciphertext) throw new Error("x_refresh_token_missing");
+    const refreshed = await refreshXAccessToken(account);
+    return { token: refreshed.accessToken, patch: {
+      accessTokenSecret: encryptSecret(refreshed.accessToken),
+      refreshTokenSecret: encryptSecret(refreshed.refreshToken),
+      expiresAt: refreshed.expiresAt,
+      updatedAt: FieldValue.serverTimestamp()
+    }};
+  }
+  return { token, patch: null };
+}
+
+function requireXScope(account, scope) {
+  const scopes = new Set((account.grantedScopes || []).map(String));
+  if (scopes.size && !scopes.has(scope)) throw new Error("x_" + scope.replace(".", "_") + "_missing_reconnect_required");
+}
+
+export async function manageXAction(uid, accountId, input = {}) {
+  const ref = accountRef(clean(accountId, 160));
+  const snap = await ref.get();
+  if (!snap.exists || clean(snap.data()?.uid, 160) !== uid) throw new Error("social_account_not_found");
+  const account = snap.data();
+  if (clean(account.platform, 40) !== "x") throw new Error("x_account_required");
+  const workspaceId = clean(input.workspaceId || account.workspaceId, 120);
+  if (!workspaceId) throw new Error("business_workspace_required");
+  await requireBusinessAccess(uid, workspaceId, "manager");
+  await requireBusinessPlan(uid, workspaceId, "channels");
+  const action = clean(input.action, 40);
+  const x = await getValidXToken(account);
+  if (x.patch) await ref.set(x.patch, { merge: true });
+  const token = x.token;
+  const userId = String(account.metadata?.xAccount?.id || "");
+  if (!userId) throw new Error("x_user_id_missing");
+  let response;
+  if (action === "reply") {
+    requireXScope(account, "tweet.write");
+    const postId = clean(input.postId, 80), text = clean(input.text, 5000);
+    if (!postId || !text) throw new Error("x_reply_requires_post_and_text");
+    response = await fetch("https://api.x.com/2/tweets", { method:"POST", headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"}, body:JSON.stringify({text,reply:{in_reply_to_tweet_id:postId}}) });
+  } else if (action === "delete") {
+    requireXScope(account, "tweet.write");
+    const postId = clean(input.postId, 80);
+    if (!postId) throw new Error("x_delete_requires_post");
+    response = await fetch("https://api.x.com/2/tweets/"+encodeURIComponent(postId), {method:"DELETE",headers:{Authorization:"Bearer "+token}});
+  } else if (action === "like" || action === "unlike") {
+    requireXScope(account, "like.write");
+    const postId = clean(input.postId, 80);
+    if (!postId) throw new Error("x_"+action+"_requires_post");
+    response = action === "like"
+      ? await fetch("https://api.x.com/2/users/"+encodeURIComponent(userId)+"/likes",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({tweet_id:postId})})
+      : await fetch("https://api.x.com/2/users/"+encodeURIComponent(userId)+"/likes/"+encodeURIComponent(postId),{method:"DELETE",headers:{Authorization:"Bearer "+token}});
+  } else if (action === "repost" || action === "unrepost") {
+    requireXScope(account, "tweet.write");
+    const postId = clean(input.postId, 80);
+    if (!postId) throw new Error("x_"+action+"_requires_post");
+    response = action === "repost"
+      ? await fetch("https://api.x.com/2/users/"+encodeURIComponent(userId)+"/retweets",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({tweet_id:postId})})
+      : await fetch("https://api.x.com/2/users/"+encodeURIComponent(userId)+"/retweets/"+encodeURIComponent(postId),{method:"DELETE",headers:{Authorization:"Bearer "+token}});
+  } else {
+    throw new Error("unsupported_x_action");
+  }
+  const raw=await response.text(); let parsed={}; try{parsed=JSON.parse(raw);}catch{}
+  if(!response.ok) throw new Error("x_"+action+"_failed:"+raw.replace(/[\r\n]+/g," ").slice(0,700));
+  return {ok:true,action,data:parsed?.data||parsed};
+}
 
 export async function publishSocialPost(uid, accountId, input = {}) {
   const ref = accountRef(clean(accountId, 160));
