@@ -561,6 +561,9 @@ private fun MainShell(modifier: Modifier) {
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
+    var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
+    var accessLoading by remember { mutableStateOf(true) }
+    var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
 
     LaunchedEffect(email) {
         // The backend is authoritative for admin visibility. Normal users never receive
@@ -570,9 +573,31 @@ private fun MainShell(modifier: Modifier) {
         }.getOrDefault(false)
     }
 
+    LaunchedEffect(email) {
+        accessLoading = true
+        val api = WorkspaceApiClient()
+        runCatching {
+            val catalog = api.nativeCatalog()
+            val entitlements = api.entitlements()
+            val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
+            val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
+            WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
+        }.onSuccess { workspaceAccess = it }
+         .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+        accessLoading = false
+    }
+
     val openWorkspace: (Workspace) -> Unit = { selected ->
         drawerOpen = false
-        workspace = selected
+        if (selected == Workspace.ADMIN) {
+            if (adminAuthorized) workspace = selected else paywallWorkspace = selected
+        } else if (accessLoading) {
+            paywallWorkspace = selected
+        } else if (workspaceAccess.hasVerifiedAccess(selected)) {
+            workspace = selected
+        } else {
+            paywallWorkspace = selected
+        }
     }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -684,10 +709,8 @@ private fun MainShell(modifier: Modifier) {
                 onPlans = { featureHub = false; plans = true },
                 onHistory = { featureHub = false; history = true },
                 onWorkspace = { selected ->
-                    if (selected != Workspace.ADMIN || adminAuthorized) {
-                        featureHub = false
-                        workspace = selected
-                    }
+                    featureHub = false
+                    openWorkspace(selected)
                 },
                 onAdvancedFeature = { selected -> featureHub = false; advancedFeature = selected }
             )
@@ -732,6 +755,25 @@ private fun MainShell(modifier: Modifier) {
                 onPrivacy = { featurePrivacy = Workspace.CHAT }
             )
         }
+    }
+
+    paywallWorkspace?.let { selected ->
+        AlertDialog(
+            onDismissRequest = { paywallWorkspace = null },
+            title = { Text("Plan required") },
+            text = {
+                Text(
+                    if (accessLoading) "Checking verified access for " + selected.title + "…"
+                    else selected.title + " requires a verified plan or an eligible free tier. Your access is checked by the server before the workspace opens."
+                )
+            },
+            confirmButton = {
+                Button(onClick = { paywallWorkspace = null; plans = true }) { Text("View Plans & Credits") }
+            },
+            dismissButton = {
+                TextButton(onClick = { paywallWorkspace = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
