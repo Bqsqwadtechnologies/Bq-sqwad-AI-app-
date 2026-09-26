@@ -1,0 +1,92 @@
+name: BQ Sqwad AI — Deploy Firebase Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "functions/**"
+      - "firebase.json"
+      - "firestore.rules"
+      - ".github/workflows/deploy-functions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID: bqsqwadai
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package.json
+
+      - name: Install backend dependencies
+        working-directory: functions
+        run: npm install
+
+      - name: Validate backend JavaScript
+        working-directory: functions
+        run: npm run check
+
+      - name: Run backend tests
+        working-directory: functions
+        run: npm test
+
+      - name: Authenticate with Google service account
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Verify Firebase deployment credentials
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON}" ] && [ -z "${FIREBASE_TOKEN}" ]; then
+            echo "Missing GitHub secret: set FIREBASE_SERVICE_ACCOUNT_JSON (preferred) or FIREBASE_TOKEN."
+            exit 1
+          fi
+
+      - name: Deploy functions and Firestore rules with service account
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
+        run: npx --yes firebase-tools@latest deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID}" --non-interactive
+
+      - name: Deploy functions and Firestore rules with Firebase token
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON == '' && secrets.FIREBASE_TOKEN != '' }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: npx --yes firebase-tools@latest deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID}" --non-interactive --token "${FIREBASE_TOKEN}"
+
+      - name: Verify deployed health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://europe-west1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/bqSqwadApi/health"
+          for attempt in 1 2 3 4 5 6; do
+            BODY="$(curl --fail --silent --show-error --max-time 20 "$URL" || true)"
+            echo "Health response (attempt $attempt): $BODY"
+            if echo "$BODY" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Deployed health endpoint did not return {ok:true}."
+          exit 1
