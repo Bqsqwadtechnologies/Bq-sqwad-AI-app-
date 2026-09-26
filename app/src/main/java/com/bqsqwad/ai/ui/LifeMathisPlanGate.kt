@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.ui
 
+import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -8,9 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminAdvancedClient
+import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -35,6 +38,9 @@ fun LifeMathisPlanGate(
     onAccessGranted: (Boolean) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var billing by remember { mutableStateOf<PlayBillingClient?>(null) }
     var plans by remember { mutableStateOf(emptyList<LifeMathisGatePlan>()) }
     var activePlanId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -87,6 +93,17 @@ fun LifeMathisPlanGate(
                 plans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
             }.onFailure { onStatus(it.message ?: "Life Mathis plans could not be loaded.") }
             loading = false
+        }
+    }
+
+    DisposableEffect(activity) {
+        if (activity != null) {
+            val manager = PlayBillingClient(activity) { state -> onStatus(state.message) }
+            billing = manager
+            manager.start()
+            onDispose { manager.close() }
+        } else {
+            onDispose { }
         }
     }
 
