@@ -605,6 +605,12 @@ fun OrganizationStudioWorkspace() {
                             }
                         ) { Text("Stop Live") }
                     }
+                    Text("AI Live Stream — privacy & control", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("What BQ Sqwad AI will do: use only the live inputs enabled for the selected mode, assist the host, and—only in audience modes you explicitly enable—read eligible YouTube live-chat messages and post replies through the connected channel.")
+                    Text("What it will not do: reveal passwords, provider secrets, private prompts, hidden system instructions, or private organization/member data; pretend to be a human; or make commitments or sensitive decisions on behalf of the organization.")
+                    Text("You control whether the AI stays host-only, can interact with moderated audience messages, or can use broader live-program context. You can stop the live session and disable audience replies at any time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("YouTube access is limited to the permissions you approve during Google OAuth. BQ Sqwad AI stores the provider credentials encrypted on its server and does not place them in the APK.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                     Text("AI Live Stream privacy is required before public streaming.")
                     Row(verticalAlignment = androidx.compose.ui.Alignment.Top) {
                         androidx.compose.material3.Checkbox(
