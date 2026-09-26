@@ -38,6 +38,7 @@ private data class AdminCatalogRow(
     val playStatus:String,
     val contactSales:Boolean,
     val active:Boolean,
+    val popular:Boolean,
     val limits:String,
     val features:List<String>,
     val tiers:String,
@@ -85,6 +86,7 @@ fun AdminPlanCatalogScreen(onBack:()->Unit) {
                 playStatus=p.optString("playBillingStatus"),
                 contactSales=p.optBoolean("contactSales",false),
                 active=p.optBoolean("active",true),
+                popular=p.optBoolean("popular",false),
                 limits=p.optJSONObject("limits")?.toString() ?: "{}",
                 features=List(features.length()){n->features.optString(n)}.filter{it.isNotBlank()},
                 tiers=tiers.toString(),
@@ -104,6 +106,28 @@ fun AdminPlanCatalogScreen(onBack:()->Unit) {
                 rows=parseRows(catalog)
             }.onFailure { error=it.message ?: "Could not load the admin catalog." }
             loading=false
+        }
+    }
+
+    fun setPlanActive(planId:String, active:Boolean) {
+        scope.launch {
+            runCatching { WorkspaceApiClient().setAdminPlanStatus(planId, active) }
+                .onSuccess {
+                    notice = if (active) "Plan activated." else "Plan deactivated. Existing verified subscribers are not revoked."
+                    load()
+                }
+                .onFailure { error = it.message ?: "Could not change plan availability." }
+        }
+    }
+
+    fun setPlanPopular(planId:String) {
+        scope.launch {
+            runCatching { WorkspaceApiClient().setAdminPlanPopular(planId) }
+                .onSuccess {
+                    notice = "Popular plan updated."
+                    load()
+                }
+                .onFailure { error = it.message ?: "Could not update Popular plan." }
         }
     }
 
@@ -182,7 +206,23 @@ fun AdminPlanCatalogScreen(onBack:()->Unit) {
                                 Text(row.name,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
                                 Text(row.module,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(if(row.active)"Active" else "Inactive",color=if(row.active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
+                            Column(horizontalAlignment=androidx.compose.ui.Alignment.End) {
+                                Text(if(row.active)"Active" else "Inactive",color=if(row.active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
+                                Switch(
+                                    checked=row.active,
+                                    enabled=!saving,
+                                    onCheckedChange={setPlanActive(row.id,it)}
+                                )
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            if(row.popular) {
+                                AssistChip(onClick={},label={Text("POPULAR")})
+                            }
+                            OutlinedButton(
+                                onClick={ { setPlanPopular(row.id) } },
+                                enabled=!saving
+                            ) { Text(if(row.popular)"Popular" else "Set Popular") }
                         }
                         Text("Internal ID: "+row.id,fontWeight=FontWeight.SemiBold)
                         Text("Google Play product: "+(row.productId ?: "None"))
