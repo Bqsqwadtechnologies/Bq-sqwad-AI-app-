@@ -326,8 +326,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             item(key="plan:"+plan.id) {
                                 LivePlanCard(
                                     plan=plan,
-                                    playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
-                                    playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
+                                    playEntries=catalog.filter { it.planId == plan.id && it.enabled },
+                                    playProducts=playProducts,
                                     billing=billing,
                                     onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
                                     onStatus={ status=it }
@@ -384,17 +384,17 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 @Composable
 private fun LivePlanCard(
     plan: LivePlan,
-    playEntry: PlayCatalogEntry?,
-    playProduct: ProductDetails?,
+    playEntries: List<PlayCatalogEntry>,
+    playProducts: List<ProductDetails>,
     billing: PlayBillingClient?,
     onContact: () -> Unit,
     onStatus: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val supportedPeriods = plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
-    val selectedPeriod = supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty()
-    val selectedEntry = playEntry
-    val selectedProduct = playProduct
+    var selectedPeriod by remember(plan.id) { mutableStateOf(supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty()) }
+    val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod } ?: playEntries.firstOrNull()
+    val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val priceText = plan.price.entries.joinToString(" • ") { (period, value) ->
         val numeric = value.toDoubleOrNull()
         val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
@@ -481,7 +481,7 @@ private fun LivePlanCard(
                         }
                         plan.playEligible && playEntry != null && playProduct != null && billing?.isReady() == true -> {
                             val result=billing.launchPurchase(playProduct.productId, playEntry.basePlanId)
-                            onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started. Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
+                            onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
                         }
                         else -> onStatus("This plan is not currently purchasable on this device.")
                     }
