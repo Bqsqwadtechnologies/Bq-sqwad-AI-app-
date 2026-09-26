@@ -17,19 +17,106 @@ import org.json.JSONObject
 
 private data class WorkspaceTurn(val user: Boolean, val text: String)
 
+data class TruthGuardHistoryItem(
+    val id: String,
+    val claim: String,
+    val analysis: String,
+    val createdAt: String
+)
+
+private data class TruthGuardPlanUi(
+    val id: String,
+    val name: String,
+    val checks: String,
+    val features: List<String>,
+    val deep: Boolean,
+    val export: Boolean,
+    val team: Boolean
+)
+
+private val truthGuardPlansUi = listOf(
+    TruthGuardPlanUi(
+        "truthguardfree", "TruthGuard Free", "5 checks/month",
+        listOf("Verdict", "Confidence", "Plain-English explanation", "Up to 3 cited sources/check"),
+        deep = false, export = false, team = false
+    ),
+    TruthGuardPlanUi(
+        "tgplus", "TruthGuard Plus", "150 checks/month",
+        listOf("Live web evidence", "Source reliability notes", "Manipulation/bias signals", "History"),
+        deep = true, export = false, team = false
+    ),
+    TruthGuardPlanUi(
+        "tgpro", "TruthGuard Pro", "1,000 checks/month",
+        listOf("Deep evidence sweep", "More sources", "Long-article claim breakdown", "Export-ready summaries", "Priority processing"),
+        deep = true, export = true, team = false
+    ),
+    TruthGuardPlanUi(
+        "tgteam", "TruthGuard Team", "Fair-use unlimited",
+        listOf("Everything in Pro", "Shared organization history", "Priority support"),
+        deep = true, export = true, team = true
+    )
+)
+
 @Composable
-fun TruthGuardWorkspace() {
+fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var claim by remember { mutableStateOf("") }
     var depth by remember { mutableStateOf("Standard") }
     var busy by remember { mutableStateOf(false) }
+    var loadingPlan by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var analysis by remember { mutableStateOf<String?>(null) }
     var sources by remember { mutableStateOf<List<SearchSource>>(emptyList()) }
+    var history by remember { mutableStateOf<List<TruthGuardHistoryItem>>(emptyList()) }
+    var selectedHistory by remember { mutableStateOf<TruthGuardHistoryItem?>(null) }
+    var activePlanId by remember { mutableStateOf("truthguardfree") }
+
+    val activePlan = truthGuardPlansUi.firstOrNull { it.id == activePlanId } ?: truthGuardPlansUi.first()
+
+    fun refreshWorkspace() {
+        scope.launch {
+            loadingPlan = true
+            runCatching {
+                val api = WorkspaceApiClient()
+                val catalog = api.nativeCatalog()
+                val entitlements = api.entitlements()
+                val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
+                val activeIds = buildSet {
+                    for (i in 0 until items.length()) {
+                        val item = items.optJSONObject(i) ?: continue
+                        val state = item.optString("state")
+                        if (state in setOf("active", "grace", "on_hold", "paused")) {
+                            item.optString("planId").takeIf { it.isNotBlank() }?.let(::add)
+                        }
+                    }
+                }
+                activePlanId = listOf("tgteam", "tgpro", "tgplus", "truthguardfree")
+                    .firstOrNull { activeIds.contains(it) }
+                    ?: "truthguardfree"
+                val catalogPlans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
+                if (catalogPlans.length() == 0) error("TruthGuard catalog is unavailable.")
+                history = api.truthGuardHistory().mapNotNull { row ->
+                    TruthGuardHistoryItem(
+                        id = row.optString("id"),
+                        claim = row.optString("claim"),
+                        analysis = row.optString("analysis"),
+                        createdAt = row.optString("createdAt")
+                    ).takeIf { it.claim.isNotBlank() && it.analysis.isNotBlank() }
+                }
+            }.onFailure {
+                error = it.message ?: "Could not refresh TruthGuard access."
+            }
+            loadingPlan = false
+        }
+    }
 
     fun verify() {
         val input = claim.trim()
         if (input.isBlank() || busy) return
+        if (depth == "Deep" && !activePlan.deep) {
+            error = "Deep evidence is included with TruthGuard Plus and above."
+            return
+        }
         busy = true
         error = null
         analysis = null
@@ -42,25 +129,82 @@ fun TruthGuardWorkspace() {
                 val evidence = research.sources.joinToString("\n\n") {
                     "Source: ${it.title}\nURL: ${it.url}\n${it.snippet.orEmpty()}"
                 }
-                val system = """You are TruthGuard AI. Evaluate the supplied claim using the evidence.
+                val system = """You are TruthGuard AI.
+Evaluate the supplied claim using the evidence.
 Separate supported evidence, conflicting evidence, and information that cannot be established.
 Do not invent sources. State uncertainty clearly.
+TruthGuard plan: ${activePlan.name}
+Plan capabilities: ${activePlan.features.joinToString(", ")}
 Evidence:
 $evidence"""
-                api.workspaceAi("truth_guard", input, system)
+                val response = api.workspaceAi("truth_guard", input, system)
+                val text = response.optString("text").ifBlank { response.optString("answer") }
+                api.saveTruthGuardCheck(input, text, research.sources)
+                text
             }.onSuccess {
-                analysis = it.optString("text").ifBlank { it.optString("answer") }
-            }.onFailure { error = it.message ?: "TruthGuard could not complete the check." }
+                analysis = it
+                refreshWorkspace()
+            }.onFailure {
+                error = it.message ?: "TruthGuard could not complete the check."
+            }
             busy = false
         }
     }
 
+    LaunchedEffect(Unit) { refreshWorkspace() }
+
     WorkspaceFrame(
         title = "TruthGuard AI",
         style = WorkspaceVisualStyle.TRUTH_GUARD,
-        subtitle = "Evidence-first claim checking with source-aware analysis.",
+        subtitle = "Evidence-first claim checking with a plan-aware verification workspace.",
         icon = Icons.Default.Verified
     ) {
+        if (loadingPlan) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 2.dp
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(Modifier.weight(1f)) {
+                        Text(activePlan.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(activePlan.checks, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (activePlan.id != "truthguardfree") {
+                        AssistChip(onClick = {}, label = { Text("ACTIVE") })
+                    }
+                }
+                Text(
+                    activePlan.features.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (activePlan.id == "truthguardfree") {
+                    OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
+                        Text("View TruthGuard plans")
+                    }
+                }
+            }
+        }
+
+        Text("Verification mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = depth == "Standard",
+                onClick = { depth = "Standard" },
+                label = { Text("Standard") }
+            )
+            FilterChip(
+                selected = depth == "Deep",
+                onClick = { if (activePlan.deep) depth = "Deep" else error = "Deep evidence is locked on your current plan." },
+                label = { Text(if (activePlan.deep) "Deep" else "Deep • Upgrade") }
+            )
+        }
+
         Text("Claim to check", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         OutlinedTextField(
             value = claim,
@@ -69,11 +213,6 @@ $evidence"""
             minLines = 4,
             placeholder = { Text("Enter a claim, statement, headline or question…") }
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Standard", "Deep").forEach {
-                FilterChip(selected = depth == it, onClick = { depth = it }, label = { Text(it) })
-            }
-        }
         Button(
             onClick = ::verify,
             enabled = claim.isNotBlank() && !busy,
@@ -82,9 +221,8 @@ $evidence"""
 
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-        analysis?.let {
-            SurfaceCard("Analysis", it)
-        }
+        analysis?.let { SurfaceCard("Latest TruthGuard analysis", it) }
+
         if (sources.isNotEmpty()) {
             Text("Evidence sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             sources.forEachIndexed { index, source ->
@@ -94,9 +232,34 @@ $evidence"""
                 )
             }
         }
+
+        Text("Saved verification history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        if (history.isEmpty()) {
+            Text("Your completed checks will appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            history.take(20).forEach { item ->
+                OutlinedCard(
+                    onClick = { selectedHistory = item },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(item.claim, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                        Text(item.createdAt, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+
+        selectedHistory?.let { item ->
+            AlertDialog(
+                onDismissRequest = { selectedHistory = null },
+                confirmButton = { TextButton(onClick = { selectedHistory = null }) { Text("Close") } },
+                title = { Text("TruthGuard result") },
+                text = { Text(item.analysis) }
+            )
+        }
     }
 }
-
 
 
 @Composable
