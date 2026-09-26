@@ -259,7 +259,7 @@ export function validateCommercialCatalog(catalog = COMMERCIAL_CATALOG) {
         products.push(String(item.productId));
       }
       if (item.productType === "subs" && item.playEligible && (item.billingPeriods || []).includes("yearly")) {
-        if (!(item.basePlans || []).includes("yearly")) {
+        if (!(item.basePlans || []).some(base => base === "yearly" || String(base).endsWith("-yearly"))) {
           throw new Error("yearly_base_plan_required:" + id);
         }
       }
