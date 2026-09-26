@@ -274,7 +274,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                             onAuthenticated()
                             val signedIn = auth.currentUser
                             if (signedIn?.isEmailVerified == false) {
-                                notice = "Signed in. Please verify your email before using protected features."
+                                notice = "Signed in. We sent a verification email to " + (signedIn.email ?: "your email address") + ". Verification is recommended, but it does not replace the required Terms and Privacy consent."
                                 signedIn.sendEmailVerification()
                             }
                         } else {
