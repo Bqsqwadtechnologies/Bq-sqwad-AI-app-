@@ -242,6 +242,15 @@ class WorkspaceApiClient {
             .put("redirectUri", redirectUri.take(1000))
             .put("workspaceId", workspaceId.take(120)))
 
+    suspend fun xAction(accountId:String, workspaceId:String, action:String, postId:String? = null, text:String? = null): JSONObject =
+        request("/social/x/action", payload=JSONObject().apply {
+            put("accountId", accountId.take(160))
+            put("workspaceId", workspaceId.take(120))
+            put("action", action.take(40))
+            if (postId != null) put("postId", postId.take(80))
+            if (text != null) put("text", text.take(5000))
+        })
+
     suspend fun publishSocial(accountId:String, text:String, mediaUrl:String? = null, pageId:String? = null, instagramAccountId:String? = null): JSONObject =
         request("/social/publish", payload=JSONObject().apply {
             put("accountId", accountId.take(160)); put("text", text.take(5000))
