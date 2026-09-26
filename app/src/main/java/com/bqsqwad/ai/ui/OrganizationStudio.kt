@@ -67,6 +67,13 @@ fun OrganizationStudioWorkspace() {
     var scheduledSchedule by remember { mutableStateOf("daily") }
     var scheduledTasks by remember { mutableStateOf(org.json.JSONArray()) }
     var connectedPlatforms by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var youtubeAccounts by remember { mutableStateOf(org.json.JSONArray()) }
+    var selectedYoutubeAccountId by remember { mutableStateOf("") }
+    var aiLiveMode by remember { mutableStateOf("host_only") }
+    var aiLivePrivacyAccepted by remember { mutableStateOf(false) }
+    var aiLiveViewerReplies by remember { mutableStateOf(false) }
+    var aiLiveScreenAwareness by remember { mutableStateOf(false) }
+    var aiLiveCreditsPerMinute by remember { mutableStateOf(0.25) }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
@@ -122,18 +129,27 @@ fun OrganizationStudioWorkspace() {
             .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
             .onFailure { error = it.message ?: "Scheduled AI tasks could not be loaded." }
         runCatching {
-            val business = api.businessWorkspace()
-            api.socialAccounts(business.optString("workspaceId"))
+            val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
+            if (orgId.isBlank()) error("organization_id_missing")
+            api.organizationYouTubeAccounts(orgId)
         }.onSuccess { body ->
             val accounts = body.optJSONArray("accounts") ?: org.json.JSONArray()
-            val next = mutableMapOf<String, Boolean>()
-            for (i in 0 until accounts.length()) {
-                val account = accounts.optJSONObject(i) ?: continue
-                val platform = account.optString("platform").lowercase()
-                if (platform.isNotBlank()) next[platform] = account.optString("status", "unknown") == "connected"
+            youtubeAccounts = accounts
+            if (selectedYoutubeAccountId.isBlank() && accounts.length() > 0) {
+                selectedYoutubeAccountId = accounts.optJSONObject(0)?.optString("id").orEmpty()
             }
-            connectedPlatforms = next
+            connectedPlatforms = connectedPlatforms.toMutableMap().apply { this["youtube"] = accounts.length() > 0 }
         }.onFailure { /* disconnected status remains fail-closed */ }
+
+        runCatching { api.organizationAiLiveConfig() }
+            .onSuccess {
+                aiLiveMode = it.optString("mode", "host_only")
+                aiLivePrivacyAccepted = it.optBoolean("privacyAccepted", false)
+                aiLiveViewerReplies = it.optBoolean("viewerReplies", false)
+                aiLiveScreenAwareness = it.optBoolean("screenAwareness", false)
+                aiLiveCreditsPerMinute = it.optDouble("creditRatePerMinute", 0.25)
+            }
+            .onFailure { /* first-run defaults remain safe */ }
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -453,24 +469,49 @@ fun OrganizationStudioWorkspace() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("YouTube live production", style = MaterialTheme.typography.titleLarge)
                     Text("Organization AI creates the provider session server-side, then the native camera broadcaster sends H.264 video and AAC audio directly to the provider ingestion endpoint.")
+                    Text("YouTube account", style = MaterialTheme.typography.labelLarge)
+                    if (youtubeAccounts.length() == 0) {
+                        Text("No Organization YouTube channel is connected. Connect it below; the client secret stays in the encrypted server secret store.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                runCatching {
+                                    val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
+                                    api.startOrganizationYouTubeOAuth(orgId, "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback")
+                                }.onSuccess {
+                                    val url = it.optString("authorizationUrl")
+                                    if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }.onFailure { e -> error = e.message ?: "YouTube connection could not start." }
+                            }
+                        }) { Text("Connect YouTube") }
+                    } else {
+                        for (i in 0 until youtubeAccounts.length()) {
+                            val account = youtubeAccounts.optJSONObject(i) ?: continue
+                            val id = account.optString("id")
+                            val label = account.optJSONObject("metadata")?.optString("channelTitle").takeUnless { it.isNullOrBlank() } ?: "Connected YouTube channel"
+                            FilterChip(selected = selectedYoutubeAccountId == id, onClick = { selectedYoutubeAccountId = id }, label = { Text(label) })
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            enabled = liveSessionId == null && !busy,
+                            enabled = liveSessionId == null && !busy && selectedYoutubeAccountId.isNotBlank() && aiLivePrivacyAccepted,
                             onClick = {
                                 busy = true
                                 error = null
                                 scope.launch {
                                     try {
-                                        val workspace = api.businessWorkspace()
+                                        val organizationId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
                                         val result = api.createYouTubeLive(
                                             org.json.JSONObject()
-                                                .put("workspaceId", workspace.optString("workspaceId"))
+                                                .put("organizationId", organizationId)
+                                                .put("accountId", selectedYoutubeAccountId)
                                                 .put("title", name.ifBlank { "BQ Sqwad AI Live" })
                                                 .put("privacyStatus", "private")
                                                 .put("enableAutoStart", true)
                                                 .put("enableAutoStop", true)
                                                 .put("resolution", "1080p")
                                                 .put("frameRate", "30fps")
+                                                .put("aiLiveMode", aiLiveMode)
+                                                .put("aiLivePrivacyAccepted", aiLivePrivacyAccepted)
                                         )
                                         val sessionId = result.optString("sessionId").takeIf { it.isNotBlank() }
                                             ?: error("YouTube live session was not created.")
@@ -513,6 +554,69 @@ fun OrganizationStudioWorkspace() {
                             }
                         ) { Text("Stop Live") }
                     }
+                    Text("AI Live Stream privacy is required before public streaming.")
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                        androidx.compose.material3.Checkbox(
+                            checked = aiLivePrivacyAccepted,
+                            onCheckedChange = { aiLivePrivacyAccepted = it }
+                        )
+                        Text("I understand what BQ Sqwad AI can see and say during this live session, and I choose the audience mode below.", modifier = Modifier.padding(top = 12.dp))
+                    }
+                    Text("Mode: " + when (aiLiveMode) {
+                        "host_only" -> "Host Only — AI assists the host and does not reply to viewers."
+                        "moderated_audience" -> "Moderated Audience — AI may read and reply to viewer comments through the host's approved live channel."
+                        else -> "Full Audience — AI can use the live program/screen context and reply to viewers; stronger privacy and moderation controls apply."
+                    })
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            "host_only" to "Host Only",
+                            "moderated_audience" to "Moderated",
+                            "full_audience" to "Full Audience"
+                        ).forEach { (id, label) ->
+                            FilterChip(selected = aiLiveMode == id, onClick = {
+                                aiLiveMode = id
+                                if (id == "host_only") {
+                                    aiLiveViewerReplies = false
+                                    aiLiveScreenAwareness = false
+                                } else if (id == "moderated_audience") {
+                                    aiLiveViewerReplies = true
+                                    aiLiveScreenAwareness = false
+                                } else {
+                                    aiLiveViewerReplies = true
+                                    aiLiveScreenAwareness = true
+                                }
+                            }, label = { Text(label) })
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("AI may reply to viewers")
+                        Switch(aiLiveViewerReplies, onCheckedChange = { if (aiLiveMode != "host_only") aiLiveViewerReplies = it })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("AI may use live screen/program context")
+                        Switch(aiLiveScreenAwareness, onCheckedChange = { if (aiLiveMode == "full_audience") aiLiveScreenAwareness = it })
+                    }
+                    Text("Mode credit rate: ${"%.2f".format(aiLiveCreditsPerMinute)} credits/minute. Each mode is tracked separately so audience-facing AI usage does not silently consume host-only usage.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(
+                        enabled = aiLivePrivacyAccepted && !busy,
+                        onClick = {
+                            scope.launch {
+                                runCatching {
+                                    api.updateOrganizationAiLiveConfig(
+                                        org.json.JSONObject()
+                                            .put("mode", aiLiveMode)
+                                            .put("privacyAccepted", aiLivePrivacyAccepted)
+                                            .put("privacyVersion", "2026-09")
+                                            .put("viewerReplies", aiLiveViewerReplies)
+                                            .put("screenAwareness", aiLiveScreenAwareness)
+                                    )
+                                }.onSuccess {
+                                    aiLiveCreditsPerMinute = it.optDouble("creditRatePerMinute", aiLiveCreditsPerMinute)
+                                }.onFailure { e -> error = e.message ?: "AI Live privacy settings could not be saved." }
+                            }
+                        }
+                    ) { Text("Save AI Live privacy & mode") }
+
                     Text("Session: " + (liveSessionId ?: "not running"))
                 }
             }
