@@ -49,17 +49,24 @@ async function effectiveBusinessPlan(uid, workspace) {
   const isAdmin = adminUser.email === "isaacoshiomole0@gmail.com" &&
     (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
   if (isAdmin) {
-    const unrestricted = businessCatalogPlans().find(p => p.id === "bizenterprise") || businessCatalogPlans().find(p => p.id === "bizbusiness") || businessCatalogPlans()[0];
-    if (unrestricted) return { plan: { ...unrestricted, limits: { ...(unrestricted.limits || {}), aiMessagesPerMonth: "unlimited under fair use" } }, source: "admin_unlimited", adminTest: true, expiresAt: null, features: expandInheritedBusinessFeatures(unrestricted.id) };
+    // Admin access to Business AI is never an unconditional bypass. The only
+    // entitlement bypass is an explicitly enabled, server-side test session.
     const testSnap = await dbi.collection("adminBusinessTestSessions").doc(uid).get();
     if (testSnap.exists) {
       const test = testSnap.data() || {};
       const expires = test.expiresAt?.toDate?.()?.getTime?.() || Number(test.expiresAt || 0);
-      if (test.enabled === true && (!expires || expires > Date.now())) {
-        const testPlan = businessCatalogPlans().find(p => p.id === String(test.planId || ""));
-        if (testPlan && testPlan.active !== false) {
-          return { plan: testPlan, source: "admin_test", adminTest: true, expiresAt: test.expiresAt || null, features: expandInheritedBusinessFeatures(testPlan.id) };
-        }
+      const testPlanId = clean(test.planId, 100);
+      const testPlan = businessCatalogPlans().find(p => p.id === testPlanId);
+      const statusSnap = testPlanId ? await dbi.collection("businessPlanStatus").doc(testPlanId).get() : null;
+      const statusActive = !statusSnap?.exists || statusSnap.data()?.active !== false;
+      if (test.enabled === true && (!expires || expires > Date.now()) && testPlan && testPlan.active !== false && statusActive) {
+        return {
+          plan: testPlan,
+          source: "admin_test",
+          adminTest: true,
+          expiresAt: test.expiresAt || null,
+          features: expandInheritedBusinessFeatures(testPlan.id)
+        };
       }
     }
   }
@@ -83,6 +90,10 @@ async function effectiveBusinessPlan(uid, workspace) {
   const end = entitlement.endDate?.toDate?.()?.getTime?.() || Number(entitlement.endDate || 0);
   if (!entitlementPlanId || entitlementPlanId !== planId || !active || (end && end <= Date.now())) {
     throw new Error("business_plan_entitlement_required");
+  }
+  const subscriptionOverride = await dbi.collection("businessSubscriptionOverrides").doc(uid + "_" + planId).get();
+  if (subscriptionOverride.exists && subscriptionOverride.data()?.active === false) {
+    throw new Error("business_subscription_deactivated");
   }
   return { plan, source: String(entitlement.source || "website"), adminTest: false, expiresAt: entitlement.endDate || null, features: expandFeaturesFromRows(planId, featureRows) };
 }
@@ -166,6 +177,76 @@ function usageWarnings(workspace, plan) {
     message: used >= limit ? label + " limit reached." : label + " is approaching the plan limit.",
     recommendation: "Review eligible add-ons or upgrade the Business plan before the current billing period ends."
   }));
+}
+
+export async function listAdminBusinessSubscriptions() {
+  const dbi = db();
+  const catalog = businessCatalogPlans();
+  const businessIds = new Set(catalog.map(p => String(p.id)));
+  const primary = await dbi.collection("entitlements").limit(500).get();
+  const play = await dbi.collection("playEntitlements").limit(500).get();
+  const rows = new Map();
+
+  const add = async (doc, source) => {
+    const x = doc.data() || {};
+    const uid = clean(x.uid || doc.id, 160);
+    const planId = clean(x.planId || x.productId || x.product, 100);
+    if (!uid || !businessIds.has(planId)) return;
+    const key = uid + "_" + planId;
+    const existing = rows.get(key) || {};
+    const override = await dbi.collection("businessSubscriptionOverrides").doc(key).get();
+    rows.set(key, {
+      id: key,
+      uid,
+      planId,
+      planName: catalog.find(p => p.id === planId)?.name || planId,
+      productId: clean(x.productId || x.product, 120),
+      source: clean(x.source || source, 40),
+      state: clean(x.state || x.status, 40),
+      renewalState: clean(x.renewalState, 60),
+      startDate: x.startDate?.toDate?.()?.toISOString?.() || x.startDate || null,
+      endDate: x.endDate?.toDate?.()?.toISOString?.() || x.endDate || null,
+      active: override.exists ? override.data()?.active !== false : true,
+      overrideSource: override.exists ? "admin" : null,
+      ...existing
+    });
+  };
+
+  for (const doc of primary.docs) await add(doc, "entitlement");
+  for (const doc of play.docs) await add(doc, "google_play");
+
+  const result = [];
+  for (const row of rows.values()) {
+    let email = "";
+    try { email = (await getAuth().getUser(row.uid)).email || ""; } catch {}
+    result.push({ ...row, email });
+  }
+  return result.sort((a, b) => String(b.endDate || "").localeCompare(String(a.endDate || "")));
+}
+
+export async function setAdminBusinessSubscriptionStatus(adminUid, uid, planId, active, confirmDeactivation = false) {
+  if (!active && !confirmDeactivation) throw new Error("business_subscription_deactivation_confirmation_required");
+  const plan = businessCatalogPlans().find(p => p.id === clean(planId, 100));
+  if (!plan) throw new Error("business_plan_not_found");
+  const targetUid = clean(uid, 160);
+  if (!targetUid) throw new Error("business_subscription_uid_required");
+  const ref = db().collection("businessSubscriptionOverrides").doc(targetUid + "_" + plan.id);
+  await ref.set({
+    uid: targetUid,
+    planId: plan.id,
+    active: active === true,
+    updatedBy: adminUid,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+  await db().collection("adminConfigAudit").add({
+    type: "business_subscription_override",
+    uid: targetUid,
+    planId: plan.id,
+    active: active === true,
+    actorUid: adminUid,
+    createdAt: FieldValue.serverTimestamp()
+  });
+  return { ok: true, uid: targetUid, planId: plan.id, active: active === true };
 }
 
 export async function runBusinessUsageWarnings() {
