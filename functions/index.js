@@ -2080,11 +2080,13 @@ export const bqSqwadApi = onRequest(
           ...configuredPlans,
           ...canonicalPlans.filter(item => !configuredIds.has(String(item.id || "")))
         ];
-        const sourcePlans = configuredPlans.length > 0
-          ? mergedConfiguredPlans
-          : (!plansSnap.empty
-              ? plansSnap.docs.map(d => safePlan(d.id, d.data()))
-              : canonicalPlans);
+        const firestorePlans = plansSnap.docs.map(d => safePlan(d.id, d.data()));
+        const basePlans = configuredPlans.length > 0 ? mergedConfiguredPlans : firestorePlans;
+        const basePlanIds = new Set(basePlans.map(item => String(item.id || "")));
+        const sourcePlans = [
+          ...basePlans,
+          ...canonicalPlans.filter(item => !basePlanIds.has(String(item.id || "")))
+        ];
 
         return send(res, 200, {
           version: Math.max(1, Number(business?.version || playSnap.data()?.version || PLAN_CATALOG_VERSION)),
