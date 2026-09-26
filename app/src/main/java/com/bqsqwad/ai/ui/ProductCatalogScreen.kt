@@ -343,7 +343,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             item(key="plan:"+plan.id) {
                                 LivePlanCard(
                                     plan=plan,
-                                    playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
+                                    playEntries=catalog.filter { it.planId == plan.id && it.enabled },
                                     playProducts=playProducts,
                                     billing=billing,
                                     onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
