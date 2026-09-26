@@ -82,3 +82,34 @@ test("Business add-ons are not exposed as native Play products", () => {
     assert.equal(addon.playEligible, false, addon.id + " must remain website-managed");
   }
 });
+
+
+test("Companion plans expose canonical pricing, trial and Play IDs", () => {
+  const plans = COMMERCIAL_CATALOG.sections.companion;
+  assert.deepEqual(plans.map(x => x.id), [
+    "companionfree","companionbasic","companionplus","companionpremium","companionultimate"
+  ]);
+  assert.equal(plans[0].price.free, 0);
+  for (const plan of plans.slice(1)) {
+    assert.equal(plan.playEligible, true);
+    assert.equal(plan.productId, plan.id);
+    assert.equal(plan.offerId, "trial-3d");
+    assert.equal(plan.trialDays, 3);
+    assert.equal(plan.trialEligible, true);
+  }
+});
+
+test("Frontier Lab has separate entitlements and canonical Play mappings", () => {
+  const plans = COMMERCIAL_CATALOG.sections.frontier;
+  assert.deepEqual(plans.map(x => x.id), [
+    "frontierexplorer","frontierpro","frontierenterprise"
+  ]);
+  for (const plan of plans) {
+    assert.equal(plan.module, "frontier");
+    assert.equal(plan.playEligible, true);
+    assert.equal(plan.productId, plan.id);
+    assert.equal(plan.offerId, "trial-3d");
+    assert.equal(plan.trialDays, 3);
+    assert.equal(plan.trialEligible, true);
+  }
+});
