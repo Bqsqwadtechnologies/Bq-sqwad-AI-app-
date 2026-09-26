@@ -192,7 +192,6 @@ private fun ConsentGate(modifier: Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
-    var serverAccepted by remember { mutableStateOf(false) }
     var accepted by remember { mutableStateOf(false) }
     var trainingConsent by remember { mutableStateOf(false) }
     var completed by remember { mutableStateOf(false) }
@@ -205,8 +204,7 @@ private fun ConsentGate(modifier: Modifier) {
         scope.launch {
             runCatching { WorkspaceApiClient().consent() }
                 .onSuccess {
-                    serverAccepted = it.optBoolean("requiredAccepted")
-                    accepted = serverAccepted
+                    accepted = it.optBoolean("requiredAccepted")
                     trainingConsent = it.optBoolean("trainingConsent")
                 }
                 .onFailure { error = it.message ?: "Could not verify consent." }
