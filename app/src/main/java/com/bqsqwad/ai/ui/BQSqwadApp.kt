@@ -38,10 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
+import com.bqsqwad.ai.BuildConfig
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
@@ -1004,6 +1006,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Build ${BuildConfig.BUILD_SHA}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Box {
                     var menuOpen by remember { mutableStateOf(false) }
@@ -1018,7 +1021,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         DropdownMenuItem(text = { Text(if (privateChat) "Turn off Private Chat" else "Private Chat — not saved") }, onClick = { menuOpen = false; privateChat = !privateChat })
                     }
                 }
-                IconButton(onClick = openSettings) { Icon(Icons.Default.AccountCircle, contentDescription = "Account and settings") }
+                IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
             }
             Text(
                 statusText,
@@ -3221,6 +3224,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         Text("The AI That Grows With You")
                         Text("BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("com.bqsqwad.ai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Build ${BuildConfig.BUILD_SHA}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -3320,13 +3324,26 @@ private fun speakTextWhenReady(context: Context, text: String, onError: (String)
 }
 
 
-@Composable private fun WallpaperBackground(index: Int) {
-    val brush = when (index) {
-        1 -> Brush.linearGradient(listOf(Color(0xFF071A2B), Color(0xFF123D5A)))
-        2 -> Brush.linearGradient(listOf(Color(0xFF120B2B), Color(0xFF263A73)))
-        3 -> Brush.linearGradient(listOf(Color(0xFF061E1A), Color(0xFF164B3D)))
-        4 -> Brush.linearGradient(listOf(Color(0xFF1D1022), Color(0xFF4C244E)))
-        else -> Brush.linearGradient(listOf(Color(0xFF05070D), Color(0xFF10243A)))
+@Composable @Composable
+private fun WallpaperBackground(index: Int) {
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.background.luminance() < 0.5f
+    val brush = if (dark) {
+        when (index) {
+            1 -> Brush.linearGradient(listOf(Color(0xFF071A2B), Color(0xFF123D5A)))
+            2 -> Brush.linearGradient(listOf(Color(0xFF120B2B), Color(0xFF263A73)))
+            3 -> Brush.linearGradient(listOf(Color(0xFF061E1A), Color(0xFF164B3D)))
+            4 -> Brush.linearGradient(listOf(Color(0xFF1D1022), Color(0xFF4C244E)))
+            else -> Brush.linearGradient(listOf(Color(0xFF05070D), Color(0xFF10243A)))
+        }
+    } else {
+        when (index) {
+            1 -> Brush.linearGradient(listOf(colors.background, colors.primaryContainer))
+            2 -> Brush.linearGradient(listOf(colors.background, colors.secondaryContainer))
+            3 -> Brush.linearGradient(listOf(colors.background, colors.surfaceVariant))
+            4 -> Brush.linearGradient(listOf(colors.background, colors.secondaryContainer))
+            else -> Brush.linearGradient(listOf(colors.background, colors.surface))
+        }
     }
     Box(Modifier.fillMaxSize().background(brush))
 }
