@@ -17,7 +17,7 @@ import { COMMERCIAL_CATALOG, PLAN_CATALOG, PLAN_CATALOG_VERSION } from "./plan-c
 import { canonicalAdminCatalog, canonicalPlayProducts } from "./play-catalog.js";
 import { getUserMemory, rememberUser, setMemoryEnabled, clearUserMemory, memoryContext } from "./memory.js";
 import { getOrganization, updateOrganization, updateOrganizationSettings, addOrganizationChannel, setOrganizationChannel, addOrganizationKnowledge, upsertOrganizationMember, setOrganizationMemberStatus } from "./organization.js";
-import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent } from "./organization-production.js";
+import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost, manageXAction, disconnectSocialAccount } from "./social-integrations.js";
@@ -685,6 +685,30 @@ export const bqSqwadApi = onRequest(
         } finally {
           await gate.release();
         }
+      }
+
+      if (req.method === "GET" && path === "organization/production/ai-live") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const org = await getOrganization(user.uid);
+          const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+          if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_ai_live_access_denied");
+          const result = await getOrganizationAiLiveConfig(user.uid);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/ai-live") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const org = await getOrganization(user.uid);
+          const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+          if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_ai_live_access_denied");
+          const result = await updateOrganizationAiLiveConfig(user.uid, body);
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
       }
 
       if (req.method === "GET" && path === "organization/production") {
