@@ -364,6 +364,7 @@ private fun LivePlanCard(
     onContact: () -> Unit,
     onStatus: (String) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val priceText = plan.price.entries.joinToString(" • ") { (period, value) ->
         val numeric = value.toDoubleOrNull()
         val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
@@ -393,9 +394,11 @@ private fun LivePlanCard(
                     when {
                         plan.contactSales || plan.paymentChannel == "contact_sales" -> onContact()
                         plan.paymentChannel == "website" -> {
-                            onStatus("This plan is managed on the BQ Sqwad AI website.")
+                            onStatus("Opening BQ Sqwad AI website checkout.")
                             runCatching {
-                                val context = androidx.compose.ui.platform.LocalContext.current
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com")))
+                            }.onFailure {
+                                onStatus("Could not open the BQ Sqwad AI website.")
                             }
                         }
                         plan.playEligible && playEntry != null && playProduct != null && billing?.isReady() == true -> {
