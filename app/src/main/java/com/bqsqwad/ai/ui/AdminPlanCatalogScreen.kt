@@ -220,7 +220,7 @@ fun AdminPlanCatalogScreen(onBack:()->Unit) {
                                 AssistChip(onClick={},label={Text("POPULAR")})
                             }
                             OutlinedButton(
-                                onClick={ { setPlanPopular(row.id) } },
+                                onClick={setPlanPopular(row.id)},
                                 enabled=!saving
                             ) { Text(if(row.popular)"Popular" else "Set Popular") }
                         }
