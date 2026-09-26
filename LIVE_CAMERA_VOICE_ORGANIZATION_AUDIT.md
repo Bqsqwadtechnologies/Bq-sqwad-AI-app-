@@ -73,3 +73,17 @@ Source inspection confirms the requested wiring, but a real Android device/emula
 | 15 | Session analytics | **Deferred** until real provider analytics events are ingested; the current production state/health records are not treated as viewer analytics. |
 
 This table intentionally separates real server/client wiring from provider-dependent features that cannot honestly be marked complete without the required live integration.
+
+
+## Latest implementation pass — 2026-09-26
+
+- Authentication handoff fixed: Sign-in/Sign-up no longer submits a pending protected Main Chat request immediately after Firebase authentication. The root AuthGate now remains authoritative: signed-in users must complete server-verified Terms/Privacy consent before Main Chat is usable.
+- Consent rejection signs the Firebase account out; training consent and required consent continue to write to the same `userConsents/{uid}` record used by the backend.
+- Email verification remains optional rather than an access blocker; the app still sends/recommends verification without creating a second mandatory gate.
+- Live Voice now reserves, commits, and reverses credits through the same shared `creditBalances` pool used by Main Chat/Live Camera. Early failure paths explicitly reverse reservations.
+- YouTube live-start now uses the same shared credit pool and server-side entitlement/capability checks.
+- Business AI now exposes an entitlement-derived dashboard context containing verified plan name, access end date, trial eligibility, limits, included features and Popular state.
+- Organization AI / Studio destination UI is limited to the currently honest product surface: YouTube Live and X post-event publishing. Facebook/Instagram/TikTok are not presented as live-ingest destinations.
+- OpenAI remains the server-side default provider; Gemini remains an available fallback. Provider and YouTube/X secrets continue to come from the encrypted server-side secret store and are never returned to Android.
+- Google Play remains authoritative for real subscription cancellation/renewal. Admin Test Mode is the server-controlled QA bypass; it does not fabricate a paid Google Play entitlement.
+
