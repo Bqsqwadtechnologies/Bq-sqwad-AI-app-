@@ -19,7 +19,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 @Composable
-fun BusinessWorkspaceScreen() {
+fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
     val api = remember { WorkspaceApiClient() }
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf("Overview") }
@@ -40,7 +40,42 @@ fun BusinessWorkspaceScreen() {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
-    val tabs = listOf("Overview","Analytics","Plan Builder","Team","Assistants","Knowledge","FAQs","Vault","Contacts","Leads","Pipeline","Appointments","Inbox","Automation","Lead Capture","Channels","Advanced AI","Integrations","Enterprise","Settings")
+    val enabledGroups = remember(data.toString()) {
+        val groups = data.optJSONArray("enabledFeatureGroups") ?: JSONArray()
+        buildSet<String> { for (i in 0 until groups.length()) add(groups.optString(i)) }
+    }
+    val tabs = buildList {
+        add("Overview")
+        add("Team")
+        if ("analytics" in enabledGroups) add("Analytics")
+        if ("assistant" in enabledGroups) {
+            add("Plan Builder")
+            add("Assistants")
+        }
+        if ("knowledge" in enabledGroups) {
+            add("Knowledge")
+            add("FAQs")
+            add("Vault")
+        }
+        if ("crm" in enabledGroups) {
+            add("Contacts")
+            add("Leads")
+            add("Pipeline")
+            add("Appointments")
+            add("Lead Capture")
+        }
+        if ("channels" in enabledGroups) {
+            add("Inbox")
+            add("Channels")
+        }
+        if ("automation" in enabledGroups) add("Automation")
+        if ("advanced" in enabledGroups) {
+            add("Advanced AI")
+            add("Integrations")
+            add("Enterprise")
+        }
+        add("Settings")
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -73,7 +108,25 @@ fun BusinessWorkspaceScreen() {
             }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { SurfaceCard("Workspace error", it) }
+        if (error != null && data.length() == 0 && !loading) {
+            Surface(
+                Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.errorContainer
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Business plan access required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "This workspace is protected by the server-side Business plan gate. A verified Business entitlement or an active admin test session is required.",
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Button(onClick = onOpenPlans) { Text("View Business Plans") }
+                    TextButton(onClick = { load() }) { Text("Check access again") }
+                }
+            }
+        } else {
+            error?.let { SurfaceCard("Workspace error", it) }
+        }
 
         when (tab) {
             "Overview" -> {
@@ -102,10 +155,19 @@ fun BusinessWorkspaceScreen() {
                 }
                 val planFeatures = planContext.optJSONArray("features") ?: JSONArray()
                 if (planFeatures.length() > 0) {
-                    SurfaceCard(
-                        "Included features",
-                        (0 until minOf(planFeatures.length(), 12)).map { planFeatures.optString(it) }.filter { it.isNotBlank() }.joinToString(" • ")
-                    )
+                    Surface(
+                        Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        tonalElevation = 2.dp
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Included in this plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            for (i in 0 until planFeatures.length()) {
+                                val feature = planFeatures.optString(i)
+                                if (feature.isNotBlank()) Text("• " + feature, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                 }
                 val a = data.optJSONObject("analytics") ?: JSONObject()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
