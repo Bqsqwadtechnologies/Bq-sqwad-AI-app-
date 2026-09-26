@@ -1,6 +1,9 @@
 name: BQ Sqwad AI — Release APK & AAB
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_tag:
@@ -89,11 +92,18 @@ jobs:
 
           jarsigner -verify "$AAB"
 
+      - name: Record build identifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'commit=%s\nshort_sha=%s\nversion=1.0.5\n' "$GITHUB_SHA" "${GITHUB_SHA:0:7}" > build-info.txt
+
       - name: Rename release artifacts
         run: |
           mkdir -p release
           cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
           cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
+          cp build-info.txt release/BUILD-INFO.txt
           sha256sum release/* > release/SHA256SUMS.txt
 
       - name: Upload workflow artifacts
@@ -105,7 +115,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub release
-        if: ${{ inputs.publish_release }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
