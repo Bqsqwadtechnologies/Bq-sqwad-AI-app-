@@ -1919,7 +1919,10 @@ private fun WorkspaceScreen(
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
-                Workspace.TRUTH_GUARD -> TruthGuardWorkspace()
+                Workspace.TRUTH_GUARD -> TruthGuardWorkspace(onOpenPlans = {
+                    workspace = null
+                    plans = true
+                })
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace()
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
