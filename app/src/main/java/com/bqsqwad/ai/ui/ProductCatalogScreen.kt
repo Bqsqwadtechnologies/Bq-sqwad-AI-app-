@@ -304,16 +304,52 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 }
                 if (plans.isNotEmpty()) {
                     item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
-                    plans.sortedWith(compareBy<LivePlan> { it.module }.thenBy { it.id }).forEach { plan ->
-                        item(key="plan:"+plan.id) {
-                            LivePlanCard(
-                                plan=plan,
-                                playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
-                                playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
-                                billing=billing,
-                                onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                onStatus={ status=it }
-                            )
+                    val moduleOrder = listOf("business","learning","truthguard","life-mathis","companion","learning-capability","frontier","data-analysis","organization","credits")
+                    val grouped = plans.groupBy { it.module }
+                    moduleOrder.filter { grouped.containsKey(it) }.forEach { module ->
+                        item(key="module:"+module) {
+                            val title = when (module) {
+                                "business" -> "Business AI"
+                                "life-mathis" -> "Life Mathis"
+                                "truthguard" -> "TruthGuard AI"
+                                "learning" -> "Learning Studio"
+                                "companion" -> "AI Companion"
+                                "organization" -> "Organization AI / Studio"
+                                else -> module.replace('-', ' ').replaceFirstChar { it.uppercase() }
+                            }
+                            Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                Text(title, style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
+                                Text(if (module == "life-mathis") "Life Mathis plans, monthly/yearly pricing and included guidance features." else "Plans, pricing and features for this workspace.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        grouped.getValue(module).forEach { plan ->
+                            item(key="plan:"+plan.id) {
+                                LivePlanCard(
+                                    plan=plan,
+                                    playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
+                                    playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
+                                    billing=billing,
+                                    onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus={ status=it }
+                                )
+                            }
+                        }
+                    }
+                    plans.filter { it.module !in moduleOrder }.groupBy { it.module }.forEach { (module, modulePlans) ->
+                        item(key="module:"+module) {
+                            Text(module.replace('-', ' ').replaceFirstChar { it.uppercase() }, style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
+                        }
+                        modulePlans.forEach { plan ->
+                            item(key="plan:"+plan.id) {
+                                LivePlanCard(
+                                    plan=plan,
+                                    playEntry=catalog.firstOrNull { it.planId == plan.id && it.enabled },
+                                    playProduct=playProducts.firstOrNull { it.productId == catalog.firstOrNull { e -> e.planId == plan.id && e.enabled }?.productId },
+                                    billing=billing,
+                                    onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus={ status=it }
+                                )
+                            }
                         }
                     }
                 }
