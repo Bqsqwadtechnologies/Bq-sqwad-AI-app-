@@ -521,3 +521,17 @@ Not yet verified in this environment: signed APK/AAB build, physical-device came
 - Main Chat Private Chat mode intentionally skips Chat History persistence.
 - Main Chat header was consolidated around the existing BQ logo, horizontal `BQ Sqwad AI` branding, overflow actions, and account/settings icon.
 - Android activity now requests `adjustResize` and the composer uses navigation-bar + IME insets so the keyboard does not cover typed text.
+
+
+## 2026-09-26 — Business AI Catalog, Entitlement Gate & Admin Subscription Controls
+- Kept the existing Firebase/Cloud Functions Business AI architecture and canonical commercial catalog.
+- Hardened `effectiveBusinessPlan`: super-admin status no longer grants unconditional Business access. Admin bypass is available only through an active, expiring server-side Business test session.
+- Business test sessions now also respect Business plan activation status.
+- Added server-side per-customer Business access overrides in `businessSubscriptionOverrides`; deactivation immediately blocks Business workspace access without pretending that the Google Play purchase itself was cancelled or refunded.
+- Added protected admin endpoints to list Business subscriptions and toggle individual Business access overrides. All changes are audited.
+- Existing global Business plan activation/deactivation remains separate from per-customer access controls.
+- Business workspace UI now shows only the tool groups included in the current plan and displays the complete included feature list.
+- Business access failures now present a dedicated plan gate with a link to the existing Plans & Products screen.
+- User-facing catalog no longer exposes Google Play product IDs/base-plan IDs; Google Play remains the checkout mechanism behind the BQ Sqwad AI catalog.
+- Business plans with configured product IDs are marked Play-eligible in the canonical catalog projection; Business Ultimate remains contact-sales/custom because it has no Play product ID.
+- Admin Business Test Lab now displays verified Business customer subscriptions and provides per-customer access on/off controls.
