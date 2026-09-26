@@ -101,7 +101,6 @@ class RealtimeVoiceSession(
             "conversation.item.input_audio_transcription.delta", "input_audio_transcription.delta" -> {
                 val delta = event.optString("delta")
                 if (delta.isNotBlank()) inputTranscript.append(delta)
-                if (delta.isNotBlank()) onTranscript("You", delta)
             }
             "conversation.item.input_audio_transcription.completed", "input_audio_transcription.completed" -> {
                 val transcript = event.optString("transcript").trim().ifBlank { inputTranscript.toString().trim() }
@@ -114,7 +113,6 @@ class RealtimeVoiceSession(
                 val delta = event.optString("delta")
                 if (delta.isNotBlank()) {
                     outputTranscript.append(delta)
-                    onTranscript("BQ Sqwad AI", delta)
                 }
             }
             "response.output_audio_transcript.done", "response.audio_transcript.done" -> {
