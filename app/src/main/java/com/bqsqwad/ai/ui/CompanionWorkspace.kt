@@ -10,6 +10,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 private data class CompanionMessage(val fromUser: Boolean, val text: String)
 private data class CompanionPlan(
@@ -32,6 +34,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     var notice by remember { mutableStateOf<String?>(null) }
     var loadingAccess by remember { mutableStateOf(true) }
     var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
+    var catalogPlans by remember { mutableStateOf<List<CompanionPlan>>(emptyList()) }
     val messages = remember { mutableStateListOf<CompanionMessage>() }
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id in ids
@@ -66,6 +69,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             val catalog = api.nativeCatalog()
             val entitlements = api.entitlements()
             val plans = parseCompanionPlans(catalog)
+            catalogPlans = plans
             val items = entitlements.optJSONArray("items") ?: JSONArray()
             val active = (0 until items.length())
                 .mapNotNull { items.optJSONObject(it) }
@@ -110,6 +114,22 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     "Your plan controls Companion memory, voice and camera capabilities. Access is verified against the BQ Sqwad AI catalog and server entitlement.",
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
+
+                if (catalogPlans.isNotEmpty()) {
+                    Text("Companion plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    catalogPlans.forEach { plan ->
+                        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(plan.name, fontWeight = FontWeight.SemiBold)
+                                val priceText = plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": $" + value }
+                                if (priceText.isNotBlank()) Text(priceText, style = MaterialTheme.typography.bodySmall)
+                                if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                if (plan.features.isNotEmpty()) Text(plan.features.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (plan.id == currentPlan?.id) AssistChip(onClick = {}, label = { Text("ACTIVE") })
+                            }
+                        }
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text(currentPlan?.name ?: "Plan unavailable", fontWeight = FontWeight.Bold)
