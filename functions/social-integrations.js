@@ -209,7 +209,11 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     : clean(account.token, 10000);
   const text = clean(input.text, 5000);
   if (!token) throw new Error("social_account_token_missing");
-  if (platform === "x" && account.refreshTokenSecret?.ciphertext && account.expiresAt?.toDate?.()?.getTime?.() && account.expiresAt.toDate().getTime() <= Date.now() + 60000) {
+  const xExpiresAt = account.expiresAt?.toDate?.()?.getTime?.() || 0;
+  if (platform === "x" && xExpiresAt && xExpiresAt <= Date.now() + 60000 && !account.refreshTokenSecret?.ciphertext) {
+    throw new Error("x_refresh_token_missing");
+  }
+  if (platform === "x" && account.refreshTokenSecret?.ciphertext && xExpiresAt && xExpiresAt <= Date.now() + 60000) {
     const secret = await getProviderSecret("x_client_secret");
     const refreshToken = decryptSecret(account.refreshTokenSecret);
     const clientId = String((await getSocialConfig()).platforms?.x?.clientId || "");
