@@ -1092,24 +1092,71 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "truthguard/check") {
         const claim = String(body.claim || "").trim().slice(0, 12000);
-        const analysis = String(body.analysis || "").trim().slice(0, 30000);
-        if (!claim || !analysis) return send(res, 400, { error: "truthguard_check_required" });
-        const rawSources = Array.isArray(body.sources) ? body.sources : [];
-        const sources = rawSources.slice(0, 20).map(source => ({
-          title: String(source?.title || "").slice(0, 500),
-          url: String(source?.url || "").slice(0, 2000),
-          snippet: String(source?.snippet || "").slice(0, 4000)
-        }));
-        const ref = getFirestore().collection("truthGuardChecks").doc();
-        await ref.set({
-          uid: user.uid,
-          claim,
-          analysis,
-          sources,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-        return send(res, 200, { ok: true, id: ref.id });
+        if (!claim) return send(res, 400, { error: "truthguard_claim_required" });
+        const deepResearch = body.deepResearch === true;
+        const gate = await authorizeCapability(user.uid, "capability_truth_guard");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "truth_guard");
+          const search = await callTavily({
+            query: claim,
+            maxResults: deepResearch ? 20 : 10,
+            deepResearch
+          });
+          const sources = (search.sources || []).slice(0, 20).map(source => ({
+            title: String(source.title || "").slice(0, 500),
+            url: String(source.url || "").slice(0, 2000),
+            snippet: String(source.snippet || "").slice(0, 4000)
+          }));
+          const evidence = sources.map((source, index) =>
+            "[" + (index + 1) + "] " + source.title + "\nURL: " + source.url + "\n" + source.snippet
+          ).join("\n\n");
+          const result = await runAi({
+            capability: "truth_guard",
+            message: claim,
+            system: [
+              "You are TruthGuard AI, an evidence-first claim verification system.",
+              "Evaluate only the supplied claim and retrieved evidence.",
+              "Separate supported evidence, conflicting evidence, and information that cannot be established.",
+              "Do not invent sources, facts, quotes, or certainty.",
+              "Use cautious language when evidence is incomplete or conflicting.",
+              deepResearch ? "Perform a deeper comparison across the supplied sources." : "Use a concise evidence check.",
+              "Return a clear verdict, confidence level, explanation, and source-grounded reasoning.",
+              "Evidence:",
+              evidence || "(No usable sources were returned.)"
+            ].join("\n")
+          });
+          const analysis = String(result.text || "");
+          const ref = getFirestore().collection("truthGuardChecks").doc();
+          await ref.set({
+            uid: user.uid,
+            claim,
+            analysis,
+            sources,
+            depth: deepResearch ? "deep" : "standard",
+            planId: gate.planId || "truthguardfree",
+            providerId: result.providerId || null,
+            modelId: result.modelId || null,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+          await commitCredits(user.uid, reservation.reservationId, result.providerId || "truth_guard");
+          gate.commit();
+          return send(res, 200, {
+            ok: true,
+            id: ref.id,
+            claim,
+            analysis,
+            sources,
+            planId: gate.planId || "truthguardfree",
+            creditsCharged: reservation.amount
+          });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
       }
 
       if (req.method === "POST" && path === "ai") {
