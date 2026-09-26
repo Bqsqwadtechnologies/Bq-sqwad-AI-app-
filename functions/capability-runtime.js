@@ -16,10 +16,15 @@ function monthKey() {
 }
 
 const DEFAULT_ALLOWED_PLAN_IDS = {
-  capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"]
+  capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"],
+  capability_life_matters: ["lifemathisfree", "lmstandard", "lmultimate"]
 };
 
 const DEFAULT_MONTHLY_LIMITS = {
+  capability_life_matters: {
+    lifemathisfree: 10,
+    lmstandard: 300
+  },
   capability_truth_guard: {
     truthguardfree: 5,
     tgplus: 150,
