@@ -177,12 +177,13 @@ class WorkspaceApiClient {
             "&accountId=" + java.net.URLEncoder.encode(accountId, "UTF-8") +
             "&liveChatId=" + java.net.URLEncoder.encode(liveChatId, "UTF-8"), "GET")
 
-    suspend fun replyToOrganizationYouTubeChat(organizationId: String, accountId: String, liveChatId: String, viewerText: String): JSONObject =
+    suspend fun replyToOrganizationYouTubeChat(organizationId: String, accountId: String, liveChatId: String, viewerText: String, authorChannelId: String = ""): JSONObject =
         request("/organization/production/youtube/live/chat/reply", payload=JSONObject()
             .put("organizationId", organizationId)
             .put("accountId", accountId)
             .put("liveChatId", liveChatId)
-            .put("viewerText", viewerText.take(4000)))
+            .put("viewerText", viewerText.take(4000))
+            .put("authorChannelId", authorChannelId.take(200)))
 
     suspend fun organizationAiLiveConfig(): JSONObject =
         request("/organization/production/ai-live", "GET")
