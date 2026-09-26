@@ -1348,16 +1348,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 if (showSignUp) {
                     SignUpScreen(
                         onBackToSignIn = { showSignUp = false },
-                        onAuthenticated = { showAuth = false; sendAuthenticatedMessage(message.trim()) }
+                        onAuthenticated = { showAuth = false }
                     )
                 } else {
                     SignInScreen(
                         onOpenSignUp = { showSignUp = true },
-                        onAuthenticated = {
-                            showAuth = false
-                            val pending = message.trim()
-                            if (pending.isNotBlank()) sendAuthenticatedMessage(pending)
-                        }
+                        onAuthenticated = { showAuth = false }
                     )
                 }
             }
