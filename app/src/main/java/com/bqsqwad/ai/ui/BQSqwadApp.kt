@@ -1925,7 +1925,7 @@ private fun WorkspaceScreen(
                     workspace = null
                     plans = true
                 })
-                Workspace.FRONTIER_LAB -> FrontierLabWorkspace()
+                Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
