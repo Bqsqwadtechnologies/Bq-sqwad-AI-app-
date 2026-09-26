@@ -784,6 +784,9 @@ export const bqSqwadApi = onRequest(
             if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.metadata?.organizationId || "") !== organizationId) {
               throw new Error("organization_youtube_account_mismatch");
             }
+            const liveConfig = await getOrganizationAiLiveConfig(user.uid);
+            if (!liveConfig.privacyAccepted) throw new Error("organization_ai_live_privacy_required");
+            if (String(body.aiLiveMode || "") !== liveConfig.mode) throw new Error("organization_ai_live_mode_not_saved");
           } else {
             const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
             await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
@@ -862,6 +865,7 @@ export const bqSqwadApi = onRequest(
               return send(res, 200, { ok: true, ignored: true, reason: "own_message" });
             }
           }
+          reservation = await reserveCredits(user.uid, liveConfig.creditRatePerMinute, "organization_ai_live_" + liveConfig.mode);
           const safeSystem = [
             "You are BQ Sqwad AI operating as an Organization live-stream assistant.",
             "Reply to the viewer concisely and respectfully.",
@@ -871,7 +875,6 @@ export const bqSqwadApi = onRequest(
             "Viewer message: " + viewerText
           ].join("\n");
           const ai = await runAi({ capability: "chat", message: viewerText, system: safeSystem });
-          reservation = await reserveCredits(user.uid, liveConfig.creditRatePerMinute, "organization_ai_live_" + liveConfig.mode);
           const result = await sendYouTubeLiveChatMessage(user.uid, String(body.accountId || ""), String(body.liveChatId || ""), ai.text);
           await commitCredits(user.uid, reservation?.reservationId, ai.providerId || "youtube_live");
           gate.commit();
