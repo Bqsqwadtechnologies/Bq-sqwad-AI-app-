@@ -175,7 +175,7 @@ class LiveMediaForegroundService : Service() {
             organizationStreamer = broadcaster
             serviceScope.launch {
                 try {
-                    broadcaster.startCamera(endpoint)
+                    broadcaster.startCamera(endpoint, lens)
                     writeState(true, "live")
                 } catch (t: Throwable) {
                     organizationStreamer = null
