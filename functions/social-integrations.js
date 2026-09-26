@@ -45,7 +45,7 @@ const PLATFORMS = {
     label: "X",
     authorizationUrl: "https://twitter.com/i/oauth2/authorize",
     tokenUrl: "https://api.x.com/2/oauth2/token",
-    defaultScopes: ["tweet.read", "tweet.write", "users.read", "media.write", "like.read", "like.write", "offline.access"]
+    defaultScopes: ["tweet.read", "tweet.write", "users.read", "offline.access"]
   }
 };
 
@@ -126,7 +126,14 @@ export async function beginSocialOAuth(platform, state, redirectUri, codeChallen
   if (!p) throw new Error("unsupported_social_platform");
   const pc = config.platforms?.[platform] || {};
   if (!pc.enabled || !pc.clientId) throw new Error("social_platform_not_configured");
-  const scopes = Array.isArray(pc.scopes) && pc.scopes.length ? pc.scopes : p.defaultScopes;
+  let scopes = Array.isArray(pc.scopes) && pc.scopes.length ? pc.scopes : p.defaultScopes;
+  if (platform === "x") {
+    const allowed = new Set(["tweet.read", "tweet.write", "users.read", "offline.access", "media.write", "like.read", "like.write"]);
+    scopes = scopes.map(x => clean(x, 80)).filter(x => allowed.has(x));
+    for (const required of ["tweet.read", "tweet.write", "users.read", "offline.access"]) {
+      if (!scopes.includes(required)) scopes.push(required);
+    }
+  }
   const params = new URLSearchParams({
     client_id: pc.clientId,
     redirect_uri: redirectUri,
