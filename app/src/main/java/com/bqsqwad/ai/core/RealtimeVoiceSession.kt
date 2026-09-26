@@ -11,7 +11,9 @@ class RealtimeVoiceSession(
     private val clientSecret: String, // Server-issued short-lived realtime credential; never a permanent API key.
     private val model: String,
     private val onState: (String) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    private val onAudioLevel: (Float) -> Unit = {},
+    private val onTranscript: (speaker: String, text: String) -> Unit = { _, _ -> }
 ) {
     companion object {
         private const val SAMPLE_RATE = 24000
@@ -27,6 +29,8 @@ class RealtimeVoiceSession(
     private var audioJob: Job? = null
     private val running = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
+    private val inputTranscript = StringBuilder()
+    private val outputTranscript = StringBuilder()
 
     fun start() {
         if (!running.compareAndSet(false, true)) return
@@ -68,6 +72,7 @@ class RealtimeVoiceSession(
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm"))
+                        put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
@@ -93,6 +98,32 @@ class RealtimeVoiceSession(
                 onState("listening")
             }
             "input_audio_buffer.speech_stopped" -> onState("thinking")
+            "conversation.item.input_audio_transcription.delta", "input_audio_transcription.delta" -> {
+                val delta = event.optString("delta")
+                if (delta.isNotBlank()) inputTranscript.append(delta)
+                if (delta.isNotBlank()) onTranscript("You", delta)
+            }
+            "conversation.item.input_audio_transcription.completed", "input_audio_transcription.completed" -> {
+                val transcript = event.optString("transcript").trim().ifBlank { inputTranscript.toString().trim() }
+                if (transcript.isNotBlank()) {
+                    inputTranscript.setLength(0)
+                    onTranscript("You", transcript)
+                }
+            }
+            "response.output_audio_transcript.delta", "response.audio_transcript.delta" -> {
+                val delta = event.optString("delta")
+                if (delta.isNotBlank()) {
+                    outputTranscript.append(delta)
+                    onTranscript("BQ Sqwad AI", delta)
+                }
+            }
+            "response.output_audio_transcript.done", "response.audio_transcript.done" -> {
+                val transcript = event.optString("transcript").trim().ifBlank { outputTranscript.toString().trim() }
+                if (transcript.isNotBlank()) {
+                    outputTranscript.setLength(0)
+                    onTranscript("BQ Sqwad AI", transcript)
+                }
+            }
             "response.output_audio.delta" -> {
                 val encoded = event.optString("delta")
                 if (encoded.isNotBlank()) {
@@ -100,11 +131,15 @@ class RealtimeVoiceSession(
                     ensurePlayer()
                     player?.play()
                     playing.set(true)
+                    onAudioLevel(pcmRms(bytes))
                     player?.write(bytes, 0, bytes.size)
                     onState("speaking")
                 }
             }
-            "response.done" -> onState("listening")
+            "response.done" -> {
+                onAudioLevel(0f)
+                onState("listening")
+            }
             "error" -> onError(event.optJSONObject("error")?.optString("message") ?: "Realtime voice error")
         }
     }
@@ -119,11 +154,26 @@ class RealtimeVoiceSession(
             while (isActive && running.get()) {
                 val count = recorder?.read(buffer, 0, buffer.size) ?: -1
                 if (count > 0) {
+                    onAudioLevel(pcmRms(buffer, count))
                     val payload = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
                     socket?.send(JSONObject().put("type", "input_audio_buffer.append").put("audio", payload).toString())
                 }
             }
         }
+    }
+
+    private fun pcmRms(bytes: ByteArray, length: Int = bytes.size): Float {
+        val sampleCount = (length / 2).coerceAtLeast(1)
+        var sum = 0.0
+        var offset = 0
+        repeat(sampleCount) {
+            if (offset + 1 >= length) return@repeat
+            val sample = ((bytes[offset + 1].toInt() shl 8) or (bytes[offset].toInt() and 0xff)).toShort().toInt()
+            val normalized = sample / 32768.0
+            sum += normalized * normalized
+            offset += 2
+        }
+        return kotlin.math.sqrt(sum / sampleCount).toFloat().coerceIn(0f, 1f)
     }
 
     private fun ensurePlayer() {
@@ -148,6 +198,9 @@ class RealtimeVoiceSession(
         running.set(false)
         audioJob?.cancel()
         audioJob = null
+        onAudioLevel(0f)
+        inputTranscript.setLength(0)
+        outputTranscript.setLength(0)
         runCatching { recorder?.stop() }
         recorder?.release()
         recorder = null
