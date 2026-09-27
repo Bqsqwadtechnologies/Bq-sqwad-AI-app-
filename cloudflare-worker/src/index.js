@@ -319,6 +319,38 @@ export default {
         }));
       }
 
+      if (url.pathname === "/consent" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const snap = await firestoreGet("userConsents/" + user.uid);
+        return json({
+          requiredAccepted: snap?.requiredAccepted === true,
+          policyVersion: String(snap?.policyVersion || ""),
+          trainingConsent: snap?.trainingConsent === true
+        });
+      }
+
+      if (url.pathname === "/consent" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        if (body.requiredAccepted !== true) return json({error:"required_consent_missing"},400);
+        const trainingConsent = body.trainingConsent === true;
+        const policyVersion = String(body.policyVersion || "2026-09").slice(0,40);
+        await firestoreSet("userConsents/" + user.uid, {
+          uid:user.uid, requiredAccepted:true, policyVersion,
+          requiredConsentAt:new Date(), trainingConsent,
+          trainingConsentAt:new Date(), updatedAt:new Date()
+        }, true);
+        return json({ok:true,policyVersion,trainingConsent});
+      }
+
+      if (url.pathname === "/consent/training" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const trainingConsent = body.trainingConsent === true;
+        await firestoreSet("userConsents/" + user.uid, {uid:user.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()}, true);
+        return json({ok:true,trainingConsent});
+      }
+
       if (url.pathname === "/social/oauth/start" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         await requireConsent(user.uid);
