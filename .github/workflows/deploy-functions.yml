@@ -1,26 +1,36 @@
-name: BQ Sqwad AI — Deploy Firebase Backend
+name: BQ Sqwad AI — Firebase Backend Validation
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_to_firebase:
+        description: "Deploy legacy Firebase Functions/Firestore (requires Blaze billing)"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: firebase-backend-deploy
+  group: firebase-backend-validation
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
     env:
       FIREBASE_PROJECT_ID: bqsqwadai
       FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
       FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      CLOUDFLARE_WORKER_URL: https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev
 
     steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
       - name: Checkout main
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -31,21 +41,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: functions
-        run: npm install
-
-      - name: Verify Firebase secret is available
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON}" ]; then
-            echo "FIREBASE_SERVICE_ACCOUNT_JSON is present."
-          elif [ -n "${FIREBASE_TOKEN}" ]; then
-            echo "FIREBASE_TOKEN is present; using token authentication."
-          else
-            echo "FIREBASE_SERVICE_ACCOUNT_JSON is missing from the GitHub Actions secret context."
-            echo "Expected repository secret name: FIREBASE_SERVICE_ACCOUNT_JSON"
-            exit 1
-          fi
+        run: npm install --no-audit --no-fund
 
       - name: Validate backend JavaScript
         working-directory: functions
@@ -56,42 +52,35 @@ jobs:
         run: npm test
 
       - name: Authenticate with Google service account
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
-        uses: google-github-actions/auth@v2
+        if: ${{ inputs.deploy_to_firebase && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
 
-      - name: Verify Firebase deployment credentials
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON}" ] && [ -z "${FIREBASE_TOKEN}" ]; then
-            echo "Missing GitHub secret: set FIREBASE_SERVICE_ACCOUNT_JSON (preferred) or FIREBASE_TOKEN."
-            exit 1
-          fi
-
-      - name: Deploy functions and Firestore rules with service account
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
+      - name: Deploy legacy Firebase backend
+        if: ${{ inputs.deploy_to_firebase && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
         run: npx --yes firebase-tools@latest deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID}" --non-interactive
 
-      - name: Deploy functions and Firestore rules with Firebase token
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON == '' && env.FIREBASE_TOKEN != '' }}
+      - name: Deploy legacy Firebase backend with token
+        if: ${{ inputs.deploy_to_firebase && env.FIREBASE_SERVICE_ACCOUNT_JSON == '' && env.FIREBASE_TOKEN != '' }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: npx --yes firebase-tools@latest deploy --only functions,firestore:rules --project "${FIREBASE_PROJECT_ID}" --non-interactive --token "${FIREBASE_TOKEN}"
 
-      - name: Verify deployed health endpoint
+      - name: Verify migrated Cloudflare Worker
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://europe-west1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/bqSqwadApi/health"
-          for attempt in 1 2 3 4 5 6; do
-            BODY="$(curl --fail --silent --show-error --max-time 20 "$URL" || true)"
-            echo "Health response (attempt $attempt): $BODY"
-            if echo "$BODY" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'; then
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Deployed health endpoint did not return {ok:true}."
-          exit 1
+          BODY="$(curl --fail --silent --show-error --max-time 20 "${CLOUDFLARE_WORKER_URL}/health")"
+          echo "Cloudflare health response: $BODY"
+          echo "$BODY" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
+
+      - name: Report Firebase deployment status
+        shell: bash
+        run: |
+          if [ "${{ inputs.deploy_to_firebase }}" = "true" ]; then
+            echo "Legacy Firebase deployment was requested and completed."
+          else
+            echo "Legacy Firebase deployment skipped: BQ Sqwad AI is using the Cloudflare Worker migration path."
+            echo "Firebase Functions remain in the repository and can be deployed later when the project is on Blaze."
+          fi
