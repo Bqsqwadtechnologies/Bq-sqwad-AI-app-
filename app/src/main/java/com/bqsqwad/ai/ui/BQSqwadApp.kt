@@ -109,7 +109,7 @@ private fun AuthGate(modifier: Modifier) {
         emailVerified = signedIn.isEmailVerified
         consentAccepted = null
         if (!signedIn.isEmailVerified) return@LaunchedEffect
-        val result = runCatching { WorkspaceApiClient().consent() }
+        val result = runCatching { withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: throw TimeoutCancellationException("consent_timeout") }
         result.onSuccess { consent ->
             val accepted = consent.optBoolean("requiredAccepted", false)
             consentAccepted = accepted
@@ -195,7 +195,7 @@ private fun authSignOutForConsent() {
 private fun ConsentGate(modifier: Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var loading by remember { mutableStateOf(true) }
+    var loading by remember { mutableStateOf(false) }
     var accepted by remember { mutableStateOf(false) }
     var trainingConsent by remember { mutableStateOf(false) }
     var completed by remember { mutableStateOf(false) }
@@ -207,7 +207,7 @@ private fun ConsentGate(modifier: Modifier) {
         error = null
         scope.launch {
             runCatching {
-                withTimeout(20000) { WorkspaceApiClient().consent() }
+                withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: throw TimeoutCancellationException("consent_timeout")
             }
                 .onSuccess {
                     accepted = it.optBoolean("requiredAccepted")
