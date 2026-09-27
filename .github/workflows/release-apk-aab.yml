@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -31,6 +31,9 @@ jobs:
       KEYSTORE_PATH: ${{ github.workspace }}/app/release-upload.jks
 
     steps:
+      - name: Configure Git defaults
+        run: git config --global init.defaultBranch main
+
       - name: Checkout main
         uses: actions/checkout@v7
 
@@ -41,11 +44,18 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          cmdline-tools-version: "15859902"
-          packages: "platform-tools platforms;android-37 build-tools;36.0.0"
+      - name: Verify preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$ANDROID_HOME/platforms/android-37.0/android.jar"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          if [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+          fi
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
+          echo "Android SDK 37.0 and Build Tools 37.0.0 are ready."
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
@@ -80,25 +90,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           APK="app/build/outputs/apk/release/app-release.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
-
           test -s "$APK"
           test -s "$AAB"
-
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -perm -u+x -print -quit)"
-          test -n "$APKSIGNER"
-          echo "Using apksigner: $APKSIGNER"
+          APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
-
           jarsigner -verify "$AAB"
 
       - name: Record build identifier
         shell: bash
         run: |
           set -euo pipefail
-          printf 'commit=%s\nshort_sha=%s\nversion=1.0.5\n' "$GITHUB_SHA" "${GITHUB_SHA:0:7}" > build-info.txt
+          printf 'commit=%s
+short_sha=%s
+version=1.0.5
+' "$GITHUB_SHA" "${GITHUB_SHA:0:7}" > build-info.txt
 
       - name: Rename release artifacts
         run: |
