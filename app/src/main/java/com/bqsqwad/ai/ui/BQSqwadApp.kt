@@ -207,7 +207,7 @@ private fun ConsentGate(modifier: Modifier) {
         error = null
         scope.launch {
             runCatching {
-                withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: throw TimeoutCancellationException("consent_timeout")
+                withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: error("consent_timeout")
             }
                 .onSuccess {
                     accepted = it.optBoolean("requiredAccepted")
