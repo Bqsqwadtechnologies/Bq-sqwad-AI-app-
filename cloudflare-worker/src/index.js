@@ -1,6 +1,7 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit } from "./firebase.js";
 import { runProvider, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { verifyPlayPurchase } from "./google-play.js";
+import { socialStart, socialCallback } from "./social.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
@@ -316,6 +317,22 @@ export default {
           requestedBasePlanId: body.basePlanId ? String(body.basePlanId) : "",
           requestedOfferId: body.offerId ? String(body.offerId) : ""
         }));
+      }
+
+      if (url.pathname === "/social/oauth/start" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const body = await readBody(request);
+        const platform = String(body.platform || "").trim().toLowerCase();
+        const redirectUri = String(body.redirectUri || (new URL(request.url).origin + "/social/oauth/callback")).trim();
+        return json(await socialStart(env,user.uid,platform,redirectUri));
+      }
+
+      if (url.pathname === "/social/oauth/callback" && request.method === "GET") {
+        const state = String(url.searchParams.get("state") || "");
+        const code = String(url.searchParams.get("code") || "");
+        if (!state || !code) return json({error:"oauth_callback_parameters_required"},400);
+        return json(await socialCallback(env,state,code));
       }
 
       if (url.pathname === "/web-search" && request.method === "POST") {
