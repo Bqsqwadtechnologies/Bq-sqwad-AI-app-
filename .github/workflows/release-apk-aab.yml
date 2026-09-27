@@ -44,9 +44,9 @@ jobs:
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          "$SDKMANAGER" --channel=3 "platform-tools" "platforms;android-37" "build-tools;37.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
+          test -f "$ANDROID_HOME/platforms/android-37.0/android.jar"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
           test -x "$ANDROID_HOME/platform-tools/adb"
 
