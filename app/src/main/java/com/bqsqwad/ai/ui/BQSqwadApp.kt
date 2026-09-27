@@ -109,7 +109,7 @@ private fun AuthGate(modifier: Modifier) {
         emailVerified = signedIn.isEmailVerified
         consentAccepted = null
         if (!signedIn.isEmailVerified) return@LaunchedEffect
-        val result = runCatching { withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: throw TimeoutCancellationException("consent_timeout") }
+        val result = runCatching { withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: error("consent_timeout") }
         result.onSuccess { consent ->
             val accepted = consent.optBoolean("requiredAccepted", false)
             consentAccepted = accepted
@@ -246,9 +246,8 @@ private fun ConsentGate(modifier: Modifier) {
                     onCheckedChange = { accepted = it },
                     colors = CheckboxDefaults.colors(
                         checkedColor = MaterialTheme.colorScheme.primary,
-                        uncheckedColor = Color.Transparent,
-                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                        uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                        uncheckedColor = MaterialTheme.colorScheme.outline,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary
                     )
                 )
                 Text(
@@ -263,9 +262,8 @@ private fun ConsentGate(modifier: Modifier) {
                     onCheckedChange = { trainingConsent = it },
                     colors = CheckboxDefaults.colors(
                         checkedColor = MaterialTheme.colorScheme.primary,
-                        uncheckedColor = Color.Transparent,
-                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-                        uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                        uncheckedColor = MaterialTheme.colorScheme.outline,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary
                     )
                 )
                 Text(
