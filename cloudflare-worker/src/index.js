@@ -1,5 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit } from "./firebase.js";
 import { runProvider, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { verifyPlayPurchase } from "./google-play.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
@@ -297,6 +298,26 @@ export default {
         const user = await verifyFirebaseUser(request);
         return await stream(request, user, await readBody(request));
       }
+      if (url.pathname === "/play/catalog" && request.method === "GET") {
+        await verifyFirebaseUser(request);
+        const catalog = await firestoreGet("playCatalog/config");
+        return json({ products: Array.isArray(catalog?.products) ? catalog.products : [] });
+      }
+
+      if (url.pathname === "/play/verify" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const body = await readBody(request);
+        return json(await verifyPlayPurchase(env, { get: firestoreGet, commit: firestoreCommit }, {
+          uid: user.uid,
+          productId: String(body.productId || ""),
+          purchaseToken: String(body.purchaseToken || ""),
+          obfuscatedAccountId: body.obfuscatedAccountId ? String(body.obfuscatedAccountId) : "",
+          requestedBasePlanId: body.basePlanId ? String(body.basePlanId) : "",
+          requestedOfferId: body.offerId ? String(body.offerId) : ""
+        }));
+      }
+
       if (url.pathname === "/web-search" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         await requireConsent(user.uid);
