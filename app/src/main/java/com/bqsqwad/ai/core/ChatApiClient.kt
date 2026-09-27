@@ -57,7 +57,14 @@ class ChatApiClient(
             val body = runCatching { JSONObject(raw) }.getOrNull()
             if (status !in 200..299) {
                 val serverError = body?.optString("error").orEmpty()
-                val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
+                val trimmed = raw.trim()
+                val detail = serverError.ifBlank {
+                    if (trimmed.startsWith("<html", ignoreCase = true) || trimmed.startsWith("<!doctype", ignoreCase = true)) {
+                        "BQ Sqwad AI's secure backend is unavailable right now. Please try again shortly."
+                    } else {
+                        trimmed.take(2000).ifBlank { "No response body" }
+                    }
+                }
                 throw IllegalStateException("HTTP $status: $detail")
             }
             if (body == null) {
