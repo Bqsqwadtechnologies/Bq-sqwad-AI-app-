@@ -276,3 +276,63 @@ async function stream(request, user, body) {
   }
 }
 
+
+export default {
+  async fetch(request, env) {
+    configureFirebaseEnv(env);
+    globalThis.__bqEnv = env;
+    const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
+    if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
+    try {
+      if (url.pathname === "/ai" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        return await ai(request, user, await readBody(request));
+      }
+      if (url.pathname === "/ai/vision" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        return await vision(request, user, await readBody(request));
+      }
+      if (url.pathname === "/ai/stream" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        return await stream(request, user, await readBody(request));
+      }
+      if (url.pathname === "/web-search" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const body = await readBody(request);
+        const query = String(body.query || "").trim();
+        if (!query) return json({error:"query_required"},400);
+        const deepResearch = Boolean(body.deepResearch);
+        const capabilityName = deepResearch ? "deep_research" : "web_search";
+        const control = await capability(user.uid, capabilityName);
+        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 1), Number(control.creditCost || 0));
+        const reservation = await chargeCredits(user.uid, charge, capabilityName);
+        try {
+          const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
+          await commitCredits(user.uid, reservation.reservationId, "tavily");
+          return json({...result, answer:null, creditsCharged:reservation.amount});
+        } catch(error) {
+          await reverseCredits(user.uid, reservation.reservationId);
+          throw error;
+        }
+      }
+      const upstreamUrl = UPSTREAM + url.pathname + url.search;
+      const headers = new Headers(request.headers);
+      headers.delete("host");
+      const upstream = await fetch(upstreamUrl, {
+        method: request.method,
+        headers,
+        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+        redirect: "follow"
+      });
+      const responseHeaders = new Headers(upstream.headers);
+      for (const [key, value] of Object.entries(corsHeaders())) responseHeaders.set(key, value);
+      return new Response(upstream.body, {status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
+    } catch(error) {
+      const message = error?.message || "backend_unavailable";
+      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /disabled/.test(message) ? 403 : 500;
+      return json({error:message},status);
+    }
+  }
+};
