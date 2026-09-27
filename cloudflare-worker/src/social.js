@@ -25,14 +25,14 @@ function clean(v,n=500){return String(v??"").trim().slice(0,n);}
 function cfgName(platform){return platform==="x"?"X_CLIENT_ID":"YOUTUBE_CLIENT_ID";}
 function secretName(platform){return platform==="x"?"X_CLIENT_SECRET":"YOUTUBE_CLIENT_SECRET";}
 
-export async function socialStart(env,uid,platform,redirectUri){
+export async function socialStart(env,uid,platform,redirectUri,workspaceId=''){
   const p=PLATFORMS[platform]; if(!p) throw new Error("unsupported_social_platform");
   const clientId=secret(env,cfgName(platform));
   secret(env,secretName(platform));
   const state=crypto.randomUUID();
   const verifier=platform==="x"?b64u(crypto.getRandomValues(new Uint8Array(32))):"";
   const challenge=verifier?b64u(await crypto.subtle.digest("SHA-256",enc.encode(verifier))):"";
-  await firestoreCreate("socialOAuthStates/"+state,{uid,platform,redirectUri,codeVerifier:verifier||null,expiresAt:new Date(Date.now()+600000)});
+  await firestoreCreate("socialOAuthStates/"+state,{uid,platform,redirectUri,workspaceId:String(workspaceId||""),codeVerifier:verifier||null,expiresAt:new Date(Date.now()+600000)});
   const q=new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:"code",scope:p.scopes.join(" "),state});
   if(platform==="x"){q.set("code_challenge",challenge);q.set("code_challenge_method","S256");}
   if(platform==="youtube"){q.set("access_type","offline");q.set("prompt","consent");}
@@ -63,7 +63,7 @@ export async function socialCallback(env,state,code){
     const body=await ch.json(); metadata={youtubeChannel:body.items?.[0]?{id:body.items[0].id,title:body.items[0].snippet?.title||""}:null};
   }
   const id=crypto.randomUUID();
-  await firestoreSet("socialAccounts/"+id,{uid:st.uid,platform:st.platform,accessToken:await seal(env,String(token.access_token)),refreshToken:token.refresh_token?await seal(env,String(token.refresh_token)):null,expiresAt:token.expires_in?new Date(Date.now()+Number(token.expires_in)*1000):null,scope:String(token.scope||""),metadata,status:"connected",createdAt:new Date(),updatedAt:new Date()});
+  await firestoreSet("socialAccounts/"+id,{uid:st.uid,platform:st.platform,workspaceId:String(st.workspaceId||"")||null,accessToken:await seal(env,String(token.access_token)),refreshToken:token.refresh_token?await seal(env,String(token.refresh_token)):null,expiresAt:token.expires_in?new Date(Date.now()+Number(token.expires_in)*1000):null,scope:String(token.scope||""),metadata,status:"connected",createdAt:new Date(),updatedAt:new Date()});
   await firestoreSet("socialOAuthStates/"+state,{uid:st.uid,status:"completed",completedAt:new Date()});
   return {ok:true,id,platform:st.platform,metadata};
 }
