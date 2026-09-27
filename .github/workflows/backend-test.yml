@@ -10,12 +10,28 @@ jobs:
       run:
         working-directory: functions
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Configure Git defaults
+        working-directory: .
+        run: git config --global init.defaultBranch main
+
+      - name: Checkout main
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: functions/package.json
-      - run: npm install
-      - run: npm run check
-      - run: npm test
+
+      - name: Install backend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check dependency security
+        run: npm audit --audit-level=moderate
+
+      - name: Validate backend JavaScript
+        run: npm run check
+
+      - name: Run backend tests
+        run: npm test
