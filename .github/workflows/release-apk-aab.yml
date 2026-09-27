@@ -2,6 +2,17 @@ name: BQ Sqwad AI — Release APK & AAB
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a GitHub release"
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: "Git tag to publish when release publishing is enabled"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write
