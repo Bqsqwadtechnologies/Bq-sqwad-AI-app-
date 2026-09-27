@@ -14,7 +14,7 @@ data class SearchSource(val title:String,val url:String,val snippet:String?)
 data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,val answer:String? = null)
 
 class WorkspaceApiClient {
-    private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     private suspend fun request(path:String, method:String="POST", payload:JSONObject=JSONObject()):JSONObject = withContext(Dispatchers.IO) {
         val user=FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
