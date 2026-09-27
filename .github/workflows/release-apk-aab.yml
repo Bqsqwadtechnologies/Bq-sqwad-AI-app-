@@ -35,18 +35,19 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
-      - name: Verify Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install required Android SDK packages
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$ANDROID_HOME/platforms/android-37.0/android.jar"
-          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0"
+          yes | sdkmanager --licenses >/dev/null || true
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
           test -x "$ANDROID_HOME/platform-tools/adb"
-          if [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
-            ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
-          fi
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
@@ -84,7 +85,7 @@ jobs:
           AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$APK"
           test -s "$AAB"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           jarsigner -verify "$AAB"
 
       - name: Record build identifier
