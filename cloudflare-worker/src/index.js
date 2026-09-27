@@ -1,4 +1,5 @@
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit } from "./firebase.js";
+import { runProvider, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
@@ -36,7 +37,25 @@ function outputText(result) {
 async function capability(uid, name) {
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
-  return control || { enabled: true, creditCost: 0, config: {} };
+  const defaults = {
+    chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
+    device_commands: { providerId: "gemini", modelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [] },
+    web_search: { providerId: "tavily", modelId: null, fallbackProviderIds: [] },
+    deep_research: { providerId: "tavily", modelId: null, fallbackProviderIds: [] }
+  };
+  const d = defaults[name] || defaults.chat;
+  const value = control || {};
+  return {
+    ...value,
+    enabled: value.enabled !== false,
+    providerId: value.providerId || d.providerId,
+    modelId: value.modelId || d.modelId,
+    creditCost: Number(value.creditCost || 0),
+    config: {
+      ...(value.config || {}),
+      fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
+    }
+  };
 }
 async function requireConsent(uid) {
   const consent = await firestoreGet("userConsents/" + uid);
@@ -50,48 +69,102 @@ async function memoryContext(uid) {
 async function chargeCredits(uid, amount, capabilityName) {
   const charge = Math.max(0, Number(amount || 0));
   if (!charge) return { reservationId: null, amount: 0 };
-  const balance = await firestoreGet("creditBalances/" + uid);
-  if (!balance || Number(balance.available || 0) < charge) throw new Error("Insufficient credits");
   const reservationId = crypto.randomUUID();
-  await firestoreSet("creditBalances/" + uid, {
-    uid, available: Number(balance.available || 0) - charge,
-    reserved: Number(balance.reserved || 0) + charge,
-    updatedAt: new Date()
-  }, true);
-  await firestoreCreate("creditReservations/" + reservationId, {
-    uid, capability: capabilityName, amount: charge, status: "reserved", createdAt: new Date()
-  });
-  return { reservationId, amount: charge };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const balance = await firestoreGet("creditBalances/" + uid);
+    if (!balance || Number(balance.available || 0) < charge) throw new Error("Insufficient credits");
+    try {
+      await firestoreCommit([
+        {
+          path: "creditBalances/" + uid,
+          data: {
+            uid,
+            available: Number(balance.available || 0) - charge,
+            reserved: Number(balance.reserved || 0) + charge,
+            updatedAt: new Date()
+          },
+          updateTime: balance.__updateTime
+        },
+        {
+          path: "creditReservations/" + reservationId,
+          data: { uid, capability: capabilityName, amount: charge, status: "reserved", createdAt: new Date() },
+          exists: false
+        }
+      ]);
+      return { reservationId, amount: charge };
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
+  throw new Error("credit_reservation_failed");
 }
 async function commitCredits(uid, reservationId, providerId) {
   if (!reservationId) return;
-  const reservation = await firestoreGet("creditReservations/" + reservationId);
-  if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
-  const balance = await firestoreGet("creditBalances/" + uid);
-  await firestoreSet("creditBalances/" + uid, {
-    available: Number(balance?.available || 0),
-    reserved: Math.max(0, Number(balance?.reserved || 0) - Number(reservation.amount || 0)),
-    updatedAt: new Date()
-  }, true);
-  await firestoreSet("creditReservations/" + reservationId, {
-    status: "committed", providerId: providerId || null, committedAt: new Date()
-  }, true);
-  await firestoreCreate("creditLedger/" + crypto.randomUUID(), {
-    uid, capability: reservation.capability, amount: Number(reservation.amount || 0),
-    kind: "usage", providerId: providerId || null, createdAt: new Date()
-  });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const reservation = await firestoreGet("creditReservations/" + reservationId);
+    if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
+    const balance = await firestoreGet("creditBalances/" + uid);
+    if (!balance) throw new Error("credit_balance_missing");
+    try {
+      await firestoreCommit([
+        {
+          path: "creditBalances/" + uid,
+          data: { reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)), updatedAt: new Date() },
+          updateTime: balance.__updateTime
+        },
+        {
+          path: "creditReservations/" + reservationId,
+          data: { uid, status: "committed", providerId: providerId || null, committedAt: new Date() },
+          updateTime: reservation.__updateTime
+        },
+        {
+          path: "creditLedger/" + crypto.randomUUID(),
+          data: {
+            uid,
+            capability: reservation.capability,
+            amount: Number(reservation.amount || 0),
+            kind: "usage",
+            providerId: providerId || null,
+            createdAt: new Date()
+          },
+          exists: false
+        }
+      ]);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
 }
 async function reverseCredits(uid, reservationId) {
   if (!reservationId) return;
-  const reservation = await firestoreGet("creditReservations/" + reservationId);
-  if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
-  const balance = await firestoreGet("creditBalances/" + uid);
-  await firestoreSet("creditBalances/" + uid, {
-    available: Number(balance?.available || 0) + Number(reservation.amount || 0),
-    reserved: Math.max(0, Number(balance?.reserved || 0) - Number(reservation.amount || 0)),
-    updatedAt: new Date()
-  }, true);
-  await firestoreSet("creditReservations/" + reservationId, { status: "reversed", reversedAt: new Date() }, true);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const reservation = await firestoreGet("creditReservations/" + reservationId);
+    if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
+    const balance = await firestoreGet("creditBalances/" + uid);
+    if (!balance) throw new Error("credit_balance_missing");
+    try {
+      await firestoreCommit([
+        {
+          path: "creditBalances/" + uid,
+          data: {
+            available: Number(balance.available || 0) + Number(reservation.amount || 0),
+            reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)),
+            updatedAt: new Date()
+          },
+          updateTime: balance.__updateTime
+        },
+        {
+          path: "creditReservations/" + reservationId,
+          data: { uid, status: "reversed", reversedAt: new Date() },
+          updateTime: reservation.__updateTime
+        }
+      ]);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
 }
 async function ai(request, user, body) {
   await requireConsent(user.uid);
@@ -101,14 +174,16 @@ async function ai(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
-    const model = String(control.modelId || control.config?.modelId || "gpt-5.6-luna");
-    const result = await openai({ model, input: String(body.message || ""), ...(system ? { instructions: system } : {}) });
-    const payload = await result.json();
-    const text = outputText(payload).trim();
-    if (!text) throw new Error("The AI service returned an empty response.");
-    await commitCredits(user.uid, reservation.reservationId, "openai");
-    return json({ text, providerId: "openai", modelId: model, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() });
+    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\\n" + memory : ""].filter(Boolean).join("\\n");
+    const result = await runProvider(globalThis.__bqEnv, {
+      primaryProviderId: control.providerId,
+      primaryModelId: control.modelId,
+      fallbackProviderIds: control.config?.fallbackProviderIds || [],
+      fallbackModels: control.config?.fallbackModels || {}
+    }, { message: String(body.message || ""), system });
+    if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+    await commitCredits(user.uid, reservation.reservationId, result.providerId);
+    return json({ text: result.text.trim(), providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() });
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
     throw error;
@@ -119,21 +194,22 @@ async function vision(request, user, body) {
   const imageBase64 = String(body.imageBase64 || "");
   if (!imageBase64) throw new Error("image_required");
   if (imageBase64.length > 8000000) throw new Error("image_too_large");
-  const control = await capability(user.uid, "chat");
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "chat");
+  const control = await capability(user.uid, "live_camera");
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera");
   try {
-    const model = String(control.modelId || control.config?.modelId || "gpt-5.6-luna");
-    const response = await openai({
-      model,
-      input: [{ role: "user", content: [
-        { type: "input_text", text: String(body.message || "Describe what is visible in this camera frame.") },
-        { type: "input_image", image_url: "data:" + String(body.mimeType || "image/jpeg") + ";base64," + imageBase64 }
-      ]}]
+    const response = await callOpenAI(globalThis.__bqEnv, {
+      model: control.modelId || DEFAULT_MODELS.openai,
+      message: String(body.message || "Describe what is visible in this camera frame."),
+      imageBase64,
+      mimeType: String(body.mimeType || "image/jpeg"),
+      stream: false
     });
+    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));
     const payload = await response.json();
-    const text = outputText(payload).trim();
+    const text = payload.output_text || payload.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
+    if (!text.trim()) throw new Error("The AI service returned an empty response.");
     await commitCredits(user.uid, reservation.reservationId, "openai");
-    return json({ text, providerId: "openai", modelId: model, creditsCharged: reservation.amount });
+    return json({ text: text.trim(), providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
     throw error;
@@ -146,41 +222,49 @@ async function stream(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
-    const model = String(control.modelId || control.config?.modelId || "gpt-5.6-luna");
-    const upstream = await openai({ model, input: String(body.message || ""), ...(system ? { instructions: system } : {}) }, true);
+    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\\n" + memory : ""].filter(Boolean).join("\\n");
+    const upstream = await callOpenAI(globalThis.__bqEnv, {
+      model: control.modelId || DEFAULT_MODELS.openai,
+      message: String(body.message || ""),
+      system,
+      stream: true
+    });
+    if (!upstream.ok || !upstream.body) throw new Error("provider_http_" + upstream.status + ":" + (await upstream.text()).slice(0, 700));
     const reader = upstream.body.getReader();
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
     const output = new ReadableStream({
       async start(controller) {
         let buffer = "";
+        let completed = false;
         try {
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split(/\r?\n\r?\n/);
+            const events = buffer.split(/\\r?\\n\\r?\\n/);
             buffer = events.pop() || "";
             for (const event of events) {
-              const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
+              const data = event.split(/\\r?\\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\\n");
               if (!data || data === "[DONE]") continue;
               let parsed; try { parsed = JSON.parse(data); } catch { continue; }
               if (parsed.type === "response.output_text.delta" && parsed.delta) {
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"delta", text:parsed.delta}) + "\n\n"));
+                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"delta", text:parsed.delta}) + "\\n\\n"));
               } else if (parsed.type === "response.completed") {
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"completed"}) + "\n\n"));
+                completed = true;
+                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"completed"}) + "\\n\\n"));
               } else if (parsed.type === "error") {
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:parsed.error?.message || "Streaming failed"}) + "\n\n"));
+                throw new Error(parsed.error?.message || "Streaming failed");
               }
             }
           }
+          if (!completed) throw new Error("stream_incomplete");
           await commitCredits(user.uid, reservation.reservationId, "openai");
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.enqueue(encoder.encode("data: [DONE]\\n\\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
-          controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:error.message || "stream_failed"}) + "\n\n"));
+          controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:error.message || "stream_failed"}) + "\\n\\n"));
           controller.close();
         }
       }
@@ -192,40 +276,3 @@ async function stream(request, user, body) {
   }
 }
 
-export default {
-  async fetch(request, env) {
-    configureFirebaseEnv(env);
-    const url = new URL(request.url);
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
-    if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
-    try {
-      if (url.pathname === "/ai" && request.method === "POST") {
-        const user = await verifyFirebaseUser(request);
-        return await ai(request, user, await readBody(request));
-      }
-      if (url.pathname === "/ai/vision" && request.method === "POST") {
-        const user = await verifyFirebaseUser(request);
-        return await vision(request, user, await readBody(request));
-      }
-      if (url.pathname === "/ai/stream" && request.method === "POST") {
-        const user = await verifyFirebaseUser(request);
-        return await stream(request, user, await readBody(request));
-      }
-      const upstreamUrl = UPSTREAM + url.pathname + url.search;
-      const headers = new Headers(request.headers);
-      headers.delete("host");
-      const upstream = await fetch(upstreamUrl, {
-        method: request.method,
-        headers,
-        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-        redirect: "follow"
-      });
-      const responseHeaders = new Headers(upstream.headers);
-      for (const [key, value] of Object.entries(corsHeaders())) responseHeaders.set(key, value);
-      return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
-    } catch (error) {
-      console.error("bq_backend_error", { message: error?.message || "request_failed" });
-      return json({ error: error?.message || "backend_unavailable" }, 400);
-    }
-  }
-};
