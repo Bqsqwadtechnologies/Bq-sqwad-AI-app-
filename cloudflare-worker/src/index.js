@@ -310,8 +310,22 @@ export default {
         const reservation = await chargeCredits(user.uid, charge, capabilityName);
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
-          await commitCredits(user.uid, reservation.reservationId, "tavily");
-          return json({...result, answer:null, creditsCharged:reservation.amount});
+          let answer = null;
+          if (deepResearch && result.sources?.length) {
+            const sources = result.sources.map((s,i) => "[" + (i + 1) + "] " + String(s.title || "") + "\nURL: " + String(s.url || "") + "\n" + String(s.snippet || "")).join("\n\n");
+            const synthesis = await runProvider(env, {
+              primaryProviderId: "openai",
+              primaryModelId: DEFAULT_MODELS.openai,
+              fallbackProviderIds: ["gemini"],
+              fallbackModels: {}
+            }, {
+              message: "Research question: " + query + "\n\nSearch sources:\n" + sources,
+              system: "Synthesize a factual research answer from the supplied search sources. Cite claims using [1], [2], etc. Do not invent facts or citations. Clearly say when the sources do not establish an answer."
+            });
+            answer = synthesis.text;
+          }
+          await commitCredits(user.uid, reservation.reservationId, deepResearch ? "tavily+ai" : "tavily");
+          return json({...result, answer, creditsCharged:reservation.amount});
         } catch(error) {
           await reverseCredits(user.uid, reservation.reservationId);
           throw error;
