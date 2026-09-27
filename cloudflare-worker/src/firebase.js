@@ -214,3 +214,13 @@ export async function firestoreQueryCollection(collection, parent = null) {
   const url = FIRESTORE_BASE + "/projects/" + encodeURIComponent(projectId()) + "/databases/(default)/documents/" + collection.split("/").map(encodeURIComponent).join("/");
   return firestoreFetch(url);
 }
+
+export async function firestoreDelete(path) {
+  const token = await googleAccessToken();
+  const response = await fetch(docUrl(path), { method: "DELETE", headers: { authorization: "Bearer " + token } });
+  if (!response.ok && response.status !== 404) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error?.message || "Firestore delete failed");
+  }
+  return { ok: true };
+}
