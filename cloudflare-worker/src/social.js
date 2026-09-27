@@ -1,4 +1,4 @@
-import { firestoreGet, firestoreSet, firestoreCreate } from "./firebase.js";
+import { firestoreGet, firestoreSet, firestoreCreate, firestoreQueryCollection } from "./firebase.js";
 
 const PLATFORMS = {
   x: {
@@ -68,9 +68,22 @@ export async function socialCallback(env,state,code){
   return {ok:true,id,platform:st.platform,metadata};
 }
 
-export async function listSocialAccounts(uid){
-  const result=await firestoreGet("socialAccounts/_list/"+uid);
-  return Array.isArray(result?.items)?result.items:[];
+export async function listSocialAccounts(uid, workspaceId=""){
+  const result = await firestoreQueryCollection("socialAccounts");
+  const docs = Array.isArray(result?.documents) ? result.documents : [];
+  return docs.map(doc => {
+    const item = {};
+    for (const [k,v] of Object.entries(doc.fields || {})) {
+      if ("stringValue" in v) item[k]=v.stringValue;
+      else if ("booleanValue" in v) item[k]=v.booleanValue;
+      else if ("integerValue" in v) item[k]=Number(v.integerValue);
+      else if ("timestampValue" in v) item[k]=v.timestampValue;
+      else item[k]=null;
+    }
+    item.id = String(doc.name || "").split("/").pop();
+    return item;
+  }).filter(x => x.uid === uid && (!workspaceId || String(x.workspaceId || "") === String(workspaceId)))
+    .map(x => ({id:x.id, platform:x.platform, workspaceId:x.workspaceId||null, organizationId:x.organizationId||null, status:x.status||"connected", metadata:x.metadata||{}}));
 }
 
 export async function socialAccountToken(env,account){
