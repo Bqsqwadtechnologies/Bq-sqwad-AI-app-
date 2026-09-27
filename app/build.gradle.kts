@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.bqsqwad.ai"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 0
+        }
+    }
 
     defaultConfig {
         applicationId = "com.bqsqwad.ai"
@@ -15,7 +19,7 @@ android {
         versionCode = 5
         versionName = "1.0.5"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
-        buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
+        buildConfigField("String", "BUILD_SHA", ""$buildSha"")
     }
 
     buildTypes {
