@@ -109,12 +109,12 @@ async function commitCredits(uid, reservationId, providerId) {
       await firestoreCommit([
         {
           path: "creditBalances/" + uid,
-          data: { reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)), updatedAt: new Date() },
+          data: { ...balance, reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)), updatedAt: new Date() },
           updateTime: balance.__updateTime
         },
         {
           path: "creditReservations/" + reservationId,
-          data: { uid, status: "committed", providerId: providerId || null, committedAt: new Date() },
+          data: { ...reservation, uid, status: "committed", providerId: providerId || null, committedAt: new Date() },
           updateTime: reservation.__updateTime
         },
         {
@@ -156,7 +156,7 @@ async function reverseCredits(uid, reservationId) {
         },
         {
           path: "creditReservations/" + reservationId,
-          data: { uid, status: "reversed", reversedAt: new Date() },
+          data: { ...reservation, uid, status: "reversed", reversedAt: new Date() },
           updateTime: reservation.__updateTime
         }
       ]);
