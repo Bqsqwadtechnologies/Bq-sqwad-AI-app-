@@ -174,7 +174,7 @@ async function ai(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\\n" + memory : ""].filter(Boolean).join("\\n");
+    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
@@ -222,7 +222,7 @@ async function stream(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\\n" + memory : ""].filter(Boolean).join("\\n");
+    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const upstream = await callOpenAI(globalThis.__bqEnv, {
       model: control.modelId || DEFAULT_MODELS.openai,
       message: String(body.message || ""),
@@ -242,17 +242,17 @@ async function stream(request, user, body) {
             const { value, done } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split(/\\r?\\n\\r?\\n/);
+            const events = buffer.split(/\r?\n\r?\n/);
             buffer = events.pop() || "";
             for (const event of events) {
-              const data = event.split(/\\r?\\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\\n");
+              const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
               if (!data || data === "[DONE]") continue;
               let parsed; try { parsed = JSON.parse(data); } catch { continue; }
               if (parsed.type === "response.output_text.delta" && parsed.delta) {
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"delta", text:parsed.delta}) + "\\n\\n"));
+                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"delta", text:parsed.delta}) + "\n\n"));
               } else if (parsed.type === "response.completed") {
                 completed = true;
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"completed"}) + "\\n\\n"));
+                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"completed"}) + "\n\n"));
               } else if (parsed.type === "error") {
                 throw new Error(parsed.error?.message || "Streaming failed");
               }
@@ -260,11 +260,11 @@ async function stream(request, user, body) {
           }
           if (!completed) throw new Error("stream_incomplete");
           await commitCredits(user.uid, reservation.reservationId, "openai");
-          controller.enqueue(encoder.encode("data: [DONE]\\n\\n"));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
-          controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:error.message || "stream_failed"}) + "\\n\\n"));
+          controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:error.message || "stream_failed"}) + "\n\n"));
           controller.close();
         }
       }
