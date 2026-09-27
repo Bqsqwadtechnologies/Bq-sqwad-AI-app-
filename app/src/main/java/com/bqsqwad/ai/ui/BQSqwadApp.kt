@@ -206,12 +206,21 @@ private fun ConsentGate(modifier: Modifier) {
         loading = true
         error = null
         scope.launch {
-            runCatching { WorkspaceApiClient().consent() }
+            runCatching {
+                withTimeout(20000) { WorkspaceApiClient().consent() }
+            }
                 .onSuccess {
                     accepted = it.optBoolean("requiredAccepted")
                     trainingConsent = it.optBoolean("trainingConsent")
                 }
-                .onFailure { error = it.message ?: "Could not verify consent." }
+                .onFailure {
+                    error = when (it) {
+                        is TimeoutCancellationException ->
+                            "BQ Sqwad AI could not reach its secure service in time. Please check your connection and try again."
+                        else -> it.message?.takeIf { message -> message.isNotBlank() }
+                            ?: "BQ Sqwad AI could not verify your consent right now. Please try again."
+                    }
+                }
             loading = false
         }
     }
@@ -229,15 +238,41 @@ private fun ConsentGate(modifier: Modifier) {
             Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
                 "Please accept the BQ Sqwad AI Terms and Conditions and Privacy Policy. This consent is verified by the server before protected AI features can be used.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
             Row(verticalAlignment = Alignment.Top) {
-                Checkbox(checked = accepted, onCheckedChange = { accepted = it })
-                Text("I accept the Terms and Conditions and Privacy Policy.", modifier = Modifier.padding(top = 12.dp))
+                Checkbox(
+                    checked = accepted,
+                    onCheckedChange = { accepted = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = Color.Transparent,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                Text(
+                    "I accept the Terms and Conditions and Privacy Policy.",
+                    modifier = Modifier.padding(top = 12.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
             Row(verticalAlignment = Alignment.Top) {
-                Checkbox(checked = trainingConsent, onCheckedChange = { trainingConsent = it })
-                Text("Optional: allow non-private training activity to improve the service.", modifier = Modifier.padding(top = 12.dp))
+                Checkbox(
+                    checked = trainingConsent,
+                    onCheckedChange = { trainingConsent = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = Color.Transparent,
+                        checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                        uncheckedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                Text(
+                    "Optional: allow non-private training activity to improve the service.",
+                    modifier = Modifier.padding(top = 12.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
             LegalConsentLinks()
             Row(
@@ -253,6 +288,10 @@ private fun ConsentGate(modifier: Modifier) {
                 ) { Text("Reject & sign out") }
                 Button(
                     enabled = accepted && !saving,
+                    colors = ButtonDefaults.buttonColors(
+                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.95f)
+                    ),
                     onClick = {
                         saving = true
                         error = null
@@ -520,12 +559,12 @@ private fun LegalConsentLinks() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             "By continuing, you agree to the BQ Sqwad AI Terms and Conditions and Privacy Policy.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodySmall
         )
         Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { browserUrl = "https://bqsqwadai.com/terms#:~:text=Using%20the%20service" }) { Text("Terms and Conditions") }
-            Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("•", color = MaterialTheme.colorScheme.onSurface)
             TextButton(onClick = { browserUrl = "https://bqsqwadai.com/privacy-policy#:~:text=Information%20we%20collect" }) { Text("Privacy Policy") }
         }
     }
