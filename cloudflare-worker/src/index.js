@@ -1,7 +1,7 @@
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete } from "./firebase.js";
 import { runProvider, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { verifyPlayPurchase } from "./google-play.js";
-import { socialStart, socialCallback } from "./social.js";
+import { socialStart, socialCallback, listSocialAccounts } from "./social.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
@@ -357,7 +357,7 @@ export default {
         const body = await readBody(request);
         const platform = String(body.platform || "").trim().toLowerCase();
         const redirectUri = String(body.redirectUri || (new URL(request.url).origin + "/social/oauth/callback")).trim();
-        return json(await socialStart(env,user.uid,platform,redirectUri));
+        return json(await socialStart(env,user.uid,platform,redirectUri,String(body.workspaceId || "")));
       }
 
       if (url.pathname === "/social/oauth/callback" && request.method === "GET") {
@@ -365,6 +365,24 @@ export default {
         const code = String(url.searchParams.get("code") || "");
         if (!state || !code) return json({error:"oauth_callback_parameters_required"},400);
         return json(await socialCallback(env,state,code));
+      }
+
+      if (url.pathname === "/social/accounts" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const workspaceId = String(url.searchParams.get("workspaceId") || "");
+        return json({ accounts: await listSocialAccounts(user.uid, workspaceId) });
+      }
+
+      if (url.pathname.startsWith("/social/accounts/") && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const accountId = decodeURIComponent(url.pathname.slice("/social/accounts/".length)).trim();
+        if (!accountId) return json({ error: "social_account_required" }, 400);
+        const account = await firestoreGet("socialAccounts/" + accountId);
+        if (!account || String(account.uid || "") !== user.uid) return json({ error: "social_account_not_found" }, 404);
+        await firestoreDelete("socialAccounts/" + accountId);
+        return json({ ok: true, disconnected: true, platform: account.platform || null });
       }
 
       if (url.pathname === "/web-search" && request.method === "POST") {
