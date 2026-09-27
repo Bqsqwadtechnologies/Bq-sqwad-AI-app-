@@ -20,8 +20,7 @@ data class ChatReply(
 )
 
 class ChatApiClient(
-    private val baseUrl: String = "https://europe-west1-" +
-        FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl: String = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 ) {
     private fun authToken(): String {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
