@@ -524,20 +524,35 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
         ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
 
         Button(
-            enabled = !busy && name.isNotBlank() && email.isNotBlank() && password.length >= 6 &&
-                password == confirmPassword,
+            enabled = !busy && name.isNotBlank() &&
+                android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() &&
+                password.length >= 6 && password == confirmPassword,
             onClick = {
                 busy = true
                 error = null
                 auth.createUserWithEmailAndPassword(email.trim(), password)
                     .addOnCompleteListener { task ->
-                        busy = false
                         if (!task.isSuccessful) {
+                            busy = false
                             error = friendlyAuthError(task.exception)
                             return@addOnCompleteListener
                         }
-                        auth.currentUser?.sendEmailVerification()
-                        onAuthenticated()
+                        val created = auth.currentUser
+                        if (created == null) {
+                            busy = false
+                            error = "Account was created, but the session could not be established. Please sign in again."
+                            return@addOnCompleteListener
+                        }
+                        created.updateProfile(
+                            com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                                .setDisplayName(name.trim())
+                                .build()
+                        ).addOnCompleteListener {
+                            created.sendEmailVerification().addOnCompleteListener {
+                                busy = false
+                                onAuthenticated()
+                            }
+                        }
                     }
             },
             modifier = Modifier.fillMaxWidth()
