@@ -19,19 +19,6 @@ function pemToBytes(pem) {
   return bytes;
 }
 
-function serviceAccount() {
-  const raw = envRequired("BQ_FIREBASE_SERVICE_ACCOUNT_JSON");
-  const account = JSON.parse(raw);
-  if (!account.client_email || !account.private_key || !account.project_id) {
-    throw new Error("Invalid BQ_FIREBASE_SERVICE_ACCOUNT_JSON");
-  }
-  return account;
-}
-
-function envRequired(name) {
-  throw new Error("internal_env_placeholder");
-}
-
 export function configureFirebaseEnv(env) {
   globalThis.__bqEnv = env;
 }
@@ -205,8 +192,11 @@ export async function firestoreCreate(path, data) {
 
 export async function firestoreCommit(writes) {
   const body = { writes: writes.map(write => ({
-    update: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) },
-    ...(write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {})
+    ...(write.create
+      ? { create: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }
+      : { update: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }),
+    ...(write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {}),
+    ...(write.exists === false ? { currentDocument: { exists: false } } : {})
   })) };
   const token = await googleAccessToken();
   const url = FIRESTORE_BASE + "/projects/" + encodeURIComponent(projectId()) + "/databases/(default)/documents:commit";
