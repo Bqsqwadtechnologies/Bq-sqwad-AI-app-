@@ -16,7 +16,7 @@ const PLATFORMS = {
 const enc = new TextEncoder();
 
 function secret(env,name){ const aliases={X_CLIENT_ID:["X_CLIENT_ID","X_API_KEY"],X_CLIENT_SECRET:["X_CLIENT_SECRET","X_API_SECRET"],YOUTUBE_CLIENT_ID:["YOUTUBE_CLIENT_ID"],YOUTUBE_CLIENT_SECRET:["YOUTUBE_CLIENT_SECRET"]}; const v=(aliases[name]||[name]).map(k=>env?.[k]).find(Boolean); if(!v) throw new Error(name+"_not_configured"); return String(v); }
-function b64u(bytes){ let s=""; const a=new Uint8Array(bytes); for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000)); return btoa(s).replace(/\\+/g,"-").replace(/\\//g,"_").replace(/=+$/,""); }
+function b64u(bytes){ let s=""; const a=new Uint8Array(bytes); for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode(...a.subarray(i,i+0x8000)); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function bytes(s){ const p=s.replace(/-/g,"+").replace(/_/g,"/"); const b=atob(p+"=".repeat((4-p.length%4)%4)); const a=new Uint8Array(b.length); for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i); return a; }
 async function key(env){ return crypto.subtle.importKey("raw",await crypto.subtle.digest("SHA-256",enc.encode(secret(env,"BQ_SOCIAL_ENCRYPTION_KEY"))),{name:"AES-GCM"},false,["encrypt","decrypt"]); }
 async function seal(env,value){ const iv=crypto.getRandomValues(new Uint8Array(12)); const k=await key(env); const c=await crypto.subtle.encrypt({name:"AES-GCM",iv},k,enc.encode(value)); return {algorithm:"AES-GCM",iv:b64u(iv),ciphertext:b64u(c)}; }
