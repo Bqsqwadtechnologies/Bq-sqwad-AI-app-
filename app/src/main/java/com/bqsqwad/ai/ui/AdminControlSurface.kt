@@ -58,6 +58,7 @@ fun AdminControlCenter() {
     var grantAmount by remember { mutableStateOf("100") }
     var grantReason by remember { mutableStateOf("Admin free-credit grant") }
     var grantSaving by remember { mutableStateOf(false) }
+    var adminCredits by remember { mutableStateOf<org.json.JSONObject?>(null) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -66,6 +67,7 @@ fun AdminControlCenter() {
         loading = false
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
         runCatching { client.testMode() }.onSuccess { testMode = it }
+        runCatching { WorkspaceApiClient().credits() }.onSuccess { adminCredits = it }
     }
 
     val sections = listOf(
@@ -163,6 +165,30 @@ fun AdminControlCenter() {
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Admin Control Center", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Server-authoritative operations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Credits", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(
+                        if (adminCredits?.optBoolean("adminUnlimited", false) == true) "Unlimited" else String.format(java.util.Locale.US, "%.0f", adminCredits?.optDouble("available", 0.0) ?: 0.0),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
         OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
         Card(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
