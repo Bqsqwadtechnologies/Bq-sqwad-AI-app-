@@ -1044,22 +1044,28 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
-        Column(Modifier.fillMaxSize().padding(14.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 7.dp)) {
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().height(42.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 BqHeaderIconButton(
                     icon = Icons.Default.Menu,
                     contentDescription = "Open BQ Sqwad AI menu",
                     onClick = openHub
                 )
-                BqLogo(42.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                BqLogo(34.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
+                Text(
+                    statusText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
                 Box {
                     var menuOpen by remember { mutableStateOf(false) }
                     BqHeaderIconButton(
@@ -1083,50 +1089,37 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     onClick = openSettings
                 )
             }
-            Text(
-                statusText,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 54.dp, top = 2.dp)
-            )
             if (privateChat) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BqLogo(28.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Private Chat • This conversation will not be saved to Chat History.", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BqLogo(20.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Private Chat • not saved to History", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                     }
                 }
             }
             if (ADVANCED_APP_FEATURES.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Advanced AI", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            selectedAdvanced?.title ?: "Main Chat",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                Row(
+                    Modifier.fillMaxWidth().height(38.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("AI", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     LazyRow(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(horizontal = 1.dp)
                     ) {
                         item {
                             FilterChip(
                                 selected = selectedAdvanced == null,
                                 onClick = { selectedAdvanced = null },
-                                label = { Text("Main Chat") },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp)) }
+                                label = { Text("Main", maxLines = 1) },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(14.dp)) }
                             )
                         }
                         items(ADVANCED_APP_FEATURES) { feature ->
@@ -1134,20 +1127,19 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 selected = selectedAdvanced?.id == feature.id,
                                 onClick = { selectedAdvanced = if (selectedAdvanced?.id == feature.id) null else feature },
                                 label = { Text(feature.title, maxLines = 1) },
-                                leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(16.dp)) }
+                                leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(14.dp)) }
                             )
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Row(
-                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    Modifier.padding(horizontal = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
@@ -1156,13 +1148,19 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     ) {
                         Text(
                             "General",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Text("Ready for your next request", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        "Ready for your next request",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
                 }
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -1192,7 +1190,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 20.dp, bottom = 12.dp),
+                                .padding(top = 7.dp, bottom = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -1205,7 +1203,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             ) {
                                 Surface(
                                     modifier = Modifier
-                                        .size(116.dp)
+                                        .size(86.dp)
                                         .border(
                                             2.dp,
                                             MaterialTheme.colorScheme.primary.copy(alpha = 0.55f + (logoPulse * 0.45f)),
@@ -1223,11 +1221,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     shadowElevation = 8.dp
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
                                         Text("AI Features", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
@@ -1400,9 +1398,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 68.dp),
-                            minLines = 2,
-                            maxLines = 6,
+                                .heightIn(min = 54.dp),
+                            minLines = 1,
+                            maxLines = 5,
                             textStyle = LocalTextStyle.current.copy(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium
@@ -2495,7 +2493,6 @@ fun CameraWorkspace() {
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
-    val voiceLogState = rememberLazyListState()
     LaunchedEffect(liveUiState.log.size) {
         if (liveUiState.log.isNotEmpty()) voiceLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
     }
@@ -2588,7 +2585,7 @@ fun CameraWorkspace() {
         } else if (granted && active) {
             val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
             Box(
-                Modifier.fillMaxWidth().height(280.dp)
+                Modifier.fillMaxWidth().heightIn(min = 360.dp, max = 560.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.Black)
             ) {
@@ -2811,29 +2808,13 @@ fun VoiceWorkspace() {
 
         if (active) {
             Text(
-                "Speak naturally. The visual reacts to the microphone or AI audio level; speaking while it responds interrupts the response.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "Voice assistant is active. Speak naturally and the assistant will respond with audio.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
             )
-            if (liveUiState.log.isNotEmpty()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    tonalElevation = 2.dp
-                ) {
-                    LazyColumn(
-                        state = voiceLogState,
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        item { Text("Live transcript", fontWeight = FontWeight.SemiBold) }
-                        items(liveUiState.log.takeLast(40)) { entry -> Text(entry, style = MaterialTheme.typography.bodySmall) }
-                    }
-                }
-            }
         }
     }
-
-    DeviceIntelligencePanel("Live Voice AI")
 
     if (permissionExplanation) {
         AlertDialog(
