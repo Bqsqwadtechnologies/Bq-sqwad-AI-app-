@@ -179,7 +179,7 @@ fun AdminControlCenter() {
                     Text("Server-authoritative operations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Credits", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Total credits", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(
                         if (adminCredits?.optBoolean("adminUnlimited", false) == true) "Unlimited" else String.format(java.util.Locale.US, "%.0f", adminCredits?.optDouble("available", 0.0) ?: 0.0),
                         style = MaterialTheme.typography.titleLarge,
