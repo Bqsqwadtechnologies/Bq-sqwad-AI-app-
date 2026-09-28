@@ -112,6 +112,10 @@ export async function verifyPlayPurchase(env, firestore, input) {
   if (!valid) throw new Error("play_purchase_not_active");
 
   const creditGrant = Math.max(0, Number(mapping.creditGrant || 0));
+  // Firebase users/{uid} is the website's canonical balance and subscription record.
+  // Keep the legacy native mirror only if an older consumer still needs it.
+  const profile = await firestore.get("users/" + uid);
+  if (!profile) throw new Error("Account not found.");
   const balance = await firestore.get("creditBalances/" + uid);
   const entitlement = await firestore.get("entitlements/" + uid);
   const purchaseData = {
@@ -137,6 +141,31 @@ export async function verifyPlayPurchase(env, firestore, input) {
     { path: "entitlements/" + uid, data: entitlementData }
   ];
   if (creditGrant > 0) {
+    const isSubscription = mapping.productType === "subs";
+    const expiryTime = lineItem.expiryTime ? new Date(lineItem.expiryTime) : null;
+    const liveSubCredits = isSubscription && profile.subExpiresAt && Date.parse(String(profile.subExpiresAt)) > Date.now()
+      ? Number(profile.subCredits || 0)
+      : 0;
+    const nextPermanent = Number(profile.credits || 0) + (isSubscription ? 0 : creditGrant);
+    const nextSubCredits = liveSubCredits + (isSubscription ? creditGrant : 0);
+    const basePlan = String(verifiedBasePlanId || "");
+    const period = /year/i.test(basePlan) ? "yearly" : "monthly";
+    writes.push({
+      path: "users/" + uid,
+      data: {
+        ...profile,
+        uid,
+        credits: nextPermanent,
+        subCredits: nextSubCredits,
+        ...(isSubscription ? {
+          subscriptionPlan: String(mapping.planId || productId),
+          subscriptionPeriod: period,
+          ...(expiryTime ? { subExpiresAt: expiryTime } : {})
+        } : {}),
+        updatedAt: new Date()
+      }
+    });
+    // Keep the legacy native mirror in sync for any older app build.
     writes.push({
       path: "creditBalances/" + uid,
       data: {
@@ -148,12 +177,73 @@ export async function verifyPlayPurchase(env, firestore, input) {
       }
     });
     writes.push({
+      path: "creditTransactions/" + crypto.randomUUID(),
+      data: {
+        uid,
+        type: "purchase",
+        feature: "google-play",
+        credits: creditGrant,
+        balanceAfter: nextPermanent + nextSubCredits,
+        amount: Number(mapping.amount || mapping.price || 0),
+        currency: String(mapping.currency || "USD"),
+        reference: purchaseToken,
+        note: "Google Play purchase",
+        reason: "Verified Google Play purchase",
+        createdAt: new Date()
+      },
+      create: true
+    });
+    writes.push({
       path: "creditLedger/" + crypto.randomUUID(),
       data: { uid, amount: creditGrant, kind: "play_purchase_grant", providerId: "google_play", providerReference: purchaseToken, createdAt: new Date() },
       create: true
     });
   }
   await firestore.commit(writes);
+
+  // Shared website payment history. The website already reads these Firestore
+  // collections for receipts and admin payment analytics.
+  const paymentAmount = Number(mapping.amount || mapping.price || 0);
+  const paymentCurrency = String(mapping.currency || "USD");
+  const paymentReference = "GOOGLEPLAY-" + purchaseId;
+  await firestore.commit([
+    {
+      path: "billingReceipts/" + paymentReference + "-subscription",
+      data: {
+        uid,
+        module: String(mapping.product || "general"),
+        planName: String(mapping.name || mapping.planId || productId),
+        cycle: mapping.productType === "subs" ? (/year/i.test(String(verifiedBasePlanId)) ? "yearly" : "monthly") : "monthly",
+        amount: paymentAmount,
+        currency: paymentCurrency,
+        reference: paymentReference,
+        kind: "subscription",
+        status: "paid",
+        provider: "google_play",
+        productId,
+        basePlanId: verifiedBasePlanId || null,
+        createdAt: new Date()
+      },
+      create: true
+    },
+    {
+      path: "payments/" + paymentReference,
+      data: {
+        uid,
+        email: String(profile.email || ""),
+        amount: paymentAmount,
+        currency: paymentCurrency,
+        kind: String(mapping.product || "general"),
+        provider: "google_play",
+        reference: paymentReference,
+        productId,
+        planId: String(mapping.planId || ""),
+        basePlanId: verifiedBasePlanId || null,
+        createdAt: new Date()
+      },
+      create: true
+    }
+  ]);
 
   if (mapping.productType === "subs") {
     await playApi(env, "purchases/subscriptions/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken) + ":acknowledge", "POST", {});
