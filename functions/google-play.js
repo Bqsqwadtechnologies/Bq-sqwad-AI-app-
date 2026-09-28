@@ -294,6 +294,7 @@ export async function processPlayRtdn(event) {
   const creditGrant = Math.max(0, Number(mapping?.creditGrant || 0));
   const isRenewal = notificationType === 2;
   const renewalId = playRenewalId(purchaseToken, latestSuccessfulOrderId, eventId);
+  let renewalProcessed = false;
 
   await db.runTransaction(async tx => {
     const freshPurchase = await tx.get(purchaseRef);
@@ -310,6 +311,7 @@ export async function processPlayRtdn(event) {
     const previousPurchase = freshPurchase.data() || {};
     const period = billingPeriodFromBasePlan(verifiedBasePlanId || previousPurchase.basePlanId);
     const shouldGrantRenewal = isRenewal && creditGrant > 0 && Boolean(latestSuccessfulOrderId) && !renewalSnap.exists && String(previousPurchase.lastSuccessfulOrderId || "") !== latestSuccessfulOrderId;
+    renewalProcessed = shouldGrantRenewal;
     let nextPermanent = Math.max(0, Number(profile.credits || 0));
     let nextSub = Math.max(0, Number(profile.subCredits || 0));
     if (shouldGrantRenewal) {
@@ -387,5 +389,5 @@ export async function processPlayRtdn(event) {
   } else if (normalized === "expired" || (normalized === "cancelled" && endDate && endDate.getTime() <= Date.now())) {
     await deactivateExpiredUserServices(db, uid);
   }
-  return { ok: true, state: normalized, notificationType, renewalProcessed: shouldGrantRenewal };
+  return { ok: true, state: normalized, notificationType, renewalProcessed };
 }\n
