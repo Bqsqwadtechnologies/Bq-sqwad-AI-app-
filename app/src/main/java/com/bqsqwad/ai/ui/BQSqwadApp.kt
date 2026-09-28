@@ -1912,10 +1912,11 @@ private fun FeatureHub(
             }
 
             item {
-                Surface(
+                Card(
+                    onClick = onPlans,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                 ) {
                     Row(
                         Modifier.padding(16.dp),
@@ -1923,10 +1924,11 @@ private fun FeatureHub(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(Icons.Default.CloudDone, null, tint = MaterialTheme.colorScheme.primary)
-                        Column {
+                        Column(Modifier.weight(1f)) {
                             Text("Live feature catalogue", fontWeight = FontWeight.SemiBold)
-                            Text("Access, plans, limits and availability come from the server-controlled catalogue.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Open the live BQ Sqwad AI catalogue for plans, limits and availability.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Open live feature catalogue")
                     }
                 }
             }
