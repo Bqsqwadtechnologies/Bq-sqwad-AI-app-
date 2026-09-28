@@ -109,6 +109,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 4; attempt++) {
     const balance = await firestoreGet("creditBalances/" + uid);
+    if (!balance || Number(balance.available || 0) < charge) throw new Error("Insufficient credits");
     try {
       await firestoreCommit([
         {
@@ -255,7 +256,7 @@ async function stream(request, user, body) {
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
   const control = await capability(user.uid, capabilityName);
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
     const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
@@ -337,7 +338,6 @@ export default {
         url.pathname === "/native/catalog" ||
         url.pathname === "/entitlements" ||
         url.pathname === "/entitlement" ||
-        url.pathname === "/credits" ||
         url.pathname === "/admin/access" ||
         url.pathname === "/admin/test-mode";
       if (firebaseBackedPath && !hasWorkerFirebaseConfig(env)) {
@@ -379,6 +379,7 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null });
+        if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
         const snap = await firestoreGet("creditBalances/" + user.uid);
         return json({
           available: Number(snap?.available || 0),
