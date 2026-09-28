@@ -13,7 +13,6 @@ function nextRun(schedule, from = new Date()) {
   if (value === "hourly") return new Date(from.getTime() + 60 * 60 * 1000).toISOString();
   if (value === "daily") return new Date(from.getTime() + 24 * 60 * 60 * 1000).toISOString();
   if (value === "weekly") return new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  if (value === "weekly") return new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const minutes = Number(value.match(/^(\d+)m$/)?.[1] || 0);
   if (minutes >= 5) return new Date(from.getTime() + minutes * 60 * 1000).toISOString();
   throw new Error("unsupported_schedule");
@@ -90,13 +89,36 @@ export async function runOrganizationScheduledTask(uid, id) {
   }
 }
 
+async function claimDueTask(doc) {
+  const db = getFirestore();
+  const ref = db.collection("organizationScheduledTasks").doc(doc.id);
+  const lockId = crypto.randomUUID();
+  const now = new Date();
+  const claimed = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const task = snap.data() || {};
+    if (!due(task)) return false;
+    // Scheduled invocations can overlap. Claim the task atomically so the same
+    // due task cannot be executed twice by concurrent scheduler invocations.
+    tx.set(ref, {
+      lastStatus: "running",
+      runLockId: lockId,
+      runStartedAt: now.toISOString(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    return true;
+  });
+  return claimed;
+}
+
 export async function runDueOrganizationScheduledTasks() {
   const db = getFirestore();
   const snap = await db.collection("organizationScheduledTasks").where("enabled", "==", true).limit(200).get();
   const results = [];
   for (const doc of snap.docs) {
-    const task = doc.data();
-    if (!due(task)) continue;
+    if (!(await claimDueTask(doc))) continue;
+    const task = doc.data() || {};
     try {
       results.push({ id: doc.id, ok: true, ...(await runOrganizationScheduledTask(task.uid, doc.id)) });
     } catch (error) {
