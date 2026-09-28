@@ -378,13 +378,25 @@ export default {
 
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null });
+        if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+        // Website and native Android both use the canonical creditBalances/{uid} record.
+        // Never cache this response: a website grant or usage commit must be visible to the app immediately.
         if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
         const snap = await firestoreGet("creditBalances/" + user.uid);
         return json({
           available: Number(snap?.available || 0),
           reserved: Number(snap?.reserved || 0),
-          updatedAt: snap?.updatedAt || null
+          updatedAt: snap?.updatedAt || null,
+          source: "creditBalances"
+        });
+      }
+
+      if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user)) throw new Error("Admin access required");
+        return json({
+          configured: providerSecretStatus(env),
+          checkedAt: new Date().toISOString()
         });
       }
 
