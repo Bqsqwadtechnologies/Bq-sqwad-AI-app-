@@ -1044,9 +1044,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
-        Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 7.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
             Row(
-                Modifier.fillMaxWidth().height(42.dp),
+                Modifier.fillMaxWidth().height(36.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -1055,9 +1055,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     contentDescription = "Open BQ Sqwad AI menu",
                     onClick = openHub
                 )
-                BqLogo(34.dp)
+                BqLogo(30.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
                 Text(
@@ -1091,7 +1091,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             }
             if (privateChat) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp),
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
@@ -1104,7 +1104,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             }
             if (ADVANCED_APP_FEATURES.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().height(38.dp),
+                    Modifier.fillMaxWidth().height(34.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -1134,7 +1134,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             Surface(
-                modifier = Modifier.fillMaxWidth().height(32.dp),
+                modifier = Modifier.fillMaxWidth().height(28.dp),
                 shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
@@ -1174,7 +1174,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 ),
                 label = "bqPulseValue"
             )
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (messages.isEmpty()) {
                     item {
                         val floatTransition = rememberInfiniteTransition(label = "bqFloatingLogo")
@@ -1190,7 +1190,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 7.dp, bottom = 7.dp),
+                                .padding(top = 2.dp, bottom = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -1203,7 +1203,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             ) {
                                 Surface(
                                     modifier = Modifier
-                                        .size(86.dp)
+                                        .size(76.dp)
                                         .border(
                                             2.dp,
                                             MaterialTheme.colorScheme.primary.copy(alpha = 0.55f + (logoPulse * 0.45f)),
@@ -1310,7 +1310,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             ) {
                 Surface(
                     modifier = Modifier
-                        .size(58.dp)
+                        .size(48.dp)
                         .border(
                             2.dp,
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.75f + pulse * 0.25f),
@@ -1344,11 +1344,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
+                            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
                         Column(
-                            modifier = Modifier.width(52.dp),
+                            modifier = Modifier.width(44.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             IconButton(
@@ -1398,7 +1398,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 54.dp),
+                                .heightIn(min = 48.dp),
                             minLines = 1,
                             maxLines = 5,
                             textStyle = LocalTextStyle.current.copy(
@@ -1439,7 +1439,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 if (busy) Icons.Default.Stop else Icons.Default.Send,
                                 contentDescription = if (busy) "Stop generating" else "Send",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(25.dp)
                             )
                         }
                     }
