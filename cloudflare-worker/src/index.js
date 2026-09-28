@@ -102,66 +102,109 @@ async function memoryContext(uid) {
   if (!memory || memory.enabled === false || !Array.isArray(memory.items)) return "";
   return memory.items.slice(-30).map(x => String(x?.text || "").trim()).filter(Boolean).join("\n");
 }
+function canonicalUserBalance(profile) {
+  if (!profile) return null;
+  const expiresAt = profile.subExpiresAt ? String(profile.subExpiresAt) : null;
+  const subscriptionLive = expiresAt ? Date.parse(expiresAt) > Date.now() : false;
+  const permanent = Math.max(0, Number(profile.credits || 0));
+  const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
+  return {
+    permanent,
+    subscription,
+    total: permanent + subscription,
+    subscriptionExpiresAt: subscriptionLive ? expiresAt : null,
+    plan: String(profile.subscriptionPlan || "free")
+  };
+}
+
+async function readCanonicalUserBalance(uid) {
+  return firestoreGet("users/" + uid);
+}
+
 async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   const charge = Math.max(0, Number(amount || 0));
   if (!charge) return { reservationId: null, amount: 0 };
   if (isSuperAdmin(adminUser)) return { reservationId: null, amount: 0, adminUnlimited: true };
+
   const reservationId = crypto.randomUUID();
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const balance = await firestoreGet("creditBalances/" + uid);
-    if (!balance || Number(balance.available || 0) < charge) throw new Error("Insufficient credits");
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const profile = await readCanonicalUserBalance(uid);
+    const balance = canonicalUserBalance(profile);
+    if (!profile || !balance) throw new Error("Account not found.");
+    if (Number(profile.suspended ? 1 : 0) === 1) throw new Error("Your account is suspended.");
+    if (balance.total < charge) throw new Error("Insufficient credits");
+
+    // The website's users/{uid} document is the shared credit authority.
+    // Reserve the exact bucket(s) here so website and app cannot both spend
+    // the same credits. The reservation is reversed if the AI call fails.
+    const fromSubscription = Math.min(balance.subscription, charge);
+    const fromPermanent = charge - fromSubscription;
     try {
       await firestoreCommit([
         {
-          path: "creditBalances/" + uid,
+          path: "users/" + uid,
           data: {
-            uid,
-            available: Number(balance.available || 0) - charge,
-            reserved: Number(balance.reserved || 0) + charge,
+            credits: balance.permanent - fromPermanent,
+            subCredits: Math.max(0, balance.subscription - fromSubscription),
             updatedAt: new Date()
           },
-          updateTime: balance.__updateTime
+          updateTime: profile.__updateTime
         },
         {
           path: "creditReservations/" + reservationId,
-          data: { uid, capability: capabilityName, amount: charge, status: "reserved", createdAt: new Date() },
+          data: {
+            uid,
+            capability: capabilityName,
+            amount: charge,
+            fromSubscription,
+            fromPermanent,
+            status: "reserved",
+            createdAt: new Date()
+          },
           exists: false
         }
       ]);
       return { reservationId, amount: charge };
     } catch (error) {
-      if (attempt === 3) throw error;
+      if (attempt === 4) throw error;
     }
   }
   throw new Error("credit_reservation_failed");
 }
+
 async function commitCredits(uid, reservationId, providerId) {
   if (!reservationId) return;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const reservation = await firestoreGet("creditReservations/" + reservationId);
     if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
-    const balance = await firestoreGet("creditBalances/" + uid);
-    if (!balance) throw new Error("credit_balance_missing");
+    const profile = await readCanonicalUserBalance(uid);
+    const balance = canonicalUserBalance(profile);
+    if (!profile || !balance) throw new Error("credit_balance_missing");
     try {
       await firestoreCommit([
         {
-          path: "creditBalances/" + uid,
-          data: { ...balance, reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)), updatedAt: new Date() },
-          updateTime: balance.__updateTime
-        },
-        {
           path: "creditReservations/" + reservationId,
-          data: { ...reservation, uid, status: "committed", providerId: providerId || null, committedAt: new Date() },
+          data: {
+            ...reservation,
+            uid,
+            status: "committed",
+            providerId: providerId || null,
+            committedAt: new Date()
+          },
           updateTime: reservation.__updateTime
         },
         {
-          path: "creditLedger/" + crypto.randomUUID(),
+          path: "creditTransactions/" + crypto.randomUUID(),
           data: {
             uid,
-            capability: reservation.capability,
-            amount: Number(reservation.amount || 0),
-            kind: "usage",
+            type: "usage",
+            feature: reservation.capability,
+            credits: -Number(reservation.amount || 0),
+            balanceAfter: balance.total,
+            note: "Native app usage",
+            reason: "Cloudflare Worker AI request",
             providerId: providerId || null,
+            requestId: reservationId,
             createdAt: new Date()
           },
           exists: false
@@ -169,40 +212,47 @@ async function commitCredits(uid, reservationId, providerId) {
       ]);
       return;
     } catch (error) {
-      if (attempt === 3) throw error;
+      if (attempt === 4) throw error;
     }
   }
 }
+
 async function reverseCredits(uid, reservationId) {
   if (!reservationId) return;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const reservation = await firestoreGet("creditReservations/" + reservationId);
     if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") return;
-    const balance = await firestoreGet("creditBalances/" + uid);
-    if (!balance) throw new Error("credit_balance_missing");
+    const profile = await readCanonicalUserBalance(uid);
+    if (!profile) throw new Error("credit_balance_missing");
     try {
       await firestoreCommit([
         {
-          path: "creditBalances/" + uid,
+          path: "users/" + uid,
           data: {
-            available: Number(balance.available || 0) + Number(reservation.amount || 0),
-            reserved: Math.max(0, Number(balance.reserved || 0) - Number(reservation.amount || 0)),
+            credits: Number(profile.credits || 0) + Number(reservation.fromPermanent || 0),
+            subCredits: Number(profile.subCredits || 0) + Number(reservation.fromSubscription || 0),
             updatedAt: new Date()
           },
-          updateTime: balance.__updateTime
+          updateTime: profile.__updateTime
         },
         {
           path: "creditReservations/" + reservationId,
-          data: { ...reservation, uid, status: "reversed", reversedAt: new Date() },
+          data: {
+            ...reservation,
+            uid,
+            status: "reversed",
+            reversedAt: new Date()
+          },
           updateTime: reservation.__updateTime
         }
       ]);
       return;
     } catch (error) {
-      if (attempt === 3) throw error;
+      if (attempt === 4) throw error;
     }
   }
 }
+
 async function ai(request, user, body) {
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
@@ -379,20 +429,21 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
-        // Website and native Android both use the canonical creditBalances/{uid} record.
-        // Never cache this response: a website grant or usage commit must be visible to the app immediately.
+        // The website's Firebase backend is the canonical credit authority.
+        // Both website and Android read the same users/{uid} balance.
         if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
-        const snap = await firestoreGet("creditBalances/" + user.uid);
-        // Keep the Worker and existing website/backend on the same balance source.
-        // If an older account has not yet been materialized in the canonical
-        // creditBalances collection, let the existing backend answer rather than
-        // incorrectly showing zero credits in the native app.
-        if (!snap) return await proxyUpstream(request, url);
+        const profile = await readCanonicalUserBalance(user.uid);
+        const balance = canonicalUserBalance(profile);
+        if (!balance) return await proxyUpstream(request, url);
         return json({
-          available: Number(snap.available || 0),
-          reserved: Number(snap.reserved || 0),
-          updatedAt: snap.updatedAt || null,
-          source: "creditBalances"
+          available: balance.total,
+          reserved: 0,
+          permanent: balance.permanent,
+          subscription: balance.subscription,
+          plan: balance.plan,
+          subscriptionExpiresAt: balance.subscriptionExpiresAt,
+          updatedAt: profile.updatedAt || null,
+          source: "firebase_users"
         });
       }
 
