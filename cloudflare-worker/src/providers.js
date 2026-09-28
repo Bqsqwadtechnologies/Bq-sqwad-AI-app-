@@ -96,6 +96,34 @@ export async function callTavily(env, query, maxResults = 10, deepResearch = fal
   };
 }
 
+export async function runProviderStream(env, route, input) {
+  const providers = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
+  let lastError;
+  for (const providerId of providers) {
+    try {
+      if (providerId === "openai") {
+        const model = route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.openai);
+        const response = await callOpenAI(env, { ...input, model, stream: true });
+        if (!response.ok || !response.body) {
+          const raw = await response.text();
+          throw new Error("provider_http_" + response.status + ":" + raw.slice(0, 700));
+        }
+        return { response, providerId: "openai", modelId: model, streamed: true };
+      }
+      if (providerId === "gemini") {
+        const model = route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.gemini);
+        const result = await callGemini(env, { ...input, model });
+        if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+        return { text: result.text, providerId: "gemini", modelId: model, streamed: false };
+      }
+      throw new Error("unsupported_provider:" + providerId);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("no_provider_available");
+}
+
 export async function runProvider(env, route, input) {
   const providers = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
   let lastError;
