@@ -87,10 +87,13 @@ export async function verifyFirebaseUser(request) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.users?.[0]?.localId) throw new Error("Invalid or expired authentication token");
   const user = body.users[0];
+  let customAttributes = {};
+  try { customAttributes = user.customAttributes ? JSON.parse(user.customAttributes) : {}; } catch { customAttributes = {}; }
   return {
     uid: String(user.localId),
     email: user.email ? String(user.email) : null,
-    emailVerified: user.emailVerified === true
+    emailVerified: user.emailVerified === true,
+    customAttributes
   };
 }
 
