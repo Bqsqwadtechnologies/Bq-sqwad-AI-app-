@@ -383,10 +383,15 @@ export default {
         // Never cache this response: a website grant or usage commit must be visible to the app immediately.
         if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
         const snap = await firestoreGet("creditBalances/" + user.uid);
+        // Keep the Worker and existing website/backend on the same balance source.
+        // If an older account has not yet been materialized in the canonical
+        // creditBalances collection, let the existing backend answer rather than
+        // incorrectly showing zero credits in the native app.
+        if (!snap) return await proxyUpstream(request, url);
         return json({
-          available: Number(snap?.available || 0),
-          reserved: Number(snap?.reserved || 0),
-          updatedAt: snap?.updatedAt || null,
+          available: Number(snap.available || 0),
+          reserved: Number(snap.reserved || 0),
+          updatedAt: snap.updatedAt || null,
           source: "creditBalances"
         });
       }
