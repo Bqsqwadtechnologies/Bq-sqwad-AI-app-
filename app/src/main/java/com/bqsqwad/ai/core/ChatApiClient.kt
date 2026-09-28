@@ -112,8 +112,15 @@ class ChatApiClient(
             if (status !in 200..299) {
                 val detail = body?.optString("error").orEmpty()
                     .ifBlank { raw.trim().take(1000) }
-                    .ifBlank { "AI request failed (HTTP $status)." }
-                throw IllegalStateException(detail)
+                    .ifBlank { "AI request failed (HTTP " + status + ")." }
+                val friendly = when {
+                    detail.contains("consent_required", ignoreCase = true) -> "Please accept the required BQ Sqwad AI consent before sending messages."
+                    detail.contains("Authentication required", ignoreCase = true) -> "Please sign in to use this AI feature."
+                    detail.contains("Insufficient credits", ignoreCase = true) -> "You do not have enough credits for this AI request."
+                    detail.contains("capability_disabled", ignoreCase = true) -> "This AI capability is currently disabled by the administrator."
+                    else -> detail
+                }
+                throw IllegalStateException(friendly)
             }
             if (body == null) throw IllegalStateException("AI service returned an invalid response.")
             val reply = ChatReply(
