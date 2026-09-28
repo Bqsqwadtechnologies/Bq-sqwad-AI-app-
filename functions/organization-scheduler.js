@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { runAi } from "./provider-gateway.js";
 import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
