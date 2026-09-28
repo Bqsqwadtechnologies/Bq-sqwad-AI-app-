@@ -49,6 +49,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
@@ -181,11 +182,12 @@ private fun ConsentGate(modifier: Modifier) {
             color = Color(0xFF101216)
         ) {
             AuthSurface {
-            Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 24.sp)
             Text(
                 "Please accept the BQ Sqwad AI Terms and Conditions and Privacy Policy. This consent is verified by the server before protected AI features can be used.",
                 color = Color.White,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp
             )
             Row(verticalAlignment = Alignment.Top) {
                 Checkbox(
@@ -201,7 +203,8 @@ private fun ConsentGate(modifier: Modifier) {
                     "I accept the Terms and Conditions and Privacy Policy.",
                     modifier = Modifier.padding(top = 12.dp),
                     color = Color.White,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
