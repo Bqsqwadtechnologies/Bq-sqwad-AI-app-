@@ -1,5 +1,5 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete } from "./firebase.js";
-import { runProvider, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { verifyPlayPurchase } from "./google-play.js";
 import { socialStart, socialCallback, listSocialAccounts } from "./social.js";
 
@@ -310,48 +310,54 @@ async function stream(request, user, body) {
   try {
     const memory = await memoryContext(user.uid);
     const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
-    const upstream = await callOpenAI(globalThis.__bqEnv, {
-      model: control.modelId || DEFAULT_MODELS.openai,
-      message: String(body.message || ""),
-      system,
-      stream: true
-    });
-    if (!upstream.ok || !upstream.body) throw new Error("provider_http_" + upstream.status + ":" + (await upstream.text()).slice(0, 700));
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
+    const provider = await runProviderStream(globalThis.__bqEnv, {
+      primaryProviderId: control.providerId,
+      primaryModelId: control.modelId,
+      fallbackProviderIds: control.config?.fallbackProviderIds || [],
+      fallbackModels: control.config?.fallbackModels || {}
+    }, { message: String(body.message || ""), system });
     const encoder = new TextEncoder();
     const output = new ReadableStream({
       async start(controller) {
-        let buffer = "";
-        let completed = false;
+        const emit = (value) => controller.enqueue(encoder.encode("data: " + JSON.stringify(value) + "\n\n"));
         try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split(/\r?\n\r?\n/);
-            buffer = events.pop() || "";
-            for (const event of events) {
-              const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
-              if (!data || data === "[DONE]") continue;
-              let parsed; try { parsed = JSON.parse(data); } catch { continue; }
-              if (parsed.type === "response.output_text.delta" && parsed.delta) {
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"delta", text:parsed.delta}) + "\n\n"));
-              } else if (parsed.type === "response.completed") {
-                completed = true;
-                controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"completed"}) + "\n\n"));
-              } else if (parsed.type === "error") {
-                throw new Error(parsed.error?.message || "Streaming failed");
+          if (provider.streamed) {
+            const reader = provider.response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let completed = false;
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const events = buffer.split(/\r?\n\r?\n/);
+              buffer = events.pop() || "";
+              for (const event of events) {
+                const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
+                if (!data || data === "[DONE]") continue;
+                let parsed; try { parsed = JSON.parse(data); } catch { continue; }
+                if (parsed.type === "response.output_text.delta" && parsed.delta) {
+                  emit({ type: "delta", text: parsed.delta });
+                } else if (parsed.type === "response.completed") {
+                  completed = true;
+                  emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId });
+                } else if (parsed.type === "error") {
+                  throw new Error(parsed.error?.message || "Streaming failed");
+                }
               }
             }
+            if (!completed) throw new Error("stream_incomplete");
+          } else {
+            emit({ type: "delta", text: provider.text });
+            emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId });
           }
-          if (!completed) throw new Error("stream_incomplete");
-          await commitCredits(user.uid, reservation.reservationId, "openai");
+          await commitCredits(user.uid, reservation.reservationId, provider.providerId);
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
-          controller.enqueue(encoder.encode("data: " + JSON.stringify({type:"error", message:error.message || "stream_failed"}) + "\n\n"));
+          emit({ type: "error", message: error.message || "stream_failed" });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
       }
