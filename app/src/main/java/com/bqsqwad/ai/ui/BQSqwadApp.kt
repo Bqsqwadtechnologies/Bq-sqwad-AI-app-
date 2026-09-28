@@ -1283,12 +1283,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
             }
-            Text(
-                "Ask for an image directly in the message box (for example: “Create an image of a futuristic city at sunset”).",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-                        val composerShape = RoundedCornerShape(26.dp)
+val composerShape = RoundedCornerShape(26.dp)
             val pulse by rememberInfiniteTransition(label = "composerPulse").animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
