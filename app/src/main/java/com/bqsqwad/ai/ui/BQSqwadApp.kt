@@ -77,62 +77,9 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
 @Composable
 private fun AuthGate(modifier: Modifier) {
-    /*
-     * Guests may still browse the native shell. Once Firebase authentication exists,
-     * however, MainShell is never rendered until the server has confirmed required consent.
-     * This is deliberately fail-closed: a missing/error consent response goes to ConsentGate,
-     * which can retry the authoritative GET /consent call.
-     */
-    val auth = remember { FirebaseAuth.getInstance() }
-    var user by remember { mutableStateOf(auth.currentUser) }
-    var consentAccepted by remember { mutableStateOf<Boolean?>(null) }
-    var emailVerified by remember { mutableStateOf(auth.currentUser?.isEmailVerified ?: true) }
-    val context = LocalContext.current
-
-    DisposableEffect(auth) {
-        val listener = FirebaseAuth.AuthStateListener { updated ->
-            user = updated.currentUser
-            emailVerified = updated.currentUser?.isEmailVerified ?: true
-            consentAccepted = if (updated.currentUser == null) null else false
-        }
-        auth.addAuthStateListener(listener)
-        onDispose { auth.removeAuthStateListener(listener) }
-    }
-
-    LaunchedEffect(user?.uid) {
-        val signedIn = user
-        if (signedIn == null) {
-            consentAccepted = null
-            return@LaunchedEffect
-        }
-
-        emailVerified = signedIn.isEmailVerified
-        consentAccepted = null
-        if (!signedIn.isEmailVerified) return@LaunchedEffect
-        val result = runCatching { withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: error("consent_timeout") }
-        result.onSuccess { consent ->
-            val accepted = consent.optBoolean("requiredAccepted", false)
-            consentAccepted = accepted
-            context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
-                .putBoolean("required_accepted", accepted)
-                .putBoolean("training_consent", consent.optBoolean("trainingConsent", false))
-                .apply()
-        }.onFailure {
-            // Do not fall back to a cached "accepted" value for access control.
-            // ConsentGate will retry against the server and remains the only path forward.
-            consentAccepted = false
-        }
-    }
-
-    when {
-        user == null -> MainShell(modifier)
-        !emailVerified -> EmailVerificationGate(modifier, onVerified = {
-            emailVerified = true
-            consentAccepted = null
-        })
-        consentAccepted == true -> MainShell(modifier)
-        else -> ConsentGate(modifier)
-    }
+    // Startup must never wait on Firebase/network state. Render the native chat immediately;
+    // authentication, consent and entitlements are checked only when protected features need them.
+    MainShell(modifier)
 }
 
 @Composable
@@ -203,11 +150,10 @@ private fun ConsentGate(modifier: Modifier) {
     var error by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
-        loading = true
         error = null
         scope.launch {
             runCatching {
-                withTimeoutOrNull(12000) { WorkspaceApiClient().consent() } ?: error("consent_timeout")
+                withTimeoutOrNull(8000) { WorkspaceApiClient().consent() } ?: error("consent_timeout")
             }
                 .onSuccess {
                     accepted = it.optBoolean("requiredAccepted")
@@ -229,16 +175,17 @@ private fun ConsentGate(modifier: Modifier) {
 
     if (completed) {
         MainShell(modifier)
-    } else if (loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
     } else {
-        AuthSurface {
-            Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color(0xFF101216)
+        ) {
+            AuthSurface {
+            Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
             Text(
                 "Please accept the BQ Sqwad AI Terms and Conditions and Privacy Policy. This consent is verified by the server before protected AI features can be used.",
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color.White,
+                fontWeight = FontWeight.Bold
             )
             Row(verticalAlignment = Alignment.Top) {
                 Checkbox(
@@ -253,7 +200,8 @@ private fun ConsentGate(modifier: Modifier) {
                 Text(
                     "I accept the Terms and Conditions and Privacy Policy.",
                     modifier = Modifier.padding(top = 12.dp),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
             }
             Row(verticalAlignment = Alignment.Top) {
@@ -269,7 +217,8 @@ private fun ConsentGate(modifier: Modifier) {
                 Text(
                     "Optional: allow non-private training activity to improve the service.",
                     modifier = Modifier.padding(top = 12.dp),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
             }
             LegalConsentLinks()
@@ -283,7 +232,7 @@ private fun ConsentGate(modifier: Modifier) {
                     },
                     enabled = !saving,
                     modifier = Modifier.weight(1f)
-                ) { Text("Reject & sign out") }
+                ) { Text("Reject & sign out", fontWeight = FontWeight.Bold) }
                 Button(
                     enabled = accepted && !saving,
                     colors = ButtonDefaults.buttonColors(
@@ -312,9 +261,9 @@ private fun ConsentGate(modifier: Modifier) {
                         }
                     },
                     modifier = Modifier.weight(1f)
-                ) { Text(if (saving) "Saving…" else "Accept & continue") }
+                ) { Text(if (saving) "Saving…" else "Accept & continue", fontWeight = FontWeight.Bold) }
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { Text(it, color = Color.White, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -682,32 +631,13 @@ private fun MainShell(modifier: Modifier) {
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
-    var accessLoading by remember { mutableStateOf(true) }
+    var accessLoading by remember { mutableStateOf(false) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var signInRequired by remember { mutableStateOf(false) }
 
-    LaunchedEffect(email) {
-        // The backend is authoritative for admin visibility. Normal users never receive
-        // an Admin workspace merely because of a client-side email comparison.
-        adminAuthorized = runCatching {
-            WorkspaceApiClient().adminAccess().optBoolean("allowed")
-        }.getOrDefault(false)
-    }
-
-    LaunchedEffect(email) {
-        accessLoading = true
-        val api = WorkspaceApiClient()
-        runCatching {
-            val catalog = api.nativeCatalog()
-            val entitlements = api.entitlements()
-            val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
-            val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
-            WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
-        }.onSuccess { workspaceAccess = it }
-         .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
-        accessLoading = false
-    }
-
+    // Do not perform network requests while opening Main Chat.
+    // Workspace access is resolved when the user actually opens a protected workspace.
+    
     val openWorkspace: (Workspace) -> Unit = { selected ->
         drawerOpen = false
         // Guest browsing is allowed in Main Chat, but every other workspace is
