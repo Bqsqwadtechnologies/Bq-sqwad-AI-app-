@@ -3078,7 +3078,9 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
 
     val modes = listOf("system", "light", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
+    val adminUnlimited = credits?.optBoolean("adminUnlimited", false) == true
     val balance = credits?.optDouble("available", 0.0) ?: 0.0
+    val balanceLabel = if (adminUnlimited) "Unlimited" else String.format(java.util.Locale.US, "%.0f", balance)
 
     Scaffold(
         topBar = {
@@ -3116,7 +3118,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                             Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Column(Modifier.padding(14.dp)) {
                                     Text("Credits", style = MaterialTheme.typography.labelLarge)
-                                    Text(if (loadingAccount) "…" else String.format(java.util.Locale.US, "%.0f", balance), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text(if (loadingAccount) "…" else balanceLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                     Text("Available", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
@@ -3153,7 +3155,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                     ) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Live credit balance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(String.format(java.util.Locale.US, "%.0f credits", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(if (adminUnlimited) "Unlimited credits" else String.format(java.util.Locale.US, "%.0f credits", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                             Text("Shared by eligible AI features. The backend remains the source of truth.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
