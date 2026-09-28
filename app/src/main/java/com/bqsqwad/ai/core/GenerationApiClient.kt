@@ -1,7 +1,6 @@
 package com.bqsqwad.ai.core
 
 import com.google.android.gms.tasks.Tasks
-import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,7 +12,7 @@ data class GeneratedImage(val url: String, val creditsCharged: Double, val model
 data class VideoJob(val jobId: String, val status: String, val progress: Int, val contentUrl: String?, val error: String?, val creditsCharged: Double = 0.0)
 
 class GenerationApiClient {
-    private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     private suspend fun request(path: String, method: String = "POST", payload: JSONObject = JSONObject()): JSONObject =
         withContext(Dispatchers.IO) {
