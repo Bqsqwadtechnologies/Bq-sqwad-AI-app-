@@ -724,7 +724,7 @@ private fun MainShell(modifier: Modifier) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    items(Workspace.values().filter { it != Workspace.CHAT && (it != Workspace.ADMIN || adminAuthorized) }) { w ->
+                    items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && (it != Workspace.ADMIN || adminAuthorized) }) { w ->
                         NavigationDrawerItem(
                             label = { Text(w.title) },
                             selected = workspace == w,
@@ -1764,7 +1764,7 @@ private fun FeatureHub(
     onWorkspace: (Workspace) -> Unit,
     onAdvancedFeature: (AppFeature) -> Unit
 ) {
-    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.ADMIN }
+    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ADMIN }
     val primary = listOf(
         Workspace.LEARNING,
         Workspace.TRUTH_GUARD,
