@@ -2764,26 +2764,35 @@ fun VoiceWorkspace() {
         Spacer(Modifier.height(20.dp))
         Box(
             modifier = Modifier
-                .size((190 * voiceScale).dp.coerceIn(190.dp, 270.dp))
+                .size((178 * voiceScale).dp.coerceIn(178.dp, 250.dp))
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
                         listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f),
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.96f),
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.82f),
                             MaterialTheme.colorScheme.surfaceContainerHighest
                         )
                     )
                 )
-                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), CircleShape),
+                .border(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.Default.Mic,
-                contentDescription = "Live voice",
-                modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+            Surface(
+                modifier = Modifier.size(112.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
+                tonalElevation = 6.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.RecordVoiceOver,
+                        contentDescription = "AI voice assistant",
+                        modifier = Modifier.size(58.dp),
+                        tint = Color.White
+                    )
+                }
+            }
         }
 
         Text(
@@ -2802,7 +2811,7 @@ fun VoiceWorkspace() {
 
         if (active) {
             Text(
-                "Voice assistant is active. Speak naturally and the assistant will respond with audio.",
+                "Voice assistant is active. Speak naturally and BQ Sqwad AI will respond with audio.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium
