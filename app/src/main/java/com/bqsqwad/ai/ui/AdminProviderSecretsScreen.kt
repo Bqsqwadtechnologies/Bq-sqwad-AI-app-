@@ -18,6 +18,7 @@ import com.bqsqwad.ai.core.AdminProviderClient
 import com.bqsqwad.ai.core.AdminProviderRoute
 import com.bqsqwad.ai.core.AdminProviderSecretStatus
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 private val CORE_PROVIDERS = listOf(
     "openai" to "OpenAI",
@@ -25,6 +26,19 @@ private val CORE_PROVIDERS = listOf(
     "tavily" to "Tavily Web Search",
     "youtube_client_secret" to "YouTube OAuth",
     "x_client_secret" to "X OAuth"
+)
+
+private val CLOUDFLARE_SECRET_LABELS = listOf(
+    "BQ_FIREBASE_SERVICE_ACCOUNT_JSON" to "Firebase service account",
+    "FIREBASE_WEB_API_KEY" to "Firebase Web API key",
+    "OPENAI_API_KEY" to "OpenAI",
+    "GEMINI_API_KEY" to "Google Gemini",
+    "TAVILY_API_KEY" to "Tavily Web Search",
+    "YOUTUBE_CLIENT_SECRET" to "YouTube OAuth",
+    "X_CLIENT_SECRET" to "X OAuth",
+    "X_API_SECRET" to "X API secret",
+    "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" to "Google Play",
+    "BQ_SOCIAL_ENCRYPTION_KEY" to "Social token encryption"
 )
 
 @Composable
@@ -41,6 +55,7 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var cloudflareSecrets by remember { mutableStateOf<JSONObject?>(null) }
 
     fun refresh() {
         loading = true
@@ -55,7 +70,10 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
                     error = null
                 }
                 .onFailure { error = it.message ?: "Could not load provider configuration." }
-                .also { loading = false }
+            runCatching { client.cloudflareSecretStatus() }
+                .onSuccess { cloudflareSecrets = it.optJSONObject("configured") }
+                .onFailure { error = it.message ?: "Could not verify Cloudflare Worker secrets." }
+            loading = false
         }
     }
 
@@ -88,6 +106,48 @@ fun AdminProviderSecretsScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Cloudflare Worker secrets", style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    "Runtime credentials are checked on the Worker without exposing secret values. Green means the Worker environment contains the expected secret.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { refresh() }) { Text("Refresh") }
+                        }
+                        CLOUDFLARE_SECRET_LABELS.forEach { (key, label) ->
+                            val configured = cloudflareSecrets?.optBoolean(key, false) == true
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    Modifier.size(9.dp),
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = if (configured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                ) {}
+                                Text(label, Modifier.weight(1f), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                Text(
+                                    if (configured) "Connected" else "Missing",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (configured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
 
             item {
                 Text("Add or replace a provider key", style = MaterialTheme.typography.titleLarge)
