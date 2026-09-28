@@ -85,75 +85,46 @@ class ChatApiClient(
         onDelta: (String) -> Unit,
         system: String? = null
     ): ChatReply = withTimeout(120000) {
-        try {
-            withContext(Dispatchers.IO) {
-                val token = authToken()
-                val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 15000
-                    readTimeout = 120000
-                    doInput = true
-                    doOutput = true
-                    setRequestProperty("Accept", "text/event-stream")
-                    setRequestProperty("Authorization", "Bearer $token")
-                    setRequestProperty("Content-Type", "application/json")
-                }
-                connection.outputStream.use {
-                    it.write(JSONObject().apply {
-                        put("capability", capability)
-                        put("message", message)
-                        if (!system.isNullOrBlank()) put("system", system)
-                    }.toString().toByteArray())
-                }
-                val status = connection.responseCode
-                if (status !in 200..299) {
-                    val raw = (connection.errorStream ?: connection.inputStream).bufferedReader().use { it.readText() }
-                    throw IllegalStateException(
-                        runCatching { JSONObject(raw).optString("error").ifBlank { raw.take(500) } }
-                            .getOrDefault("AI streaming request failed")
-                    )
-                }
-                try {
-                    val reader: BufferedReader = connection.inputStream.bufferedReader()
-                    val text = StringBuilder()
-                    reader.useLines { lines ->
-                        for (line in lines) {
-                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                            if (!line.startsWith("data:")) continue
-                            val payload = line.removePrefix("data:").trim()
-                            if (payload == "[DONE]") break
-                            val event = runCatching { JSONObject(payload) }.getOrNull() ?: continue
-                            when (event.optString("type")) {
-                                "delta" -> {
-                                    val delta = event.optString("text")
-                                    if (delta.isNotEmpty()) {
-                                        text.append(delta)
-                                        onDelta(delta)
-                                    }
-                                }
-                                "completed" -> Unit
-                                "error" -> throw IllegalStateException(
-                                    event.optString("message", "AI streaming request failed")
-                                )
-                            }
-                        }
-                    }
-                    val result = text.toString().trim()
-                    if (result.isBlank()) throw IllegalStateException("AI stream returned no text.")
-                    ChatReply(result, "openai", null, 0.0)
-                } finally {
-                    connection.disconnect()
-                }
+        withContext(Dispatchers.IO) {
+            val token = authToken()
+            val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15000
+                readTimeout = 120000
+                doInput = true
+                doOutput = true
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", "application/json")
             }
-        } catch (t: Throwable) {
-            if (t is kotlinx.coroutines.CancellationException) throw t
-            // Keep chat usable when SSE/provider streaming is unavailable. The normal
-            // authenticated endpoint uses the configured provider fallback route.
-            val fallback: ChatReply = sendMessage(message, capability, system)
-            if (fallback.text.isBlank()) throw t
-            // The caller replaces the streamed draft with the complete fallback reply.
-            // Do not emit the whole fallback as a delta or the UI would duplicate text.
-            return@withTimeout fallback
+            connection.outputStream.use {
+                it.write(JSONObject().apply {
+                    put("capability", capability)
+                    put("message", message)
+                    if (!system.isNullOrBlank()) put("system", system)
+                }.toString().toByteArray())
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            connection.disconnect()
+            val body = runCatching { JSONObject(raw) }.getOrNull()
+            if (status !in 200..299) {
+                val detail = body?.optString("error").orEmpty()
+                    .ifBlank { raw.trim().take(1000) }
+                    .ifBlank { "AI request failed (HTTP $status)." }
+                throw IllegalStateException(detail)
+            }
+            if (body == null) throw IllegalStateException("AI service returned an invalid response.")
+            val reply = ChatReply(
+                text = body.optString("text").trim(),
+                providerId = body.optString("providerId").takeIf { it.isNotBlank() },
+                modelId = body.optString("modelId").takeIf { it.isNotBlank() },
+                creditsCharged = body.optDouble("creditsCharged", 0.0)
+            )
+            if (reply.text.isBlank()) throw IllegalStateException("AI service returned no text.")
+            onDelta(reply.text)
+            reply
         }
     }
 
