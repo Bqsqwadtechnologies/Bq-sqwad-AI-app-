@@ -79,6 +79,9 @@ class AdminProviderClient(
 
     suspend fun statuses(): List<AdminProviderSecretStatus> = providerOverview().first
 
+    suspend fun cloudflareSecretStatus(): JSONObject =
+        request("GET", "/admin/cloudflare/secrets", null)
+
     suspend fun saveRoute(
         capability: String,
         primaryProviderId: String,
