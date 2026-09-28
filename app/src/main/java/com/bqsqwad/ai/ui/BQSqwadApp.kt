@@ -2707,7 +2707,6 @@ fun CameraWorkspace() {
 @Composable
 fun VoiceWorkspace() {
     val context = LocalContext.current
-    val voiceLogState = rememberLazyListState()
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
     var permissionExplanation by remember { mutableStateOf(false) }
