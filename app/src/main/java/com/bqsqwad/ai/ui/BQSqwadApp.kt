@@ -3138,6 +3138,20 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
 
             item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
             item {
+                OutlinedButton(
+                    onClick = {
+                        FirebaseAuth.getInstance().signOut()
+                        onBack()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Logout, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Log out")
+                }
+            }
+
+            item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FeatureCard("Account protection", "Password, Google sign-in, passkeys and device protection.", onOpenAccountProtection)
                     FeatureCard("Privacy & Legal Center", "Consent, privacy topics, Terms and data controls.", onOpenLegalCenter)
