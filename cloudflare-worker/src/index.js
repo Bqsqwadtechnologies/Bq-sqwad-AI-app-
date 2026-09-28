@@ -5,6 +5,40 @@ import { socialStart, socialCallback, listSocialAccounts } from "./social.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
+function hasWorkerFirebaseConfig(env) {
+  return Boolean(env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON);
+}
+
+function isSuperAdmin(user) {
+  const claims = user?.customAttributes || {};
+  const email = String(user?.email || "").toLowerCase();
+  return email === "isaacoshiomole0@gmail.com" && (
+    claims.admin === true ||
+    claims.superAdmin === true ||
+    claims.role === "admin" ||
+    claims.role === "super_admin"
+  );
+}
+
+async function proxyUpstream(request, url) {
+  const upstreamUrl = UPSTREAM + url.pathname + url.search;
+  const headers = new Headers(request.headers);
+  headers.delete("host");
+  const upstream = await fetch(upstreamUrl, {
+    method: request.method,
+    headers,
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+    redirect: "follow"
+  });
+  const responseHeaders = new Headers(upstream.headers);
+  for (const [key, value] of Object.entries(corsHeaders())) responseHeaders.set(key, value);
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: responseHeaders
+  });
+}
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -68,13 +102,13 @@ async function memoryContext(uid) {
   if (!memory || memory.enabled === false || !Array.isArray(memory.items)) return "";
   return memory.items.slice(-30).map(x => String(x?.text || "").trim()).filter(Boolean).join("\n");
 }
-async function chargeCredits(uid, amount, capabilityName) {
+async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   const charge = Math.max(0, Number(amount || 0));
   if (!charge) return { reservationId: null, amount: 0 };
+  if (isSuperAdmin(adminUser)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 4; attempt++) {
     const balance = await firestoreGet("creditBalances/" + uid);
-    if (!balance || Number(balance.available || 0) < charge) throw new Error("Insufficient credits");
     try {
       await firestoreCommit([
         {
@@ -173,7 +207,7 @@ async function ai(request, user, body) {
   const capabilityName = String(body.capability || "chat").trim();
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
   const control = await capability(user.uid, capabilityName);
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName);
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
     const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
@@ -197,7 +231,7 @@ async function vision(request, user, body) {
   if (!imageBase64) throw new Error("image_required");
   if (imageBase64.length > 8000000) throw new Error("image_too_large");
   const control = await capability(user.uid, "live_camera");
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera");
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);
   try {
     const response = await callOpenAI(globalThis.__bqEnv, {
       model: control.modelId || DEFAULT_MODELS.openai,
@@ -287,6 +321,29 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
+      const firebaseBackedPath =
+        url.pathname === "/ai" ||
+        url.pathname === "/ai/stream" ||
+        url.pathname === "/ai/vision" ||
+        url.pathname === "/web-search" ||
+        url.pathname === "/consent" ||
+        url.pathname === "/consent/training" ||
+        url.pathname === "/play/catalog" ||
+        url.pathname === "/play/verify" ||
+        url.pathname === "/social/oauth/start" ||
+        url.pathname === "/social/oauth/callback" ||
+        url.pathname === "/social/accounts" ||
+        url.pathname.startsWith("/social/accounts/") ||
+        url.pathname === "/native/catalog" ||
+        url.pathname === "/entitlements" ||
+        url.pathname === "/entitlement" ||
+        url.pathname === "/credits" ||
+        url.pathname === "/admin/access" ||
+        url.pathname === "/admin/test-mode";
+      if (firebaseBackedPath && !hasWorkerFirebaseConfig(env)) {
+        return await proxyUpstream(request, url);
+      }
+
       if (url.pathname === "/ai" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         return await ai(request, user, await readBody(request));
@@ -317,6 +374,17 @@ export default {
           requestedBasePlanId: body.basePlanId ? String(body.basePlanId) : "",
           requestedOfferId: body.offerId ? String(body.offerId) : ""
         }));
+      }
+
+      if (url.pathname === "/credits" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null });
+        const snap = await firestoreGet("creditBalances/" + user.uid);
+        return json({
+          available: Number(snap?.available || 0),
+          reserved: Number(snap?.reserved || 0),
+          updatedAt: snap?.updatedAt || null
+        });
       }
 
       if (url.pathname === "/consent" && request.method === "GET") {
@@ -395,7 +463,7 @@ export default {
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
         const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 1), Number(control.creditCost || 0));
-        const reservation = await chargeCredits(user.uid, charge, capabilityName);
+        const reservation = await chargeCredits(user.uid, charge, capabilityName, user);
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
           let answer = null;
@@ -419,18 +487,7 @@ export default {
           throw error;
         }
       }
-      const upstreamUrl = UPSTREAM + url.pathname + url.search;
-      const headers = new Headers(request.headers);
-      headers.delete("host");
-      const upstream = await fetch(upstreamUrl, {
-        method: request.method,
-        headers,
-        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-        redirect: "follow"
-      });
-      const responseHeaders = new Headers(upstream.headers);
-      for (const [key, value] of Object.entries(corsHeaders())) responseHeaders.set(key, value);
-      return new Response(upstream.body, {status:upstream.status,statusText:upstream.statusText,headers:responseHeaders});
+      return await proxyUpstream(request, url);
     } catch(error) {
       const message = error?.message || "backend_unavailable";
       const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /disabled/.test(message) ? 403 : 500;
