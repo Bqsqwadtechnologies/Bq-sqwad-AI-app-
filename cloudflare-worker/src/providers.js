@@ -22,6 +22,7 @@ export function providerSecretStatus(env) {
     "X_API_KEY",
     "X_API_SECRET",
     "META_APP_SECRET",
+    "BQ_SOCIAL_ENCRYPTION_KEY",
     "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
   ];
   return Object.fromEntries(names.map(name => [name, Boolean(env?.[name])]));
