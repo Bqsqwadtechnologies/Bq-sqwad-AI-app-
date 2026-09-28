@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.bqsqwad.ai.core.ChatApiClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -320,12 +319,10 @@ fun OrganizationStudioWorkspace() {
                                             "Description: " + (org?.optString("description") ?: ""),
                                             "Organization knowledge:\n" + if (settings?.optBoolean("sharedKnowledgeEnabled", false) == true) knowledge else "(shared knowledge disabled)"
                                         ).joinToString("\n")
-                                        val streamed = StringBuilder()
-                                        val reply = ChatApiClient().streamMessage(assistantPrompt, "organization_studio", onDelta = { delta ->
-                                            streamed.append(delta)
-                                            assistantResult = streamed.toString()
-                                        }, system = system)
-                                        assistantResult = reply.text
+                                        // Route Organization AI through the server-side organization endpoint.
+                                        // The backend owns organization membership, knowledge isolation and credit charging.
+                                        val reply = api.organizationAssistant(assistantPrompt)
+                                        assistantResult = reply.optString("answer").ifBlank { "The organization AI returned no answer." }
                                         assistantPrompt = ""
                                     }
                                     .onFailure { e -> error = e.message ?: "Organization AI request failed." }
@@ -700,16 +697,11 @@ fun OrganizationStudioWorkspace() {
                             error = null
                             scope.launch {
                                 try {
-                                    val streamed = StringBuilder()
-                                    val reply = ChatApiClient().streamMessage(
-                                        "Organization AI / Studio production director request:\n$directorPrompt",
-                                        "organization_studio",
-                                        onDelta = { delta ->
-                                            streamed.append(delta)
-                                            directorResult = streamed.toString()
-                                        }
+                                    // The production director uses the same server-authoritative organization boundary.
+                                    val reply = api.organizationAssistant(
+                                        "Production director request:\n$directorPrompt"
                                     )
-                                    directorResult = reply.text
+                                    directorResult = reply.optString("answer").ifBlank { "The production director returned no answer." }
                                 } catch (t: Throwable) {
                                     error = t.message ?: "AI director request failed."
                                 } finally { busy = false }
