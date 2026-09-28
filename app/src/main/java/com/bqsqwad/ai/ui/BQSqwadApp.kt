@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
-import com.bqsqwad.ai.BuildConfig
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
@@ -865,9 +864,40 @@ private fun MainShell(modifier: Modifier) {
     }
 }
 
+private fun isImageGenerationRequest(text: String): Boolean {
+    val q = text.trim().lowercase()
+    if (q.isBlank()) return false
+    val explicit = listOf(
+        "generate image", "generate an image", "generate a picture",
+        "create image", "create an image", "create a picture",
+        "make image", "make an image", "make a picture",
+        "draw an image", "draw a picture", "draw me an image",
+        "show me an image of", "show me a picture of"
+    )
+    return explicit.any(q::startsWith)
+}
+
 private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
+@Composable
+private fun BqHeaderIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
 private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -884,7 +914,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var feedbackComment by remember { mutableStateOf("") }
     var micError by remember { mutableStateOf<String?>(null) }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
-    var imageMode by remember { mutableStateOf(false) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
     var privateChat by remember { mutableStateOf(false) }
@@ -902,14 +931,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
         val activeCapability = selectedAdvanced?.capability ?: "chat"
         val activeSystem = selectedAdvanced?.let { "You are operating in the BQ Sqwad AI ${it.title} mode. Use the capabilities of this mode when relevant, while remaining accurate about what you can and cannot do." }
-        if (imageMode && text.isNotBlank() && attachments.isEmpty()) {
+        val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
+        if (imageRequest) {
             val promptText = text.trim()
             message = ""
-            imageMode = false
             messages.add(ChatMessage(true, promptText))
             val aiIndex = messages.size
             messages.add(ChatMessage(false, "Generating image…"))
             busy = true
+            statusText = "Generating image…"
             error = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
@@ -917,6 +947,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     scope.launch(Dispatchers.Main) {
                         messages[aiIndex] = messages[aiIndex].copy(text = "Image generated. Open the generated image: " + generated.url)
                         busy = false
+                        statusText = "Ready"
                         streamJob = null
                     }
                 } catch (t: Throwable) {
@@ -924,6 +955,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
                         error = t.message ?: "Image generation failed"
                         busy = false
+                        statusText = "Request failed. You can try again."
                         streamJob = null
                     }
                 }
@@ -1018,16 +1050,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = openHub) { Icon(Icons.Default.Menu, contentDescription = "Open BQ Sqwad AI menu") }
+                BqHeaderIconButton(
+                    icon = Icons.Default.Menu,
+                    contentDescription = "Open BQ Sqwad AI menu",
+                    onClick = openHub
+                )
                 BqLogo(42.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Build ${BuildConfig.BUILD_SHA}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Box {
                     var menuOpen by remember { mutableStateOf(false) }
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More chat options") }
+                    BqHeaderIconButton(
+                        icon = Icons.Default.MoreVert,
+                        contentDescription = "More chat options",
+                        onClick = { menuOpen = true }
+                    )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
@@ -1038,7 +1077,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         DropdownMenuItem(text = { Text(if (privateChat) "Turn off Private Chat" else "Private Chat — not saved") }, onClick = { menuOpen = false; privateChat = !privateChat })
                     }
                 }
-                IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, contentDescription = "Settings") }
+                BqHeaderIconButton(
+                    icon = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    onClick = openSettings
+                )
             }
             Text(
                 statusText,
@@ -1165,7 +1208,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .size(116.dp)
                                         .border(
                                             2.dp,
-                                            Color(0xFF1457FF).copy(alpha = 0.55f + (logoPulse * 0.45f)),
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.55f + (logoPulse * 0.45f)),
                                             CircleShape
                                         ),
                                     shape = CircleShape,
@@ -1176,7 +1219,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(50),
-                                    color = Color(0xFF1457FF).copy(alpha = 0.94f),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
                                     shadowElevation = 8.dp
                                 ) {
                                     Row(
@@ -1184,8 +1227,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                        Text("AI Features", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                                        Text("AI Features", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
                             }
@@ -1242,18 +1285,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = imageMode,
-                    onClick = { imageMode = !imageMode },
-                    enabled = !busy,
-                    label = { Text(if (imageMode) "Image generation on" else "Generate image") },
-                    leadingIcon = { Icon(Icons.Default.Image, null) }
-                )
-            }
+            Text(
+                "Ask for an image directly in the message box (for example: “Create an image of a futuristic city at sunset”).",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
                         val composerShape = RoundedCornerShape(26.dp)
             val pulse by rememberInfiniteTransition(label = "composerPulse").animateFloat(
                 initialValue = 0f,
@@ -1264,7 +1300,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 ),
                 label = "composerPulseValue"
             )
-            val composerBlue = Color(0xFF1457FF).copy(alpha = 0.55f + (pulse * 0.45f))
+            val composerBlue = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f + (pulse * 0.45f))
 
             Column(
                 modifier = Modifier
@@ -1279,11 +1315,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         .size(58.dp)
                         .border(
                             2.dp,
-                            Color(0xFF1457FF).copy(alpha = 0.75f + pulse * 0.25f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.75f + pulse * 0.25f),
                             CircleShape
                         ),
                     shape = CircleShape,
-                    color = Color(0xFF1457FF),
+                    color = MaterialTheme.colorScheme.primary,
                     shadowElevation = 18.dp
                 ) {
                     IconButton(
@@ -1293,7 +1329,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Open AI Features",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(34.dp)
                         )
                     }
@@ -1304,7 +1340,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         .fillMaxWidth()
                         .border(2.dp, composerBlue, composerShape),
                     shape = composerShape,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     shadowElevation = 10.dp
                 ) {
                     Row(
@@ -1338,7 +1374,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 Icon(
                                     Icons.Default.Mic,
                                     contentDescription = "Speech to text",
-                                    tint = Color(0xFF1457FF)
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                             IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
@@ -1359,7 +1395,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             placeholder = {
                                 Text(
                                     "Message BQ Sqwad AI",
-                                    color = Color(0xFF667085)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
                             modifier = Modifier
@@ -1368,13 +1404,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             minLines = 2,
                             maxLines = 6,
                             textStyle = LocalTextStyle.current.copy(
-                                color = Color.Black,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                disabledTextColor = Color.Black,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                                 disabledBorderColor = Color.Transparent,
@@ -1404,7 +1440,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             Icon(
                                 if (busy) Icons.Default.Stop else Icons.Default.Send,
                                 contentDescription = if (busy) "Stop generating" else "Send",
-                                tint = Color(0xFF1457FF),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -1705,7 +1741,8 @@ private val ADMIN_ONLY_CAPABILITIES = setOf(
     "admin_experimentation", "feature_rollout_percentages", "emergency_kill_switches",
     "provider_health_checks", "ai_incident_replay", "model_version_rollback",
     "admin_capability_marketplace", "security_event_monitoring", "ai_abuse_risk_detection",
-    "rate_limiting", "abuse_protection", "incident_system", "ai_evaluation_center"
+    "rate_limiting", "abuse_protection", "incident_system", "ai_evaluation_center",
+    "accessibility_ai_controls", "model_routing", "provider_failover", "ai_orchestration"
 )
 
 private val ADVANCED_APP_FEATURES: List<AppFeature>
@@ -3241,7 +3278,6 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         Text("The AI That Grows With You")
                         Text("BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("com.bqsqwad.ai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Build ${BuildConfig.BUILD_SHA}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
