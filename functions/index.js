@@ -1222,20 +1222,21 @@ export const bqSqwadApi = onRequest(
         try {
           reservation = await reserveCredits(user.uid, gate.creditCost, capability);
           const route = await import("./provider-gateway.js");
-          const configured = await route.getRoute(capability);
-          if (configured.primaryProviderId !== "openai") throw new Error("Streaming requires the configured OpenAI route.");
+          const remembered = await memoryContext(user.uid);
+          const system = remembered
+            ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", remembered].filter(Boolean).join("\n")
+            : (body.system ? String(body.system) : undefined);
           res.status(200);
           res.set("Cache-Control", "no-cache");
           res.set("Connection", "keep-alive");
           res.set("Content-Type", "text/event-stream");
           res.flushHeaders?.();
           let completed = false;
-          await route.streamOpenAI({
-            model: configured.primaryModelId,
+          let streamResult = null;
+          streamResult = await route.streamAi({
+            capability,
             message: String(body.message || ""),
-            system: (await memoryContext(user.uid))
-              ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", await memoryContext(user.uid)].filter(Boolean).join("\n")
-              : (body.system ? String(body.system) : undefined),
+            system,
             onEvent: event => {
               if (event.type === "delta") {
                 res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "\n\n");
@@ -1247,10 +1248,10 @@ export const bqSqwadApi = onRequest(
               }
             }
           });
-          if (!completed) throw new Error("The AI stream ended before completion.");
-          await commitCredits(user.uid, reservation?.reservationId, "openai");
+          if (!completed || !streamResult?.providerId) throw new Error("The AI stream ended before completion.");
+          await commitCredits(user.uid, reservation?.reservationId, streamResult.providerId);
           gate.commit();
-          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "success", metadata: { provider: "openai", model: configured.primaryModelId || "" } });
+          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "success", metadata: { provider: streamResult.providerId, model: streamResult.modelId || "" } });
           res.write("data: [DONE]\n\n");
           return res.end();
         } catch (error) {
