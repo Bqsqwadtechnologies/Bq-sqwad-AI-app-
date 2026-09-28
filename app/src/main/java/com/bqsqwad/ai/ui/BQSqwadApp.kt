@@ -3110,7 +3110,21 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            BqLogo(52.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    (FirebaseAuth.getInstance().currentUser?.displayName?.trim()?.firstOrNull()
+                                        ?: FirebaseAuth.getInstance().currentUser?.email?.trim()?.firstOrNull()
+                                        ?: "U").uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                             Column(Modifier.weight(1f)) {
                                 Text("Your account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                 Text(FirebaseAuth.getInstance().currentUser?.email ?: "Signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
