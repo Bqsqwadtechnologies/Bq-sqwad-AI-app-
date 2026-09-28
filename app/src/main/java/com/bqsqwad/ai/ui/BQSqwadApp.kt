@@ -3372,3 +3372,4 @@ private fun LogoBubble(modifier: Modifier) {
         )
     }
 }
+}
