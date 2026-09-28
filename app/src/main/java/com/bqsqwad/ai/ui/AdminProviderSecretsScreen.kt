@@ -35,8 +35,12 @@ private val CLOUDFLARE_SECRET_LABELS = listOf(
     "GEMINI_API_KEY" to "Google Gemini",
     "TAVILY_API_KEY" to "Tavily Web Search",
     "YOUTUBE_CLIENT_SECRET" to "YouTube OAuth",
+    "YOUTUBE_API_KEY" to "YouTube API",
+    "X_CLIENT_ID" to "X OAuth Client ID",
     "X_CLIENT_SECRET" to "X OAuth",
+    "X_API_KEY" to "X API key",
     "X_API_SECRET" to "X API secret",
+    "META_APP_SECRET" to "Meta / Facebook",
     "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" to "Google Play",
     "BQ_SOCIAL_ENCRYPTION_KEY" to "Social token encryption"
 )
