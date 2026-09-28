@@ -123,6 +123,40 @@ export async function streamOpenAI({ model, message, system, onEvent }) {
 }
 
 
+export async function streamAi({ capability, message, system, onEvent }) {
+  const route = await getRoute(capability);
+  if (route.enabled === false) throw new Error("Capability disabled: " + capability);
+  const candidates = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
+  const modelFor = providerId => providerId === route.primaryProviderId
+    ? route.primaryModelId
+    : route.fallbackModels?.[providerId] || DEFAULT_MODELS[providerId] || null;
+  let lastError;
+  for (const providerId of candidates) {
+    try {
+      if (providerId === "openai") {
+        await streamOpenAI({
+          model: modelFor(providerId),
+          message,
+          system,
+          onEvent
+        });
+        return { providerId: "openai", modelId: modelFor(providerId) };
+      }
+      if (providerId === "gemini") {
+        const result = await callGemini({ model: modelFor(providerId), message, system });
+        if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+        onEvent({ type: "delta", text: result.text });
+        onEvent({ type: "completed", response: null });
+        return { providerId: "gemini", modelId: result.modelId };
+      }
+      throw new Error("Unsupported provider: " + providerId);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No provider route available");
+}
+
 export async function callGeminiDeviceCommand({ model, message, system }) {
   const apiKey = await getProviderSecret("gemini");
   if (!apiKey) throw new Error("Gemini provider is not configured");
