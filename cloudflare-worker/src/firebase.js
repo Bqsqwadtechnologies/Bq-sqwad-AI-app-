@@ -74,7 +74,11 @@ export async function verifyFirebaseUser(request) {
   if (!authorization.startsWith("Bearer ")) throw new Error("Authentication required");
   const idToken = authorization.slice(7).trim();
   if (!idToken) throw new Error("Authentication required");
-  const apiKey = env("FIREBASE_WEB_API_KEY");
+  // Firebase Web API keys are client identifiers, not authentication secrets.
+  // Keep the configured Worker secret when present, but use the project's verified
+  // Android/Web Firebase key as a safe fallback so the Worker never fails with
+  // "FIREBASE_WEB_API_KEY is not configured" when the secret was not provisioned.
+  const apiKey = globalThis.__bqEnv?.FIREBASE_WEB_API_KEY || "AIzaSyBcbFDXG6IsKatj8DjpCOQjJJ4DHv536eo";
   const response = await fetch(IDENTITY_LOOKUP + "?key=" + encodeURIComponent(apiKey), {
     method: "POST",
     headers: { "content-type": "application/json" },
