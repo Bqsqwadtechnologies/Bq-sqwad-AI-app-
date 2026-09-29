@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { runAi } from "./provider-gateway.js";
-import { reserveCredits, commitCredits, reverseCredits } from "./credits.js";
+import { getOrganizationWallet, chargeOrganizationWallet } from "./organization-billing.js";
 
 function due(task, now = Date.now()) {
   if (task.enabled === false) return false;
@@ -60,15 +60,15 @@ export async function runOrganizationScheduledTask(uid, id) {
   const snap = await ref.get();
   if (!snap.exists || snap.data()?.uid !== uid) throw new Error("scheduled_task_not_found");
   const task = snap.data();
-  let reservation = null;
   try {
-    reservation = await reserveCredits(uid, 1, "organization_scheduled_task");
+    const wallet = await getOrganizationWallet(uid);
+    if (wallet.balanceCents < wallet.assistantPriceCents) throw new Error("organization_insufficient_balance");
     const result = await runAi({
       capability: "organization_studio",
       message: String(task.prompt || ""),
       system: "You are executing an organization-scoped scheduled AI task. Do not invent organization facts. Return a concise useful result."
     });
-    await commitCredits(uid, reservation?.reservationId, result.providerId);
+    const charge = await chargeOrganizationWallet(uid, wallet.assistantPriceCents, "organization_scheduled_task", { providerId: result.providerId || null, taskId: ref.id });
     const now = new Date();
     await ref.set({
       lastRunAt: now.toISOString(),
@@ -77,9 +77,8 @@ export async function runOrganizationScheduledTask(uid, id) {
       nextRunAt: nextRun(task.schedule, now),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
-    return { ok: true, result: result.text, nextRunAt: nextRun(task.schedule, now) };
+    return { ok: true, result: result.text, nextRunAt: nextRun(task.schedule, now), amountChargedCents: charge.chargedCents, balanceCents: charge.balanceCents };
   } catch (error) {
-    await reverseCredits(uid, reservation?.reservationId);
     await ref.set({
       lastRunAt: new Date().toISOString(),
       lastStatus: "error",
