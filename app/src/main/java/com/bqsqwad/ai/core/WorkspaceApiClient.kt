@@ -225,6 +225,12 @@ class WorkspaceApiClient {
     suspend fun createYouTubeLive(payload: JSONObject): JSONObject =
         request("/organization/production/youtube/live", payload=payload)
 
+    suspend fun startOrganizationSocialOAuth(organizationId: String, platform: String, redirectUri: String): JSONObject =
+        request("/organization/social/oauth/start", payload=JSONObject()
+            .put("organizationId", organizationId)
+            .put("platform", platform)
+            .put("redirectUri", redirectUri))
+
     suspend fun organizationSocialAccounts(organizationId: String): JSONObject =
         request("/organization/social/accounts?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8"), "GET")
 
