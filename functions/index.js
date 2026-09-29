@@ -1263,9 +1263,14 @@ export const bqSqwadApi = onRequest(
         const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
         const planId = String(ent.planId || "");
         const active = Boolean(planId && activeStates.has(String(ent.state || "")));
+        const authUser = await getAuth().getUser(user.uid);
+        const claims = authUser.customClaims || {};
+        const isSuperAdmin = authUser.email === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+        const testSnap = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+        const adminTestMode = isSuperAdmin && testSnap.exists && testSnap.data()?.enabled === true;
         return send(res, 200, {
           ok: true,
-          activePlanId: active ? planId : (planId ? null : "explorer"),
+          activePlanId: adminTestMode ? "admin-unlimited" : (active ? planId : (planId ? null : "explorer")),
           plans: catalog.map(item => ({
             id: item.id, name: item.name, description: item.description || "",
             price: item.price || {}, limits: item.limits || {}, features: item.features || [],
