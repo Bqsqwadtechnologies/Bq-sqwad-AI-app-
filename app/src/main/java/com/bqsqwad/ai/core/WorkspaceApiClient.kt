@@ -147,6 +147,8 @@ class WorkspaceApiClient {
     suspend fun setAdminOrganizationEntitlement(uid:String, planId:String, active:Boolean, confirmDeactivation:Boolean=false): JSONObject =
         request("/admin/organization/entitlement", payload=JSONObject().put("uid",uid).put("planId",planId).put("active",active).put("confirmDeactivation",confirmDeactivation))
     suspend fun adminOrganizationTestSession(): JSONObject = request("/admin/organization/test-session","GET")
+    suspend fun adminOrganizationBilling(): JSONObject = request("/admin/organization-billing","GET")
+    suspend fun saveAdminOrganizationBilling(payload: JSONObject): JSONObject = request("/admin/organization-billing", payload = payload)
     suspend fun setAdminOrganizationTestSession(planId:String, enabled:Boolean=true, durationMinutes:Int=120): JSONObject =
         request("/admin/organization/test-session", payload=JSONObject().put("planId",planId).put("enabled",enabled).put("durationMinutes",durationMinutes))
 
