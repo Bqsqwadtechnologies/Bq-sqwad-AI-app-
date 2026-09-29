@@ -70,6 +70,7 @@ class RealtimeVoiceSession(
             put("session", JSONObject().apply {
                 put("type", "realtime")
                 put("model", model)
+                put("voice", voice)
                 put("instructions", "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. Do not ask the user to read or type text. Respond with voice audio only.")
                 put("output_modalities", org.json.JSONArray().put("audio"))
                 put("audio", JSONObject().apply {
