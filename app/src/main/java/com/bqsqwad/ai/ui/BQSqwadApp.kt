@@ -2634,6 +2634,42 @@ fun CameraWorkspace() {
             SurfaceCard("Live indicator", "● Camera active • Android foreground service is running and BQ Sqwad AI is receiving sampled camera frames.")
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LiveTv, contentDescription = null)
+                        Text("One live destination at a time", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("YouTube Mobile Live opens the official YouTube app. It cannot run at the same time as BQ Sqwad AI camera streaming because Android gives the camera to one app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !streamOnline && !screenActive,
+                        onClick = {
+                            val youtubeIntent = Intent("com.google.android.youtube.intent.action.CREATE_LIVE_STREAM")
+                                .setPackage("com.google.android.youtube")
+                                .putExtra(
+                                    Intent.EXTRA_REFERRER,
+                                    Uri.Builder().scheme("android-app").appendPath(context.packageName).build()
+                                )
+                                .putExtra(Intent.EXTRA_SUBJECT, "BQ Sqwad AI Live")
+                            val supported = context.packageManager.queryIntentActivities(
+                                youtubeIntent,
+                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                            ).isNotEmpty()
+                            if (supported) {
+                                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                context.startActivity(youtubeIntent)
+                            } else {
+                                streamError = "YouTube Mobile Live is not available on this device."
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.YouTube, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Open YouTube Live")
+                    }
                     Text("Stream online with AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
