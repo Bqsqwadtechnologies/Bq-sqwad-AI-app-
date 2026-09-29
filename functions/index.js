@@ -2130,7 +2130,10 @@ export const bqSqwadApi = onRequest(
           version: Number(data.version || 1),
           effectiveDate: data.effectiveDate || null
         });
-        const configuredProducts = playSnap.exists && Array.isArray(playSnap.data()?.products) ? playSnap.data().products : canonicalPlayProducts();
+        const configuredProducts = playSnap.exists && Array.isArray(playSnap.data()?.products) ? playSnap.data().products : [];
+         const canonicalProducts = canonicalPlayProducts();
+         const configuredProductIds = new Set(configuredProducts.map(p => String(p.productId || "")));
+         const sourceProducts = [...configuredProducts, ...canonicalProducts.filter(p => p.organizationWalletTopup === true && !configuredProductIds.has(String(p.productId || "")))];
         const products = configuredProducts.map(p => ({
           planId: String(p.planId || ""),
           productId: String(p.productId || ""),
@@ -2202,7 +2205,10 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "GET" && path === "play/catalog") {
         const snap = await getFirestore().collection("playCatalog").doc("config").get();
-        const sourceProducts = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : canonicalPlayProducts();
+        const configuredProducts = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : [];
+         const canonicalProducts = canonicalPlayProducts();
+         const configuredProductIds = new Set(configuredProducts.map(p => String(p.productId || "")));
+         const sourceProducts = [...configuredProducts, ...canonicalProducts.filter(p => p.organizationWalletTopup === true && !configuredProductIds.has(String(p.productId || "")))];
         const products = sourceProducts.map(p => ({
           planId: String(p.planId || ""),
           productId: String(p.productId || ""),
