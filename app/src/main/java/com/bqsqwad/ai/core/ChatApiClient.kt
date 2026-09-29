@@ -119,6 +119,7 @@ class ChatApiClient(
                         detail.contains("consent_required", ignoreCase = true) -> "Please accept the required BQ Sqwad AI consent before sending messages."
                         detail.contains("Authentication required", ignoreCase = true) -> "Please sign in to use this AI feature."
                         detail.contains("Insufficient credits", ignoreCase = true) -> "You do not have enough credits for this AI request."
+                        detail.contains("message_required", ignoreCase = true) -> "Enter a message before sending."
                         detail.contains("capability_disabled", ignoreCase = true) -> "This AI capability is currently disabled by the administrator."
                         else -> detail
                     }
