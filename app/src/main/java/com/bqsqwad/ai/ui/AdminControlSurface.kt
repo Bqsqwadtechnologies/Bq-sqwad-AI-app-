@@ -51,6 +51,7 @@ fun AdminControlCenter() {
     var showRuntime by remember { mutableStateOf(false) }
     var showBusinessTest by remember { mutableStateOf(false) }
     var showOrganizationTest by remember { mutableStateOf(false) }
+    var showAdminOperations by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
     var testModeSaving by remember { mutableStateOf(false) }
@@ -129,6 +130,10 @@ fun AdminControlCenter() {
     }
     if (showOrganizationTest) {
         AdminOrganizationTestPanel { showOrganizationTest = false }
+        return
+    }
+    if (showAdminOperations) {
+        AdminOperationsPanel { showAdminOperations = false }
         return
     }
 
@@ -223,6 +228,7 @@ fun AdminControlCenter() {
         OutlinedButton(onClick = { showRuntime = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin AI Runtime (Agents)") }
         OutlinedButton(onClick = { showBusinessTest = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Business AI End-to-End Test Lab") }
         OutlinedButton(onClick = { showOrganizationTest = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Organization AI Activation & Test Lab") }
+        OutlinedButton(onClick = { showAdminOperations = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin Operations, Notifications & Staff") }
         SurfaceCard(
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
