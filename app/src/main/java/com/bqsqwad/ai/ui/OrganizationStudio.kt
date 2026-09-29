@@ -68,6 +68,7 @@ fun OrganizationStudioWorkspace() {
     var youtubeAccountId by remember { mutableStateOf("") }
     var youtubeBroadcastId by remember { mutableStateOf("") }
     var billingWarning by remember { mutableStateOf<String?>(null) }
+    var organizationBilling by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var playBilling by remember { mutableStateOf<PlayBillingClient?>(null) }
     val billingActivity = context as? Activity
     var scheduledName by remember { mutableStateOf("") }
