@@ -118,44 +118,43 @@ export async function authorizeCapability(uid, controlId) {
     if (bucket >= rollout) throw new Error("capability_not_rolled_out:" + controlId);
   }
 
-  const entitlement = await db.collection("entitlements").doc(uid).get();
-  const entitlementData = entitlement.exists ? (entitlement.data() || {}) : {};
-  const planId = entitlement.exists ? String(entitlementData.planId || "") : "";
-  if (planId) {
-    const state = String(entitlementData.state || "");
-    const endDateRaw = entitlementData.endDate;
-    const endMillis = typeof endDateRaw?.toMillis === "function"
-      ? endDateRaw.toMillis()
-      : endDateRaw instanceof Date
-        ? endDateRaw.getTime()
-        : endDateRaw
-          ? Date.parse(String(endDateRaw))
-          : NaN;
-    const hasFutureEndDate = Number.isFinite(endMillis) && endMillis > Date.now();
-    const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
-    const cancelledButStillPaid = state === "cancelled" && hasFutureEndDate;
-    const validByEndDate = !Number.isFinite(endMillis) || hasFutureEndDate;
-    if ((!activeStates.has(state) && !cancelledButStillPaid) || !validByEndDate) {
-      await deactivateExpiredUserServices(db, uid);
-      throw new Error("plan_expired");
-    }
-  }
   const isPaygCapability = PAYG_CAPABILITIES.has(controlId);
 
-  // Pay-as-you-go Organization AI is funded directly from the user's shared
-  // Firebase credit balance. Do not require a subscription/plan entitlement.
-  // The admin capability record can still set a custom creditCost.
+  // Subscription expiry/plan entitlement is deliberately skipped for PAYG
+  // Organization AI. The user pays from the shared Firebase credit balance.
+  let planId = "";
+  if (!isPaygCapability) {
+    const entitlement = await db.collection("entitlements").doc(uid).get();
+    const entitlementData = entitlement.exists ? (entitlement.data() || {}) : {};
+    planId = entitlement.exists ? String(entitlementData.planId || "") : "";
+    if (planId) {
+      const state = String(entitlementData.state || "");
+      const endDateRaw = entitlementData.endDate;
+      const endMillis = typeof endDateRaw?.toMillis === "function"
+        ? endDateRaw.toMillis()
+        : entitlementData.endDate instanceof Date
+          ? entitlementData.endDate.getTime()
+          : endDateRaw
+            ? Date.parse(String(endDateRaw))
+            : NaN;
+      const hasFutureEndDate = Number.isFinite(endMillis) && endMillis > Date.now();
+      const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
+      const cancelledButStillPaid = state === "cancelled" && hasFutureEndDate;
+      const validByEndDate = !Number.isFinite(endMillis) || hasFutureEndDate;
+      if ((!activeStates.has(state) && !cancelledButStillPaid) || !validByEndDate) {
+        await deactivateExpiredUserServices(db, uid);
+        throw new Error("plan_expired");
+      }
+    }
+  }
+
   const configuredPlans = Array.isArray(effectiveControl.allowedPlanIds)
     ? effectiveControl.allowedPlanIds.map(String).filter(Boolean)
     : [];
   const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
-
   let effectivePlanId = planId || "";
+
   if (!isPaygCapability) {
-      const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
-  
-    // Resolve plan availability from the same canonical catalog used by the native catalog.
-    // This prevents a deactivated free plan from silently continuing to grant access.
     const planCatalogSnap = await db.collection("planCatalog").doc("config").get();
     const catalogSections = planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
       ? planCatalogSnap.data().catalog.sections
@@ -167,19 +166,15 @@ export async function authorizeCapability(uid, controlId) {
       const item = catalogById.get(id);
       return item?.productType === "free" || item?.price?.free != null || item?.paymentChannel === "free";
     }) || null;
-  
+
     if (plans.length) {
-      // Existing paid subscribers keep access even if the admin deactivates the plan.
-      // Deactivation controls catalog visibility and new purchases, not already-granted access.
       if (planId) {
         if (!plans.includes(planId)) throw new Error("plan_not_entitled");
       } else if (!freePlanId) {
         throw new Error("plan_not_entitled");
       }
     }
-  
-      effectivePlanId = planId || freePlanId || "";
-  
+    effectivePlanId = planId || freePlanId || "";
   }
 
   const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[effectivePlanId] ?? null;
@@ -276,7 +271,7 @@ export async function authorizeCapability(uid, controlId) {
   return {
     control,
     planId: effectivePlanId || null,
-    creditCost: Math.max(0, Number(effectiveControl.creditCost || 0)),
+    creditCost: isPaygCapability ? Math.max(1, Number(effectiveControl.creditCost || 1)) : Math.max(0, Number(effectiveControl.creditCost || 0)),
     commit: () => { committed = true; },
     release: async () => {
       if (released) return;
