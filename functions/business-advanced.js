@@ -47,7 +47,7 @@ export async function listAdvancedAiJobs(uid, workspaceId) {
 const INTEGRATIONS = Object.freeze([
   "google_workspace","microsoft_365","google_calendar","microsoft_calendar",
   "shopify","woocommerce","wordpress","zapier","crm_api","rest_api",
-  "webhooks","email","sms"
+  "webhooks","email","sms","tiktok"
 ]);
 
 const NO_CREDENTIAL_INTEGRATIONS = new Set(["webhooks", "rest_api"]);
