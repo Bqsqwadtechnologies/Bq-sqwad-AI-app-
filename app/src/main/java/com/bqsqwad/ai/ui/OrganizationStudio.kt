@@ -723,6 +723,8 @@ fun OrganizationStudioWorkspace() {
                                             ?: error("YouTube did not return a stream key.")
                                         liveSessionId = sessionId
                                         liveEndpoint = endpoint
+                                        youtubeAccountId = result.optString("accountId")
+                                        youtubeBroadcastId = result.optString("broadcastId")
                                         val intent = Intent(context, LiveMediaForegroundService::class.java).apply {
                                             putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                                             putExtra(LiveMediaForegroundService.EXTRA_LIVE_SESSION_ID, sessionId)
