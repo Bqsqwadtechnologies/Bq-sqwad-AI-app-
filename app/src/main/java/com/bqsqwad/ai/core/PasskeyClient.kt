@@ -17,7 +17,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class PasskeyClient(private val context: Context) {
-    private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
     private val credentialManager = CredentialManager.create(context)
 
     private suspend fun request(path: String, method: String = "GET", payload: JSONObject? = null, authenticated: Boolean = false): JSONObject =
