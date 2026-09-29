@@ -31,6 +31,13 @@ fun AdminOrganizationTestPanel(onBack: () -> Unit) {
     var notice by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var assistantRate by remember { mutableStateOf("0.10") }
+    var hostRate by remember { mutableStateOf("0.25") }
+    var moderatedRate by remember { mutableStateOf("0.55") }
+    var fullRate by remember { mutableStateOf("0.95") }
+    var warningUsd by remember { mutableStateOf("5.00") }
+    var billingInterval by remember { mutableStateOf("10") }
+    var graceSeconds by remember { mutableStateOf("60") }
 
     fun refresh() {
         scope.launch {
