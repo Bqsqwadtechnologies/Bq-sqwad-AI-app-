@@ -715,6 +715,8 @@ fun OrganizationStudioWorkspace() {
                                             putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, endpoint + "/" + streamName)
                                             putExtra(LiveMediaForegroundService.EXTRA_YOUTUBE_ACCOUNT_ID, result.optString("accountId"))
                                             putExtra(LiveMediaForegroundService.EXTRA_YOUTUBE_BROADCAST_ID, result.optString("broadcastId"))
+                                            putExtra(LiveMediaForegroundService.EXTRA_ORGANIZATION_MODE, true)
+                                            putExtra("organization_live_mode", aiLiveMode)
                                         }
                                         ContextCompat.startForegroundService(context, intent)
                                         outputStatus = "YouTube live is connecting"
