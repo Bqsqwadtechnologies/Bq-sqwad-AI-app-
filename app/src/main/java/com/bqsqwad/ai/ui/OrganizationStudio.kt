@@ -88,12 +88,12 @@ fun OrganizationStudioWorkspace() {
 
     DisposableEffect(billingActivity) {
         if (billingActivity != null) {
-            val manager = PlayBillingClient(billingActivity) { state ->
+            val manager = PlayBillingClient(billingActivity, { state ->
                 billingWarning = state.message
                 if (state.status == "success") {
                     scope.launch { runCatching { api.organizationBilling() }.onSuccess { organizationBilling = it } }
                 }
-            }
+            }, organizationContext = true)
             playBilling = manager
             manager.start()
             onDispose { manager.close(); playBilling = null }
