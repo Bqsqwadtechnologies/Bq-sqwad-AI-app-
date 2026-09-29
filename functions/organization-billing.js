@@ -203,52 +203,57 @@ export async function getOrganizationLiveBilling(uid, sessionId) {
 
 export async function heartbeatOrganizationLiveBilling(uid, sessionId) {
   const ref = sessionRef(sessionId);
-  const snap = await ref.get();
-  if (!snap.exists || snap.data()?.uid !== uid) throw new Error("organization_live_session_not_found");
-  const session = snap.data() || {};
-  if (["stopped", "blocked"].includes(String(session.status))) return getOrganizationLiveBilling(uid, sessionId);
-
+  const db = getFirestore();
   const cfg = await config();
-  const rate = Math.max(0, Number(session.rateCentsPerMinute ?? cfg.liveRateCentsPerMinute[session.mode] ?? 0));
-  const interval = Math.max(5, Number(session.billingIntervalSeconds || cfg.liveBillingIntervalSeconds));
-  const charge = Math.max(1, Math.ceil(rate * interval / 60));
-  const wallet = await getOrganizationWallet(uid);
+  const result = await db.runTransaction(async tx => {
+    const [sessionSnap, walletSnap] = await Promise.all([tx.get(ref), tx.get(walletRef(uid))]);
+    if (!sessionSnap.exists || sessionSnap.data()?.uid !== uid) throw new Error("organization_live_session_not_found");
+    const session = sessionSnap.data() || {};
+    const wallet = walletSnap.exists ? walletSnap.data() || {} : {};
+    if (["stopped", "blocked"].includes(String(session.status))) {
+      return { action: "stop", chargedCents: 0, balanceCents: Math.max(0, Number(wallet.balanceCents || 0)), graceUntil: session.graceUntil || null, status: String(session.status) };
+    }
+    const balanceCents = Math.max(0, Number(wallet.balanceCents || 0));
+    const rate = Math.max(0, Number(session.rateCentsPerMinute ?? cfg.liveRateCentsPerMinute[session.mode] ?? 0));
+    const interval = Math.max(5, Number(session.billingIntervalSeconds || cfg.liveBillingIntervalSeconds));
+    const charge = Math.max(0, Math.ceil(rate * interval / 60));
+    const graceUntilMs = session.graceUntil ? Date.parse(String(session.graceUntil)) : NaN;
 
-  if (wallet.balanceCents >= charge) {
-    const charged = await chargeOrganizationWallet(uid, charge, "organization_live_stream", { sessionId, mode: session.mode });
-    await ref.set({
-      billedCents: Number(session.billedCents || 0) + charge,
-      lowBalance: charged.lowBalance,
-      graceUntil: null,
-      lastHeartbeatAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    return { ...(await getOrganizationLiveBilling(uid, sessionId)), action: "continue", chargedCents: charge };
-  }
+    if (balanceCents === 0 && Number.isFinite(graceUntilMs) && graceUntilMs > Date.now()) {
+      return { action: "grace", chargedCents: 0, balanceCents: 0, graceUntil: session.graceUntil, status: "active", lowBalance: true };
+    }
 
-  if (wallet.balanceCents > 0) {
-    const charged = await chargeOrganizationWallet(uid, wallet.balanceCents, "organization_live_stream", { sessionId, mode: session.mode, finalPartialInterval: true });
-    const graceUntil = new Date(Date.now() + cfg.liveGraceSeconds * 1000).toISOString();
-    await ref.set({
-      billedCents: Number(session.billedCents || 0) + charged.chargedCents,
-      lowBalance: true,
-      graceUntil,
-      lastHeartbeatAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    return { ...(await getOrganizationLiveBilling(uid, sessionId)), action: "grace", chargedCents: charged.chargedCents, message: "Organization usage balance is empty. Add funds within the grace period or the live stream will be stopped." };
-  }
+    if (charge === 0) {
+      tx.set(ref, { lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { action: "continue", chargedCents: 0, balanceCents, graceUntil: null, status: "active", lowBalance: balanceCents <= cfg.lowBalanceWarningCents };
+    }
 
-  const graceUntilMs = session.graceUntil ? Date.parse(String(session.graceUntil)) : NaN;
-  if (Number.isFinite(graceUntilMs) && graceUntilMs > Date.now()) {
-    return { ...(await getOrganizationLiveBilling(uid, sessionId)), action: "grace", chargedCents: 0, message: "Organization usage balance is empty. Add funds before the grace period expires." };
-  }
+    if (balanceCents >= charge) {
+      const after = balanceCents - charge;
+      tx.set(walletRef(uid), { uid, balanceCents: after, currency: "USD", status: "active", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.create(ledgerRef(), { uid, type: "usage", capability: "organization_live_stream", amountCents: -charge, balanceBeforeCents: balanceCents, balanceAfterCents: after, currency: "USD", sessionId, mode: session.mode, createdAt: FieldValue.serverTimestamp() });
+      tx.set(ref, { billedCents: Number(session.billedCents || 0) + charge, lowBalance: after <= cfg.lowBalanceWarningCents, graceUntil: null, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { action: "continue", chargedCents: charge, balanceCents: after, graceUntil: null, status: "active", lowBalance: after <= cfg.lowBalanceWarningCents };
+    }
 
-  await ref.set({ status: "blocked", lowBalance: true, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  await walletRef(uid).set({ status: "blocked", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  return { ...(await getOrganizationLiveBilling(uid, sessionId)), action: "stop", chargedCents: 0, message: "Organization usage balance is empty and the grace period expired. Live streaming has been stopped and billing access is blocked until funds are added." };
+    if (balanceCents > 0) {
+      const graceUntil = new Date(Date.now() + cfg.liveGraceSeconds * 1000).toISOString();
+      tx.set(walletRef(uid), { uid, balanceCents: 0, currency: "USD", status: "active", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.create(ledgerRef(), { uid, type: "usage", capability: "organization_live_stream", amountCents: -balanceCents, balanceBeforeCents: balanceCents, balanceAfterCents: 0, currency: "USD", sessionId, mode: session.mode, finalPartialInterval: true, createdAt: FieldValue.serverTimestamp() });
+      tx.set(ref, { billedCents: Number(session.billedCents || 0) + balanceCents, lowBalance: true, graceUntil, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { action: "grace", chargedCents: balanceCents, balanceCents: 0, graceUntil, status: "active", lowBalance: true, message: "Organization usage balance is empty. Add funds within the grace period or the live stream will be stopped." };
+    }
+
+    tx.set(ref, { status: "blocked", lowBalance: true, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(walletRef(uid), { status: "blocked", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { action: "stop", chargedCents: 0, balanceCents: 0, graceUntil: null, status: "blocked", lowBalance: true, message: "Organization usage balance is empty and the grace period expired. Live streaming has been stopped and billing access is blocked until funds are added." };
+  });
+
+  return {
+    ...(await getOrganizationLiveBilling(uid, sessionId)),
+    ...result
+  };
 }
-
 export async function stopOrganizationLiveBilling(uid, sessionId, reason = "operator_stop") {
   const ref = sessionRef(sessionId);
   const snap = await ref.get();
