@@ -40,8 +40,7 @@ class PlayBillingClient(
     private val onPurchaseState: (PlayPurchaseState) -> Unit = {}
 ) : BillingClientStateListener {
 
-    private val baseUrl = "https://europe-west1-" +
-        FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     private val client = BillingClient.newBuilder(activity)
         .setListener { result, purchases ->
