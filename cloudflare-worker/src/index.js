@@ -413,23 +413,15 @@ export default {
         return await stream(request, user, await readBody(request));
       }
       if (url.pathname === "/play/catalog" && request.method === "GET") {
-        await verifyFirebaseUser(request);
-        const catalog = await firestoreGet("playCatalog/config");
-        return json({ products: Array.isArray(catalog?.products) ? catalog.products : [] });
+        // Keep Google Play catalog authoritative in the canonical Firebase backend.
+        // The Worker remains the stable app-facing origin and preserves query context.
+        return await proxyUpstream(request, url);
       }
 
       if (url.pathname === "/play/verify" && request.method === "POST") {
-        const user = await verifyFirebaseUser(request);
-        await requireConsent(user.uid);
-        const body = await readBody(request);
-        return json(await verifyPlayPurchase(env, { get: firestoreGet, commit: firestoreCommit }, {
-          uid: user.uid,
-          productId: String(body.productId || ""),
-          purchaseToken: String(body.purchaseToken || ""),
-          obfuscatedAccountId: body.obfuscatedAccountId ? String(body.obfuscatedAccountId) : "",
-          requestedBasePlanId: body.basePlanId ? String(body.basePlanId) : "",
-          requestedOfferId: body.offerId ? String(body.offerId) : ""
-        }));
+        // Purchase verification, entitlement grants, Organization wallet deposits,
+        // and Play acknowledgement/consumption remain in the canonical backend.
+        return await proxyUpstream(request, url);
       }
 
       if (url.pathname === "/credits" && request.method === "GET") {
