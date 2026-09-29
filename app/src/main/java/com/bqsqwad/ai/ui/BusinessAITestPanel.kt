@@ -169,6 +169,35 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
             }
 
             item {
+                val testActive = session.optBoolean("enabled") && session.optString("planId").isNotBlank()
+                Surface(
+                    Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = if (testActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            if (testActive) "BUSINESS TEST MODE ON" else "BUSINESS TEST MODE OFF",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            if (testActive)
+                                "Admin access is currently being evaluated against " + session.optString("planId") + ". The selected test plan overrides the admin's normal Business workspace entitlement for this temporary session; customer subscriptions are unchanged."
+                            else
+                                "Select any active Business plan and unlock it temporarily. Switching the selected plan replaces the previous admin test plan."
+                        )
+                        if (testActive) {
+                            Text(
+                                "Testing: " + session.optString("planId") +
+                                    " • Session ends: " + session.optString("expiresAt", "temporary"),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+            }
+            item {
                 Text("Business plans", style = MaterialTheme.typography.titleLarge)
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
@@ -183,6 +212,21 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
                         Text(plan.optString("name", id), style = MaterialTheme.typography.titleMedium)
                         Text(id, style = MaterialTheme.typography.labelSmall)
                         Text(if (active) "Catalogue status: Active" else "Catalogue status: Inactive")
+                        val price = plan.optJSONObject("price")
+                        if (price != null) {
+                            val monthly = price.opt("monthly")
+                            val yearly = price.opt("yearly")
+                            if (monthly != null || yearly != null) {
+                                Text(
+                                    listOfNotNull(
+                                        monthly?.let { "Monthly $" + it },
+                                        yearly?.let { "Yearly $" + it }
+                                    ).joinToString(" • "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                         Text("Features: " + (plan.optJSONArray("features")?.length() ?: 0))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected == id, { selected = id; suite = null }, label = { Text("Select") })
