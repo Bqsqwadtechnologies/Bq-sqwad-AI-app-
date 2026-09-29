@@ -113,9 +113,19 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
-          cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
           cp build-info.txt release/BUILD-INFO.txt
+          if [ -s app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
+          else
+            echo "APK was not produced." > release/APK-BUILD-FAILED.txt
+          fi
+          if [ -s app/build/outputs/bundle/release/app-release.aab ]; then
+            cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
+          else
+            echo "AAB was not produced." > release/AAB-BUILD-FAILED.txt
+          fi
+          if [ -f release-build.log ]; then cp release-build.log release/RELEASE-BUILD-LOG.txt; fi
+          if [ -f release-build-status.txt ]; then cp release-build-status.txt release/RELEASE-BUILD-STATUS.txt; fi
           sha256sum release/* > release/SHA256SUMS.txt
 
       - name: Upload APK and AAB
