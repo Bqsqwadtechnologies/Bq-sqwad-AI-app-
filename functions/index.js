@@ -32,7 +32,7 @@ import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settin
 import { getOrganizationWallet, organizationWalletTopUps, chargeOrganizationWallet, startOrganizationLiveBilling, getOrganizationLiveBilling, heartbeatOrganizationLiveBilling, stopOrganizationLiveBilling, organizationBillingAdminConfig } from "./organization-billing.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, listOrganizationEntitlements, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans.js";
-import { listAdminStaff, setAdminStaff, removeAdminStaff, broadcastAdminNotification, getPublicAppConfig, setAuthBackgroundVideo, ADMIN_STAFF_ROLES } from "./admin-operations.js";
+import { listAdminStaff, setAdminStaff, removeAdminStaff, broadcastAdminNotification, getPublicAppConfig, setAuthBackgroundVideo, setPublicAppLayout, ADMIN_STAFF_ROLES } from "./admin-operations.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -1999,6 +1999,11 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "admin/auth-background-video") {
         const admin = await adminFromRequest(req);
         return send(res, 200, await setAuthBackgroundVideo(admin.uid, String(body.url || ""), body.enabled !== false));
+      }
+
+      if (req.method === "POST" && path === "admin/app-layout") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await setPublicAppLayout(admin.uid, body));
       }
 
       if (req.method === "GET" && path === "admin/staff/roles") {
