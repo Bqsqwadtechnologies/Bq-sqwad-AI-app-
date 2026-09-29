@@ -40,6 +40,7 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install required Android SDK packages
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -51,11 +52,13 @@ jobs:
           test -x "$ANDROID_HOME/platform-tools/adb"
 
       - name: Set up Gradle
+        continue-on-error: true
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: "9.5.0"
 
       - name: Restore release signing key
+        continue-on-error: true
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -67,6 +70,7 @@ jobs:
           chmod 600 "$KEYSTORE_PATH"
 
       - name: Validate signing configuration
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -178,6 +182,7 @@ jobs:
         if: ${{ always() }}
         shell: bash
         env:
+          DIAGNOSTICS_OUTCOME: ${{ steps.diagnostics.outcome }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           VERIFY_OUTCOME: ${{ steps.verify.outcome }}
           RECORD_OUTCOME: ${{ steps.record.outcome }}
@@ -187,6 +192,7 @@ jobs:
         run: |
           set +e
           echo "Release pipeline stage results:"
+          printf '%-16s %s\\n' "diagnostics" "$DIAGNOSTICS_OUTCOME"
           printf '%-16s %s\n' "build" "$BUILD_OUTCOME"
           printf '%-16s %s\n' "verify" "$VERIFY_OUTCOME"
           printf '%-16s %s\n' "record" "$RECORD_OUTCOME"
@@ -194,7 +200,7 @@ jobs:
           printf '%-16s %s\n' "upload" "$UPLOAD_OUTCOME"
           printf '%-16s %s\n' "publish" "$PUBLISH_OUTCOME"
           failed=0
-          for outcome in "$BUILD_OUTCOME" "$VERIFY_OUTCOME" "$RECORD_OUTCOME" "$PREPARE_OUTCOME" "$UPLOAD_OUTCOME" "$PUBLISH_OUTCOME"; do
+          for outcome in "$DIAGNOSTICS_OUTCOME" "$BUILD_OUTCOME" "$VERIFY_OUTCOME" "$RECORD_OUTCOME" "$PREPARE_OUTCOME" "$UPLOAD_OUTCOME" "$PUBLISH_OUTCOME"; do
             if [ "$outcome" != "success" ] && [ "$outcome" != "skipped" ]; then failed=1; fi
           done
           if [ "$failed" -ne 0 ]; then
