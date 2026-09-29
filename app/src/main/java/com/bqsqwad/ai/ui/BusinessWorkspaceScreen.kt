@@ -499,6 +499,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
     var accounts by remember { mutableStateOf(JSONArray()) }
     var text by remember { mutableStateOf("") }
     var accountId by remember { mutableStateOf("") }
+    var mediaUrl by remember { mutableStateOf("") }
     var connecting by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -649,7 +650,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
         }
 
         if (accounts.length() == 0) {
-            SurfaceCard("No connected channels", "Connect YouTube or X above to add a channel.")
+            SurfaceCard("No connected channels", "Connect YouTube, X, or TikTok above to add a channel.")
         }
 
         for (i in 0 until accounts.length()) {
@@ -668,7 +669,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                                     if (accountId == id) accountId = ""
                                     refreshAccounts()
                                 }
-                                .onFailure { error(it.message ?: "X account could not be disconnected.") }
+                                .onFailure { error(it.message ?: "Social account could not be disconnected.") }
                         }
                     }) { Text("Disconnect") }
                 }
