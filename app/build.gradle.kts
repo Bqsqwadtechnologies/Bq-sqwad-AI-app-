@@ -20,8 +20,6 @@ android {
         versionName = "1.0.5"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
-        val bqTunBaseUrl = System.getenv("BQ_TUN_BASE_URL") ?: ""
-        buildConfigField("String", "BQ_TUN_BASE_URL", "\"$bqTunBaseUrl\"")
     }
 
     buildTypes {
