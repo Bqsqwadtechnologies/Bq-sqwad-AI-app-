@@ -170,7 +170,7 @@ class LiveMediaForegroundService : Service() {
 
     private suspend fun startVisualVoice() {
         if (visualVoice != null) return
-        val config = WorkspaceApiClient().realtimeSession()
+        val config = WorkspaceApiClient().realtimeSession(voice, organization = !liveSessionId.isNullOrBlank())
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
         val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
