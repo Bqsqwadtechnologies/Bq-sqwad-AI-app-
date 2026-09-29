@@ -199,8 +199,7 @@ export async function getOrganizationAiLiveConfig(uid) {
     viewerReplies: production.aiLive?.viewerReplies === true,
     screenAwareness: production.aiLive?.screenAwareness === true,
     commentModeration: production.aiLive?.commentModeration || "strict",
-    hostOnly: production.aiLive?.mode === "host_only",
-    creditRatePerMinute: Number(production.aiLive?.creditRatePerMinute || 0.25)
+    hostOnly: production.aiLive?.mode === "host_only"
   };
 }
 
@@ -209,9 +208,9 @@ export async function updateOrganizationAiLiveConfig(uid, patch = {}) {
   const allowedModes = new Set(["host_only", "moderated_audience", "full_audience"]);
   const mode = allowedModes.has(String(patch.mode || "")) ? String(patch.mode) : current.mode;
   const modeRules = {
-    host_only: { viewerReplies: false, screenAwareness: false, commentModeration: "strict", creditRatePerMinute: 0.25 },
-    moderated_audience: { viewerReplies: true, screenAwareness: false, commentModeration: "strict", creditRatePerMinute: 0.55 },
-    full_audience: { viewerReplies: true, screenAwareness: true, commentModeration: "strict", creditRatePerMinute: 0.95 }
+    host_only: { viewerReplies: false, screenAwareness: false, commentModeration: "strict" },
+    moderated_audience: { viewerReplies: true, screenAwareness: false, commentModeration: "strict" },
+    full_audience: { viewerReplies: true, screenAwareness: true, commentModeration: "strict" }
   };
   const defaults = modeRules[mode];
   if (patch.privacyAccepted !== true && current.privacyAccepted !== true) {
@@ -224,7 +223,6 @@ export async function updateOrganizationAiLiveConfig(uid, patch = {}) {
     viewerReplies: mode === "host_only" ? false : patch.viewerReplies !== false,
     screenAwareness: mode === "full_audience" ? patch.screenAwareness !== false : false,
     commentModeration: "strict",
-    creditRatePerMinute: defaults.creditRatePerMinute,
     updatedAt: new Date().toISOString()
   };
   await refFor(uid).set({ aiLive, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
