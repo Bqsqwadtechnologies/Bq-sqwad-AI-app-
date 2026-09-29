@@ -31,6 +31,7 @@ import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
 import { getOrganizationWallet, organizationWalletTopUps, chargeOrganizationWallet, startOrganizationLiveBilling, getOrganizationLiveBilling, heartbeatOrganizationLiveBilling, stopOrganizationLiveBilling, organizationBillingAdminConfig } from "./organization-billing.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
+import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, listOrganizationEntitlements, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -563,6 +564,13 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await clearUserMemory(user.uid));
       }
 
+      if (req.method === "GET" && path === "organization/catalog") {
+        return send(res, 200, { plans: await getOrganizationCatalog(), pricing: { model: "pay_as_you_go", price: null, note: "Organization plans have no subscription price. Access is activated by an administrator; usage is billed from the separate Organization USD balance." } });
+      }
+
+      if (req.method === "GET" && path === "organization/access") {
+        return send(res, 200, await getOrganizationAccess(user.uid));
+      }
       if (req.method === "GET" && path === "organization/scheduled-tasks") {
         return send(res, 200, { tasks: await listOrganizationScheduledTasks(user.uid) });
       }
@@ -2889,6 +2897,34 @@ export const bqSqwadApi = onRequest(
         });
       }
 
+      if (req.method === "GET" && path === "admin/organization") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await getAdminOrganizationControl(admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/organization/plan-status") {
+        const admin = await adminFromRequest(req);
+        const planId = String(body.planId || "").trim();
+        return send(res, 200, await setOrganizationPlanStatus(admin.uid, planId, body.active !== false, body.confirmDeactivation === true));
+      }
+
+      if (req.method === "POST" && path === "admin/organization/entitlement") {
+        const admin = await adminFromRequest(req);
+        const uid = String(body.uid || "").trim();
+        const planId = String(body.planId || "").trim();
+        if (!uid || !planId) return send(res, 400, { error: "organization_entitlement_target_required" });
+        return send(res, 200, await setOrganizationEntitlement(admin.uid, uid, planId, body.active === true, body.confirmDeactivation === true));
+      }
+
+      if (req.method === "GET" && path === "admin/organization/test-session") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await getOrganizationTestSession(admin.uid));
+      }
+
+      if (req.method === "POST" && path === "admin/organization/test-session") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await setOrganizationTestSession(admin.uid, String(body.planId || ""), body.enabled !== false, Number(body.durationMinutes || 120)));
+      }
       if (req.method === "GET" && path === "admin/organization-billing") {
         await adminFromRequest(req);
         const snap = await getFirestore().collection("adminAdvancedOptions").doc("organization_billing").get();
