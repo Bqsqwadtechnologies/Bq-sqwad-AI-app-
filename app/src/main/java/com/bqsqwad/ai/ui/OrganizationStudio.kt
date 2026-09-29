@@ -662,7 +662,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching {
                                     val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
-                                    api.startOrganizationYouTubeOAuth(orgId, "https://bqsqwadai.firebaseapp.com/__/auth/handler")
+                                    api.startOrganizationYouTubeOAuth(orgId, "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback")
                                 }.onSuccess {
                                     val url = it.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
