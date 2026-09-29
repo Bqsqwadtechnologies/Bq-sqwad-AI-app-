@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          "$SDKMANAGER" "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-37" "build-tools;37.0.0"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           test -f "$ANDROID_HOME/platforms/android-37.0/android.jar"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
@@ -76,9 +76,14 @@ jobs:
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
       - name: Build signed release APK and AAB
+        id: build
+        continue-on-error: true
         run: gradle --no-daemon --stacktrace clean assembleRelease bundleRelease
 
       - name: Verify APK and AAB
+        id: verify
+        if: ${{ always() }}
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -90,11 +95,17 @@ jobs:
           jarsigner -verify "$AAB"
 
       - name: Record build identifier
+        id: record
+        if: ${{ always() }}
+        continue-on-error: true
         shell: bash
         run: |
           printf 'commit=%s\nshort_sha=%s\nversion=1.0.5\n' "$GITHUB_SHA" "${GITHUB_SHA:0:7}" > build-info.txt
 
       - name: Prepare release files
+        id: prepare
+        if: ${{ always() }}
+        continue-on-error: true
         run: |
           mkdir -p release
           cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
@@ -103,6 +114,9 @@ jobs:
           sha256sum release/* > release/SHA256SUMS.txt
 
       - name: Upload APK and AAB
+        id: upload
+        if: ${{ always() }}
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: BQ-Sqwad-AI-v1.0.5-release
@@ -111,7 +125,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub release
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
@@ -121,3 +135,30 @@ jobs:
             release/BQ-Sqwad-AI-v1.0.5-release.apk
             release/BQ-Sqwad-AI-v1.0.5-release.aab
             release/SHA256SUMS.txt
+
+      - name: Report all release-stage failures
+        if: ${{ always() }}
+        shell: bash
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          RECORD_OUTCOME: ${{ steps.record.outcome }}
+          PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+        run: |
+          set +e
+          echo "Release pipeline stage results:"
+          printf '%-16s %s\n' "build" "$BUILD_OUTCOME"
+          printf '%-16s %s\n' "verify" "$VERIFY_OUTCOME"
+          printf '%-16s %s\n' "record" "$RECORD_OUTCOME"
+          printf '%-16s %s\n' "prepare" "$PREPARE_OUTCOME"
+          printf '%-16s %s\n' "upload" "$UPLOAD_OUTCOME"
+          failed=0
+          for outcome in "$BUILD_OUTCOME" "$VERIFY_OUTCOME" "$RECORD_OUTCOME" "$PREPARE_OUTCOME" "$UPLOAD_OUTCOME"; do
+            if [ "$outcome" != "success" ]; then failed=1; fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more release stages failed. All independent stages were allowed to report before this final gate."
+            exit 1
+          fi
+          echo "All release stages completed successfully."
