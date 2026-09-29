@@ -81,7 +81,7 @@ fun OrganizationStudioWorkspace() {
     var aiLivePrivacyAccepted by remember { mutableStateOf(false) }
     var aiLiveViewerReplies by remember { mutableStateOf(false) }
     var aiLiveScreenAwareness by remember { mutableStateOf(false) }
-    var aiLiveCreditsPerMinute by remember { mutableStateOf(0.25) }
+
     val youtubeChatLog = remember { mutableStateListOf<String>() }
     val processedYouTubeMessages = remember { mutableStateOf(emptySet<String>()) }
 
@@ -174,7 +174,6 @@ fun OrganizationStudioWorkspace() {
                 aiLivePrivacyAccepted = it.optBoolean("privacyAccepted", false)
                 aiLiveViewerReplies = it.optBoolean("viewerReplies", false)
                 aiLiveScreenAwareness = it.optBoolean("screenAwareness", false)
-                aiLiveCreditsPerMinute = it.optDouble("creditRatePerMinute", 0.25)
             }
             .onFailure { /* first-run defaults remain safe */ }
     }
@@ -792,7 +791,6 @@ fun OrganizationStudioWorkspace() {
                                             .put("screenAwareness", aiLiveScreenAwareness)
                                     )
                                 }.onSuccess {
-                                    aiLiveCreditsPerMinute = it.optDouble("creditRatePerMinute", aiLiveCreditsPerMinute)
                                 }.onFailure { e -> error = e.message ?: "AI Live privacy settings could not be saved." }
                             }
                         }
