@@ -39,6 +39,12 @@ const DEFAULT_MONTHLY_LIMITS = {
   }
 };
 
+const DEFAULT_DAILY_LIMITS = {
+  capability_learning_studio: {
+    explorer: 3
+  }
+};
+
 const PAYG_CAPABILITIES = new Set([
   // Organization AI is credit-funded pay-as-you-go; it does not require a
   // subscription plan. Admin capability controls still govern availability,
@@ -178,6 +184,10 @@ export async function authorizeCapability(uid, controlId) {
     effectivePlanId = planId || freePlanId || "";
   }
 
+  const defaultDailyLimit = DEFAULT_DAILY_LIMITS[controlId]?.[effectivePlanId] ?? null;
+  const configuredDailyLimit = effectiveControl.dailyLimit == null ? null : Math.max(0, Number(effectiveControl.dailyLimit));
+  const dailyLimit = configuredDailyLimit ?? defaultDailyLimit;
+
   const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[effectivePlanId] ?? null;
   let monthlyRef = null;
   if (monthlyLimit !== null && Number.isFinite(Number(monthlyLimit))) {
@@ -197,7 +207,6 @@ export async function authorizeCapability(uid, controlId) {
     });
   }
 
-  const dailyLimit = effectiveControl.dailyLimit == null ? null : Math.max(0, Number(effectiveControl.dailyLimit));
   let dailyRef = null;
   if (dailyLimit !== null) {
     dailyRef = db.collection("capabilityUsage").doc(uid + "_" + controlId + "_" + dayKey());
