@@ -523,7 +523,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Connected Channels", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(
-            "Connect YouTube or X securely, then publish and manage the connected account from this workspace.",
+            "Connect YouTube, X, or TikTok securely, then publish and manage the connected account from this workspace. TikTok profile/video access and approved Content Posting are available; unsupported TikTok messaging/comment/like APIs are not exposed as fake controls.",
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -604,12 +604,8 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                         }.onSuccess { result ->
                             val url = result.optString("authorizationUrl")
                             if (url.isBlank()) error("X OAuth URL was not returned.")
-                            else {
-                                runCatching {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(intent)
-                                }.onFailure { error(it.message ?: "Could not open X sign-in.") }
-                            }
+                            else runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                .onFailure { error(it.message ?: "Could not open X sign-in.") }
                         }.onFailure { error(it.message ?: "X connection failed.") }
                         delay(1500)
                         repeat(20) {
@@ -621,6 +617,35 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                     }
                 }
             ) { Text(if (connecting == "x") "Connecting…" else "Connect X") }
+
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                enabled = connecting == null,
+                onClick = {
+                    connecting = "tiktok"
+                    scope.launch {
+                        runCatching {
+                            api.startSocialOAuth(
+                                "tiktok",
+                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                workspaceId
+                            )
+                        }.onSuccess { result ->
+                            val url = result.optString("authorizationUrl")
+                            if (url.isBlank()) error("TikTok OAuth URL was not returned.")
+                            else runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                .onFailure { error(it.message ?: "Could not open TikTok authorization.") }
+                        }.onFailure { error(it.message ?: "TikTok connection failed.") }
+                        delay(1500)
+                        repeat(20) {
+                            refreshAccounts()
+                            if ((0 until accounts.length()).any { i -> accounts.optJSONObject(i)?.optString("platform") == "tiktok" }) return@repeat
+                            delay(1500)
+                        }
+                        connecting = null
+                    }
+                }
+            ) { Text(if (connecting == "tiktok") "Connecting…" else "Connect TikTok") }
         }
 
         if (accounts.length() == 0) {
@@ -635,7 +660,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                 OutlinedButton(modifier = Modifier.weight(1f), onClick = { accountId = id }) {
                     Text(platform.replaceFirstChar { it.uppercase() } + if (accountId == id) " • Selected" else "")
                 }
-                if (platform == "x") {
+                if (platform == "x" || platform == "tiktok") {
                     OutlinedButton(onClick = {
                         scope.launch {
                             runCatching { api.disconnectSocialAccount(id) }
@@ -654,15 +679,22 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Post text") }
+            label = { Text("Post text / caption") }
+        )
+        OutlinedTextField(
+            value = mediaUrl,
+            onValueChange = { mediaUrl = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Media URL (required for TikTok/YouTube video publishing)") },
+            supportingText = { Text("Use an HTTPS media URL that the connected provider accepts.") }
         )
         Button(
             enabled = accountId.isNotBlank() && text.isNotBlank(),
             onClick = {
                 scope.launch {
-                    runCatching { api.publishSocial(accountId, text) }
+                    runCatching { api.publishSocial(accountId, text, mediaUrl.takeIf { it.isNotBlank() }) }
                         .onFailure { error(it.message ?: "Publishing failed.") }
-                        .onSuccess { text = "" }
+                        .onSuccess { text = ""; mediaUrl = "" }
                 }
             }
         ) { Text("Publish") }
