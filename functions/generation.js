@@ -1,7 +1,27 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
+import { getMessaging } from "firebase-admin/messaging";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getProviderSecret } from "./secret-store.js";
 import { getRoute } from "./provider-gateway.js";
+
+
+async function notifyGenerationReady(uid, title, body, generationId) {
+  try {
+    const snap = await getFirestore().collection("notificationTokens").where("uid", "==", uid).where("enabled", "==", true).limit(100).get();
+    const tokens = snap.docs.map(d => String(d.data()?.token || "")).filter(Boolean);
+    if (!tokens.length) return;
+    for (let i = 0; i < tokens.length; i += 500) {
+      await getMessaging().sendEachForMulticast({
+        tokens: tokens.slice(i, i + 500),
+        notification: { title, body },
+        data: { type: "generation_ready", generationId: String(generationId || "") }
+      });
+    }
+  } catch (error) {
+    console.error("generation_notification_failed", { uid, generationId, message: error?.message || "notification_failed" });
+  }
+}
 
 async function openAiJson(path, options = {}) {
   const apiKey = await getProviderSecret("openai");
@@ -48,6 +68,7 @@ export async function generateImage(uid, prompt, options = {}) {
   const buffer = Buffer.from(encoded, "base64");
   const id = cryptoRandomId();
   const url = await signedStorageUrl(buffer, "image/png", "generated/" + uid + "/images/" + id + ".png");
+  await notifyGenerationReady(uid, "Your image is ready", "BQ Sqwad AI finished generating your image.", id);
   return { providerId: "openai", modelId: model, imageUrl: url, generationId: id };
 }
 
@@ -99,6 +120,10 @@ export async function getVideoJob(uid, jobId) {
     if (!response.ok) throw new Error("video_content_download_failed");
     const buffer = Buffer.from(await response.arrayBuffer());
     patch.contentUrl = await signedStorageUrl(buffer, "video/mp4", "generated/" + uid + "/videos/" + jobId + ".mp4", 24 * 60 * 60 * 1000);
+  }
+  if (result.status === "completed" && !data.notificationSentAt) {
+    patch.notificationSentAt = FieldValue.serverTimestamp();
+    await notifyGenerationReady(uid, "Your video is ready", "BQ Sqwad AI finished generating your video.", jobId);
   }
   await ref.set(patch, { merge: true });
   return { jobId, ...data, ...patch };
