@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.core
 
+import com.bqsqwad.ai.BuildConfig
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
