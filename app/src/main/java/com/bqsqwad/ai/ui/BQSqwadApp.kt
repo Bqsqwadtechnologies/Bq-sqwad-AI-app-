@@ -2017,7 +2017,11 @@ private fun WorkspaceScreen(
             }
             return@Scaffold
         }
-        Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
+        Column(
+            Modifier
+                .padding(p)
+                .then(if (w == Workspace.CAMERA) Modifier.fillMaxSize() else Modifier.padding(16.dp).fillMaxSize())
+        ) {
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace()
