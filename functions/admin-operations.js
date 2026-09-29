@@ -103,3 +103,24 @@ export async function broadcastAdminNotification(adminUid, input = {}) {
   });
   return { ok: true, broadcastId: ref.id, sent, failed, tokenCount: tokens.length };
 }
+
+export async function getPublicAppConfig() {
+  const snap = await getFirestore().collection("publicAppConfig").doc("app").get();
+  const data = snap.exists ? snap.data() || {} : {};
+  return {
+    authBackgroundVideoUrl: clean(data.authBackgroundVideoUrl, 4000) || null,
+    authBackgroundVideoEnabled: data.authBackgroundVideoEnabled === true
+  };
+}
+
+export async function setAuthBackgroundVideo(adminUid, url, enabled = true) {
+  const value = clean(url, 4000);
+  if (enabled && !/^https:\/\//i.test(value)) throw new Error("auth_background_video_url_required");
+  await getFirestore().collection("publicAppConfig").doc("app").set({
+    authBackgroundVideoUrl: enabled ? value : null,
+    authBackgroundVideoEnabled: enabled === true,
+    updatedBy: adminUid,
+    updatedAt: new Date()
+  }, { merge: true });
+  return getPublicAppConfig();
+}
