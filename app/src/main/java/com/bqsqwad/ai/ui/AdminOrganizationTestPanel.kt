@@ -55,7 +55,22 @@ fun AdminOrganizationTestPanel(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(Unit) {
+        refresh()
+        runCatching { WorkspaceApiClient().adminOrganizationBilling() }
+            .onSuccess { value ->
+                val config = value.optJSONObject("config")
+                assistantRate = ((config?.optInt("assistantPriceCents", 10) ?: 10) / 100.0).toString()
+                val rates = config?.optJSONObject("liveRateCentsPerMinute")
+                hostRate = ((rates?.optInt("host_only", 25) ?: 25) / 100.0).toString()
+                moderatedRate = ((rates?.optInt("moderated_audience", 55) ?: 55) / 100.0).toString()
+                fullRate = ((rates?.optInt("full_audience", 95) ?: 95) / 100.0).toString()
+                warningUsd = ((config?.optInt("lowBalanceWarningCents", 500) ?: 500) / 100.0).toString()
+                billingInterval = (config?.optInt("liveBillingIntervalSeconds", 10) ?: 10).toString()
+                graceSeconds = (config?.optInt("liveGraceSeconds", 60) ?: 60).toString()
+            }
+            .onFailure { error = it.message ?: "Organization billing settings could not load." }
+    }
 
     val plans = remember(control) {
         val array = control?.optJSONArray("plans") ?: org.json.JSONArray()
