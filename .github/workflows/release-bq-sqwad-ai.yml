@@ -135,7 +135,7 @@ jobs:
           if [ ! -s "$APK" ]; then
             echo "ERROR: APK missing"; failed=1
           else
-            size=${$(stat -c%s "$APK")}
+            size=$(stat -c%s "$APK")
             echo "APK bytes: $size"
             [ "$size" -ge 1000000 ] || { echo "ERROR: APK is suspiciously small; refusing tiny artifact."; failed=1; }
             "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$APK" || failed=1
@@ -147,7 +147,7 @@ jobs:
           if [ ! -s "$AAB" ]; then
             echo "ERROR: AAB missing"; failed=1
           else
-            size=${$(stat -c%s "$AAB")}
+            size=$(stat -c%s "$AAB")
             echo "AAB bytes: $size"
             [ "$size" -ge 1000000 ] || { echo "ERROR: AAB is suspiciously small; refusing tiny artifact."; failed=1; }
             unzip -t "$AAB" >/dev/null || failed=1
