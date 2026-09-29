@@ -41,7 +41,7 @@ export async function socialStart(env,uid,platform,redirectUri,workspaceId=''){
   const q=new URLSearchParams({client_id:clientId,redirect_uri:redirectUri,response_type:"code",scope:p.scopes.join(" "),state});
   if(platform==="x"){q.set("code_challenge",challenge);q.set("code_challenge_method","S256");}
   if(platform==="youtube"){q.set("access_type","offline");q.set("prompt","consent");}
-  if(platform==="tiktok"){q.set("client_key",clientId);}
+  if(platform==="tiktok"){q.delete("client_id");q.set("client_key",clientId);}
   return {state,authorizationUrl:p.auth+"?"+q.toString()};
 }
 
@@ -65,12 +65,18 @@ export async function socialCallback(env,state,code){
     const me=await fetch("https://api.x.com/2/users/me?user.fields=id,name,username",{headers:{Authorization:"Bearer "+token.access_token}});
     const m=await me.json(); if(!me.ok||!m.data?.id) throw new Error("x_account_validation_failed");
     metadata={xAccount:{id:String(m.data.id),name:String(m.data.name||""),username:String(m.data.username||"")}};
-  } else {
+  } else if(st.platform==="youtube"){
     const ch=await fetch("https://www.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true",{headers:{Authorization:"Bearer "+token.access_token}});
-    const body=await ch.json(); metadata={youtubeChannel:body.items?.[0]?{id:body.items[0].id,title:body.items[0].snippet?.title||""}:null};
+    const body=await ch.json(); if(!ch.ok||!body.items?.[0]?.id) throw new Error("youtube_account_validation_failed");
+    metadata={youtubeChannel:{id:body.items[0].id,title:body.items[0].snippet?.title||""}};
+  } else if(st.platform==="tiktok"){
+    const fields="open_id,union_id,avatar_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count";
+    const me=await fetch("https://open.tiktokapis.com/v2/user/info/?fields="+encodeURIComponent(fields),{headers:{Authorization:"Bearer "+token.access_token}});
+    const m=await me.json(); if(!me.ok||!m.data?.user?.open_id) throw new Error("tiktok_account_validation_failed");
+    metadata={tiktokProfile:m.data.user};
   }
   const id=crypto.randomUUID();
-  await firestoreSet("socialAccounts/"+id,{uid:st.uid,platform:st.platform,workspaceId:String(st.workspaceId||"")||null,accessToken:await seal(env,String(token.access_token)),refreshToken:token.refresh_token?await seal(env,String(token.refresh_token)):null,expiresAt:token.expires_in?new Date(Date.now()+Number(token.expires_in)*1000):null,scope:String(token.scope||""),metadata,status:"connected",createdAt:new Date(),updatedAt:new Date()});
+  await firestoreSet("socialAccounts/"+id,{uid:st.uid,platform:st.platform,workspaceId:String(st.workspaceId||"")||null,accessToken:await seal(env,String(token.access_token)),refreshToken:token.refresh_token?await seal(env,String(token.refresh_token)):null,expiresAt:token.expires_in?new Date(Date.now()+Number(token.expires_in)*1000):null,refreshExpiresAt:token.refresh_expires_in?new Date(Date.now()+Number(token.refresh_expires_in)*1000):null,scope:String(token.scope||""),grantedScopes:String(token.scope||"").split(/[ ,]+/).map(x=>x.trim()).filter(Boolean),metadata,status:"connected",createdAt:new Date(),updatedAt:new Date()});
   await firestoreSet("socialOAuthStates/"+state,{uid:st.uid,status:"completed",completedAt:new Date()});
   return {ok:true,id,platform:st.platform,metadata};
 }
@@ -100,9 +106,11 @@ export async function socialAccountToken(env,account){
     const platform=String(account.platform), p=PLATFORMS[platform];
     const clientId=secret(env,cfgName(platform)), clientSecret=secret(env,secretName(platform));
     const refresh=await open(env,account.refreshToken);
-    const form=new URLSearchParams({refresh_token:refresh,grant_type:"refresh_token",client_id:clientId});
+    const form=new URLSearchParams({refresh_token:refresh,grant_type:"refresh_token"});
     const headers={"Content-Type":"application/x-www-form-urlencoded"};
-    if(platform==="x") headers.Authorization="Basic "+btoa(clientId+":"+clientSecret); else form.set("client_secret",clientSecret);
+    if(platform==="x"){ form.set("client_id",clientId); headers.Authorization="Basic "+btoa(clientId+":"+clientSecret); }
+    else if(platform==="tiktok"){ form.set("client_key",clientId); form.set("client_secret",clientSecret); }
+    else { form.set("client_id",clientId); form.set("client_secret",clientSecret); }
     const res=await fetch(p.token,{method:"POST",headers,body:form}); const raw=await res.text(); let t={}; try{t=JSON.parse(raw)}catch{}
     if(!res.ok||!t.access_token) throw new Error(platform+"_token_refresh_failed");
     access=String(t.access_token);
