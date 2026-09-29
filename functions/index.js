@@ -1148,7 +1148,7 @@ export const bqSqwadApi = onRequest(
           gate.commit();
           return send(res, 200, { ...result, creditsCharged: reservation.amount });
         } catch (error) {
-          await reverseCredits(user.uid, reservation?.reservationId);
+          if (!organizationRealtime) await reverseCredits(user.uid, reservation?.reservationId);
           throw error;
         } finally {
           await gate.release();
@@ -2626,11 +2626,15 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "realtime/session") {
-        const gate = await authorizeCapability(user.uid, "capability_live_voice");
+        const organizationRealtime = body.organization === true;
+        const gate = await authorizeCapability(
+          user.uid,
+          organizationRealtime ? "capability_organization_studio" : "capability_live_voice"
+        );
         let reservation = null;
         try {
-          // Live Voice consumes the same shared credit balance as Main Chat and Live Camera.
-          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          // Organization live voice is charged from the separate Organization USD wallet.
+          if (!organizationRealtime) reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
           const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
           const cfg = option.exists ? (option.data()?.config || {}) : {};
           if (option.exists && option.data()?.enabled === false) {
@@ -2682,7 +2686,18 @@ export const bqSqwadApi = onRequest(
             reservation = null;
             return send(res, 502, { error: "realtime_client_secret_missing" });
           }
-          await commitCredits(user.uid, reservation?.reservationId, "openai");
+          if (organizationRealtime) {
+            const wallet = await getOrganizationWallet(user.uid);
+            if (wallet.balanceCents <= 0) throw new Error("organization_insufficient_balance");
+            await chargeOrganizationWallet(
+              user.uid,
+              wallet.assistantPriceCents,
+              "organization_live_voice",
+              { providerReference: "realtime-" + Date.now() }
+            );
+          } else {
+            await commitCredits(user.uid, reservation?.reservationId, "openai");
+          }
           gate.commit();
           return send(res, 200, {
             clientSecret: String(secret),
