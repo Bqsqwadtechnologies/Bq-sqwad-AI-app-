@@ -78,6 +78,8 @@ fun OrganizationStudioWorkspace() {
     var connectedPlatforms by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var youtubeAccounts by remember { mutableStateOf(org.json.JSONArray()) }
     var selectedYoutubeAccountId by remember { mutableStateOf("") }
+    var tiktokAccounts by remember { mutableStateOf(org.json.JSONArray()) }
+    var selectedTikTokAccountId by remember { mutableStateOf("") }
     var aiLiveMode by remember { mutableStateOf("host_only") }
     var aiLivePrivacyAccepted by remember { mutableStateOf(false) }
     var aiLiveViewerReplies by remember { mutableStateOf(false) }
@@ -167,14 +169,21 @@ fun OrganizationStudioWorkspace() {
         runCatching {
             val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
             if (orgId.isBlank()) error("organization_id_missing")
-            api.organizationYouTubeAccounts(orgId)
+            api.organizationSocialAccounts(orgId)
         }.onSuccess { body ->
             val accounts = body.optJSONArray("accounts") ?: org.json.JSONArray()
-            youtubeAccounts = accounts
-            if (selectedYoutubeAccountId.isBlank() && accounts.length() > 0) {
-                selectedYoutubeAccountId = accounts.optJSONObject(0)?.optString("id").orEmpty()
+            youtubeAccounts = org.json.JSONArray().apply {
+                for (i in 0 until accounts.length()) if (accounts.optJSONObject(i)?.optString("platform") == "youtube") put(accounts.optJSONObject(i))
             }
-            connectedPlatforms = connectedPlatforms.toMutableMap().apply { this["youtube"] = accounts.length() > 0 }
+            tiktokAccounts = org.json.JSONArray().apply {
+                for (i in 0 until accounts.length()) if (accounts.optJSONObject(i)?.optString("platform") == "tiktok") put(accounts.optJSONObject(i))
+            }
+            if (selectedYoutubeAccountId.isBlank() && youtubeAccounts.length() > 0) selectedYoutubeAccountId = youtubeAccounts.optJSONObject(0)?.optString("id").orEmpty()
+            if (selectedTikTokAccountId.isBlank() && tiktokAccounts.length() > 0) selectedTikTokAccountId = tiktokAccounts.optJSONObject(0)?.optString("id").orEmpty()
+            connectedPlatforms = connectedPlatforms.toMutableMap().apply {
+                this["youtube"] = youtubeAccounts.length() > 0
+                this["tiktok"] = tiktokAccounts.length() > 0
+            }
         }.onFailure { /* disconnected status remains fail-closed */ }
 
         runCatching { api.organizationAiLiveConfig() }
@@ -653,6 +662,35 @@ fun OrganizationStudioWorkspace() {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("TikTok integration", style = MaterialTheme.typography.titleLarge)
+                    Text("Connect an authorized TikTok account for Organization publishing, profile data and public-video management. Permissions are requested only when you connect the account.")
+                    if (tiktokAccounts.length() == 0) {
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                runCatching {
+                                    val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
+                                    api.startSocialOAuth("tiktok", "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback", orgId)
+                                }.onSuccess {
+                                    val url = it.optString("authorizationUrl")
+                                    if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }.onFailure { e -> error = e.message ?: "TikTok connection could not start." }
+                            }
+                        }) { Text("Connect TikTok") }
+                    } else {
+                        for (i in 0 until tiktokAccounts.length()) {
+                            val account = tiktokAccounts.optJSONObject(i) ?: continue
+                            val id = account.optString("id")
+                            FilterChip(selected = selectedTikTokAccountId == id, onClick = { selectedTikTokAccountId = id }, label = { Text(account.optJSONObject("metadata")?.optJSONObject("tiktokProfile")?.optString("display_name").takeUnless { it.isNullOrBlank() } ?: "Connected TikTok") })
+                        }
+                    }
+                    Text("Direct video posting requires TikTok approval for video.publish. Until that approval is granted, BQ Sqwad AI will not claim public posting is available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("YouTube live production", style = MaterialTheme.typography.titleLarge)
                     Text("Organization AI creates the provider session server-side, then the native camera broadcaster sends H.264 video and AAC audio directly to the provider ingestion endpoint.")
                     Text("YouTube account", style = MaterialTheme.typography.labelLarge)
@@ -967,7 +1005,7 @@ fun OrganizationStudioWorkspace() {
                         OutlinedTextField(destinationName, { destinationName = it }, Modifier.weight(1f), label = { Text("Destination name") })
                         Column(Modifier.width(150.dp)) {
                             Text("Platform", style = MaterialTheme.typography.labelMedium)
-                            listOf("youtube" to "YouTube Live", "x" to "X (post-event)").forEach { (id, label) ->
+                            listOf("youtube" to "YouTube Live", "tiktok" to "TikTok publishing", "x" to "X (post-event)").forEach { (id, label) ->
                                 val connected = connectedPlatforms[id] == true
                                 FilterChip(
                                     selected = destinationType == id,
@@ -978,7 +1016,7 @@ fun OrganizationStudioWorkspace() {
                             }
                         }
                     }
-                    Text("Only connected platforms can be selected. YouTube supports live ingest; X is post-event publishing only.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Only connected platforms can be selected. YouTube supports live ingest; TikTok is connected for approved publishing/profile features; X is post-event publishing only.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(enabled = destinationName.isNotBlank() && connectedPlatforms[destinationType] == true, onClick = {
                         scope.launch {
                             runCatching {
