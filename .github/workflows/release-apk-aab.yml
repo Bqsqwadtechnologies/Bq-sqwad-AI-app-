@@ -75,7 +75,26 @@ jobs:
           test -n "$KEY_PASSWORD"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Build signed release APK and AAB
+      - name: Run full Gradle diagnostics (collect errors)
+        id: diagnostics
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          : > release-diagnostics.log
+          echo "=== Gradle version ===" | tee -a release-diagnostics.log
+          gradle --version 2>&1 | tee -a release-diagnostics.log
+          echo "=== Gradle task graph ===" | tee -a release-diagnostics.log
+          gradle --no-daemon --stacktrace --continue tasks --all 2>&1 | tee -a release-diagnostics.log
+          echo "=== Android lint ===" | tee -a release-diagnostics.log
+          gradle --no-daemon --stacktrace --continue :app:lintRelease 2>&1 | tee -a release-diagnostics.log
+          echo "=== Unit tests ===" | tee -a release-diagnostics.log
+          gradle --no-daemon --stacktrace --continue :app:testReleaseUnitTest 2>&1 | tee -a release-diagnostics.log
+          echo "diagnostics completed" >> release-diagnostics-status.txt
+          exit 0
+
+      - name: Build signed release APK and AAB (continue through all build tasks)
         id: build
         continue-on-error: true
         run: |
@@ -126,6 +145,8 @@ jobs:
           fi
           if [ -f release-build.log ]; then cp release-build.log release/RELEASE-BUILD-LOG.txt; fi
           if [ -f release-build-status.txt ]; then cp release-build-status.txt release/RELEASE-BUILD-STATUS.txt; fi
+          if [ -f release-diagnostics.log ]; then cp release-diagnostics.log release/RELEASE-DIAGNOSTICS-LOG.txt; fi
+          if [ -f release-diagnostics-status.txt ]; then cp release-diagnostics-status.txt release/RELEASE-DIAGNOSTICS-STATUS.txt; fi
           sha256sum release/* > release/SHA256SUMS.txt
 
       - name: Upload APK and AAB
