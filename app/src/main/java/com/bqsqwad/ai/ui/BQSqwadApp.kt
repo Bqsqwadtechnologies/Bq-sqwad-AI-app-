@@ -2029,7 +2029,7 @@ private fun WorkspaceScreen(
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
-                Workspace.LEARNING -> LearningStudioWorkspace()
+                Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
