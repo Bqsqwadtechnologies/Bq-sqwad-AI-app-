@@ -83,7 +83,7 @@ data class AdminPlayCatalogItem(
 )
 
 class AdminAdvancedClient(
-    private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl: String = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 ) {
     suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/config", null).let { root ->
         parseOptions(root.optJSONArray("options") ?: JSONArray())
