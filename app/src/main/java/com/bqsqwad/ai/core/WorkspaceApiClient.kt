@@ -225,6 +225,24 @@ class WorkspaceApiClient {
     suspend fun createYouTubeLive(payload: JSONObject): JSONObject =
         request("/organization/production/youtube/live", payload=payload)
 
+    suspend fun organizationSocialAccounts(organizationId: String): JSONObject =
+        request("/organization/social/accounts?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8"), "GET")
+
+    suspend fun organizationTikTokProfile(organizationId: String, accountId: String): JSONObject =
+        request("/organization/social/tiktok/profile?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8") + "&accountId=" + java.net.URLEncoder.encode(accountId, "UTF-8"), "GET")
+
+    suspend fun organizationTikTokVideos(organizationId: String, accountId: String): JSONObject =
+        request("/organization/social/tiktok/videos?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8") + "&accountId=" + java.net.URLEncoder.encode(accountId, "UTF-8"), "GET")
+
+    suspend fun organizationTikTokPublish(organizationId: String, accountId: String, mediaUrl: String, title: String, privacyLevel: String = "SELF_ONLY", isAigc: Boolean = true): JSONObject =
+        request("/organization/social/publish", payload=JSONObject()
+            .put("organizationId", organizationId)
+            .put("accountId", accountId)
+            .put("mediaUrl", mediaUrl)
+            .put("title", title)
+            .put("privacyLevel", privacyLevel)
+            .put("isAigc", isAigc))
+
     suspend fun organizationYouTubeAccounts(organizationId: String): JSONObject =
         request("/organization/social/accounts?organizationId=" + java.net.URLEncoder.encode(organizationId, "UTF-8"), "GET")
 
