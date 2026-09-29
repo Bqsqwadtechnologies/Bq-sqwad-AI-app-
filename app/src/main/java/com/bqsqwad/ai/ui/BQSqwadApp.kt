@@ -2830,6 +2830,20 @@ fun VoiceWorkspace() {
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+
+        if (liveUiState.answer.isNotBlank()) {
+            SurfaceCard(
+                if (liveUiState.status == "error") "Voice error" else "Voice status",
+                liveUiState.answer
+            )
+        }
+
+        if (liveUiState.log.isNotEmpty()) {
+            SurfaceCard(
+                "Conversation transcript",
+                liveUiState.log.takeLast(12).joinToString("\n\n")
+            )
+        }
     }
 
     if (permissionExplanation) {
