@@ -29,7 +29,8 @@ export async function setAdminStaff(adminUid, input = {}) {
     ? input.permissions.map(x => clean(x, 60)).filter(Boolean).slice(0, 40)
     : ADMIN_STAFF_ROLES[role];
   const ref = getFirestore().collection("adminStaff").doc(uid);
-  await ref.set({
+  const existing = await ref.get();
+  const record = {
     uid,
     email: target.email || null,
     displayName: target.displayName || null,
@@ -37,9 +38,10 @@ export async function setAdminStaff(adminUid, input = {}) {
     permissions,
     active: input.active !== false,
     updatedBy: adminUid,
-    updatedAt: new Date(),
-    createdAt: (await ref.get()).exists ? undefined : new Date()
-  }, { merge: true });
+    updatedAt: new Date()
+  };
+  if (!existing.exists) record.createdAt = new Date();
+  await ref.set(record, { merge: true });
 
   const claims = target.customClaims || {};
   await getAuth().setCustomUserClaims(uid, {
