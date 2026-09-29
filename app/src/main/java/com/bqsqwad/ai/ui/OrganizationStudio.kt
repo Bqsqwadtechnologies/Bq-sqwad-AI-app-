@@ -438,7 +438,7 @@ fun OrganizationStudioWorkspace() {
                                             "Organization knowledge:\n" + if (settings?.optBoolean("sharedKnowledgeEnabled", false) == true) knowledge else "(shared knowledge disabled)"
                                         ).joinToString("\n")
                                         // Route Organization AI through the server-side organization endpoint.
-                                        // The backend owns organization membership, knowledge isolation and credit charging.
+                                        // The backend owns organization membership, knowledge isolation and Organization wallet charging.
                                         val reply = api.organizationAssistant(assistantPrompt)
                                         assistantResult = reply.optString("answer").ifBlank { "The organization AI returned no answer." }
                                         assistantPrompt = ""
@@ -978,7 +978,7 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Scheduled AI", style = MaterialTheme.typography.titleLarge)
-                    Text("Create organization-scoped AI tasks that run automatically on the backend. Schedules are server-persisted and use the shared credit system.")
+                    Text("Create organization-scoped AI tasks that run automatically on the backend. Schedules are server-persisted and billed from the separate Organization usage balance.")
                     OutlinedTextField(scheduledName, { scheduledName = it }, Modifier.fillMaxWidth(), label = { Text("Task name") })
                     OutlinedTextField(scheduledPrompt, { scheduledPrompt = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("AI task prompt") })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
