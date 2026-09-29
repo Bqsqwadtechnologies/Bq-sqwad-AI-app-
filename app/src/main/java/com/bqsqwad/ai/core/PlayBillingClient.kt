@@ -37,7 +37,8 @@ data class PlayPurchaseState(
 
 class PlayBillingClient(
     private val activity: Activity,
-    private val onPurchaseState: (PlayPurchaseState) -> Unit = {}
+    private val onPurchaseState: (PlayPurchaseState) -> Unit = {},
+    private val organizationContext: Boolean = false
 ) : BillingClientStateListener {
 
     private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
@@ -149,7 +150,8 @@ class PlayBillingClient(
             runCatching {
                 val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
                 val token = Tasks.await(user.getIdToken(false)).token ?: return@runCatching
-                val connection = (URL("$baseUrl/play/catalog").openConnection() as HttpURLConnection).apply {
+                val catalogPath = if (organizationContext) "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
+                val connection = (URL(catalogPath).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
                     readTimeout = 30000
