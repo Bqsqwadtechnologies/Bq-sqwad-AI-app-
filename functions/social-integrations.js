@@ -454,6 +454,30 @@ export async function publishSocialPost(uid, accountId, input = {}) {
       method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ creation_id: creation.id, access_token: token })
     });
+  } else if (platform === "tiktok") {
+    const mediaUrl = clean(input.mediaUrl, 4000);
+    if (!mediaUrl) throw new Error("tiktok_video_required");
+    const scopes = new Set((account.grantedScopes || []).map(String));
+    if (scopes.size && !scopes.has("video.publish")) throw new Error("tiktok_video_publish_scope_missing_reconnect_required");
+    const creatorInfo = await fetch("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", {
+      method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }
+    });
+    const creatorRaw = await creatorInfo.text();
+    if (!creatorInfo.ok) throw new Error("tiktok_creator_info_failed:" + creatorRaw.slice(0, 700));
+    const creator = JSON.parse(creatorRaw)?.data || {};
+    const privacyOptions = Array.isArray(creator.privacy_level_options) ? creator.privacy_level_options : [];
+    const requestedPrivacy = String(input.privacyLevel || "SELF_ONLY");
+    const privacyLevel = privacyOptions.includes(requestedPrivacy) ? requestedPrivacy : (privacyOptions[0] || "SELF_ONLY");
+    const title = clean(input.title || text, 2200);
+    const init = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({
+        post_info: { title, privacy_level: privacyLevel, disable_duet: creator.duet_disabled === true, disable_comment: creator.comment_disabled === true, disable_stitch: creator.stitch_disabled === true, is_aigc: input.isAigc === true },
+        source_info: { source: "PULL_FROM_URL", video_url: mediaUrl }
+      })
+    });
+    response = init;
   } else if (platform === "youtube") {
     const mediaUrl = clean(input.mediaUrl, 4000);
     if (!mediaUrl) throw new Error("youtube_video_required");
@@ -507,6 +531,38 @@ export async function publishSocialPost(uid, accountId, input = {}) {
     createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
   });
   return { ok: true, jobId: publishRef.id, platform, status: "published", result };
+}
+
+export async function getTikTokProfile(uid, accountId) {
+  const ref = accountRef(clean(accountId, 160));
+  const snap = await ref.get();
+  if (!snap.exists || clean(snap.data()?.uid, 160) !== uid || clean(snap.data()?.platform, 40) !== "tiktok") throw new Error("tiktok_account_not_found");
+  const account = snap.data();
+  const token = account.accessTokenSecret?.ciphertext ? decryptSecret(account.accessTokenSecret) : "";
+  if (!token) throw new Error("tiktok_access_token_missing");
+  const response = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count", { headers: { Authorization: "Bearer " + token } });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("tiktok_profile_failed:" + raw.slice(0, 700));
+  const parsed = JSON.parse(raw);
+  return parsed.data?.user || {};
+}
+
+export async function listTikTokVideos(uid, accountId) {
+  const ref = accountRef(clean(accountId, 160));
+  const snap = await ref.get();
+  if (!snap.exists || clean(snap.data()?.uid, 160) !== uid || clean(snap.data()?.platform, 40) !== "tiktok") throw new Error("tiktok_account_not_found");
+  const account = snap.data();
+  const token = account.accessTokenSecret?.ciphertext ? decryptSecret(account.accessTokenSecret) : "";
+  if (!token) throw new Error("tiktok_access_token_missing");
+  const response = await fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,cover_image_url,share_url,create_time,duration", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ max_count: 20 })
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("tiktok_videos_failed:" + raw.slice(0, 700));
+  const parsed = JSON.parse(raw);
+  return { videos: parsed.data?.videos || [], cursor: parsed.data?.cursor || null, hasMore: parsed.data?.has_more === true };
 }
 
 export async function disconnectSocialAccount(uid, accountId) {
