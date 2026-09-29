@@ -758,6 +758,67 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        var tiktokAccounts by remember { mutableStateOf(JSONArray()) }
+        var selectedTikTok by remember { mutableStateOf("") }
+        var tiktokTitle by remember { mutableStateOf("") }
+        var tiktokMediaUrl by remember { mutableStateOf("") }
+        var tiktokBusy by remember { mutableStateOf(false) }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("TikTok AI connection", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Connect TikTok through OAuth. Credentials remain server-side and the Business workspace plan gate remains enforced.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = !tiktokBusy, onClick = {
+                        tiktokBusy = true
+                        scope.launch {
+                            runCatching { api.startSocialOAuth("tiktok", "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback", workspaceId) }
+                                .onSuccess { result ->
+                                    val url = result.optString("authorizationUrl")
+                                    if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }
+                                .onFailure { error(it.message ?: "TikTok connection could not start.") }
+                            tiktokBusy = false
+                        }
+                    }) { Text("Connect TikTok") }
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            runCatching { api.socialAccounts(workspaceId) }.onSuccess { body ->
+                                val all = body.optJSONArray("accounts") ?: JSONArray()
+                                val filtered = JSONArray()
+                                for (j in 0 until all.length()) {
+                                    val account = all.optJSONObject(j)
+                                    if (account?.optString("platform") == "tiktok") filtered.put(account)
+                                }
+                                tiktokAccounts = filtered
+                                if (selectedTikTok.isBlank() && filtered.length() > 0) selectedTikTok = filtered.optJSONObject(0)?.optString("id").orEmpty()
+                            }.onFailure { error(it.message ?: "TikTok accounts could not be loaded.") }
+                        }
+                    }) { Text("Refresh") }
+                }
+                if (tiktokAccounts.length() == 0) {
+                    Text("No TikTok account connected to this Business workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    for (j in 0 until tiktokAccounts.length()) {
+                        val account = tiktokAccounts.optJSONObject(j) ?: continue
+                        val id = account.optString("id")
+                        FilterChip(selected = selectedTikTok == id, onClick = { selectedTikTok = id }, label = { Text("TikTok account") })
+                    }
+                    OutlinedTextField(value = tiktokTitle, onValueChange = { tiktokTitle = it }, modifier = Modifier.fillMaxWidth(), label = { Text("AI post title") })
+                    OutlinedTextField(value = tiktokMediaUrl, onValueChange = { tiktokMediaUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Video URL") })
+                    Button(enabled = selectedTikTok.isNotBlank() && tiktokTitle.isNotBlank() && tiktokMediaUrl.isNotBlank() && !tiktokBusy, onClick = {
+                        tiktokBusy = true
+                        scope.launch {
+                            runCatching { api.publishTikTok(selectedTikTok, workspaceId, tiktokMediaUrl, tiktokTitle) }
+                                .onFailure { error(it.message ?: "TikTok publishing failed.") }
+                            tiktokBusy = false
+                        }
+                    }) { Text(if (tiktokBusy) "Working…" else "AI publish to TikTok") }
+                    Text("Profile/video access and Direct Post use approved TikTok scopes. Other actions are enabled only when TikTok provides and approves the required API permission.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
         for (i in 0 until integrations.length()) {
             val item = integrations.optJSONObject(i) ?: continue
             val id = item.optString("id")
