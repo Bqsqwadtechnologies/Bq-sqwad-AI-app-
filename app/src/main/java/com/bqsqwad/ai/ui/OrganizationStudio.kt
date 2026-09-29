@@ -678,6 +678,23 @@ fun OrganizationStudioWorkspace() {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    runCatching {
+                                        val organizationId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
+                                        val body = api.organizationYouTubeAccounts(organizationId)
+                                        val accounts = body.optJSONArray("accounts") ?: org.json.JSONArray()
+                                        youtubeAccounts = accounts
+                                        if (selectedYoutubeAccountId.isBlank() && accounts.length() > 0) {
+                                            selectedYoutubeAccountId = accounts.optJSONObject(0)?.optString("id").orEmpty()
+                                        }
+                                        connectedPlatforms = connectedPlatforms.toMutableMap().apply { this["youtube"] = accounts.length() > 0 }
+                                        outputStatus = if (accounts.length() > 0) "YouTube channel connected" else "No YouTube channel connected"
+                                    }.onFailure { e -> error = e.message ?: "YouTube connection status could not be refreshed." }
+                                }
+                            }
+                        ) { Text("Refresh") }
                         Button(
                             enabled = liveSessionId == null && !busy && selectedYoutubeAccountId.isNotBlank() && aiLivePrivacyAccepted,
                             onClick = {
