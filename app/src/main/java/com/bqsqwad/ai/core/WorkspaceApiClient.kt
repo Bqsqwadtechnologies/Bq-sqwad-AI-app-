@@ -93,6 +93,12 @@ class WorkspaceApiClient {
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
 
     suspend fun publicAppConfig():JSONObject = publicRequest("/public/app-config","GET")
+    suspend fun setAdminAppLayout(workspaceOrder: List<String>, workspaceEnabled: JSONObject, themeMode: String = "system"): JSONObject =
+        request("/admin/app-layout", payload = JSONObject().apply {
+            put("workspaceOrder", JSONArray(workspaceOrder))
+            put("workspaceEnabled", workspaceEnabled)
+            put("themeMode", themeMode)
+        })
     suspend fun setAdminAuthBackgroundVideo(url:String, enabled:Boolean=true):JSONObject =
         request("/admin/auth-background-video", payload=JSONObject().put("url", url).put("enabled", enabled))
 
