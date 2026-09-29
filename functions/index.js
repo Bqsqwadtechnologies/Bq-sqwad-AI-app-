@@ -101,7 +101,8 @@ async function deleteUserAccountData(uid) {
     "aiEvaluations",
     "aiPlugins",
     "aiActivity",
-    "organizationScheduledTasks"
+    "organizationScheduledTasks",
+    "learningSessions"
   ];
   for (const collection of queryCollections) {
     await deleteUserCollectionRecords(db, collection, uid);
