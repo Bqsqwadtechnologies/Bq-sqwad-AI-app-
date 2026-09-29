@@ -16,6 +16,16 @@ data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,
 class WorkspaceApiClient {
     private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
+    private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
+        val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
+            requestMethod=method; connectTimeout=10000; readTimeout=15000; doInput=true
+        }
+        val status=c.responseCode
+        val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
+        if(status !in 200..299) error("HTTP $status: " + raw.take(1000))
+        JSONObject(raw)
+    }
+
     private suspend fun request(path:String, method:String="POST", payload:JSONObject=JSONObject()):JSONObject = withContext(Dispatchers.IO) {
         val user=FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token=Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
@@ -81,6 +91,10 @@ class WorkspaceApiClient {
 
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
+
+    suspend fun publicAppConfig():JSONObject = publicRequest("/public/app-config","GET")
+    suspend fun setAdminAuthBackgroundVideo(url:String, enabled:Boolean=true):JSONObject =
+        request("/admin/auth-background-video", payload=JSONObject().put("url", url).put("enabled", enabled))
 
     suspend fun adminStaff():JSONObject = request("/admin/staff","GET")
     suspend fun adminStaffRoles():JSONObject = request("/admin/staff/roles","GET")
