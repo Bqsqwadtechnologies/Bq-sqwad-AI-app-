@@ -29,6 +29,7 @@ import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBu
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
 import { generateImage, createVideo, getVideoJob } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
+import { getOrganizationWallet, organizationWalletTopUps, chargeOrganizationWallet, startOrganizationLiveBilling, getOrganizationLiveBilling, heartbeatOrganizationLiveBilling, stopOrganizationLiveBilling, organizationBillingAdminConfig } from "./organization-billing.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
@@ -589,31 +590,17 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "organization/billing") {
-        const controlSnap = await getFirestore().collection("adminAdvancedOptions").doc("capability_organization_studio").get();
-        const control = controlSnap.exists ? (controlSnap.data() || {}) : {};
-        const userSnap = await getFirestore().collection("users").doc(user.uid).get();
-        const profile = userSnap.exists ? (userSnap.data() || {}) : {};
-        const expiry = profile.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
-        const subscriptionCredits = Number.isFinite(expiry) && expiry > Date.now()
-          ? Math.max(0, Number(profile.subCredits || 0))
-          : 0;
-        const permanentCredits = Math.max(0, Number(profile.credits || 0));
-        const legacySnap = await getFirestore().collection("creditBalances").doc(user.uid).get();
-        const legacy = legacySnap.exists ? (legacySnap.data() || {}) : {};
+        const wallet = await getOrganizationWallet(user.uid);
         return send(res, 200, {
-          mode: "pay_as_you_go",
-          currency: "credits",
-          assistantCreditCost: Math.max(1, Number(control.creditCost || 1)),
-          permanentCredits,
-          subscriptionCredits,
-          totalCredits: permanentCredits + subscriptionCredits,
-          reservedCredits: Math.max(0, Number(legacy.reserved || 0)),
-          liveCreditRates: {
-            host_only: 0.25,
-            moderated_audience: 0.55,
-            full_audience: 0.95
-          },
-          note: "Organization AI usage is charged from the shared Firebase credit balance. Rates are admin-controlled."
+          mode: "pay_as_you_go", billingModel: "organization_wallet", currency: "USD",
+          balanceCents: wallet.balanceCents, balanceUsd: wallet.balanceUsd,
+          lowBalanceWarningCents: wallet.lowBalanceWarningCents, lowBalanceWarningUsd: wallet.lowBalanceWarningUsd,
+          assistantPriceCents: wallet.assistantPriceCents, assistantPriceUsd: wallet.assistantPriceUsd,
+          liveRateCentsPerMinute: wallet.liveRateCentsPerMinute,
+          liveRateUsdPerMinute: Object.fromEntries(Object.entries(wallet.liveRateCentsPerMinute).map(([k,v]) => [k, Number(v)/100])),
+          liveBillingIntervalSeconds: wallet.liveBillingIntervalSeconds, liveGraceSeconds: wallet.liveGraceSeconds,
+          status: wallet.status, depositProducts: organizationWalletTopUps(),
+          note: "Organization AI uses a separate non-transferable USD usage balance. Consumer credits are not used."
         });
       }
 
@@ -827,7 +814,6 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "organization/production/youtube/live") {
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
-        let reservation = null;
         try {
           const organizationId = String(body.organizationId || "").trim();
           if (organizationId) {
@@ -841,18 +827,31 @@ export const bqSqwadApi = onRequest(
             const liveConfig = await getOrganizationAiLiveConfig(user.uid);
             if (!liveConfig.privacyAccepted) throw new Error("organization_ai_live_privacy_required");
             if (String(body.aiLiveMode || "") !== liveConfig.mode) throw new Error("organization_ai_live_mode_not_saved");
-          } else {
-            const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
-            await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+            const wallet = await getOrganizationWallet(user.uid);
+            if (wallet.status === "blocked") throw new Error("organization_billing_blocked");
+            if (wallet.balanceCents <= 0) throw new Error("organization_insufficient_balance");
+            const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
+            try {
+              const billing = await startOrganizationLiveBilling(user.uid, { sessionId: result.sessionId, mode: liveConfig.mode, accountId: result.accountId, broadcastId: result.broadcastId });
+              gate.commit();
+              return send(res, 200, { ...result, billing });
+            } catch (billingError) {
+              await transitionYouTubeLive(user.uid, String(body.accountId || ""), String(result.broadcastId || ""), "complete").catch(() => {});
+              throw billingError;
+            }
           }
-          reservation = await reserveCredits(user.uid, gate.creditCost, "youtube_live");
-          const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
-          await commitCredits(user.uid, reservation?.reservationId, "youtube_live");
-          gate.commit();
-          return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
-        } catch (error) {
-          await reverseCredits(user.uid, reservation?.reservationId);
-          throw error;
+          const workspace = await businessWorkspace(user.uid, { workspaceId: body.workspaceId });
+          await requireBusinessPlan(user.uid, workspace.workspaceId, "channels");
+          const reservation = await reserveCredits(user.uid, gate.creditCost, "youtube_live");
+          try {
+            const result = await createYouTubeLiveSession(user.uid, String(body.accountId || ""), body);
+            await commitCredits(user.uid, reservation?.reservationId, "youtube_live");
+            gate.commit();
+            return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
+          } catch (error) {
+            await reverseCredits(user.uid, reservation?.reservationId);
+            throw error;
+          }
         } finally { await gate.release(); }
       }
 
@@ -936,6 +935,40 @@ export const bqSqwadApi = onRequest(
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
           throw error;
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/live/billing/start") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await startOrganizationLiveBilling(user.uid, body); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/live/billing/heartbeat") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await heartbeatOrganizationLiveBilling(user.uid, String(body.sessionId || ""));
+          if (result.action === "stop" && body.accountId && body.broadcastId) {
+            await transitionYouTubeLive(user.uid, String(body.accountId), String(body.broadcastId), "complete").catch(() => {});
+          }
+          gate.commit();
+          return send(res, 200, result);
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "GET" && path === "organization/production/live/billing") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try { const result = await getOrganizationLiveBilling(user.uid, String(req.query?.sessionId || "")); gate.commit(); return send(res, 200, result); }
+        finally { await gate.release(); }
+      }
+
+      if (req.method === "POST" && path === "organization/production/live/billing/stop") {
+        const gate = await authorizeCapability(user.uid, "capability_organization_studio");
+        try {
+          const result = await stopOrganizationLiveBilling(user.uid, String(body.sessionId || ""), String(body.reason || "operator_stop"));
+          if (body.accountId && body.broadcastId) await transitionYouTubeLive(user.uid, String(body.accountId), String(body.broadcastId), "complete").catch(() => {});
+          gate.commit();
+          return send(res, 200, result);
         } finally { await gate.release(); }
       }
 
@@ -2480,6 +2513,17 @@ export const bqSqwadApi = onRequest(
           ok: true,
           option: await updateAdvancedAdminOption(body, admin.uid)
         });
+      }
+
+      if (req.method === "GET" && path === "admin/organization-billing") {
+        await adminFromRequest(req);
+        const snap = await getFirestore().collection("adminAdvancedOptions").doc("organization_billing").get();
+        return send(res, 200, { enabled: snap.exists ? snap.data()?.enabled !== false : true, config: snap.exists ? (snap.data()?.config || {}) : {} });
+      }
+
+      if (req.method === "POST" && path === "admin/organization-billing") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, { ok: true, config: await organizationBillingAdminConfig(admin.uid, body) });
       }
 
       if (req.method === "GET" && path === "admin/live-voice-pricing") {
