@@ -206,7 +206,8 @@ export async function heartbeatOrganizationLiveBilling(uid, sessionId) {
   const db = getFirestore();
   const cfg = await config();
   const result = await db.runTransaction(async tx => {
-    const [sessionSnap, walletSnap] = await Promise.all([tx.get(ref), tx.get(walletRef(uid))]);
+    const sessionSnap = await tx.get(ref);
+    const walletSnap = await tx.get(walletRef(uid));
     if (!sessionSnap.exists || sessionSnap.data()?.uid !== uid) throw new Error("organization_live_session_not_found");
     const session = sessionSnap.data() || {};
     const wallet = walletSnap.exists ? walletSnap.data() || {} : {};
