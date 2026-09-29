@@ -12,6 +12,7 @@ class RealtimeVoiceSession(
     private val context: Context,
     private val clientSecret: String, // Server-issued short-lived realtime credential; never a permanent API key.
     private val model: String,
+    private val voice: String = "marin",
     private val onState: (String) -> Unit,
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
