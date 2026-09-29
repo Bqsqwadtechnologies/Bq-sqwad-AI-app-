@@ -287,6 +287,29 @@ fun OrganizationStudioWorkspace() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(Modifier.height(6.dp))
+                    when (activePlanId) {
+                        "orgcore" -> {
+                            Text("Core Workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Assistant • Knowledge • Channels • Members • Scheduled AI")
+                        }
+                        "orgproduction" -> {
+                            Text("Production Workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Sources • Scenes • AI Director • Health • Operator override")
+                        }
+                        "orgbroadcast" -> {
+                            Text("Broadcast Workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("YouTube Live • Live chat • Audience modes • Continuous USD billing")
+                        }
+                        "orgenterprise" -> {
+                            Text("Enterprise Workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Governance • Audit controls • Production policy • Broadcast operations")
+                        }
+                        else -> {
+                            Text("Activation Required", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("An administrator must activate an Organization operating profile before organization features can run.")
+                        }
+                    }
                 }
             }
         }
