@@ -1,4 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 
 const DEFAULTS = {
   currency: "USD",
@@ -20,6 +21,21 @@ const TOP_UPS = [
   { productId: "orgdeposit100", amountCents: 10000, amountUsd: 100 }
 ];
 
+
+async function notifyOrganizationBilling(uid, title, body, sessionId = "") {
+  try {
+    const snap = await getFirestore().collection("notificationTokens").where("uid", "==", uid).where("enabled", "==", true).limit(500).get();
+    const tokens = snap.docs.map(d => String(d.data()?.token || "")).filter(Boolean);
+    if (!tokens.length) return;
+    await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: { type: "organization_billing", sessionId: String(sessionId || "") }
+    });
+  } catch (_) {
+    // Billing enforcement must never fail because a notification could not be delivered.
+  }
+}
 function clean(value, max = 240) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -234,7 +250,7 @@ export async function heartbeatOrganizationLiveBilling(uid, sessionId) {
       tx.set(walletRef(uid), { uid, balanceCents: after, currency: "USD", status: "active", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       tx.create(ledgerRef(), { uid, type: "usage", capability: "organization_live_stream", amountCents: -charge, balanceBeforeCents: balanceCents, balanceAfterCents: after, currency: "USD", sessionId, mode: session.mode, createdAt: FieldValue.serverTimestamp() });
       tx.set(ref, { billedCents: Number(session.billedCents || 0) + charge, lowBalance: after <= cfg.lowBalanceWarningCents, graceUntil: null, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      return { action: "continue", chargedCents: charge, balanceCents: after, graceUntil: null, status: "active", lowBalance: after <= cfg.lowBalanceWarningCents };
+      return { action: "continue", chargedCents: charge, balanceCents: after, graceUntil: null, status: "active", lowBalance: after <= cfg.lowBalanceWarningCents, warning: !session.lowBalance && after <= cfg.lowBalanceWarningCents };
     }
 
     if (balanceCents > 0) {
@@ -242,14 +258,23 @@ export async function heartbeatOrganizationLiveBilling(uid, sessionId) {
       tx.set(walletRef(uid), { uid, balanceCents: 0, currency: "USD", status: "active", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       tx.create(ledgerRef(), { uid, type: "usage", capability: "organization_live_stream", amountCents: -balanceCents, balanceBeforeCents: balanceCents, balanceAfterCents: 0, currency: "USD", sessionId, mode: session.mode, finalPartialInterval: true, createdAt: FieldValue.serverTimestamp() });
       tx.set(ref, { billedCents: Number(session.billedCents || 0) + balanceCents, lowBalance: true, graceUntil, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      return { action: "grace", chargedCents: balanceCents, balanceCents: 0, graceUntil, status: "active", lowBalance: true, message: "Organization usage balance is empty. Add funds within the grace period or the live stream will be stopped." };
+      return { action: "grace", chargedCents: balanceCents, balanceCents: 0, graceUntil, status: "active", lowBalance: true, warning: true, message: "Organization usage balance is empty. Add funds within the grace period or the live stream will be stopped." };
     }
 
     tx.set(ref, { status: "blocked", lowBalance: true, lastHeartbeatAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     tx.set(walletRef(uid), { status: "blocked", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    return { action: "stop", chargedCents: 0, balanceCents: 0, graceUntil: null, status: "blocked", lowBalance: true, message: "Organization usage balance is empty and the grace period expired. Live streaming has been stopped and billing access is blocked until funds are added." };
+    return { action: "stop", chargedCents: 0, balanceCents: 0, graceUntil: null, status: "blocked", lowBalance: true, warning: true, message: "Organization usage balance is empty and the grace period expired. Live streaming has been stopped and billing access is blocked until funds are added." };
   });
 
+  if (result.warning === true) {
+    const title = result.action === "stop" ? "Organization live stream stopped" : "Organization usage balance is low";
+    const body = result.action === "stop"
+      ? "The Organization usage balance is empty and the grace period expired. Add funds to restore billing access."
+      : result.action === "grace"
+        ? "Your Organization usage balance is empty. Add funds before the grace period expires to keep the live stream running."
+        : "Your Organization usage balance is getting low. Add funds before live usage reaches zero.";
+    await notifyOrganizationBilling(uid, title, body, sessionId);
+  }
   return {
     ...(await getOrganizationLiveBilling(uid, sessionId)),
     ...result
