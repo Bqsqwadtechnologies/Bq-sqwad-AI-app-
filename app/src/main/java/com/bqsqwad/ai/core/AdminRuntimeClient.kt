@@ -21,9 +21,7 @@ data class AdminRuntimeRecord(
 )
 
 class AdminRuntimeClient {
-    private val baseUrl = "https://europe-west1-" +
-        FirebaseApp.getInstance().options.projectId +
-        ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     suspend fun list(type: String): List<AdminRuntimeRecord> =
         request("GET", "/admin/runtime?type=" + URLEncoder.encode(type, "UTF-8"))
