@@ -1809,6 +1809,66 @@ private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Bo
 }
 
 @Composable
+private fun BqGeneratingIndicator(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "bqGenerating")
+    val pulse by transition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bqGeneratingPulse"
+    )
+    val sweep by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "bqGeneratingSweep"
+    )
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(54.dp)
+                    .graphicsLayer {
+                        scaleX = pulse
+                        scaleY = pulse
+                        rotationZ = sweep
+                    }
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                BqLogo(38.dp)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("BQ Sqwad AI is creating", fontWeight = FontWeight.Bold)
+                Text("Working on your request…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
 private fun FeatureHub(
     onBack: () -> Unit,
     onPlans: () -> Unit,
