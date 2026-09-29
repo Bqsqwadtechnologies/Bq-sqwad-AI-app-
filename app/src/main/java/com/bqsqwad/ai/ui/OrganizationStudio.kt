@@ -151,6 +151,12 @@ fun OrganizationStudioWorkspace() {
 
     LaunchedEffect(Unit) {
         refresh()
+        runCatching { api.organizationCatalog() }
+            .onSuccess { organizationCatalog = it.optJSONArray("plans") }
+            .onFailure { error = it.message ?: "Organization plan catalog could not be loaded." }
+        runCatching { api.organizationAccess() }
+            .onSuccess { organizationAccess = it }
+            .onFailure { error = it.message ?: "Organization access could not be verified." }
         runCatching { api.organizationBilling() }
             .onSuccess { organizationBilling = it }
             .onFailure { /* billing panel remains unavailable until backend responds */ }
