@@ -39,7 +39,7 @@ const PLATFORMS = {
     label: "TikTok",
     authorizationUrl: "https://www.tiktok.com/v2/auth/authorize/",
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
-    defaultScopes: ["user.info.basic", "video.list", "video.publish"]
+    defaultScopes: ["user.info.basic", "user.info.profile", "user.info.stats", "video.list", "video.publish"]
   },
   x: {
     label: "X",
