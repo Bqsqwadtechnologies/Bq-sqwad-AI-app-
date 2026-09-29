@@ -106,12 +106,32 @@ export async function broadcastAdminNotification(adminUid, input = {}) {
   return { ok: true, broadcastId: ref.id, sent, failed, tokenCount: tokens.length };
 }
 
+const WORKSPACE_IDS = [
+  "CHAT","VIDEO","SEARCH","TRUTH_GUARD","FRONTIER_LAB","CAMERA","VOICE","PERSONAL","LIFE","COMPANION","LEARNING","BUSINESS","ORGANIZATION_STUDIO","DATA_ANALYSIS","ADMIN"
+];
+
+export async function setPublicAppLayout(adminUid, input = {}) {
+  const rawOrder = Array.isArray(input.workspaceOrder) ? input.workspaceOrder : String(input.workspaceOrder || "").split(",");
+  const workspaceOrder = [...new Set(rawOrder.map(x => clean(x, 60).toUpperCase()).filter(x => WORKSPACE_IDS.includes(x)))];
+  for (const id of WORKSPACE_IDS) if (!workspaceOrder.includes(id)) workspaceOrder.push(id);
+  const rawEnabled = input.workspaceEnabled && typeof input.workspaceEnabled === "object" ? input.workspaceEnabled : {};
+  const workspaceEnabled = Object.fromEntries(WORKSPACE_IDS.map(id => [id, rawEnabled[id] !== false]));
+  const themeMode = ["system","light","dark"].includes(String(input.themeMode || "system")) ? String(input.themeMode || "system") : "system";
+  await getFirestore().collection("publicAppConfig").doc("app").set({
+    workspaceOrder, workspaceEnabled, themeMode, updatedBy: adminUid, updatedAt: new Date()
+  }, { merge: true });
+  return getPublicAppConfig();
+}
+
 export async function getPublicAppConfig() {
   const snap = await getFirestore().collection("publicAppConfig").doc("app").get();
   const data = snap.exists ? snap.data() || {} : {};
   return {
     authBackgroundVideoUrl: clean(data.authBackgroundVideoUrl, 4000) || null,
-    authBackgroundVideoEnabled: data.authBackgroundVideoEnabled === true
+    authBackgroundVideoEnabled: data.authBackgroundVideoEnabled === true,
+    workspaceOrder: Array.isArray(data.workspaceOrder) ? data.workspaceOrder.filter(x => WORKSPACE_IDS.includes(String(x))) : WORKSPACE_IDS,
+    workspaceEnabled: data.workspaceEnabled && typeof data.workspaceEnabled === "object" ? data.workspaceEnabled : Object.fromEntries(WORKSPACE_IDS.map(id => [id, true])),
+    themeMode: ["system","light","dark"].includes(String(data.themeMode || "")) ? String(data.themeMode) : "system"
   };
 }
 
