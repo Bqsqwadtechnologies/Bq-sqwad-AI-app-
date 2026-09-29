@@ -72,6 +72,7 @@ const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_document_analysis",
   "capability_audio_analysis",
   "capability_video_analysis",
+  "capability_live_camera",
   "capability_organization_studio"
 ]);
 
