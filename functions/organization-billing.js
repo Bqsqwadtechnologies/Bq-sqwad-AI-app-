@@ -129,6 +129,44 @@ export async function creditOrganizationWallet(uid, amountCents, metadata = {}) 
   return getOrganizationWallet(uid);
 }
 
+export async function creditOrganizationWalletOnce(uid, amountCents, metadata = {}) {
+  const amount = Math.floor(Number(amountCents));
+  const providerReference = clean(metadata.providerReference, 240);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("organization_wallet_amount_invalid");
+  if (!providerReference) throw new Error("organization_wallet_provider_reference_required");
+  const db = getFirestore();
+  const wallet = walletRef(uid);
+  const existingSnap = await db.collection("organizationWalletLedger")
+    .where("uid", "==", uid)
+    .where("providerReference", "==", providerReference)
+    .where("type", "==", "deposit")
+    .limit(1).get();
+  if (!existingSnap.empty) return getOrganizationWallet(uid);
+  const ledger = ledgerRef();
+  await db.runTransaction(async tx => {
+    const duplicate = await tx.get(db.collection("organizationWalletLedger").where("uid", "==", uid).where("providerReference", "==", providerReference).where("type", "==", "deposit").limit(1));
+    if (!duplicate.empty) return;
+    const snap = await tx.get(wallet);
+    const current = snap.exists ? snap.data() || {} : {};
+    const before = Math.max(0, Number(current.balanceCents || 0));
+    const after = before + amount;
+    tx.set(wallet, {
+      uid, balanceCents: after, currency: "USD", status: "active",
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    tx.create(ledger, {
+      uid, type: "deposit", amountCents: amount,
+      balanceBeforeCents: before, balanceAfterCents: after, currency: "USD",
+      productId: clean(metadata.productId, 120) || null,
+      provider: clean(metadata.provider, 60) || "google_play",
+      providerReference,
+      note: clean(metadata.note, 500) || "Organization usage balance deposit",
+      createdAt: FieldValue.serverTimestamp()
+    });
+  });
+  return getOrganizationWallet(uid);
+}
+
 export async function chargeOrganizationWallet(uid, amountCents, capability, metadata = {}) {
   const amount = Math.max(0, Math.ceil(Number(amountCents)));
   if (!Number.isFinite(amount)) throw new Error("organization_wallet_charge_invalid");
