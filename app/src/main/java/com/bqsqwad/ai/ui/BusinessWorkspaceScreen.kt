@@ -722,6 +722,7 @@ private fun AdvancedAiPanel(api: WorkspaceApiClient, workspaceId: String, error:
 
 @Composable
 private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var integrations by remember { mutableStateOf(JSONArray()) }
     var configured by remember { mutableStateOf(JSONArray()) }
