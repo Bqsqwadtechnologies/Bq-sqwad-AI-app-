@@ -426,6 +426,13 @@ class WorkspaceApiClient {
         return List(items.length()) { i -> items.getJSONObject(i) }
     }
 
+    suspend fun truthGuardCatalog(): JSONObject = request("/truthguard/catalog", "GET")
+
+    suspend fun truthGuardSettings(): JSONObject = request("/truthguard/settings", "GET")
+
+    suspend fun saveTruthGuardSettings(settings: JSONObject): JSONObject =
+        request("/truthguard/settings", "PUT", settings)
+
     suspend fun truthGuardCheck(claim:String, deepResearch:Boolean): JSONObject =
         request("/truthguard/check", payload=JSONObject()
             .put("claim", claim.take(12000))
