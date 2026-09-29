@@ -37,6 +37,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_VOICE = "voice"
         const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
         const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
+        const val EXTRA_ORGANIZATION_MODE = "organization_mode"
         const val ACTION_STOP = "stop"
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
@@ -65,6 +66,8 @@ class LiveMediaForegroundService : Service() {
     private var organizationStreamer: OrganizationLiveStreamer? = null
     private var youtubeAccountId: String? = null
     private var youtubeBroadcastId: String? = null
+    private var organizationMode = false
+    private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
     private var organizationBillingJob: Job? = null
@@ -92,6 +95,8 @@ class LiveMediaForegroundService : Service() {
         voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
+        organizationMode = intent?.getBooleanExtra(EXTRA_ORGANIZATION_MODE, organizationMode) ?: organizationMode
+        organizationLiveMode = intent?.getStringExtra("organization_live_mode")?.trim()?.takeIf { it.isNotBlank() } ?: organizationLiveMode
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
@@ -170,7 +175,7 @@ class LiveMediaForegroundService : Service() {
 
     private suspend fun startVisualVoice() {
         if (visualVoice != null) return
-        val config = WorkspaceApiClient().realtimeSession(voice, organization = !liveSessionId.isNullOrBlank())
+        val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode)
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
         val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
@@ -209,11 +214,23 @@ class LiveMediaForegroundService : Service() {
                     broadcaster.startCamera(endpoint, lens)
                     val accountId = youtubeAccountId
                     val broadcastId = youtubeBroadcastId
+                    if (organizationMode && !liveSessionId.isNullOrBlank()) {
+                        val billing = WorkspaceApiClient().organizationLiveBillingStart(
+                            org.json.JSONObject()
+                                .put("sessionId", liveSessionId)
+                                .put("accountId", accountId.orEmpty())
+                                .put("broadcastId", broadcastId.orEmpty())
+                                .put("mode", organizationLiveMode)
+                        )
+                        if (!billing.optString("status").equals("active", ignoreCase = true)) {
+                            throw IllegalStateException("Organization live billing could not start.")
+                        }
+                    }
                     if (!accountId.isNullOrBlank() && !broadcastId.isNullOrBlank()) {
                         runCatching { WorkspaceApiClient().transitionYouTubeLive(accountId, broadcastId, "live") }
                             .onFailure { throw IllegalStateException("YouTube could not transition to live: " + (it.message ?: "transition failed")) }
-                        startOrganizationBillingHeartbeat()
                     }
+                    if (organizationMode) startOrganizationBillingHeartbeat()
                     writeState(true, "live")
                 } catch (t: Throwable) {
                     organizationStreamer = null
