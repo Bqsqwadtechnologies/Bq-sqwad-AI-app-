@@ -99,7 +99,8 @@ export async function commitCredits(uid, reservationId, providerId) {
     const data = snap.data();
     const userRef = db.collection("users").doc(uid);
     const balanceRef = db.collection("creditBalances").doc(uid);
-    const [userSnap, balanceSnap] = await Promise.all([tx.get(userRef), tx.get(balanceRef)]);
+    const userSnap = await tx.get(userRef);
+    const balanceSnap = await tx.get(balanceRef);
     if (!userSnap.exists) throw new Error("Account not found.");
 
     const profile = userSnap.data() || {};
