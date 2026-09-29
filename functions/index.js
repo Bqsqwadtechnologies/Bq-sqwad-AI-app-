@@ -1340,10 +1340,10 @@ export const bqSqwadApi = onRequest(
         const imageBase64 = String(body.imageBase64 || "");
         if (!imageBase64) return send(res, 400, { error: "image_required" });
         if (imageBase64.length > 8_000_000) return send(res, 413, { error: "image_too_large" });
-        const gate = await authorizeCapability(user.uid, "capability_chat");
+        const gate = await authorizeCapability(user.uid, "capability_live_camera");
         let reservation = null;
         try {
-          reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          reservation = await reserveCredits(user.uid, gate.creditCost, "live_camera");
           const result = await (async () => {
             const route = await import("./provider-gateway.js");
             const configured = await route.getRoute("chat");
@@ -1359,11 +1359,11 @@ export const bqSqwadApi = onRequest(
           })();
           await commitCredits(user.uid, reservation?.reservationId, result.providerId);
           gate.commit();
-          await writeActivity({ uid: user.uid, capability: "chat", action: "live_camera_vision", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
+          await writeActivity({ uid: user.uid, capability: "live_camera", action: "live_camera_vision", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability: "chat", action: "live_camera_vision", status: "error", metadata: { error: error?.message || "vision_failed" } });
+          await writeActivity({ uid: user.uid, capability: "live_camera", action: "live_camera_vision", status: "error", metadata: { error: error?.message || "vision_failed" } });
           throw error;
         } finally {
           await gate.release();
