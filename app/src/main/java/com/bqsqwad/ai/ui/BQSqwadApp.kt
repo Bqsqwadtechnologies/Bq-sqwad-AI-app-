@@ -663,6 +663,8 @@ private fun MainShell(modifier: Modifier) {
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var signInRequired by remember { mutableStateOf(false) }
+    var appLayoutOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    var appLayoutEnabled by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
     LaunchedEffect(email) {
         // The backend is authoritative for admin visibility. Normal users never receive
@@ -756,7 +758,7 @@ private fun MainShell(modifier: Modifier) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    items(Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && (it != Workspace.ADMIN || adminAuthorized) }) { w ->
+                    items(orderedDrawerWorkspaces(appLayoutOrder, appLayoutEnabled, adminAuthorized)) { w ->
                         NavigationDrawerItem(
                             label = { Text(w.title) },
                             selected = workspace == w,
@@ -1797,6 +1799,14 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
             webSearch = entry.webSearch
         )
     }
+
+private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>, adminAuthorized: Boolean): List<Workspace> {
+    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && (it != Workspace.ADMIN || adminAuthorized) }
+    val byName = all.associateBy { it.name }
+    val configured = order.mapNotNull { id -> byName[id] }.filter { enabled[it.name] != false }
+    val remaining = all.filter { it.name !in order && enabled[it.name] != false }
+    return configured + remaining
+}
 
 @Composable
 private fun FeatureHub(
