@@ -93,7 +93,7 @@ fun OrganizationStudioWorkspace() {
                 if (state.status == "success") {
                     scope.launch { runCatching { api.organizationBilling() }.onSuccess { organizationBilling = it } }
                 }
-            }, organizationContext = true)
+            }, catalogContext = "organization")
             playBilling = manager
             manager.start()
             onDispose { manager.close(); playBilling = null }
