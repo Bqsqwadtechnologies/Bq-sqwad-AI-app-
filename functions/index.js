@@ -20,7 +20,7 @@ import { getOrganization, updateOrganization, updateOrganizationSettings, addOrg
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./organization-production.js";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost, manageXAction, disconnectSocialAccount } from "./social-integrations.js";
+import { listSocialPlatforms, getSocialConfig, updateSocialConfig, saveSocialClientSecret, beginSocialOAuth, exchangeSocialOAuth, saveSocialAccount, listSocialAccounts, publishSocialPost, manageXAction, disconnectSocialAccount, getTikTokProfile, listTikTokVideos } from "./social-integrations.js";
 import { getYouTubeChannel, createYouTubeLiveSession, transitionYouTubeLive, getYouTubeLiveStatus, listYouTubeLiveChat, sendYouTubeLiveChatMessage } from "./youtube-live.js";
 import { createMediaRights, listPendingMediaRights, reviewMediaRights } from "./media-rights.js";
 import { enforceProtectedContentPolicy } from "./live-content-policy.js";
@@ -351,6 +351,38 @@ export const bqSqwadApi = onRequest(
         } finally { await gate.release(); }
       }
 
+      if (req.method === "GET" && path === "organization/social/tiktok/profile") {
+        const organizationId = String(req.query?.organizationId || "").trim();
+        const accountId = String(req.query?.accountId || "").trim();
+        if (!organizationId || !accountId) return send(res, 400, { error: "organization_social_account_required" });
+        const orgSnap = await getFirestore().collection("organizationWorkspaces").doc(organizationId).get();
+        const member = (orgSnap.data()?.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+        if (!orgSnap.exists || !member || !["owner","admin","editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+        return send(res, 200, await getTikTokProfile(user.uid, accountId));
+      }
+      if (req.method === "GET" && path === "organization/social/tiktok/videos") {
+        const organizationId = String(req.query?.organizationId || "").trim();
+        const accountId = String(req.query?.accountId || "").trim();
+        if (!organizationId || !accountId) return send(res, 400, { error: "organization_social_account_required" });
+        const orgSnap = await getFirestore().collection("organizationWorkspaces").doc(organizationId).get();
+        const member = (orgSnap.data()?.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+        if (!orgSnap.exists || !member || !["owner","admin","editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+        return send(res, 200, await listTikTokVideos(user.uid, accountId));
+      }
+      if (req.method === "POST" && path === "organization/social/publish") {
+        const body = req.body || {};
+        const organizationId = String(body.organizationId || "").trim();
+        const accountId = String(body.accountId || "").trim();
+        if (!organizationId || !accountId) return send(res, 400, { error: "organization_social_account_required" });
+        const orgSnap = await getFirestore().collection("organizationWorkspaces").doc(organizationId).get();
+        const member = (orgSnap.data()?.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
+        if (!orgSnap.exists || !member || !["owner","admin","editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
+        const accountSnap = await getFirestore().collection("socialAccounts").doc(accountId).get();
+        if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.platform || "") !== "tiktok" || String(accountSnap.data()?.workspaceId || "") !== organizationId) {
+          throw new Error("organization_tiktok_account_not_found");
+        }
+        return send(res, 200, await publishSocialPost(user.uid, accountId, { ...body, workspaceId: organizationId }));
+      }
       if (req.method === "POST" && path === "organization/social/oauth/start") {
         const platform = String(body.platform || "").trim();
         if (platform !== "youtube") return send(res, 400, { error: "organization_live_platform_not_supported" });
@@ -382,6 +414,16 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await manageXAction(user.uid, accountId, body));
       }
 
+      if (req.method === "GET" && path === "social/tiktok/profile") {
+        const accountId = String(req.query?.accountId || "").trim();
+        if (!accountId) return send(res, 400, { error: "social_account_required" });
+        return send(res, 200, await getTikTokProfile(user.uid, accountId));
+      }
+      if (req.method === "GET" && path === "social/tiktok/videos") {
+        const accountId = String(req.query?.accountId || "").trim();
+        if (!accountId) return send(res, 400, { error: "social_account_required" });
+        return send(res, 200, await listTikTokVideos(user.uid, accountId));
+      }
       if (req.method === "POST" && path === "social/publish") {
         const accountId = String(body.accountId || "").trim();
         if (!accountId) return send(res, 400, { error: "social_account_required" });
