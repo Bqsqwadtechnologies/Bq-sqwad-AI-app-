@@ -34,7 +34,7 @@ class ChatApiClient(
     ): ChatReply =
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
-            val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
+            val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
                 readTimeout = 120000
@@ -93,7 +93,8 @@ class ChatApiClient(
                 readTimeout = 120000
                 doInput = true
                 doOutput = true
-                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Accept", "text/event-stream")
+                setRequestProperty("Cache-Control", "no-cache")
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
             }
