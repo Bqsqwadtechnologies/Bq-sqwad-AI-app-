@@ -16,9 +16,7 @@ data class DeviceCommandResult(
 )
 
 class DeviceIntelligenceClient {
-    private val baseUrl = "https://europe-west1-" +
-        FirebaseApp.getInstance().options.projectId +
-        ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     suspend fun interpret(message: String): DeviceCommandResult = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
