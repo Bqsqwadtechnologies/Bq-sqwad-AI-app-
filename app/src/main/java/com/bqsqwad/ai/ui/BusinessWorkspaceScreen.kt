@@ -83,21 +83,52 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Business Workspace", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                val planContext = data.optJSONObject("planContext") ?: JSONObject()
+                val planId = data.optString("planId").ifBlank { planContext.optString("id") }
+                val planName = planContext.optString("name").ifBlank { "Business Workspace" }
+                val planSubtitle = when (planId) {
+                    "bizstarter" -> "A focused AI workspace for getting your business online and organized."
+                    "bizbasic" -> "A richer knowledge and assistant workspace for growing teams."
+                    "bizstandard" -> "A connected CRM and communications workspace for active businesses."
+                    "bizprofessional" -> "A full operations workspace with channels, roles and workflow automation."
+                    "bizbusiness" -> "An advanced AI operations workspace with voice, documents, integrations and governance."
+                    "bizenterprise" -> "An enterprise-scale omnichannel workspace for departments, agents and advanced operations."
+                    "businessenterprise" -> "A custom enterprise workspace configured around your organization."
+                    else -> "AI, customers, team, knowledge, channels and automation in one connected workspace."
+                }
+                Text(
+                    planName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     data.optString("name").ifBlank { "My Business" },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    "AI, customers, team, knowledge, channels and automation in one connected workspace.",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Text(planSubtitle, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(onClick = { tab = "Overview" }, label = { Text("Dashboard") })
+                    AssistChip(onClick = { tab = "Settings" }, label = { Text("Settings") })
                     AssistChip(onClick = { tab = "Inbox" }, label = { Text("Inbox") })
                     AssistChip(onClick = { tab = "Channels" }, label = { Text("Channels") })
                     AssistChip(onClick = { tab = "Advanced AI" }, label = { Text("AI") })
+                }
+                val features = planContext.optJSONArray("features") ?: JSONArray()
+                if (features.length() > 0) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items((0 until minOf(features.length(), 8)).map { features.optString(it) }) { feature ->
+                            AssistChip(onClick = {}, label = { Text(feature) })
+                        }
+                    }
+                }
+                if (planContext.optBoolean("adminTest", false)) {
+                    Text(
+                        "ADMIN TEST MODE • " + planId + " • customer entitlements are not changed",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
             }
         }
@@ -327,8 +358,26 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 var automationEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("automationEnabled", true)) }
                 var notificationsEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("notificationsEnabled", true)) }
                 var webSearchEnabled by remember(settings.toString()) { mutableStateOf(settings.optBoolean("webSearchEnabled", true)) }
+                var timezone by remember(settings.toString()) { mutableStateOf(settings.optString("timezone").ifBlank { "UTC" }) }
                 Text("Business AI settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("These settings are persisted in the business workspace and apply to its AI and automation behavior.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = timezone,
+                    onValueChange = { timezone = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Workspace timezone") },
+                    singleLine = true
+                )
+                Button(
+                    onClick = {
+                        scope.launch {
+                            runCatching { api.updateBusinessSettings(data.optString("workspaceId"), timezone = timezone) }
+                                .onSuccess { data = it }
+                                .onFailure { error = it.message ?: "Timezone could not be saved." }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Save timezone") }
                 listOf(
                     Triple("Business AI enabled", assistantEnabled) { next: Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
                     Triple("Automation enabled", automationEnabled) { next: Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
