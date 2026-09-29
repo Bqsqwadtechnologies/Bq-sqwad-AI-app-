@@ -78,7 +78,12 @@ jobs:
       - name: Build signed release APK and AAB
         id: build
         continue-on-error: true
-        run: gradle --no-daemon --stacktrace clean assembleRelease bundleRelease
+        run: |
+          set +e
+          gradle --no-daemon --stacktrace --continue clean assembleDebug assembleRelease bundleRelease 2>&1 | tee release-build.log
+          status=${PIPESTATUS[0]}
+          echo "gradle_exit_code=$status" >> release-build-status.txt
+          exit "$status"
 
       - name: Verify APK and AAB
         id: verify
@@ -142,6 +147,7 @@ jobs:
         env:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
           RECORD_OUTCOME: ${{ steps.record.outcome }}
           PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
           UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
