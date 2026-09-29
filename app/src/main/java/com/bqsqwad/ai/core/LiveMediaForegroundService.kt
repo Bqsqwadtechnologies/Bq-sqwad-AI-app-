@@ -136,6 +136,7 @@ class LiveMediaForegroundService : Service() {
                 val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
                 withContext(Dispatchers.Main) {
                     realtimeVoice = RealtimeVoiceSession(
+                        context = this@LiveMediaForegroundService,
                         clientSecret = secret,
                         model = model,
                         onState = { state -> writeState(true, state) },
