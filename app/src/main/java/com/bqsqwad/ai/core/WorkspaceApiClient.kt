@@ -438,6 +438,23 @@ class WorkspaceApiClient {
             if (!system.isNullOrBlank()) put("system", system.take(12000))
         })
 
+    suspend fun learningCatalog(): JSONObject = request("/learning/catalog", "GET")
+
+    suspend fun learningProgress(): JSONObject = request("/learning/progress", "GET")
+
+    suspend fun learningSession(
+        mode: String,
+        subject: String,
+        goal: String,
+        feature: String? = null
+    ): JSONObject = request("/learning/session", payload=JSONObject().apply {
+        put("mode", mode.take(32))
+        put("subject", subject.take(80))
+        put("goal", goal.take(12000))
+        if (!feature.isNullOrBlank()) put("feature", feature.take(40))
+    })
+
+
     suspend fun workspaceResearch(query:String, deepResearch:Boolean = false):SearchReply =
         search(query, deepResearch)
 }
