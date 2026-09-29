@@ -55,6 +55,7 @@ class LiveMediaForegroundService : Service() {
     private var prompt = "Describe what is visible."
     private var lens = android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
     private var realtimeVoice: RealtimeVoiceSession? = null
+    private var visualVoice: RealtimeVoiceSession? = null
     private var liveSessionId: String? = null
     private var rightsId: String? = null
     private var liveEndpoint: String? = null
@@ -159,6 +160,26 @@ class LiveMediaForegroundService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    private suspend fun startVisualVoice() {
+        if (visualVoice != null) return
+        val config = WorkspaceApiClient().realtimeSession()
+        val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
+        val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
+        withContext(Dispatchers.Main) {
+            visualVoice = RealtimeVoiceSession(
+                context = this@LiveMediaForegroundService,
+                clientSecret = secret,
+                model = model,
+                onState = { state -> writeState(true, state) },
+                onError = { error -> writeError(error) },
+                onAudioLevel = { level -> updateAudioLevel(level) },
+                // Visual voice is deliberately audio-only in the UI; transcripts are not rendered.
+                onTranscript = { _, _ -> }
+            ).also { it.start() }
+        }
+    }
+
     private fun startCamera() {
         if (organizationStreamer != null || cameraSession != null) return
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -176,6 +197,7 @@ class LiveMediaForegroundService : Service() {
             organizationStreamer = broadcaster
             serviceScope.launch {
                 try {
+                    startVisualVoice()
                     broadcaster.startCamera(endpoint, lens)
                     writeState(true, "live")
                 } catch (t: Throwable) {
@@ -187,9 +209,11 @@ class LiveMediaForegroundService : Service() {
             return
         }
 
-        // The Compose NativeCameraPreview owns the actual Camera2 device while this
-        // foreground service owns the visible live-session lifecycle. Keeping one camera
-        // owner avoids Camera2 contention between the UI preview and the analyzer.
+        // Camera preview stays in Compose; this foreground service owns the audio-only AI session.
+        serviceScope.launch {
+            runCatching { startVisualVoice() }
+                .onFailure { writeError(it.message ?: "AI camera voice could not start."); stopSelf() }
+        }
         writeState(true, "active")
     }
 
@@ -207,7 +231,9 @@ class LiveMediaForegroundService : Service() {
         val height = intent?.getIntExtra(EXTRA_HEIGHT, metrics.heightPixels) ?: metrics.heightPixels
         val density = intent?.getIntExtra(EXTRA_DENSITY, metrics.densityDpi) ?: metrics.densityDpi
         screenSession = runCatching {
-            ScreenCaptureSession(this, onFrame = { bytes -> analyzeFrame(bytes, "image/jpeg") }, onStopped = {
+            ScreenCaptureSession(this, onFrame = { bytes ->
+                visualVoice?.sendVisualFrame(bytes)
+            }, onStopped = {
                 writeState(false, "Screen sharing was stopped by Android or the user.")
                 stopSelf()
             }).also { it.start(data, width, height, density) }
@@ -215,7 +241,13 @@ class LiveMediaForegroundService : Service() {
             writeError(it.message ?: "Screen sharing could not start.")
             stopSelf()
         }.getOrNull()
-        if (screenSession != null) writeState(true, "")
+        if (screenSession != null) {
+            serviceScope.launch {
+                runCatching { startVisualVoice() }
+                    .onFailure { writeError(it.message ?: "Screen voice could not start."); stopSelf() }
+            }
+            writeState(true, "listening")
+        }
     }
 
     private fun analyzeFrame(bytes: ByteArray, mimeType: String) {
@@ -303,6 +335,8 @@ class LiveMediaForegroundService : Service() {
     override fun onDestroy() {
         realtimeVoice?.stop()
         realtimeVoice = null
+        visualVoice?.stop()
+        visualVoice = null
         cameraSession?.stop()
         cameraSession = null
         runBlocking {
