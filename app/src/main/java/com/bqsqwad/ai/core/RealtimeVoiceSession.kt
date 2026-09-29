@@ -87,6 +87,28 @@ class RealtimeVoiceSession(
         }.toString())
     }
 
+    /** Sends a current camera/screen frame into the same voice session. The response remains audio-only. */
+    fun sendVisualFrame(jpegBytes: ByteArray) {
+        if (!running.get()) return
+        val encoded = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        socket?.send(JSONObject().apply {
+            put("type", "conversation.item.create")
+            put("item", JSONObject().apply {
+                put("type", "message")
+                put("role", "user")
+                put("content", org.json.JSONArray().put(
+                    JSONObject().apply {
+                        put("type", "input_image")
+                        put("image_url", "data:image/jpeg;base64," + encoded)
+                    }
+                ))
+            })
+        }.toString())
+        socket?.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
+            put("output_modalities", org.json.JSONArray().put("audio"))
+        }).toString())
+    }
+
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
