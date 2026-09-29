@@ -18,7 +18,8 @@ const TOP_UPS = [
   { productId: "orgdeposit10", amountCents: 1000, amountUsd: 10 },
   { productId: "orgdeposit25", amountCents: 2500, amountUsd: 25 },
   { productId: "orgdeposit50", amountCents: 5000, amountUsd: 50 },
-  { productId: "orgdeposit100", amountCents: 10000, amountUsd: 100 }
+  { productId: "orgdeposit100", amountCents: 10000, amountUsd: 100 },
+  { productId: "orgdeposit500", amountCents: 50000, amountUsd: 500 }
 ];
 
 
