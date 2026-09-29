@@ -99,7 +99,8 @@ export async function getOrganizationAccess(uid, options = {}) {
   const plan = findOrganizationPlan(planId);
   const statuses = await db.collection("organizationPlanStatus").get();
   const activeIds = new Set(statuses.docs.filter(doc => doc.data()?.active === true).map(doc => doc.id));
-  const active = Boolean(plan && activeIds.has(plan.id));
+  const entitlementActive = entitlement.exists && String(entitlementData.state || "active") === "active";
+  const active = Boolean(plan && activeIds.has(plan.id) && (options.testPlanId ? true : entitlementActive));
   return {
     uid,
     activated: active,
