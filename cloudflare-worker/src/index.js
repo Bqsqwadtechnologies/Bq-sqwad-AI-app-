@@ -278,31 +278,13 @@ async function ai(request, user, body) {
   }
 }
 async function vision(request, user, body) {
-  await requireConsent(user.uid);
-  const imageBase64 = String(body.imageBase64 || "");
-  if (!imageBase64) throw new Error("image_required");
-  if (imageBase64.length > 8000000) throw new Error("image_too_large");
-  const control = await capability(user.uid, "live_camera");
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);
-  try {
-    const response = await callOpenAI(globalThis.__bqEnv, {
-      model: control.modelId || DEFAULT_MODELS.openai,
-      message: String(body.message || "Describe what is visible in this camera frame."),
-      imageBase64,
-      mimeType: String(body.mimeType || "image/jpeg"),
-      stream: false
-    });
-    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));
-    const payload = await response.json();
-    const text = payload.output_text || payload.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
-    if (!text.trim()) throw new Error("The AI service returned an empty response.");
-    await commitCredits(user.uid, reservation.reservationId, "openai");
-    return json({ text: text.trim(), providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });
-  } catch (error) {
-    await reverseCredits(user.uid, reservation.reservationId);
-    throw error;
-  }
+  // AI Live Camera uses the canonical Firebase backend for consent,
+  // capability/credit authorization, provider routing, and audit logging.
+  // Do not charge or call OpenAI again in the Worker: that would double-charge
+  // each sampled frame and bypass the backend source of truth.
+  return proxyUpstream(request, new URL(request.url));
 }
+
 async function stream(request, user, body) {
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
