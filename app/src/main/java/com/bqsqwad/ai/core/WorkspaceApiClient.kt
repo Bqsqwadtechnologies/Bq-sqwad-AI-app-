@@ -73,7 +73,7 @@ class WorkspaceApiClient {
 
     suspend fun clearMemory():JSONObject = request("/memory","DELETE")
 
-    suspend fun realtimeSession(voice: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) } })
+    suspend fun realtimeSession(voice: String? = null, organization: Boolean = false):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; if (organization) put("organization", true) })
 
     suspend fun plans():JSONObject = request("/plans","GET")
 
