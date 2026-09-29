@@ -2569,27 +2569,29 @@ fun CameraWorkspace() {
             }
         }
         if (screenActive) {
-            SurfaceCard("Screen viewer", "● Screen sharing active • Android permission was granted for this capture session.")
-            OutlinedTextField(
-                screenPrompt,
-                { screenPrompt = it },
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Ask about the screen") },
-                maxLines = 2
-            )
-            if (screenActive) {
-                TextButton(onClick = {
-                    val metrics = context.resources.displayMetrics
-                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_SCREEN)
-                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, screenPrompt)
-                        .putExtra(LiveMediaForegroundService.EXTRA_WIDTH, metrics.widthPixels)
-                        .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
-                        .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi))
-                }) { Text("Apply screen question") }
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.bq_sqwad_ai_main_app_logo),
+                        contentDescription = "BQ Sqwad AI",
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("Screen Viewer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("AI is listening and viewing your shared screen. Responses are voice-only.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Icon(Icons.Default.GraphicEq, contentDescription = "Voice active", tint = MaterialTheme.colorScheme.primary)
+                }
             }
             if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (screenAnswer.isNotBlank()) SurfaceCard("BQ Sqwad AI", screenAnswer)
         } else if (granted && active) {
             val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
             Box(
@@ -2679,20 +2681,29 @@ fun CameraWorkspace() {
                     streamError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
             }
-            OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about the camera view") }, maxLines = 2)
-            if (active) {
-                TextButton(onClick = {
-                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                        .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
-                }) { Text("Apply camera question") }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.bq_sqwad_ai_main_app_logo),
+                        contentDescription = "BQ Sqwad AI",
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text("AI Live Camera", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("AI sees the camera and responds by voice. No AI answer text is displayed.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Icon(Icons.Default.Mic, contentDescription = "Voice active", tint = MaterialTheme.colorScheme.primary)
+                }
             }
             if (analyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (cameraLog.isNotEmpty()) {
-                SurfaceCard("Live activity", cameraLog.takeLast(12).joinToString("\n"))
-            }
-            if (answer.isNotBlank()) SurfaceCard("Latest AI answer", answer)
         } else {
             SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
         }
