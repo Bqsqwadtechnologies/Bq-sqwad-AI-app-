@@ -154,6 +154,25 @@ class WorkspaceApiClient {
 
     suspend fun organizationBilling(): JSONObject = request("/organization/billing","GET")
 
+    suspend fun organizationLiveBillingStart(payload: JSONObject): JSONObject =
+        request("/organization/production/live/billing/start", payload = payload)
+
+    suspend fun organizationLiveBillingHeartbeat(sessionId: String, accountId: String = "", broadcastId: String = ""): JSONObject =
+        request("/organization/production/live/billing/heartbeat", payload = JSONObject()
+            .put("sessionId", sessionId)
+            .put("accountId", accountId)
+            .put("broadcastId", broadcastId))
+
+    suspend fun organizationLiveBilling(sessionId: String): JSONObject =
+        request("/organization/production/live/billing?sessionId=" + java.net.URLEncoder.encode(sessionId, "UTF-8"), "GET")
+
+    suspend fun organizationLiveBillingStop(sessionId: String, accountId: String = "", broadcastId: String = "", reason: String = "operator_stop"): JSONObject =
+        request("/organization/production/live/billing/stop", payload = JSONObject()
+            .put("sessionId", sessionId)
+            .put("accountId", accountId)
+            .put("broadcastId", broadcastId)
+            .put("reason", reason))
+
     suspend fun organization(): JSONObject = request("/organization","GET")
 
     suspend fun updateOrganization(name:String, description:String): JSONObject =
