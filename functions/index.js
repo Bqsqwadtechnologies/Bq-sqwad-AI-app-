@@ -106,7 +106,9 @@ async function deleteUserAccountData(uid) {
     "companionMessages",
     "companionCheckins",
     "companionProfiles",
-    "companionSettings"
+    "companionSettings",
+    "truthGuardChecks",
+    "truthGuardSettings"
   ];
   for (const collection of queryCollections) {
     await deleteUserCollectionRecords(db, collection, uid);
@@ -1173,6 +1175,76 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, await getVideoJob(user.uid, jobId));
       }
 
+      if (req.method === "GET" && path === "truthguard/catalog") {
+        const catalog = COMMERCIAL_CATALOG.sections.truthguard || [];
+        const entSnap = await getFirestore().collection("entitlements").doc(user.uid).get();
+        const ent = entSnap.exists ? (entSnap.data() || {}) : {};
+        const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
+        const rawPlanId = String(ent.planId || "truthguardfree");
+        const authUser = await getAuth().getUser(user.uid);
+        const claims = authUser.customClaims || {};
+        const isSuperAdmin = authUser.email === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+        const testSnap = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+        const adminTestMode = isSuperAdmin && testSnap.exists && testSnap.data()?.enabled === true;
+        const activePlanId = adminTestMode ? "admin-unlimited" : (activeStates.has(String(ent.state || "")) ? rawPlanId : "truthguardfree");
+        const settingsSnap = await getFirestore().collection("truthGuardSettings").doc(user.uid).get();
+        return send(res, 200, {
+          ok: true,
+          activePlanId,
+          adminTestMode,
+          settings: settingsSnap.exists ? settingsSnap.data() : {
+            showSources: true,
+            showReliability: true,
+            conservativeVerdicts: true,
+            saveHistory: true,
+            defaultDeepResearch: false
+          },
+          plans: catalog.map(item => ({
+            id: item.id,
+            name: item.name,
+            description: item.description || "",
+            price: item.price || {},
+            features: item.features || [],
+            limits: item.limits || {},
+            basePlans: item.basePlans || [],
+            billingPeriods: item.billingPeriods || [],
+            trialDays: item.trialDays || 0,
+            trialEligible: item.trialEligible !== false,
+            playEligible: item.playEligible === true
+          }))
+        });
+      }
+
+      if (req.method === "GET" && path === "truthguard/settings") {
+        const snap = await getFirestore().collection("truthGuardSettings").doc(user.uid).get();
+        return send(res, 200, {
+          ok: true,
+          settings: snap.exists ? snap.data() : {
+            showSources: true,
+            showReliability: true,
+            conservativeVerdicts: true,
+            saveHistory: true,
+            defaultDeepResearch: false
+          }
+        });
+      }
+
+      if (req.method === "PUT" && path === "truthguard/settings") {
+        await authorizeCapability(user.uid, "capability_truth_guard");
+        const current = await getFirestore().collection("truthGuardSettings").doc(user.uid).get();
+        const previous = current.exists ? (current.data() || {}) : {};
+        const next = {
+          showSources: body.showSources == null ? previous.showSources !== false : body.showSources === true,
+          showReliability: body.showReliability == null ? previous.showReliability !== false : body.showReliability === true,
+          conservativeVerdicts: body.conservativeVerdicts == null ? previous.conservativeVerdicts !== false : body.conservativeVerdicts === true,
+          saveHistory: body.saveHistory == null ? previous.saveHistory !== false : body.saveHistory === true,
+          defaultDeepResearch: body.defaultDeepResearch === true,
+          updatedAt: FieldValue.serverTimestamp()
+        };
+        await getFirestore().collection("truthGuardSettings").doc(user.uid).set(next, { merge: true });
+        return send(res, 200, { ok: true, settings: { ...next, updatedAt: null } });
+      }
+
       if (req.method === "GET" && path === "truthguard/history") {
         const snap = await getFirestore().collection("truthGuardChecks")
           .where("uid", "==", user.uid)
@@ -1193,17 +1265,20 @@ export const bqSqwadApi = onRequest(
       if (req.method === "POST" && path === "truthguard/check") {
         const claim = String(body.claim || "").trim().slice(0, 12000);
         if (!claim) return send(res, 400, { error: "truthguard_claim_required" });
-        const deepResearch = body.deepResearch === true;
+        const requestedDeepResearch = body.deepResearch === true;
         const gate = await authorizeCapability(user.uid, "capability_truth_guard");
+        const planId = String(gate.planId || "truthguardfree");
+        const deepResearch = requestedDeepResearch && ["tgpro", "tgteam"].includes(planId);
+        const sourceLimit = planId === "truthguardfree" ? 3 : planId === "tgplus" ? 10 : 20;
         let reservation = null;
         try {
           reservation = await reserveCredits(user.uid, gate.creditCost, "truth_guard");
           const search = await callTavily({
             query: claim,
-            maxResults: deepResearch ? 20 : 10,
+            maxResults: sourceLimit,
             deepResearch
           });
-          const sources = (search.sources || []).slice(0, 20).map(source => ({
+          const sources = (search.sources || []).slice(0, sourceLimit).map(source => ({
             title: String(source.title || "").slice(0, 500),
             url: String(source.url || "").slice(0, 2000),
             snippet: String(source.snippet || "").slice(0, 4000)
@@ -1234,7 +1309,7 @@ export const bqSqwadApi = onRequest(
             analysis,
             sources,
             depth: deepResearch ? "deep" : "standard",
-            planId: gate.planId || "truthguardfree",
+            planId,
             providerId: result.providerId || null,
             modelId: result.modelId || null,
             createdAt: FieldValue.serverTimestamp(),
@@ -1248,7 +1323,7 @@ export const bqSqwadApi = onRequest(
             claim,
             analysis,
             sources,
-            planId: gate.planId || "truthguardfree",
+            planId,
             creditsCharged: reservation.amount
           });
         } catch (error) {
