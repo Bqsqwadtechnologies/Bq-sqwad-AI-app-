@@ -127,6 +127,9 @@ fun OrganizationStudioWorkspace() {
 
     LaunchedEffect(Unit) {
         refresh()
+        runCatching { api.organizationBilling() }
+            .onSuccess { organizationBilling = it }
+            .onFailure { /* billing panel remains unavailable until backend responds */ }
         refreshProduction()
         runCatching { api.organizationScheduledTasks() }
             .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
@@ -229,6 +232,33 @@ fun OrganizationStudioWorkspace() {
                         SuggestionChip(onClick = {}, label = { Text("Production") })
                         SuggestionChip(onClick = {}, label = { Text("AI Director") })
                         SuggestionChip(onClick = {}, label = { Text("Organization") })
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Pay-as-you-go", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Organization AI is charged from the shared Firebase credit balance. No Organization subscription is required for usage.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val billing = organizationBilling
+                    if (billing != null) {
+                        val total = billing.optDouble("totalCredits", 0.0)
+                        val assistantRate = billing.optDouble("assistantCreditCost", 1.0)
+                        Text("Available credits: ${"%.2f".format(total)}", fontWeight = FontWeight.SemiBold)
+                        Text("Organization AI request: ${"%.2f".format(assistantRate)} credit(s)")
+                        val liveRates = billing.optJSONObject("liveCreditRates")
+                        Text(
+                            "Live AI: host ${liveRates?.optDouble("host_only", 0.25) ?: 0.25} • " +
+                                "moderated ${liveRates?.optDouble("moderated_audience", 0.55) ?: 0.55} • " +
+                                "full ${liveRates?.optDouble("full_audience", 0.95) ?: 0.95} credits/min"
+                        )
+                    } else {
+                        Text("Billing information is loading…")
                     }
                 }
             }
