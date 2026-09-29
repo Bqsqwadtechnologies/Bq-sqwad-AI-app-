@@ -291,15 +291,40 @@ fun OrganizationStudioWorkspace() {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val activePlanId = organizationAccess?.optString("planId").orEmpty()
+                    val activePlan = organizationCatalog?.let { plans ->
+                        (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == activePlanId }
+                    }
+                    val planName = activePlan?.optString("name").orEmpty().ifBlank { "Not activated" }
+                    val planDescription = when (activePlanId) {
+                        "orgcore" -> "Core workspace for shared knowledge, channels, members and scheduled AI."
+                        "orgproduction" -> "Production workspace for sources, scenes, AI Director and operational health."
+                        "orgbroadcast" -> "Broadcast workspace for YouTube Live, audience controls and live billing."
+                        "orgenterprise" -> "Enterprise workspace for full governance, production and broadcast controls."
+                        else -> "Administrator activation required. No subscription price; usage is billed from the separate Organization USD balance."
+                    }
                     Text("Organization AI / Studio", style = MaterialTheme.typography.headlineSmall)
+                    Text(planName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(planDescription, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "Native organization control for production, shared knowledge, AI behavior, channels, members and broadcast orchestration.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        if (organizationAccess?.optBoolean("testMode", false) == true) "ADMIN TEST MODE • $activePlanId • customer entitlements unchanged"
+                        else if (organizationAccess?.optBoolean("activated", false) == true) "Administrator activated • Pay-as-you-go • No subscription price"
+                        else "Access not activated by administrator",
+                        color = if (organizationAccess?.optBoolean("activated", false) == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SuggestionChip(onClick = {}, label = { Text("Production") })
                         SuggestionChip(onClick = {}, label = { Text("AI Director") })
-                        SuggestionChip(onClick = {}, label = { Text("Organization") })
+                        SuggestionChip(onClick = {}, label = { Text("YouTube Live") })
+                        SuggestionChip(onClick = {}, label = { Text("USD PAYG") })
+                    }
+                    activePlan?.optJSONArray("features")?.let { features ->
+                        if (features.length() > 0) Text(
+                            "Workspace features: " + List(features.length()) { features.optString(it) }.joinToString(" • "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
