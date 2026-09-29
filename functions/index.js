@@ -339,7 +339,7 @@ export const bqSqwadApi = onRequest(
           if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
           const accountsSnap = await getFirestore().collection("socialAccounts")
             .where("uid", "==", user.uid)
-            .where("platform", "==", "youtube")
+            .where("platform", "in", ["youtube", "tiktok"])
             .limit(25).get();
           gate.commit();
           return send(res, 200, {
@@ -385,13 +385,13 @@ export const bqSqwadApi = onRequest(
       }
       if (req.method === "POST" && path === "organization/social/oauth/start") {
         const platform = String(body.platform || "").trim();
-        if (platform !== "youtube") return send(res, 400, { error: "organization_live_platform_not_supported" });
+        if (!["youtube", "tiktok"].includes(platform)) return send(res, 400, { error: "organization_social_platform_not_supported" });
         const orgId = String(body.organizationId || user.uid).trim();
         const org = await getOrganization(orgId);
         const member = (org.members || []).find(item => String(item.id || "") === String(user.uid) && item.status !== "inactive");
         if (!member || !["owner", "admin", "editor"].includes(String(member.role || ""))) throw new Error("organization_social_access_denied");
         const config = await getSocialConfig();
-        if (!(await getProviderSecret("youtube_client_secret"))) throw new Error("youtube_client_secret_missing_configure_in_admin_provider_secrets");
+        if (platform === "youtube" && !(await getProviderSecret("youtube_client_secret"))) throw new Error("youtube_client_secret_missing_configure_in_admin_provider_secrets");
         const state = crypto.randomUUID();
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "").trim();
         if (!redirectUri) return send(res, 400, { error: "social_callback_url_required" });
