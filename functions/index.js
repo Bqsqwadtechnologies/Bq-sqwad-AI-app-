@@ -884,10 +884,19 @@ export const bqSqwadApi = onRequest(
           if (!accountSnap.exists || String(accountSnap.data()?.uid || "") !== String(user.uid) || String(accountSnap.data()?.metadata?.organizationId || "") !== (organizationId || user.uid)) {
             throw new Error("organization_youtube_account_mismatch");
           }
-          const liveConfig = await getOrganizationAiLiveConfig(user.uid);
-          const result = await listYouTubeLiveChat(user.uid, String(req.query?.accountId || ""), String(req.query?.liveChatId || ""));
-          gate.commit();
-          return send(res, 200, { ...result, aiMode: liveConfig.mode, viewerReplies: liveConfig.viewerReplies, screenAwareness: liveConfig.screenAwareness });
+           const liveConfig = await getOrganizationAiLiveConfig(user.uid);
+           const result = await listYouTubeLiveChat(user.uid, String(req.query?.accountId || ""), String(req.query?.liveChatId || ""));
+           const sessionId = String(req.query?.sessionId || "");
+           for (const item of result.items || []) {
+             await getFirestore().collection("organizationLiveMessages").doc(String(item.id)).set({
+               uid: user.uid, sessionId, direction: "inbound", messageId: String(item.id),
+               author: String(item.author || "Viewer"), authorChannelId: String(item.authorChannelId || ""),
+               text: String(item.text || ""), publishedAt: item.publishedAt || null,
+               createdAt: FieldValue.serverTimestamp()
+             }, { merge: true });
+           }
+           gate.commit();
+           return send(res, 200, { ...result, aiMode: liveConfig.mode, viewerReplies: liveConfig.viewerReplies, screenAwareness: liveConfig.screenAwareness });
         } finally { await gate.release(); }
       }
 
