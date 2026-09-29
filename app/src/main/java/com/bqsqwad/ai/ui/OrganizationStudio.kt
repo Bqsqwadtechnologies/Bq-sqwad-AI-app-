@@ -713,13 +713,19 @@ fun OrganizationStudioWorkspace() {
                         Button(
                             enabled = liveSessionId != null,
                             onClick = {
-                                context.startService(
-                                    Intent(context, LiveMediaForegroundService::class.java)
-                                        .setAction(LiveMediaForegroundService.ACTION_STOP)
-                                )
-                                liveSessionId = null
-                                liveEndpoint = null
-                                outputStatus = "Live stopped"
+                                 scope.launch { runCatching {
+                                     api.organizationLiveBillingStop(liveSessionId.orEmpty(), youtubeAccountId, youtubeBroadcastId, "operator_stop")
+                                 } }
+                                 context.startService(
+                                     Intent(context, LiveMediaForegroundService::class.java)
+                                         .setAction(LiveMediaForegroundService.ACTION_STOP)
+                                 )
+                                 liveSessionId = null
+                                 liveEndpoint = null
+                                 youtubeAccountId = ""
+                                 youtubeBroadcastId = ""
+                                 billingWarning = null
+                                 outputStatus = "Live stopped"
                             }
                         ) { Text("Stop Live") }
                     }
@@ -771,7 +777,7 @@ fun OrganizationStudioWorkspace() {
                         Text("AI may use live screen/program context")
                         Switch(aiLiveScreenAwareness, onCheckedChange = { if (aiLiveMode == "full_audience") aiLiveScreenAwareness = it })
                     }
-                    Text("Mode credit rate: ${"%.2f".format(aiLiveCreditsPerMinute)} credits/minute. Each mode is tracked separately so audience-facing AI usage does not silently consume host-only usage.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Live billing rate: $" + "%.2f".format(java.util.Locale.US, aiLiveCreditsPerMinute) + "/minute. Live usage is deducted continuously from the Organization balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(
                         enabled = aiLivePrivacyAccepted && !busy,
                         onClick = {
