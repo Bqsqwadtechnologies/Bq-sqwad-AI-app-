@@ -140,6 +140,8 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub release
+        id: publish
+        continue-on-error: true
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
         uses: softprops/action-gh-release@v3
         with:
@@ -157,10 +159,10 @@ jobs:
         env:
           BUILD_OUTCOME: ${{ steps.build.outcome }}
           VERIFY_OUTCOME: ${{ steps.verify.outcome }}
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
           RECORD_OUTCOME: ${{ steps.record.outcome }}
           PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
           UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
         run: |
           set +e
           echo "Release pipeline stage results:"
@@ -169,9 +171,10 @@ jobs:
           printf '%-16s %s\n' "record" "$RECORD_OUTCOME"
           printf '%-16s %s\n' "prepare" "$PREPARE_OUTCOME"
           printf '%-16s %s\n' "upload" "$UPLOAD_OUTCOME"
+          printf '%-16s %s\n' "publish" "$PUBLISH_OUTCOME"
           failed=0
-          for outcome in "$BUILD_OUTCOME" "$VERIFY_OUTCOME" "$RECORD_OUTCOME" "$PREPARE_OUTCOME" "$UPLOAD_OUTCOME"; do
-            if [ "$outcome" != "success" ]; then failed=1; fi
+          for outcome in "$BUILD_OUTCOME" "$VERIFY_OUTCOME" "$RECORD_OUTCOME" "$PREPARE_OUTCOME" "$UPLOAD_OUTCOME" "$PUBLISH_OUTCOME"; do
+            if [ "$outcome" != "success" ] && [ "$outcome" != "skipped" ]; then failed=1; fi
           done
           if [ "$failed" -ne 0 ]; then
             echo "One or more release stages failed. All independent stages were allowed to report before this final gate."
