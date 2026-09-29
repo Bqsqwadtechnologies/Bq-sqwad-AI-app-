@@ -566,7 +566,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                         runCatching {
                             api.startSocialOAuth(
                                 "youtube",
-                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback",
                                 workspaceId
                             )
                         }.onSuccess { result ->
@@ -599,7 +599,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                         runCatching {
                             api.startSocialOAuth(
                                 "x",
-                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback",
                                 workspaceId
                             )
                         }.onSuccess { result ->
@@ -628,7 +628,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                         runCatching {
                             api.startSocialOAuth(
                                 "tiktok",
-                                "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback",
+                                "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback",
                                 workspaceId
                             )
                         }.onSuccess { result ->
@@ -773,7 +773,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                     Button(enabled = !tiktokBusy, onClick = {
                         tiktokBusy = true
                         scope.launch {
-                            runCatching { api.startSocialOAuth("tiktok", "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback", workspaceId) }
+                            runCatching { api.startSocialOAuth("tiktok", "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback", workspaceId) }
                                 .onSuccess { result ->
                                     val url = result.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
