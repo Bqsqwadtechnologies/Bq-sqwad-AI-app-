@@ -393,6 +393,19 @@ class LiveMediaForegroundService : Service() {
         cameraSession?.stop()
         cameraSession = null
         runBlocking {
+            organizationBillingJob?.cancelAndJoin()
+            organizationBillingJob = null
+            runCatching {
+                val session = liveSessionId
+                if (!session.isNullOrBlank()) {
+                    WorkspaceApiClient().organizationLiveBillingStop(
+                        session,
+                        youtubeAccountId.orEmpty(),
+                        youtubeBroadcastId.orEmpty(),
+                        "service_stop"
+                    )
+                }
+            }
             runCatching { organizationStreamer?.stop() }
             val accountId = youtubeAccountId
             val broadcastId = youtubeBroadcastId
