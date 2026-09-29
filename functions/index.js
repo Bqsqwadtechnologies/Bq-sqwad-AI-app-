@@ -693,7 +693,6 @@ export const bqSqwadApi = onRequest(
         const message = String(body.message || "").trim().slice(0, 8000);
         if (!message) return send(res, 400, { error: "organization_message_required" });
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
-        let reservation = null;
         try {
           const org = await getOrganization(user.uid);
           const settings = org.settings || {};
@@ -702,7 +701,8 @@ export const bqSqwadApi = onRequest(
             ? org.knowledge.slice(-50).map(item => typeof item === "string" ? item : item?.text).filter(Boolean).join("\n")
             : "");
           const sharedMemory = settings.sharedMemoryEnabled === true ? await memoryContext(user.uid) : "";
-          reservation = await reserveCredits(user.uid, gate.creditCost, "organization_assistant");
+           const walletBefore = await getOrganizationWallet(user.uid);
+           if (walletBefore.balanceCents < walletBefore.assistantPriceCents) throw new Error("organization_insufficient_balance");
           const system = [
             "You are the BQ Sqwad AI Organization Studio assistant.",
             "Keep organization data isolated from unrelated personal workspace data.",
@@ -715,12 +715,12 @@ export const bqSqwadApi = onRequest(
             sharedMemory ? "Approved shared user memory:\n" + sharedMemory : ""
           ].filter(Boolean).join("\n");
           const result = await runAi({ capability: "chat", message, system });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+           const wallet = await chargeOrganizationWallet(user.uid, walletBefore.assistantPriceCents, "organization_assistant", { providerId: result.providerId || null });
           gate.commit();
           await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
-          return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0 });
+           return send(res, 200, { answer: result.text, providerId: result.providerId || null, amountChargedCents: wallet.chargedCents, balanceCents: wallet.balanceCents, lowBalance: wallet.lowBalance });
         } catch (error) {
-          await reverseCredits(user.uid, reservation?.reservationId);
+
           await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "error", metadata: { error: error?.message || "organization_request_failed" } });
           throw error;
         } finally {
@@ -902,7 +902,6 @@ export const bqSqwadApi = onRequest(
 
       if (req.method === "POST" && path === "organization/production/youtube/live/chat/reply") {
         const gate = await authorizeCapability(user.uid, "capability_organization_studio");
-        let reservation = null;
         try {
           const organizationId = String(body.organizationId || "").trim();
           const org = await getOrganization(organizationId || user.uid);
@@ -927,7 +926,7 @@ export const bqSqwadApi = onRequest(
               return send(res, 200, { ok: true, ignored: true, reason: "own_message" });
             }
           }
-          reservation = await reserveCredits(user.uid, liveConfig.creditRatePerMinute, "organization_ai_live_" + liveConfig.mode);
+
           const safeSystem = [
             "You are BQ Sqwad AI operating as an Organization live-stream assistant.",
             "Reply to the viewer concisely and respectfully.",
@@ -938,11 +937,11 @@ export const bqSqwadApi = onRequest(
           ].join("\n");
           const ai = await runAi({ capability: "chat", message: viewerText, system: safeSystem });
           const result = await sendYouTubeLiveChatMessage(user.uid, String(body.accountId || ""), String(body.liveChatId || ""), ai.text);
-          await commitCredits(user.uid, reservation?.reservationId, ai.providerId || "youtube_live");
+
           gate.commit();
-          return send(res, 200, { ok: true, reply: ai.text, providerId: ai.providerId || null, creditsCharged: reservation?.amount || 0, data: result });
+           return send(res, 200, { ok: true, reply: ai.text, providerId: ai.providerId || null, data: result });
         } catch (error) {
-          await reverseCredits(user.uid, reservation?.reservationId);
+
           throw error;
         } finally { await gate.release(); }
       }
