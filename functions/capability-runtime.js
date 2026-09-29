@@ -39,6 +39,13 @@ const DEFAULT_MONTHLY_LIMITS = {
   }
 };
 
+const PAYG_CAPABILITIES = new Set([
+  // Organization AI is credit-funded pay-as-you-go; it does not require a
+  // subscription plan. Admin capability controls still govern availability,
+  // rollout, rate limits and the per-request credit price.
+  "capability_organization_studio"
+]);
+
 const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_chat",
   "capability_deep_research",
@@ -64,7 +71,8 @@ const DEFAULT_RUNTIME_CAPABILITIES = new Set([
   "capability_multifile_reasoning",
   "capability_document_analysis",
   "capability_audio_analysis",
-  "capability_video_analysis"
+  "capability_video_analysis",
+  "capability_organization_studio"
 ]);
 
 
@@ -86,7 +94,7 @@ export async function authorizeCapability(uid, controlId) {
     enabled: true,
     killSwitch: false,
     rolloutPercent: 100,
-    creditCost: 0,
+    creditCost: PAYG_CAPABILITIES.has(controlId) ? 1 : 0,
     allowedPlanIds: [],
     config: { fallbackEnabled: true, fallbackProviderIds: ["gemini"] }
   };
@@ -132,36 +140,48 @@ export async function authorizeCapability(uid, controlId) {
       throw new Error("plan_expired");
     }
   }
+  const isPaygCapability = PAYG_CAPABILITIES.has(controlId);
+
+  // Pay-as-you-go Organization AI is funded directly from the user's shared
+  // Firebase credit balance. Do not require a subscription/plan entitlement.
+  // The admin capability record can still set a custom creditCost.
   const configuredPlans = Array.isArray(effectiveControl.allowedPlanIds)
     ? effectiveControl.allowedPlanIds.map(String).filter(Boolean)
     : [];
   const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
 
-  // Resolve plan availability from the same canonical catalog used by the native catalog.
-  // This prevents a deactivated free plan from silently continuing to grant access.
-  const planCatalogSnap = await db.collection("planCatalog").doc("config").get();
-  const catalogSections = planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
-    ? planCatalogSnap.data().catalog.sections
-    : COMMERCIAL_CATALOG.sections;
-  const catalogPlans = Object.values(catalogSections || {}).flat().filter(Boolean);
-  const catalogById = new Map(catalogPlans.map(item => [String(item.id || ""), item]));
-  const activePlans = plans.filter(id => catalogById.get(id)?.active !== false);
-  const freePlanId = activePlans.find(id => {
-    const item = catalogById.get(id);
-    return item?.productType === "free" || item?.price?.free != null || item?.paymentChannel === "free";
-  }) || null;
-
-  if (plans.length) {
-    // Existing paid subscribers keep access even if the admin deactivates the plan.
-    // Deactivation controls catalog visibility and new purchases, not already-granted access.
-    if (planId) {
-      if (!plans.includes(planId)) throw new Error("plan_not_entitled");
-    } else if (!freePlanId) {
-      throw new Error("plan_not_entitled");
+  let effectivePlanId = planId || "";
+  if (!isPaygCapability) {
+      const plans = configuredPlans.length ? configuredPlans : (DEFAULT_ALLOWED_PLAN_IDS[controlId] || []);
+  
+    // Resolve plan availability from the same canonical catalog used by the native catalog.
+    // This prevents a deactivated free plan from silently continuing to grant access.
+    const planCatalogSnap = await db.collection("planCatalog").doc("config").get();
+    const catalogSections = planCatalogSnap.exists && planCatalogSnap.data()?.catalog?.sections
+      ? planCatalogSnap.data().catalog.sections
+      : COMMERCIAL_CATALOG.sections;
+    const catalogPlans = Object.values(catalogSections || {}).flat().filter(Boolean);
+    const catalogById = new Map(catalogPlans.map(item => [String(item.id || ""), item]));
+    const activePlans = plans.filter(id => catalogById.get(id)?.active !== false);
+    const freePlanId = activePlans.find(id => {
+      const item = catalogById.get(id);
+      return item?.productType === "free" || item?.price?.free != null || item?.paymentChannel === "free";
+    }) || null;
+  
+    if (plans.length) {
+      // Existing paid subscribers keep access even if the admin deactivates the plan.
+      // Deactivation controls catalog visibility and new purchases, not already-granted access.
+      if (planId) {
+        if (!plans.includes(planId)) throw new Error("plan_not_entitled");
+      } else if (!freePlanId) {
+        throw new Error("plan_not_entitled");
+      }
     }
+  
+      effectivePlanId = planId || freePlanId || "";
+  
   }
 
-  const effectivePlanId = planId || freePlanId || "";
   const monthlyLimit = DEFAULT_MONTHLY_LIMITS[controlId]?.[effectivePlanId] ?? null;
   let monthlyRef = null;
   if (monthlyLimit !== null && Number.isFinite(Number(monthlyLimit))) {
