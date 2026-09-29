@@ -2356,6 +2356,8 @@ private fun DataAnalysisWorkspace() {
             }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
         }
     }
+    LaunchedEffect(active) { if (!active && flashlightOn) toggleFlashlight() }
+
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Data Analyst", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Analyze CSV, JSON and supported text-based datasets, then generate an AI explanation or report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2636,7 +2638,7 @@ fun CameraWorkspace() {
                         contentScale = ContentScale.Crop
                     )
                     Column(Modifier.weight(1f)) {
-                        Text("Screen Viewer", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Screen mode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("AI is listening and viewing your shared screen. Responses are voice-only.", style = MaterialTheme.typography.bodyMedium)
                     }
                     Icon(Icons.Default.GraphicEq, contentDescription = "Voice active", tint = MaterialTheme.colorScheme.primary)
@@ -2801,7 +2803,7 @@ fun CameraWorkspace() {
             title = { Text("Camera access") },
             text = { Text("BQ Sqwad AI needs camera access only while you use Live Camera. A visible Android live-session indicator stays on while the camera is active.") },
             confirmButton = {
-                TextButton(onClick = { permissionExplanation = false; launcher.launch(Manifest.permission.CAMERA) }) { Text("Continue") }
+                TextButton(onClick = { permissionExplanation = false; startLiveCamera() }) { Text("Continue") }
             },
             dismissButton = { TextButton(onClick = { permissionExplanation = false }) { Text("Not now") } }
         )
