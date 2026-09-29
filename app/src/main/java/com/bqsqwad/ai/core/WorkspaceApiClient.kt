@@ -379,6 +379,19 @@ class WorkspaceApiClient {
             if (instagramAccountId != null) put("instagramAccountId", instagramAccountId.take(120))
         })
 
+    suspend fun tiktokProfile(accountId:String): JSONObject =
+        request("/social/tiktok/profile?accountId=" + java.net.URLEncoder.encode(accountId, "UTF-8"), "GET")
+
+    suspend fun tiktokVideos(accountId:String): JSONObject =
+        request("/social/tiktok/videos?accountId=" + java.net.URLEncoder.encode(accountId, "UTF-8"), "GET")
+
+    suspend fun publishTikTok(accountId:String, workspaceId:String, mediaUrl:String, title:String, privacyLevel:String = "SELF_ONLY", isAigc:Boolean = true): JSONObject =
+        request("/social/publish", payload=JSONObject().apply {
+            put("accountId", accountId.take(160)); put("workspaceId", workspaceId.take(120))
+            put("mediaUrl", mediaUrl.take(4000)); put("text", title.take(5000))
+            put("title", title.take(2200)); put("privacyLevel", privacyLevel.take(40)); put("isAigc", isAigc)
+        })
+
     suspend fun businessAdvancedAi(payload: JSONObject): JSONObject =
         request("/business/advanced-ai", payload=payload)
 
