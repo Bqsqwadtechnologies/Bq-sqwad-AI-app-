@@ -1,6 +1,7 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { COMMERCIAL_CATALOG } from "./plan-catalog.js";
+import { getOrganizationAccess, getOrganizationTestSession } from "./organization-plans.js";
 
 function requirementHash(value) {
   let hash = 2166136261;
@@ -108,7 +109,19 @@ export async function authorizeCapability(uid, controlId) {
   };
   // The sole super-admin is always entitled to operate without consuming customer credits.
   // Test Mode remains available for QA-specific behavior, but is not required for normal admin use.
-  if (isSuperAdmin) return { control: effectiveControl, planId: "admin-unlimited", creditCost: 0, commit: () => {}, release: async () => {} };
+  if (isSuperAdmin) {
+    const testSession = controlId === "capability_organization_studio"
+      ? await getOrganizationTestSession(uid).catch(() => ({ enabled: false }))
+      : null;
+    return {
+      control: effectiveControl,
+      planId: testSession?.enabled ? testSession.planId : "admin-unlimited",
+      organizationPlanId: testSession?.enabled ? testSession.planId : null,
+      creditCost: 0,
+      commit: () => {},
+      release: async () => {}
+    };
+  }
 
   if (effectiveControl.enabled === false || effectiveControl.killSwitch === true) {
     throw new Error("capability_disabled:" + controlId);
@@ -128,9 +141,16 @@ export async function authorizeCapability(uid, controlId) {
 
   const isPaygCapability = PAYG_CAPABILITIES.has(controlId);
 
-  // Subscription expiry/plan entitlement is deliberately skipped for PAYG
-  // Organization AI. The user pays from the shared Firebase credit balance.
+  // Organization AI is admin-activated pay-as-you-go. It has no customer-facing
+  // subscription price; usage is charged from the separate Organization USD wallet.
   let planId = "";
+  let organizationPlanId = null;
+  if (isPaygCapability && controlId === "capability_organization_studio") {
+    const access = await getOrganizationAccess(uid);
+    if (!access.activated) throw new Error("organization_plan_not_activated");
+    organizationPlanId = access.planId;
+    planId = access.planId || "";
+  }
   if (!isPaygCapability) {
     const entitlement = await db.collection("entitlements").doc(uid).get();
     const entitlementData = entitlement.exists ? (entitlement.data() || {}) : {};
@@ -282,7 +302,8 @@ export async function authorizeCapability(uid, controlId) {
   return {
     control,
     planId: effectivePlanId || null,
-    creditCost: isPaygCapability ? Math.max(1, Number(effectiveControl.creditCost || 1)) : Math.max(0, Number(effectiveControl.creditCost || 0)),
+    organizationPlanId,
+    creditCost: isPaygCapability ? 0 : Math.max(0, Number(effectiveControl.creditCost || 0)),
     commit: () => { committed = true; },
     release: async () => {
       if (released) return;
