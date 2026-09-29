@@ -48,9 +48,8 @@ const DEFAULT_DAILY_LIMITS = {
 };
 
 const PAYG_CAPABILITIES = new Set([
-  // Organization AI is credit-funded pay-as-you-go; it does not require a
-  // subscription plan. Admin capability controls still govern availability,
-  // rollout, rate limits and the per-request credit price.
+  // Organization AI is administrator-activated pay-as-you-go; it has no customer
+  // subscription price. Usage is charged from the separate Organization USD wallet.
   "capability_organization_studio"
 ]);
 
