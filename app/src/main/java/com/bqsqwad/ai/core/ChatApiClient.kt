@@ -34,7 +34,7 @@ class ChatApiClient(
     ): ChatReply =
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
-            val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
+            val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
                 readTimeout = 120000
@@ -87,7 +87,7 @@ class ChatApiClient(
     ): ChatReply = withTimeout(120000) {
         withContext(Dispatchers.IO) {
             val token = authToken()
-            val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
+            val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
                 readTimeout = 120000
@@ -98,41 +98,88 @@ class ChatApiClient(
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
             }
-            connection.outputStream.use {
-                it.write(JSONObject().apply {
-                    put("capability", capability)
-                    put("message", message)
-                    if (!system.isNullOrBlank()) put("system", system)
-                }.toString().toByteArray())
-            }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            connection.disconnect()
-            val body = runCatching { JSONObject(raw) }.getOrNull()
-            if (status !in 200..299) {
-                val detail = body?.optString("error").orEmpty()
-                    .ifBlank { raw.trim().take(1000) }
-                    .ifBlank { "AI request failed (HTTP " + status + ")." }
-                val friendly = when {
-                    detail.contains("consent_required", ignoreCase = true) -> "Please accept the required BQ Sqwad AI consent before sending messages."
-                    detail.contains("Authentication required", ignoreCase = true) -> "Please sign in to use this AI feature."
-                    detail.contains("Insufficient credits", ignoreCase = true) -> "You do not have enough credits for this AI request."
-                    detail.contains("capability_disabled", ignoreCase = true) -> "This AI capability is currently disabled by the administrator."
-                    else -> detail
+
+            try {
+                connection.outputStream.use {
+                    it.write(JSONObject().apply {
+                        put("capability", capability)
+                        put("message", message)
+                        if (!system.isNullOrBlank()) put("system", system)
+                    }.toString().toByteArray())
                 }
-                throw IllegalStateException(friendly)
+
+                val status = connection.responseCode
+                if (status !in 200..299) {
+                    val raw = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    val body = runCatching { JSONObject(raw) }.getOrNull()
+                    val detail = body?.optString("error").orEmpty()
+                        .ifBlank { raw.trim().take(1000) }
+                        .ifBlank { "AI request failed (HTTP $status)." }
+                    val friendly = when {
+                        detail.contains("consent_required", ignoreCase = true) -> "Please accept the required BQ Sqwad AI consent before sending messages."
+                        detail.contains("Authentication required", ignoreCase = true) -> "Please sign in to use this AI feature."
+                        detail.contains("Insufficient credits", ignoreCase = true) -> "You do not have enough credits for this AI request."
+                        detail.contains("capability_disabled", ignoreCase = true) -> "This AI capability is currently disabled by the administrator."
+                        else -> detail
+                    }
+                    throw IllegalStateException(friendly)
+                }
+
+                val reader = connection.inputStream.bufferedReader()
+                val textBuilder = StringBuilder()
+                var providerId: String? = null
+                var modelId: String? = null
+                var eventData = StringBuilder()
+                var completed = false
+
+                fun processEvent(data: String) {
+                    val trimmed = data.trim()
+                    if (trimmed.isEmpty() || trimmed == "[DONE]") return
+                    val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+                    when (json.optString("type")) {
+                        "delta" -> {
+                            val delta = json.optString("text")
+                            if (delta.isNotEmpty()) {
+                                textBuilder.append(delta)
+                                onDelta(delta)
+                            }
+                        }
+                        "completed" -> {
+                            providerId = json.optString("providerId").takeIf { it.isNotBlank() }
+                            modelId = json.optString("modelId").takeIf { it.isNotBlank() }
+                            completed = true
+                        }
+                        "error" -> {
+                            throw IllegalStateException(json.optString("message").ifBlank { "Streaming failed." })
+                        }
+                    }
+                }
+
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isEmpty()) {
+                        processEvent(eventData.toString())
+                        eventData = StringBuilder()
+                    } else if (line.startsWith("data:")) {
+                        if (eventData.isNotEmpty()) eventData.append('\n')
+                        eventData.append(line.removePrefix("data:").trimStart())
+                    }
+                }
+                if (eventData.isNotEmpty()) processEvent(eventData.toString())
+
+                if (!completed) throw IllegalStateException("AI streaming ended before completion.")
+                val finalText = textBuilder.toString().trim()
+                if (finalText.isBlank()) throw IllegalStateException("AI service returned no text.")
+
+                ChatReply(
+                    text = finalText,
+                    providerId = providerId,
+                    modelId = modelId,
+                    creditsCharged = 0.0
+                )
+            } finally {
+                connection.disconnect()
             }
-            if (body == null) throw IllegalStateException("AI service returned an invalid response.")
-            val reply = ChatReply(
-                text = body.optString("text").trim(),
-                providerId = body.optString("providerId").takeIf { it.isNotBlank() },
-                modelId = body.optString("modelId").takeIf { it.isNotBlank() },
-                creditsCharged = body.optDouble("creditsCharged", 0.0)
-            )
-            if (reply.text.isBlank()) throw IllegalStateException("AI service returned no text.")
-            onDelta(reply.text)
-            reply
         }
     }
 
