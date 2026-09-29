@@ -38,7 +38,7 @@ data class PlayPurchaseState(
 class PlayBillingClient(
     private val activity: Activity,
     private val onPurchaseState: (PlayPurchaseState) -> Unit = {},
-    private val organizationContext: Boolean = false
+    private val catalogContext: String? = null
 ) : BillingClientStateListener {
 
     private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
