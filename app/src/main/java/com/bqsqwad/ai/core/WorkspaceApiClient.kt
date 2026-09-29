@@ -82,6 +82,19 @@ class WorkspaceApiClient {
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
 
+    suspend fun adminStaff():JSONObject = request("/admin/staff","GET")
+    suspend fun adminStaffRoles():JSONObject = request("/admin/staff/roles","GET")
+    suspend fun setAdminStaff(uid:String, role:String, active:Boolean = true, permissions:List<String> = emptyList()):JSONObject =
+        request("/admin/staff", payload=JSONObject().apply {
+            put("uid", uid); put("role", role); put("active", active); put("permissions", JSONArray(permissions))
+        })
+    suspend fun removeAdminStaff(uid:String):JSONObject =
+        request("/admin/staff", method="DELETE", payload=JSONObject().put("uid", uid))
+    suspend fun broadcastAdminNotification(title:String, body:String, data:JSONObject = JSONObject()):JSONObject =
+        request("/admin/notifications/broadcast", payload=JSONObject().apply {
+            put("title", title); put("body", body); put("data", data)
+        })
+
     suspend fun adminPlanCatalog():JSONObject = request("/admin/plan-catalog","GET")
     suspend fun adminBusinessSubscriptions(): JSONObject = request("/admin/business/subscriptions", "GET")
 
