@@ -129,6 +129,7 @@ class ChatApiClient(
                 val textBuilder = StringBuilder()
                 var providerId: String? = null
                 var modelId: String? = null
+                var creditsCharged = 0.0
                 var eventData = StringBuilder()
                 var completed = false
 
@@ -147,6 +148,7 @@ class ChatApiClient(
                         "completed" -> {
                             providerId = json.optString("providerId").takeIf { it.isNotBlank() }
                             modelId = json.optString("modelId").takeIf { it.isNotBlank() }
+                            creditsCharged = json.optDouble("creditsCharged", 0.0)
                             completed = true
                         }
                         "error" -> {
@@ -175,7 +177,7 @@ class ChatApiClient(
                     text = finalText,
                     providerId = providerId,
                     modelId = modelId,
-                    creditsCharged = 0.0
+                    creditsCharged = creditsCharged
                 )
             } finally {
                 connection.disconnect()
