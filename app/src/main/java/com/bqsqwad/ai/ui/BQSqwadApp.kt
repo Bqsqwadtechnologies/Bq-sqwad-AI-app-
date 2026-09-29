@@ -2666,7 +2666,7 @@ fun CameraWorkspace() {
                             }
                         }
                     ) {
-                        Icon(Icons.Default.YouTube, contentDescription = null)
+                        Icon(Icons.Default.LiveTv, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Open YouTube Live")
                     }
