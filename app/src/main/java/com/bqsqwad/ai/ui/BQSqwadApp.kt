@@ -2623,7 +2623,7 @@ fun CameraWorkspace() {
         }
         if (screenActive) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 shape = RoundedCornerShape(24.dp)
             ) {
                 Row(
@@ -2648,7 +2648,7 @@ fun CameraWorkspace() {
         } else if (granted && active) {
             val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
             Box(
-                Modifier.fillMaxWidth().heightIn(min = 420.dp, max = 760.dp)
+                Modifier.fillMaxWidth().weight(1f).heightIn(min = 360.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.Black)
             ) {
