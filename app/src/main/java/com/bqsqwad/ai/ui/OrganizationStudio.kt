@@ -187,45 +187,6 @@ fun OrganizationStudioWorkspace() {
             .onFailure { /* first-run defaults remain safe */ }
     }
 
-    LaunchedEffect(liveSessionId, youtubeAccountId, youtubeBroadcastId) {
-        val sessionId = liveSessionId ?: return@LaunchedEffect
-        if (youtubeAccountId.isBlank() || youtubeBroadcastId.isBlank()) return@LaunchedEffect
-        var failures = 0
-        while (liveSessionId == sessionId) {
-            try {
-                val result = api.organizationLiveBillingHeartbeat(sessionId, youtubeAccountId, youtubeBroadcastId)
-                failures = 0
-                val action = result.optString("action", "continue")
-                val balance = result.optDouble("balanceUsd", 0.0)
-                billingWarning = when (action) {
-                    "grace" -> result.optString("message", "Your Organization usage balance is empty. Add funds now to keep the live stream running.")
-                    "stop" -> result.optString("message", "Your Organization usage balance is empty. The live stream has been stopped.")
-                    else -> if (result.optBoolean("lowBalance", false)) "Organization balance is low: ${"%.2f".format(java.util.Locale.US, balance)} remaining." else null
-                }
-                if (action == "stop") {
-                    context.startService(Intent(context, LiveMediaForegroundService::class.java).setAction(LiveMediaForegroundService.ACTION_STOP))
-                    liveSessionId = null
-                    liveEndpoint = null
-                    outputStatus = "Live stopped: Organization balance exhausted"
-                    break
-                }
-                val interval = result.optInt("billingIntervalSeconds", organizationBilling?.optInt("liveBillingIntervalSeconds", 10) ?: 10).coerceIn(5, 60)
-                delay(interval * 1000L)
-            } catch (t: Throwable) {
-                failures += 1
-                if (failures >= 2) {
-                    context.startService(Intent(context, LiveMediaForegroundService::class.java).setAction(LiveMediaForegroundService.ACTION_STOP))
-                    liveSessionId = null
-                    liveEndpoint = null
-                    billingWarning = "Billing connection was lost. The live stream was stopped to prevent unbilled usage."
-                    outputStatus = "Live stopped: billing connection lost"
-                    break
-                }
-                delay(5000)
-            }
-        }
-    }
-
     LaunchedEffect(liveSessionId, selectedYoutubeAccountId, aiLiveMode) {
         if (liveSessionId.isNullOrBlank() || selectedYoutubeAccountId.isBlank() || aiLiveMode == "host_only") return@LaunchedEffect
         val organizationId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
