@@ -302,24 +302,53 @@ fun OrganizationStudioWorkspace() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Pay-as-you-go", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Organization AI is charged from the shared Firebase credit balance. No Organization subscription is required for usage.",
+                        "Organization AI uses a separate USD usage balance. Consumer plans and consumer credits are not used here.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     val billing = organizationBilling
                     if (billing != null) {
-                        val total = billing.optDouble("totalCredits", 0.0)
-                        val assistantRate = billing.optDouble("assistantCreditCost", 1.0)
-                        Text("Available credits: ${"%.2f".format(total)}", fontWeight = FontWeight.SemiBold)
-                        Text("Organization AI request: ${"%.2f".format(assistantRate)} credit(s)")
-                        val liveRates = billing.optJSONObject("liveCreditRates")
+                        val total = billing.optDouble("balanceUsd", 0.0)
+                        val assistantRate = billing.optDouble("assistantPriceUsd", 1.0)
+                        Text("Available Organization funds: ${"%.2f".format(java.util.Locale.US, total)}", fontWeight = FontWeight.SemiBold)
+                        Text("Organization AI request: ${"%.2f".format(java.util.Locale.US, assistantRate)}")
+                        val liveRates = billing.optJSONObject("liveRateUsdPerMinute")
                         Text(
-                            "Live AI: host ${liveRates?.optDouble("host_only", 0.25) ?: 0.25} • " +
-                                "moderated ${liveRates?.optDouble("moderated_audience", 0.55) ?: 0.55} • " +
-                                "full ${liveRates?.optDouble("full_audience", 0.95) ?: 0.95} credits/min"
+                            "Live usage: host ${"%.2f".format(java.util.Locale.US, liveRates?.optDouble("host_only", 0.25) ?: 0.25)}/min • " +
+                                "moderated ${"%.2f".format(java.util.Locale.US, liveRates?.optDouble("moderated_audience", 0.55) ?: 0.55)}/min • " +
+                                "full ${"%.2f".format(java.util.Locale.US, liveRates?.optDouble("full_audience", 0.95) ?: 0.95)}/min"
                         )
+                        billingWarning?.let { warning ->
+                            Text(warning, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                        }
                     } else {
                         Text("Billing information is loading…")
                     }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Add Organization funds", style = MaterialTheme.typography.titleLarge)
+                    Text("Deposit usage funds through Google Play. These funds are non-transferable and can only pay for Organization AI usage.")
+                    val deposits = organizationBilling?.optJSONArray("depositProducts") ?: org.json.JSONArray()
+                    for (i in 0 until deposits.length()) {
+                        val item = deposits.optJSONObject(i) ?: continue
+                        val productId = item.optString("productId")
+                        val amount = item.optDouble("amountUsd", 0.0)
+                        Button(
+                            enabled = productId.isNotBlank() && playBilling?.isReady() == true,
+                            onClick = {
+                                val result = playBilling?.launchPurchase(productId)
+                                billingWarning = if (result?.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
+                                    "Google Play checkout opened for ${"%.2f".format(java.util.Locale.US, amount)}."
+                                else result?.debugMessage?.ifBlank { "Google Play checkout could not start." } ?: "Google Play billing is not ready."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Deposit ${"%.2f".format(java.util.Locale.US, amount)}") }
+                    }
+                    Text("The secure server verifies the Google Play purchase before adding the balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
