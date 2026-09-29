@@ -930,7 +930,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
         val activeCapability = selectedAdvanced?.capability ?: "chat"
-        val activeSystem = selectedAdvanced?.let { "You are operating in the BQ Sqwad AI ${it.title} mode. Use the capabilities of this mode when relevant, while remaining accurate about what you can and cannot do." }
+        val conversationContext = messages
+            .filter { it.text.isNotBlank() && it.text != "Generating image…" }
+            .takeLast(20)
+            .joinToString("\n\n") { msg ->
+                val role = if (msg.mine) "User" else "BQ Sqwad AI"
+                role + ": " + msg.text.take(4000)
+            }
+            .takeLast(16000)
+        val activeSystem = listOfNotNull(
+            selectedAdvanced?.let { "You are operating in the BQ Sqwad AI ${it.title} mode. Use the capabilities of this mode when relevant, while remaining accurate about what you can and cannot do." },
+            conversationContext.takeIf { it.isNotBlank() }?.let {
+                "Recent conversation context. Continue the conversation naturally and do not repeat questions already answered:\n" + it
+            }
+        ).joinToString("\n\n")
         val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
         if (imageRequest) {
             val promptText = text.trim()
