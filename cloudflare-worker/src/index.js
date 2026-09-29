@@ -560,7 +560,7 @@ export default {
       return await proxyUpstream(request, url);
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /disabled/.test(message) ? 403 : 500;
+      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : 500;
       return json({error:message},status);
     }
   }
