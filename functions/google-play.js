@@ -106,7 +106,17 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   const existing = await existingRef.get();
   if (existing.exists && existing.data()?.uid !== uid) throw new Error("play_purchase_owned_by_another_account");
   if (existing.exists && existing.data()?.uid === uid && existing.data()?.verified === true) {
-    return { ok: true, alreadyProcessed: true, state: existing.data()?.state || "verified" };
+    const processed = existing.data() || {};
+    const existingMapping = productMappings.find(p => String(p.productId || "") === String(processed.productId || productId));
+    if (existingMapping?.organizationWalletTopup === true && Number(existingMapping.walletTopupCents || 0) > 0) {
+      await creditOrganizationWalletOnce(uid, Number(existingMapping.walletTopupCents), {
+        productId: String(processed.productId || productId),
+        provider: "google_play",
+        providerReference: "GOOGLEPLAY-" + playPurchaseId(purchaseToken),
+        note: "Verified Organization AI usage balance deposit (idempotent retry)"
+      });
+    }
+    return { ok: true, alreadyProcessed: true, state: processed.state || "verified" };
   }
   if (requestedMapping.planId) {
     const entitlementSnap = await db.collection("entitlements").doc(uid).get();
