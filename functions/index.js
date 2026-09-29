@@ -588,6 +588,35 @@ export const bqSqwadApi = onRequest(
         } finally { await gate.release(); }
       }
 
+      if (req.method === "GET" && path === "organization/billing") {
+        const controlSnap = await getFirestore().collection("adminAdvancedOptions").doc("capability_organization_studio").get();
+        const control = controlSnap.exists ? (controlSnap.data() || {}) : {};
+        const userSnap = await getFirestore().collection("users").doc(user.uid).get();
+        const profile = userSnap.exists ? (userSnap.data() || {}) : {};
+        const expiry = profile.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
+        const subscriptionCredits = Number.isFinite(expiry) && expiry > Date.now()
+          ? Math.max(0, Number(profile.subCredits || 0))
+          : 0;
+        const permanentCredits = Math.max(0, Number(profile.credits || 0));
+        const legacySnap = await getFirestore().collection("creditBalances").doc(user.uid).get();
+        const legacy = legacySnap.exists ? (legacySnap.data() || {}) : {};
+        return send(res, 200, {
+          mode: "pay_as_you_go",
+          currency: "credits",
+          assistantCreditCost: Math.max(1, Number(control.creditCost || 1)),
+          permanentCredits,
+          subscriptionCredits,
+          totalCredits: permanentCredits + subscriptionCredits,
+          reservedCredits: Math.max(0, Number(legacy.reserved || 0)),
+          liveCreditRates: {
+            host_only: 0.25,
+            moderated_audience: 0.55,
+            full_audience: 0.95
+          },
+          note: "Organization AI usage is charged from the shared Firebase credit balance. Rates are admin-controlled."
+        });
+      }
+
       if (req.method === "GET" && path === "organization") {
         return send(res, 200, await getOrganization(user.uid));
       }
