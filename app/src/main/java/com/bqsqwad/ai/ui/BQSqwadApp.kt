@@ -646,6 +646,7 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
 
 @Composable
 private fun MainShell(modifier: Modifier) {
+    val context = LocalContext.current
     val email = FirebaseAuth.getInstance().currentUser?.email.orEmpty()
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
