@@ -32,6 +32,7 @@ import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settin
 import { getOrganizationWallet, organizationWalletTopUps, chargeOrganizationWallet, startOrganizationLiveBilling, getOrganizationLiveBilling, heartbeatOrganizationLiveBilling, stopOrganizationLiveBilling, organizationBillingAdminConfig } from "./organization-billing.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, listOrganizationEntitlements, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans.js";
+import { listAdminStaff, setAdminStaff, removeAdminStaff, broadcastAdminNotification, ADMIN_STAFF_ROLES } from "./admin-operations.js";
 
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
@@ -144,9 +145,19 @@ async function requireRequiredConsent(uid) {
 
 async function adminFromRequest(req) {
   const user = await userFromRequest(req);
-  const admin = await assertSuperAdmin(user);
-  await requireStepUp(admin.uid);
-  return admin;
+  try {
+    const admin = await assertSuperAdmin(user);
+    await requireStepUp(admin.uid);
+    return { ...admin, adminRole: "super_admin", adminPermissions: ["*"] };
+  } catch (error) {
+    const staff = await getFirestore().collection("adminStaff").doc(user.uid).get();
+    const data = staff.exists ? staff.data() || {} : {};
+    if (data.active !== true || !Array.isArray(data.permissions) || !data.permissions.includes("admin_console")) {
+      throw error;
+    }
+    await requireStepUp(user.uid);
+    return { ...user, adminRole: String(data.role || "staff"), adminPermissions: data.permissions };
+  }
 }
 
 export const bqSqwadApi = onRequest(
@@ -1979,6 +1990,31 @@ export const bqSqwadApi = onRequest(
         } catch {
           return send(res, 403, { allowed: false, error: "Admin access required" });
         }
+      }
+
+      if (req.method === "GET" && path === "admin/staff/roles") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, { roles: ADMIN_STAFF_ROLES, actorRole: admin.adminRole });
+      }
+
+      if (req.method === "GET" && path === "admin/staff") {
+        await adminFromRequest(req);
+        return send(res, 200, { staff: await listAdminStaff() });
+      }
+
+      if (req.method === "POST" && path === "admin/staff") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await setAdminStaff(admin.uid, body));
+      }
+
+      if (req.method === "DELETE" && path === "admin/staff") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await removeAdminStaff(admin.uid, String(body.uid || "")));
+      }
+
+      if (req.method === "POST" && path === "admin/notifications/broadcast") {
+        const admin = await adminFromRequest(req);
+        return send(res, 200, await broadcastAdminNotification(admin.uid, body));
       }
 
       if (req.method === "GET" && path === "admin/test-mode") {
