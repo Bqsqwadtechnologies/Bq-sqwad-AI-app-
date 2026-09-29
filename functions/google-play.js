@@ -2,6 +2,7 @@ import { restoreServicesAfterRenewal, deactivateExpiredUserServices } from "./ca
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { canonicalPlayProducts } from "./play-catalog.js";
+import { creditOrganizationWalletOnce } from "./organization-billing.js";
 
 const PACKAGE_NAME = "com.bqsqwad.ai";
 
@@ -242,6 +243,15 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     await playApi("purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken) + ":consume", "POST", {});
   } else {
     await playApi("purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken) + ":acknowledge", "POST", {});
+  }
+
+  if (Number(mapping.walletTopupCents || 0) > 0 && mapping.organizationWalletTopup === true) {
+    await creditOrganizationWalletOnce(uid, Number(mapping.walletTopupCents), {
+      productId,
+      provider: "google_play",
+      providerReference: "GOOGLEPLAY-" + playPurchaseId(purchaseToken),
+      note: "Verified Organization AI usage balance deposit"
+    });
   }
 
   await restoreServicesAfterRenewal(db, uid);
