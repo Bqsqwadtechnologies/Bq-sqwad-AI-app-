@@ -15,6 +15,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <queries>
+        <package android:name="com.google.android.youtube" />
+        <intent>
+            <action android:name="com.google.android.youtube.intent.action.CREATE_LIVE_STREAM" />
+        </intent>
+    </queries>
     <application
         android:icon="@drawable/bq_sqwad_logo"
         android:roundIcon="@drawable/bq_sqwad_logo"
