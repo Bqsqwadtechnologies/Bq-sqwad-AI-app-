@@ -340,7 +340,7 @@ async function stream(request, user, body) {
                   emit({ type: "delta", text: parsed.delta });
                 } else if (parsed.type === "response.completed") {
                   completed = true;
-                  emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId });
+                  emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId, creditsCharged: reservation.amount });
                 } else if (parsed.type === "error") {
                   throw new Error(parsed.error?.message || "Streaming failed");
                 }
@@ -349,7 +349,7 @@ async function stream(request, user, body) {
             if (!completed) throw new Error("stream_incomplete");
           } else {
             emit({ type: "delta", text: provider.text });
-            emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId });
+            emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId, creditsCharged: reservation.amount });
           }
           await commitCredits(user.uid, reservation.reservationId, provider.providerId);
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
