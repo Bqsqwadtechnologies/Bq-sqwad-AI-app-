@@ -67,6 +67,24 @@ export async function getOrganizationCatalog() {
 
 export async function getOrganizationAccess(uid, options = {}) {
   const db = getFirestore();
+  const testRef = db.collection("organizationTestSessions").doc(uid);
+  const testSnap = await testRef.get();
+  const testData = testSnap.exists ? testSnap.data() || {} : {};
+  const testExpiresMs = testData.expiresAt?.toMillis?.() || Date.parse(String(testData.expiresAt || ""));
+  const testActive = testData.enabled === true && (!Number.isFinite(testExpiresMs) || testExpiresMs > Date.now());
+  const testPlan = testActive ? findOrganizationPlan(testData.planId) : null;
+  if (testPlan) {
+    return {
+      uid,
+      activated: true,
+      planId: testPlan.id,
+      plan: testPlan,
+      testMode: true,
+      source: "admin_test_session",
+      activatedAt: null,
+      expiresAt: testData.expiresAt || null
+    };
+  }
   const entitlement = await db.collection("organizationEntitlements").doc(uid).get();
   const entitlementData = entitlement.exists ? entitlement.data() || {} : {};
   let test = options.testPlanId ? findOrganizationPlan(options.testPlanId) : null;
