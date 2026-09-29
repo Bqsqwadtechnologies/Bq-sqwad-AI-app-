@@ -2022,12 +2022,22 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "credits") {
-        const snap = await getFirestore().collection("creditBalances").doc(user.uid).get();
-        const data = snap.exists ? snap.data() : {};
+        const userSnap = await getFirestore().collection("users").doc(user.uid).get();
+        const profile = userSnap.exists ? (userSnap.data() || {}) : {};
+        const expiry = profile.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
+        const subscription = Number.isFinite(expiry) && expiry > Date.now()
+          ? Math.max(0, Number(profile.subCredits || 0))
+          : 0;
+        const permanent = Math.max(0, Number(profile.credits || 0));
+        const legacySnap = await getFirestore().collection("creditBalances").doc(user.uid).get();
+        const legacy = legacySnap.exists ? (legacySnap.data() || {}) : {};
         return send(res, 200, {
-          available: Number(data.available || 0),
-          reserved: Number(data.reserved || 0),
-          updatedAt: data.updatedAt || null
+          available: permanent + subscription,
+          permanent,
+          subscription,
+          reserved: Math.max(0, Number(legacy.reserved || 0)),
+          updatedAt: profile.updatedAt || legacy.updatedAt || null,
+          source: "firebase_users"
         });
       }
 
