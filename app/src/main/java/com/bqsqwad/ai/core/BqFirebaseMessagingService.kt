@@ -84,8 +84,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             runCatching {
                 val idToken = com.google.android.gms.tasks.Tasks.await(user.getIdToken(false)).token
                     ?: return@runCatching
-                val projectId = com.google.firebase.FirebaseApp.getInstance().options.projectId
-                val url = URL("https://europe-west1-$projectId.cloudfunctions.net/bqSqwadApi$BASE_PATH")
+                val url = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev$BASE_PATH")
                 val c = url.openConnection() as HttpURLConnection
                 c.requestMethod = "POST"
                 c.connectTimeout = 15000
