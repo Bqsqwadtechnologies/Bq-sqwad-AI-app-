@@ -1256,6 +1256,9 @@ export const bqSqwadApi = onRequest(
             id: doc.id,
             claim: String(data.claim || ""),
             analysis: String(data.analysis || ""),
+            sources: Array.isArray(data.sources) ? data.sources : [],
+            depth: String(data.depth || "standard"),
+            planId: String(data.planId || "truthguardfree"),
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || null)
           };
         }).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
@@ -1286,6 +1289,9 @@ export const bqSqwadApi = onRequest(
           const evidence = sources.map((source, index) =>
             "[" + (index + 1) + "] " + source.title + "\nURL: " + source.url + "\n" + source.snippet
           ).join("\n\n");
+          const settingsSnap = await getFirestore().collection("truthGuardSettings").doc(user.uid).get();
+          const truthSettings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
+          const conservative = truthSettings.conservativeVerdicts !== false;
           const result = await runAi({
             capability: "truth_guard",
             message: claim,
@@ -1294,7 +1300,7 @@ export const bqSqwadApi = onRequest(
               "Evaluate only the supplied claim and retrieved evidence.",
               "Separate supported evidence, conflicting evidence, and information that cannot be established.",
               "Do not invent sources, facts, quotes, or certainty.",
-              "Use cautious language when evidence is incomplete or conflicting.",
+              conservative ? "Use cautious language when evidence is incomplete or conflicting." : "State uncertainty explicitly without adding unsupported claims.",
               deepResearch ? "Perform a deeper comparison across the supplied sources." : "Use a concise evidence check.",
               "Return a clear verdict, confidence level, explanation, and source-grounded reasoning.",
               "Evidence:",
@@ -1302,24 +1308,27 @@ export const bqSqwadApi = onRequest(
             ].join("\n")
           });
           const analysis = String(result.text || "");
+          const saveHistoryEnabled = truthSettings.saveHistory !== false;
           const ref = getFirestore().collection("truthGuardChecks").doc();
-          await ref.set({
-            uid: user.uid,
-            claim,
-            analysis,
-            sources,
-            depth: deepResearch ? "deep" : "standard",
-            planId,
-            providerId: result.providerId || null,
-            modelId: result.modelId || null,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
-          });
+          if (saveHistoryEnabled) {
+            await ref.set({
+              uid: user.uid,
+              claim,
+              analysis,
+              sources,
+              depth: deepResearch ? "deep" : "standard",
+              planId,
+              providerId: result.providerId || null,
+              modelId: result.modelId || null,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+            });
+          }
           await commitCredits(user.uid, reservation.reservationId, result.providerId || "truth_guard");
           gate.commit();
           return send(res, 200, {
             ok: true,
-            id: ref.id,
+            id: saveHistoryEnabled ? ref.id : null,
             claim,
             analysis,
             sources,
