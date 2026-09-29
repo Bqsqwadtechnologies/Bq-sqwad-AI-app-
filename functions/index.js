@@ -186,7 +186,8 @@ export const bqSqwadApi = onRequest(
           providerResponse: { scope: tokens.scope || null, tokenType: tokens.token_type || null }
         }, String(stateData.uid));
         await stateRef.delete();
-        return send(res, 200, { ok: true, account, testMode: (await getSocialConfig()).testMode });
+        res.status(200).set("Content-Type", "text/html; charset=utf-8").set("Cache-Control", "no-store");
+        return res.send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>BQ Sqwad AI — YouTube connected</title><style>body{font-family:system-ui,sans-serif;padding:32px;line-height:1.5;background:#fafafa;color:#161616}main{max-width:620px;margin:8vh auto;padding:28px;border-radius:20px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.08)}h1{margin-top:0}p{color:#555}</style></head><body><main><h1>YouTube connected</h1><p>Your YouTube channel was securely connected to BQ Sqwad AI. You can return to the app and tap <b>Refresh</b> in YouTube live production.</p><p>Your OAuth credentials are stored server-side in encrypted form; they are not placed in the Android app.</p></main></body></html>`);
       }
 
       if (req.method === "GET" && path === "social/platforms") {
