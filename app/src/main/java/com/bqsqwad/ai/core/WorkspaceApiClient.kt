@@ -139,6 +139,17 @@ class WorkspaceApiClient {
 
     suspend fun usage(limit:Int=50):JSONObject = request("/usage?limit=" + limit.coerceIn(1,100),"GET")
 
+    suspend fun organizationCatalog(): JSONObject = request("/organization/catalog","GET")
+    suspend fun organizationAccess(): JSONObject = request("/organization/access","GET")
+    suspend fun adminOrganizationControl(): JSONObject = request("/admin/organization","GET")
+    suspend fun setAdminOrganizationPlanStatus(planId:String, active:Boolean, confirmDeactivation:Boolean=false): JSONObject =
+        request("/admin/organization/plan-status", payload=JSONObject().put("planId",planId).put("active",active).put("confirmDeactivation",confirmDeactivation))
+    suspend fun setAdminOrganizationEntitlement(uid:String, planId:String, active:Boolean, confirmDeactivation:Boolean=false): JSONObject =
+        request("/admin/organization/entitlement", payload=JSONObject().put("uid",uid).put("planId",planId).put("active",active).put("confirmDeactivation",confirmDeactivation))
+    suspend fun adminOrganizationTestSession(): JSONObject = request("/admin/organization/test-session","GET")
+    suspend fun setAdminOrganizationTestSession(planId:String, enabled:Boolean=true, durationMinutes:Int=120): JSONObject =
+        request("/admin/organization/test-session", payload=JSONObject().put("planId",planId).put("enabled",enabled).put("durationMinutes",durationMinutes))
+
     suspend fun organizationScheduledTasks(): JSONObject = request("/organization/scheduled-tasks","GET")
 
     suspend fun createOrganizationScheduledTask(name:String, prompt:String, schedule:String, enabled:Boolean=true): JSONObject =
