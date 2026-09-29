@@ -2728,12 +2728,12 @@ fun CameraWorkspace() {
                         Text("Open YouTube Live")
                     }
                     Text("Stream online with AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. TikTok client credentials are used for TikTok account/API features; live broadcasting still requires a supported TikTok LIVE ingest endpoint and stream credential. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
                         value = streamEndpoint,
                         onValueChange = { streamEndpoint = it; streamError = null },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("YouTube / TikTok / custom RTMP endpoint") },
+                        label = { Text("YouTube / TikTok LIVE ingest / custom RTMP endpoint") },
                         singleLine = true,
                         enabled = !streamOnline
                     )
