@@ -2280,6 +2280,9 @@ export const bqSqwadApi = onRequest(
             return send(res, 403, { error: "live_voice_disabled" });
           }
           const model = String(cfg.modelId || "gpt-realtime-2.1");
+          const requestedVoice = String(body.voice || cfg.defaultVoice || "marin").trim().toLowerCase();
+          const allowedVoices = new Set(["alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"]);
+          const voice = allowedVoices.has(requestedVoice) ? requestedVoice : String(cfg.defaultVoice || "marin").trim().toLowerCase();
           const openaiKey = await getProviderSecret("openai");
           if (!openaiKey) {
             await reverseCredits(user.uid, reservation?.reservationId);
@@ -2298,6 +2301,7 @@ export const bqSqwadApi = onRequest(
               session: {
                 type: "realtime",
                 model,
+                voice,
                 output_modalities: ["audio"],
                 audio: {
                   input: { format: { type: "audio/pcm" }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
@@ -2324,6 +2328,7 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, {
             clientSecret: String(secret),
             model,
+            voice,
             pricing: {
               creditsPerMinute: cfg.creditsPerMinute == null ? null : Number(cfg.creditsPerMinute),
               minimumMinutes: cfg.minimumMinutes == null ? null : Number(cfg.minimumMinutes),
