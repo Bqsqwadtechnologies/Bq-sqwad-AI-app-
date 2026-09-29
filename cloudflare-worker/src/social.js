@@ -81,6 +81,82 @@ export async function socialCallback(env,state,code){
   return {ok:true,id,platform:st.platform,metadata};
 }
 
+export async function tiktokProfile(env, uid, accountId, workspaceId="") {
+  const accounts = await listSocialAccounts(uid, workspaceId);
+  const account = accounts.find(x => x.id === String(accountId) && x.platform === "tiktok");
+  if (!account) throw new Error("tiktok_account_not_found");
+  const rawSnap = await firestoreGet("socialAccounts/" + account.id);
+  const tokenState = await socialAccountToken(env, rawSnap);
+  const fields = "open_id,union_id,avatar_url,display_name,bio_description,profile_deep_link,is_verified,username,follower_count,following_count,likes_count,video_count";
+  const response = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=" + encodeURIComponent(fields), {
+    headers: { Authorization: "Bearer " + tokenState.access }
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("tiktok_profile_failed:" + raw.slice(0, 700));
+  const parsed = JSON.parse(raw);
+  return parsed.data?.user || {};
+}
+
+export async function tiktokVideos(env, uid, accountId, workspaceId="") {
+  const accounts = await listSocialAccounts(uid, workspaceId);
+  const account = accounts.find(x => x.id === String(accountId) && x.platform === "tiktok");
+  if (!account) throw new Error("tiktok_account_not_found");
+  const rawSnap = await firestoreGet("socialAccounts/" + account.id);
+  const tokenState = await socialAccountToken(env, rawSnap);
+  const response = await fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,cover_image_url,share_url,create_time,duration", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + tokenState.access, "Content-Type": "application/json" },
+    body: JSON.stringify({ max_count: 20 })
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("tiktok_videos_failed:" + raw.slice(0, 700));
+  const parsed = JSON.parse(raw);
+  return { videos: parsed.data?.videos || [], cursor: parsed.data?.cursor || null, hasMore: parsed.data?.has_more === true };
+}
+
+export async function publishTikTok(env, uid, accountId, workspaceId, input = {}) {
+  const accounts = await listSocialAccounts(uid, workspaceId);
+  const account = accounts.find(x => x.id === String(accountId) && x.platform === "tiktok");
+  if (!account) throw new Error("tiktok_account_not_found");
+  const rawSnap = await firestoreGet("socialAccounts/" + account.id);
+  const tokenState = await socialAccountToken(env, rawSnap);
+  const granted = new Set(String(rawSnap.grantedScopes || "").split(/[ ,]+/).filter(Boolean));
+  if (granted.size && !granted.has("video.publish")) throw new Error("tiktok_video_publish_scope_missing_reconnect_required");
+  const mediaUrl = clean(input.mediaUrl, 4000);
+  const title = clean(input.title || input.text, 2200);
+  if (!mediaUrl || !title) throw new Error("tiktok_video_and_title_required");
+  const creatorInfo = await fetch("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + tokenState.access, "Content-Type": "application/json" }
+  });
+  const creatorRaw = await creatorInfo.text();
+  if (!creatorInfo.ok) throw new Error("tiktok_creator_info_failed:" + creatorRaw.slice(0, 700));
+  const creator = JSON.parse(creatorRaw)?.data || {};
+  const options = Array.isArray(creator.privacy_level_options) ? creator.privacy_level_options : [];
+  const requested = clean(input.privacyLevel || "SELF_ONLY", 40);
+  const privacyLevel = options.includes(requested) ? requested : (options[0] || "SELF_ONLY");
+  const response = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + tokenState.access, "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({
+      post_info: {
+        title,
+        privacy_level: privacyLevel,
+        disable_duet: creator.duet_disabled === true,
+        disable_comment: creator.comment_disabled === true,
+        disable_stitch: creator.stitch_disabled === true,
+        is_aigc: input.isAigc !== false
+      },
+      source_info: { source: "PULL_FROM_URL", video_url: mediaUrl }
+    })
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error("tiktok_publish_failed:" + raw.slice(0, 900));
+  let result = {};
+  try { result = JSON.parse(raw); } catch {}
+  return { ok: true, platform: "tiktok", status: "accepted", publishId: result.data?.publish_id || null, result };
+}
+
 export async function listSocialAccounts(uid, workspaceId=""){
   const result = await firestoreQueryCollection("socialAccounts");
   const docs = Array.isArray(result?.documents) ? result.documents : [];
