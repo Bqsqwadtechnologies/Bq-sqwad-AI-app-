@@ -67,6 +67,7 @@ class LiveMediaForegroundService : Service() {
     private var youtubeBroadcastId: String? = null
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
+    private var organizationBillingJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -206,6 +207,13 @@ class LiveMediaForegroundService : Service() {
                 try {
                     startVisualVoice()
                     broadcaster.startCamera(endpoint, lens)
+                    val accountId = youtubeAccountId
+                    val broadcastId = youtubeBroadcastId
+                    if (!accountId.isNullOrBlank() && !broadcastId.isNullOrBlank()) {
+                        runCatching { WorkspaceApiClient().transitionYouTubeLive(accountId, broadcastId, "live") }
+                            .onFailure { throw IllegalStateException("YouTube could not transition to live: " + (it.message ?: "transition failed")) }
+                        startOrganizationBillingHeartbeat()
+                    }
                     writeState(true, "live")
                 } catch (t: Throwable) {
                     organizationStreamer = null
@@ -222,6 +230,40 @@ class LiveMediaForegroundService : Service() {
                 .onFailure { writeError(it.message ?: "AI camera voice could not start."); stopSelf() }
         }
         writeState(true, "active")
+    }
+
+    private fun startOrganizationBillingHeartbeat() {
+        if (organizationBillingJob?.isActive == true) return
+        val sessionId = liveSessionId ?: return
+        organizationBillingJob = serviceScope.launch {
+            var failures = 0
+            while (isActive && liveSessionId == sessionId) {
+                try {
+                    val result = WorkspaceApiClient().organizationLiveBillingHeartbeat(
+                        sessionId,
+                        youtubeAccountId.orEmpty(),
+                        youtubeBroadcastId.orEmpty()
+                    )
+                    failures = 0
+                    val action = result.optString("action", "continue")
+                    if (action == "stop") {
+                        writeError(result.optString("message", "Organization live billing stopped the stream."))
+                        stopSelf()
+                        break
+                    }
+                    val interval = result.optInt("billingIntervalSeconds", 10).coerceIn(5, 60)
+                    delay(interval * 1000L)
+                } catch (t: Throwable) {
+                    failures += 1
+                    if (failures >= 2) {
+                        writeError("Organization billing connection was lost. The live stream was stopped to prevent unbilled usage.")
+                        stopSelf()
+                        break
+                    }
+                    delay(5000L)
+                }
+            }
+        }
     }
 
     private fun startScreen(intent: Intent?) {
