@@ -1248,7 +1248,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
                 items(messages) { m ->
                     Column(Modifier.fillMaxWidth(if (m.mine) .88f else 1f).align(if (m.mine) Alignment.End else Alignment.Start)) {
-                        Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { Text(m.text, Modifier.padding(14.dp)) }
+                        if (!m.mine && m.text == "Generating image…") {
+                            BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
+                        } else {
+                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { Text(m.text, Modifier.padding(14.dp)) }
+                        }
                         if (!m.mine) Row {
                             TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
                             TextButton({ shareText(context, m.text) }) { Text("Share") }
