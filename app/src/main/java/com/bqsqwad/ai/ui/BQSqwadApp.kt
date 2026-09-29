@@ -2446,15 +2446,21 @@ fun CameraWorkspace() {
     var streamEndpoint by remember { mutableStateOf("") }
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
+    var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
+    var showLiveTerms by remember { mutableStateOf(false) }
+    var selectedVoice by remember { mutableStateOf("marin") }
+    var flashlightOn by remember { mutableStateOf(false) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
+    val liveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         if (it) {
             context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
                 .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                 .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
             active = true
         }
     }
@@ -2534,7 +2540,8 @@ fun CameraWorkspace() {
                         context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
                             .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                             .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                        .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
                         active = true
                     } else {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
@@ -2548,7 +2555,8 @@ fun CameraWorkspace() {
                         context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
                             .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                             .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens))
+                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                            .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
                     }
                 }, enabled = active) { Text("Flip") }
             }
