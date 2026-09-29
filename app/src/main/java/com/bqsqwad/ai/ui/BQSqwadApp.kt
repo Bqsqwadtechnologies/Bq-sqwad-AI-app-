@@ -2611,28 +2611,9 @@ fun CameraWorkspace() {
                         captureEveryMs = 1800L,
                         onFrame = { bytes ->
                             val now = System.currentTimeMillis()
-                            if (active && !analyzing && now - lastAnalysisAt >= 1600L) {
+                            if (active && now - lastAnalysisAt >= 1600L) {
                                 lastAnalysisAt = now
-                                analyzing = true
-                                val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                                scope.launch(Dispatchers.IO) {
-                                    runCatching { ChatApiClient().analyzeCameraFrame(prompt, encoded, "image/jpeg") }
-                                        .onSuccess { result ->
-                                            scope.launch(Dispatchers.Main) {
-                                                cameraLog.add("Asked: " + prompt)
-                                                cameraLog.add("BQ Sqwad AI: " + result.text)
-                                                answer = result.text
-                                                analyzing = false
-                                            }
-                                        }
-                                        .onFailure { errorValue ->
-                                            scope.launch(Dispatchers.Main) {
-                                                cameraLog.add("Error: " + (errorValue.message ?: "Camera analysis failed."))
-                                                answer = errorValue.message ?: "Camera analysis failed."
-                                                analyzing = false
-                                            }
-                                        }
-                                }
+                                LiveMediaForegroundService.submitVisualFrame(bytes)
                             }
                         }
                     )
