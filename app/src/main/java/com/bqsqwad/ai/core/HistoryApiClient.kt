@@ -14,7 +14,7 @@ data class HistoryItem(val id: String, val title: String, val updatedAt: String,
 data class HistoryMessage(val mine: Boolean, val text: String, val id: String, val prompt: String?)
 
 class HistoryApiClient {
-    private val baseUrl = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 
     private suspend fun request(path: String, method: String = "GET", payload: JSONObject = JSONObject()): JSONObject =
         withContext(Dispatchers.IO) {
