@@ -232,39 +232,17 @@ class PlayBillingClient(
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                 val raw = stream.bufferedReader().use { it.readText() }
                 if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Purchase verification failed"))
-                val verified = runCatching { JSONObject(raw).optBoolean("ok", false) }.getOrDefault(false)
+                val verifiedBody = JSONObject(raw)
+                val verified = verifiedBody.optBoolean("ok", false)
                 if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
 
-                // Google Play requires non-consumable/subscription purchases to be acknowledged.
-                // Credit products are consumable and must be consumed after successful server verification.
-                // Never acknowledge or consume before backend verification succeeds.
-                val catalogItem = products.firstOrNull()?.let { catalog[it]?.firstOrNull() }
-                if (catalogItem?.consumable == true && catalogItem.productType == ProductType.INAPP) {
-                    client.consumeAsync(
-                        com.android.billingclient.api.ConsumeParams.newBuilder()
-                            .setPurchaseToken(purchase.purchaseToken)
-                            .build()
-                    ) { consumeResult, _ ->
-                        if (consumeResult.responseCode != BillingClient.BillingResponseCode.OK) {
-                            onPurchaseState(PlayPurchaseState("warning", "Purchase was verified, but Google Play could not finish the credit delivery step. Restore purchases after the connection is available."))
-                        } else {
-                            onPurchaseState(PlayPurchaseState("success", "Purchase verified and credits delivered."))
-                        }
-                    }
-                } else if (!purchase.isAcknowledged) {
-                    client.acknowledgePurchase(
-                        com.android.billingclient.api.AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(purchase.purchaseToken)
-                            .build()
-                    ) { acknowledgeResult ->
-                        if (acknowledgeResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                            onPurchaseState(PlayPurchaseState("success", "Purchase verified and acknowledged. Your entitlement is now active."))
-                        } else {
-                            onPurchaseState(PlayPurchaseState("warning", "Purchase was verified, but Google Play acknowledgement is still pending. Restore purchases after the connection is available."))
-                        }
-                    }
+                // The secure backend verifies, grants and acknowledges/consumes the purchase.
+                // Do not duplicate that operation from the Android client.
+                val walletTopup = verifiedBody.optInt("organizationWalletTopupCents", 0)
+                if (walletTopup > 0) {
+                    onPurchaseState(PlayPurchaseState("success", "Organization usage balance deposit verified and added."))
                 } else {
-                    onPurchaseState(PlayPurchaseState("success", "Purchase verified. Your entitlement is now active."))
+                    onPurchaseState(PlayPurchaseState("success", "Purchase verified. Your access is now active."))
                 }
             }
         }.start()
