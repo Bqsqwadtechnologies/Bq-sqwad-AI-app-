@@ -33,7 +33,7 @@ data class AdminProviderRoute(
 )
 
 class AdminProviderClient(
-    private val baseUrl: String = "https://europe-west1-" + FirebaseApp.getInstance().options.projectId + ".cloudfunctions.net/bqSqwadApi"
+    private val baseUrl: String = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
 ) {
     suspend fun planCatalog(): JSONObject = request("GET", "/admin/plan-catalog", null)
 
