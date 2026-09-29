@@ -1,8 +1,10 @@
 package com.bqsqwad.ai.ui
 
+import android.app.Activity
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.bqsqwad.ai.core.LiveMediaForegroundService
+import com.bqsqwad.ai.core.PlayBillingClient
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -63,6 +65,11 @@ fun OrganizationStudioWorkspace() {
     var productionStatus by remember { mutableStateOf("idle") }
     var liveSessionId by remember { mutableStateOf<String?>(null) }
     var liveEndpoint by remember { mutableStateOf<String?>(null) }
+    var youtubeAccountId by remember { mutableStateOf("") }
+    var youtubeBroadcastId by remember { mutableStateOf("") }
+    var billingWarning by remember { mutableStateOf<String?>(null) }
+    var playBilling by remember { mutableStateOf<PlayBillingClient?>(null) }
+    val billingActivity = context as? Activity
     var scheduledName by remember { mutableStateOf("") }
     var scheduledPrompt by remember { mutableStateOf("") }
     var scheduledSchedule by remember { mutableStateOf("daily") }
@@ -77,6 +84,20 @@ fun OrganizationStudioWorkspace() {
     var aiLiveCreditsPerMinute by remember { mutableStateOf(0.25) }
     val youtubeChatLog = remember { mutableStateListOf<String>() }
     val processedYouTubeMessages = remember { mutableStateOf(emptySet<String>()) }
+
+    DisposableEffect(billingActivity) {
+        if (billingActivity != null) {
+            val manager = PlayBillingClient(billingActivity) { state ->
+                billingWarning = state.message
+                if (state.status == "success") {
+                    scope.launch { runCatching { api.organizationBilling() }.onSuccess { organizationBilling = it } }
+                }
+            }
+            playBilling = manager
+            manager.start()
+            onDispose { manager.close(); playBilling = null }
+        } else onDispose { playBilling = null }
+    }
 
     fun applyOrganization(value: org.json.JSONObject) {
         organization = value
