@@ -34,6 +34,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_LIVE_SESSION_ID = "live_session_id"
         const val EXTRA_RIGHTS_ID = "rights_id"
         const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
+        const val EXTRA_VOICE = "voice"
         const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
         const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
         const val ACTION_STOP = "stop"
@@ -65,6 +66,7 @@ class LiveMediaForegroundService : Service() {
     private var youtubeAccountId: String? = null
     private var youtubeBroadcastId: String? = null
     private var lastVisualFrameAt = 0L
+    private var voice = "marin"
 
     override fun onCreate() {
         super.onCreate()
@@ -86,6 +88,7 @@ class LiveMediaForegroundService : Service() {
         liveSessionId = intent?.getStringExtra(EXTRA_LIVE_SESSION_ID)?.trim()?.takeIf { it.isNotBlank() } ?: liveSessionId
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
+        voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
 
@@ -135,7 +138,7 @@ class LiveMediaForegroundService : Service() {
         }
         serviceScope.launch {
             try {
-                val config = WorkspaceApiClient().realtimeSession()
+                val config = WorkspaceApiClient().realtimeSession(voice)
                 val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException(config.optString("error", "Realtime voice session could not be created."))
                 val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
