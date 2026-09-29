@@ -45,6 +45,8 @@ class LiveMediaForegroundService : Service() {
         private const val PREFS = "bq_live_media"
         private val _uiState = MutableStateFlow(LiveMediaUiState())
         val uiState: StateFlow<LiveMediaUiState> = _uiState
+        @Volatile private var instance: LiveMediaForegroundService? = null
+        fun submitVisualFrame(bytes: ByteArray) { instance?.visualVoice?.sendVisualFrame(bytes) }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -65,6 +67,7 @@ class LiveMediaForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createNotificationChannel()
         }
@@ -356,6 +359,7 @@ class LiveMediaForegroundService : Service() {
         _uiState.value = LiveMediaUiState()
         writeState(false, "")
         stopForeground(STOP_FOREGROUND_REMOVE)
+        instance = null
         super.onDestroy()
     }
 
