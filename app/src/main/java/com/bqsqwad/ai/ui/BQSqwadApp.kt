@@ -2502,7 +2502,7 @@ fun CameraWorkspace() {
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
     LaunchedEffect(liveUiState.log.size) {
-        if (liveUiState.log.isNotEmpty()) voiceLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
+        if (liveUiState.log.isNotEmpty()) cameraLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
     }
     LaunchedEffect(liveUiState) {
         liveServiceActive = liveUiState.active
