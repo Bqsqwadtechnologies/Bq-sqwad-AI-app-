@@ -79,13 +79,31 @@ jobs:
           test -n "$KEY_PASSWORD"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Build release APK and AAB
+      - name: Build release APK and AAB and collect all build errors
         shell: bash
         run: |
-          set -o pipefail
-          gradle --no-daemon --stacktrace --continue clean :app:assembleRelease :app:bundleRelease
+          set +e
+          : > release-build.log
+          echo "=== APK build ===" | tee -a release-build.log
+          gradle --no-daemon --stacktrace --continue clean :app:assembleRelease 2>&1 | tee -a release-build.log
+          apk_status=${PIPESTATUS[0]}
+          echo "APK_GRADLE_EXIT=$apk_status" | tee -a release-build.log
+
+          echo "=== AAB build ===" | tee -a release-build.log
+          gradle --no-daemon --stacktrace --continue :app:bundleRelease 2>&1 | tee -a release-build.log
+          aab_status=${PIPESTATUS[0]}
+          echo "AAB_GRADLE_EXIT=$aab_status" | tee -a release-build.log
+
+          echo "=== Release build summary ===" | tee -a release-build.log
+          echo "APK status: $apk_status" | tee -a release-build.log
+          echo "AAB status: $aab_status" | tee -a release-build.log
+          if [ "$apk_status" -ne 0 ] || [ "$aab_status" -ne 0 ]; then
+            echo "One or more release builds failed. Both APK and AAB build stages were attempted so their errors are visible in the same run." | tee -a release-build.log
+            exit 1
+          fi
 
       - name: Confirm APK and AAB exist
+        if: ${{ success() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -95,6 +113,7 @@ jobs:
           ls -lh app/build/outputs/bundle/release/app-release.aab
 
       - name: Prepare release artifacts
+        if: ${{ success() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -104,12 +123,15 @@ jobs:
           printf 'commit=%s\nversion=1.0.5\n' "$GITHUB_SHA" > release/BUILD-INFO.txt
           sha256sum release/BQ-Sqwad-AI-v1.0.5-release.apk release/BQ-Sqwad-AI-v1.0.5-release.aab > release/SHA256SUMS.txt
 
-      - name: Upload APK and AAB
+      - name: Upload APK, AAB, and build log
+        if: ${{ always() }}
         uses: actions/upload-artifact@v6
         with:
           name: BQ-Sqwad-AI-v1.0.5-release
-          path: release/
-          if-no-files-found: error
+          path: |
+            release/
+            release-build.log
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Publish GitHub release
