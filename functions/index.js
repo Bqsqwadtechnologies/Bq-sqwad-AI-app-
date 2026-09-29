@@ -1254,6 +1254,118 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "GET" && path === "learning/catalog") {
+        const catalog = COMMERCIAL_CATALOG.sections.learning || [];
+        const addOns = COMMERCIAL_CATALOG.sections.learningExamAddOns || [];
+        const entSnap = await getFirestore().collection("entitlements").doc(user.uid).get();
+        const ent = entSnap.exists ? (entSnap.data() || {}) : {};
+        const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
+        const planId = String(ent.planId || "");
+        const active = Boolean(planId && activeStates.has(String(ent.state || "")));
+        return send(res, 200, {
+          ok: true,
+          activePlanId: active ? planId : (planId ? null : "explorer"),
+          plans: catalog.map(item => ({
+            id: item.id, name: item.name, description: item.description || "",
+            price: item.price || {}, limits: item.limits || {}, features: item.features || [],
+            basePlans: item.basePlans || [], trialDays: item.trialDays || 0,
+            playEligible: item.playEligible === true
+          })),
+          examAddOns: addOns.map(item => ({
+            id: item.id, name: item.name, price: item.price || {}, playEligible: item.playEligible === true
+          }))
+        });
+      }
+
+      if (req.method === "GET" && path === "learning/progress") {
+        const snap = await getFirestore().collection("learningSessions")
+          .where("uid", "==", user.uid).limit(200).get();
+        const rows = snap.docs.map(d => d.data() || {});
+        const completed = rows.filter(x => String(x.status || "completed") === "completed");
+        const bySubject = {};
+        for (const row of completed) {
+          const subject = String(row.subject || "General");
+          bySubject[subject] = Number(bySubject[subject] || 0) + 1;
+        }
+        return send(res, 200, {
+          ok: true,
+          lessonsCompleted: completed.length,
+          quizzesCompleted: completed.filter(x => String(x.mode || "").toLowerCase() === "quiz").length,
+          subjects: bySubject,
+          recent: completed.slice(-20).reverse().map(x => ({
+            id: String(x.id || ""), mode: String(x.mode || ""),
+            subject: String(x.subject || "General"), goal: String(x.goal || "").slice(0, 240),
+            planId: String(x.planId || ""), createdAt: x.createdAt?.toDate ? x.createdAt.toDate().toISOString() : (x.createdAt || null)
+          }))
+        });
+      }
+
+      if (req.method === "POST" && path === "learning/session") {
+        const mode = String(body.mode || "Tutor").trim().toLowerCase().slice(0, 32);
+        const subject = String(body.subject || "General").trim().slice(0, 80);
+        const goal = String(body.goal || "").trim().slice(0, 12000);
+        const feature = String(body.feature || "").trim().toLowerCase().slice(0, 40);
+        if (!goal) return send(res, 400, { error: "learning_goal_required" });
+
+        const gate = await authorizeCapability(user.uid, "capability_learning_studio");
+        let reservation = null;
+        const adminBypass = gate.planId === "admin-unlimited";
+        const planId = adminBypass ? "admin-unlimited" : (gate.planId || "explorer");
+        const premiumModes = new Set(["exam", "timed_exam", "past_paper"]);
+        const premiumFeatures = new Set(["homework_photo", "live_teacher", "worksheets", "revision_notes"]);
+        const familyFeatures = new Set(["parent_dashboard", "sibling_challenge", "certificate"]);
+        const schoolFeatures = new Set(["teacher_dashboard", "classes", "assignments", "bulk_onboarding", "curriculum_mapping", "coverage_reports", "safeguarding_log", "data_protection_report"]);
+        try {
+          if (!adminBypass && premiumModes.has(mode) && !["learnscholar", "learnfamily", "learnschool"].includes(planId)) {
+            throw new Error("learning_feature_locked:exam_mode");
+          }
+          if (!adminBypass && premiumFeatures.has(feature) && !["learnscholar", "learnfamily", "learnschool"].includes(planId)) {
+            throw new Error("learning_feature_locked:" + feature);
+          }
+          if (!adminBypass && familyFeatures.has(feature) && !["learnfamily", "learnschool"].includes(planId)) {
+            throw new Error("learning_feature_locked:" + feature);
+          }
+          if (!adminBypass && schoolFeatures.has(feature) && planId !== "learnschool") {
+            throw new Error("learning_feature_locked:" + feature);
+          }
+
+          reservation = await reserveCredits(user.uid, gate.creditCost, "learning_studio");
+          const system = [
+            "You are BQ Sqwad AI Learning Studio, a structured, age-appropriate learning tutor.",
+            "Teach rather than merely answer. Adapt explanations to the learner's stated goal.",
+            "Use clear steps, examples, checks for understanding and concise practice.",
+            "Never invent curriculum requirements, exam dates, marking schemes or school policies.",
+            "For Quiz mode, ask questions first and provide answers/explanations after the learner responds.",
+            "For Revision mode, focus on retrieval practice and misconceptions.",
+            "For Lesson mode, structure the response as objectives, explanation, worked example, practice and recap.",
+            "For Tutor mode, diagnose the learner's need and teach interactively.",
+            "Mode: " + mode,
+            "Subject: " + subject,
+            "Plan: " + planId
+          ].join("\n");
+          const result = await runAi({ capability: "learning_studio", message: goal, system });
+          const ref = getFirestore().collection("learningSessions").doc();
+          await ref.set({
+            uid: user.uid, id: ref.id, planId, mode, subject, goal,
+            feature: feature || null, status: "completed",
+            providerId: result.providerId || null, modelId: result.modelId || null,
+            createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+          });
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId || "learning_studio");
+          gate.commit();
+          return send(res, 200, {
+            ok: true, id: ref.id, planId, mode, subject,
+            text: result.text || "", answer: result.text || "",
+            creditsCharged: reservation?.amount || 0
+          });
+        } catch (error) {
+          await reverseCredits(user.uid, reservation?.reservationId);
+          throw error;
+        } finally {
+          await gate.release();
+        }
+      }
+
       if (req.method === "POST" && path === "ai") {
         const capability = String(body.capability || "chat").trim();
         if (!/^[a-z0-9_-]{1,64}$/.test(capability)) return send(res, 400, { error: "invalid_capability" });
