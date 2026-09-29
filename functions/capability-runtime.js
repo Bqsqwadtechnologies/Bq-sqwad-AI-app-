@@ -17,6 +17,7 @@ function monthKey() {
 }
 
 const DEFAULT_ALLOWED_PLAN_IDS = {
+  capability_learning_studio: ["learnscholar", "learnfamily", "learnschool", "explorer"],
   capability_truth_guard: ["truthguardfree", "tgplus", "tgpro", "tgteam"],
   capability_life_matters: ["lifemathisfree", "lmstandard", "lmultimate"],
   capability_frontier_lab: ["frontierexplorer", "frontierpro", "frontierenterprise"],
