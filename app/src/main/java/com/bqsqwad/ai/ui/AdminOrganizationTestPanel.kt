@@ -128,6 +128,42 @@ fun AdminOrganizationTestPanel(onBack: () -> Unit) {
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Organization usage billing settings", style = MaterialTheme.typography.titleLarge)
+                Text("These are usage rates, not plan prices. Plan activation remains administrator-controlled.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(assistantRate, { assistantRate = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Assistant USD per request") }, singleLine = true)
+                OutlinedTextField(hostRate, { hostRate = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Host-only live USD/minute") }, singleLine = true)
+                OutlinedTextField(moderatedRate, { moderatedRate = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Moderated audience USD/minute") }, singleLine = true)
+                OutlinedTextField(fullRate, { fullRate = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Full audience USD/minute") }, singleLine = true)
+                OutlinedTextField(warningUsd, { warningUsd = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Low-balance warning USD") }, singleLine = true)
+                OutlinedTextField(billingInterval, { billingInterval = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Live billing interval seconds") }, singleLine = true)
+                OutlinedTextField(graceSeconds, { graceSeconds = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Live grace seconds") }, singleLine = true)
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            val payload = JSONObject()
+                                .put("assistantPriceCents", ((assistantRate.toDoubleOrNull() ?: 0.0) * 100).toInt())
+                                .put("liveRateCentsPerMinute", JSONObject()
+                                    .put("host_only", ((hostRate.toDoubleOrNull() ?: 0.0) * 100).toInt())
+                                    .put("moderated_audience", ((moderatedRate.toDoubleOrNull() ?: 0.0) * 100).toInt())
+                                    .put("full_audience", ((fullRate.toDoubleOrNull() ?: 0.0) * 100).toInt()))
+                                .put("lowBalanceWarningCents", ((warningUsd.toDoubleOrNull() ?: 0.0) * 100).toInt())
+                                .put("liveBillingIntervalSeconds", billingInterval.toIntOrNull() ?: 10)
+                                .put("liveGraceSeconds", graceSeconds.toIntOrNull() ?: 60)
+                            runCatching { WorkspaceApiClient().saveAdminOrganizationBilling(payload) }
+                                .onSuccess { notice = "Organization usage billing settings saved." }
+                                .onFailure { error = it.message ?: "Could not save Organization billing settings." }
+                            busy = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Save usage billing settings") }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Activate a plan for an organization user", style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(
                     value = targetUid,
