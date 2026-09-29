@@ -2502,7 +2502,8 @@ fun CameraWorkspace() {
                 .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                 .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                 .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim()))
+                .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
+                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
             streamOnline = true
             streamError = null
         } else {
@@ -2526,6 +2527,7 @@ fun CameraWorkspace() {
                     .putExtra(LiveMediaForegroundService.EXTRA_WIDTH, metrics.widthPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
+                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
             )
             screenActive = true
             screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames through the foreground service."
