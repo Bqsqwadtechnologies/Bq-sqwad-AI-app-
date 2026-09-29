@@ -1,6 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete } from "./firebase.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
-import { socialStart, socialCallback, listSocialAccounts } from "./social.js";
+import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 
@@ -485,6 +485,44 @@ export default {
         const code = String(url.searchParams.get("code") || "");
         if (!state || !code) return json({error:"oauth_callback_parameters_required"},400);
         return json(await socialCallback(env,state,code));
+      }
+
+      if (url.pathname === "/social/tiktok/profile" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const accountId = String(url.searchParams.get("accountId") || "").trim();
+        const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
+        if (!accountId || !workspaceId) return json({ error: "tiktok_account_required" }, 400);
+        return json(await tiktokProfile(env, user.uid, accountId, workspaceId));
+      }
+
+      if (url.pathname === "/social/tiktok/videos" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const accountId = String(url.searchParams.get("accountId") || "").trim();
+        const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
+        if (!accountId || !workspaceId) return json({ error: "tiktok_account_required" }, 400);
+        return json(await tiktokVideos(env, user.uid, accountId, workspaceId));
+      }
+
+      if (url.pathname === "/social/publish" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        await requireConsent(user.uid);
+        const body = await readBody(request);
+        const accountId = String(body.accountId || "").trim();
+        const workspaceId = String(body.workspaceId || "").trim();
+        const platform = String(body.platform || "").trim().toLowerCase();
+        if (platform === "tiktok") {
+          if (!accountId || !workspaceId) return json({ error: "tiktok_account_required" }, 400);
+          const authHeaders = new Headers(request.headers);
+          authHeaders.delete("host");
+          const gate = await fetch(UPSTREAM + "/business/workspace?workspaceId=" + encodeURIComponent(workspaceId), { method: "GET", headers: authHeaders });
+          if (!gate.ok) {
+            const detail = await gate.text();
+            return new Response(detail, { status: gate.status, headers: { ...corsHeaders(), "content-type": "application/json; charset=utf-8" } });
+          }
+          return json(await publishTikTok(env, user.uid, accountId, workspaceId, body));
+        }
       }
 
       if (url.pathname === "/social/accounts" && request.method === "GET") {
