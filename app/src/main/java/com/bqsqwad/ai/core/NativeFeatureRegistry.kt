@@ -35,7 +35,7 @@ object NativeFeatureRegistry {
         NativeFeatureEntry("ai_companion", "AI Companion", "Companion conversation, memory and check-ins.", Workspace.COMPANION, false, true),
         NativeFeatureEntry("learning_studio", "Learning Studio", "Subjects, tutoring, lessons and revision.", Workspace.LEARNING, false, true),
         NativeFeatureEntry("business_ai", "Business AI", "Business assistants, knowledge, CRM and automation.", Workspace.BUSINESS, false, true),
-        NativeFeatureEntry("organization_studio_ai", "Organization Studio AI", "Organization intelligence, production and streaming controls.", Workspace.ORGANIZATION_STUDIO, false, true)
+        NativeFeatureEntry("organization_studio_ai", "Organization Studio AI", "Organization intelligence, production and streaming controls billed from the separate Organization USD usage balance.", Workspace.ORGANIZATION_STUDIO, false, false)
     )
 
     val advanced: List<NativeFeatureEntry> = AdvancedCapabilities.advanced
