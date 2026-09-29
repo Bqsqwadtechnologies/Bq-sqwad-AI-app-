@@ -69,7 +69,14 @@ export async function getOrganizationAccess(uid, options = {}) {
   const db = getFirestore();
   const entitlement = await db.collection("organizationEntitlements").doc(uid).get();
   const entitlementData = entitlement.exists ? entitlement.data() || {} : {};
-  const test = options.testPlanId ? findOrganizationPlan(options.testPlanId) : null;
+  let test = options.testPlanId ? findOrganizationPlan(options.testPlanId) : null;
+  if (!test) {
+    const user = await getAuth().getUser(uid);
+    if (adminAllowed(user)) {
+      const session = await getOrganizationTestSession(uid).catch(() => ({ enabled: false }));
+      if (session.enabled) test = findOrganizationPlan(session.planId);
+    }
+  }
   const planId = test?.id || String(entitlementData.planId || "");
   const plan = findOrganizationPlan(planId);
   const statuses = await db.collection("organizationPlanStatus").get();
