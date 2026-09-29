@@ -102,7 +102,11 @@ async function deleteUserAccountData(uid) {
     "aiPlugins",
     "aiActivity",
     "organizationScheduledTasks",
-    "learningSessions"
+    "learningSessions",
+    "companionMessages",
+    "companionCheckins",
+    "companionProfiles",
+    "companionSettings"
   ];
   for (const collection of queryCollections) {
     await deleteUserCollectionRecords(db, collection, uid);
