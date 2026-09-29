@@ -9,6 +9,7 @@ import android.util.Base64
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.widget.VideoView
 import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -537,16 +538,47 @@ private fun LegalConsentLinks() {
 
 @Composable
 private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        content = {
-            Spacer(Modifier.height(28.dp))
-            BqLogo(92.dp)
-            content()
+    var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publicAppConfig() }
+            .onSuccess { config ->
+                if (config.optBoolean("authBackgroundVideoEnabled", false)) {
+                    backgroundVideoUrl = config.optString("authBackgroundVideoUrl").takeIf { it.isNotBlank() }
+                }
+            }
+    }
+    Box(Modifier.fillMaxSize()) {
+        backgroundVideoUrl?.let { url ->
+            AndroidView(
+                factory = { context ->
+                    VideoView(context).apply {
+                        setVideoURI(Uri.parse(url))
+                        setOnPreparedListener { player ->
+                            player.isLooping = true
+                            player.setVolume(0f, 0f)
+                            start()
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize().alpha(0.18f)
+            )
         }
-    )
+        Surface(
+            Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.90f)
+        ) {
+            Column(
+                Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                content = {
+                    Spacer(Modifier.height(28.dp))
+                    BqLogo(92.dp)
+                    content()
+                }
+            )
+        }
+    }
 }
 
 private fun friendlyAuthError(error: Exception?): String {
