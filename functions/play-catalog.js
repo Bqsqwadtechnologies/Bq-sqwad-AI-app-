@@ -3,6 +3,7 @@
 // Google Play localized pricing is authoritative at checkout.
 
 import { COMMERCIAL_CATALOG, PLAN_CATALOG_VERSION, validateCommercialCatalog } from "./plan-catalog.js";
+import { ORGANIZATION_WALLET_TOPUPS } from "./organization-billing.js";
 
 export const CANONICAL_PLAY_CATALOG_VERSION = PLAN_CATALOG_VERSION;
 
@@ -68,7 +69,17 @@ function entriesFor(item) {
   });
 }
 
-export const CANONICAL_PLAY_CATALOG = rows.flatMap(entriesFor);
+export const CANONICAL_PLAY_CATALOG = [
+  ...rows.flatMap(entriesFor),
+  ...ORGANIZATION_WALLET_TOPUPS.map(x => ({
+    module: "organization-wallet", name: "Organization AI usage deposit", planId: "", productId: x.productId,
+    basePlanId: null, billingPeriod: "one_time", priceUsd: x.amountUsd, currency: "USD",
+    productType: "inapp", recurring: false, playEligible: true, trialOfferId: null, trialDays: 0,
+    gracePeriodDays: 0, accountHold: "none", resubscribe: "allow", planChange: "not_applicable",
+    limits: {}, features: ["Non-transferable Organization AI usage balance"], entitlements: [],
+    walletTopupCents: x.amountCents, organizationWalletTopup: true, consumable: true
+  }))
+];
 
 export function canonicalPlayProducts() {
   return CANONICAL_PLAY_CATALOG.map(x => ({
@@ -85,7 +96,9 @@ export function canonicalPlayProducts() {
     billingPeriod: x.billingPeriod,
     priceUsd: x.priceUsd,
     recurring: x.recurring,
-    quantityTiers: x.quantityTiers
+    quantityTiers: x.quantityTiers,
+    walletTopupCents: x.walletTopupCents || 0,
+    organizationWalletTopup: x.organizationWalletTopup === true
   }));
 }
 
