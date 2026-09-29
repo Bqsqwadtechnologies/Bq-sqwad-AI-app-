@@ -255,6 +255,8 @@ async function reverseCredits(uid, reservationId) {
 async function ai(request, user, body) {
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
+  const userMessage = String(body.message || "").trim();
+  if (!userMessage) throw new Error("message_required");
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
   const control = await capability(user.uid, capabilityName);
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
@@ -266,7 +268,7 @@ async function ai(request, user, body) {
       primaryModelId: control.modelId,
       fallbackProviderIds: control.config?.fallbackProviderIds || [],
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message: String(body.message || ""), system });
+    }, { message: userMessage, system });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
     await commitCredits(user.uid, reservation.reservationId, result.providerId);
     return json({ text: result.text.trim(), providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() });
@@ -304,6 +306,8 @@ async function vision(request, user, body) {
 async function stream(request, user, body) {
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
+  const userMessage = String(body.message || "").trim();
+  if (!userMessage) throw new Error("message_required");
   const control = await capability(user.uid, capabilityName);
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
@@ -314,7 +318,7 @@ async function stream(request, user, body) {
       primaryModelId: control.modelId,
       fallbackProviderIds: control.config?.fallbackProviderIds || [],
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message: String(body.message || ""), system });
+    }, { message: userMessage, system });
     const encoder = new TextEncoder();
     const output = new ReadableStream({
       async start(controller) {
