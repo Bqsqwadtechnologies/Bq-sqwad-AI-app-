@@ -2464,6 +2464,36 @@ fun CameraWorkspace() {
             active = true
         }
     }
+    val livePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (cameraOk && micOk && liveTermsAccepted) {
+            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
+            active = true
+        }
+    }
+
+    val startLiveCamera = {
+        if (!liveTermsAccepted) showLiveTerms = true
+        else livePermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+    }
+
+    val toggleFlashlight = {
+        runCatching {
+            val manager = context.getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val id = manager.cameraIdList.firstOrNull { cameraId ->
+                val cc = manager.getCameraCharacteristics(cameraId)
+                cc.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) == lens
+            } ?: manager.cameraIdList.first()
+            manager.setTorchMode(id, !flashlightOn)
+            flashlightOn = !flashlightOn
+        }
+    }
+
     val streamPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -2526,6 +2556,20 @@ fun CameraWorkspace() {
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
+            var voiceExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { voiceExpanded = true }) {
+                    Text("Voice: " + (liveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
+                }
+                DropdownMenu(expanded = voiceExpanded, onDismissRequest = { voiceExpanded = false }) {
+                    liveVoices.forEach { (id, label) ->
+                        DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voiceExpanded = false })
+                    }
+                }
+            }
+        }
         Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
         if (!granted) {
             Button(onClick = { permissionExplanation = true }) {
@@ -2536,16 +2580,11 @@ fun CameraWorkspace() {
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
-                    if (!active) {
-                        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                            .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                            .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                        .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
-                        active = true
-                    } else {
+                    if (active) {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         active = false
+                    } else {
+                        startLiveCamera()
                     }
                 }) { Text(if (active) "End live camera" else "Start live camera") }
                 OutlinedButton(onClick = {
@@ -2565,6 +2604,8 @@ fun CameraWorkspace() {
                     if (screenActive) {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         screenActive = false
+                    } else if (!liveTermsAccepted) {
+                        showLiveTerms = true
                     } else {
                         screenLauncher.launch(
                             context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
@@ -2572,7 +2613,7 @@ fun CameraWorkspace() {
                         )
                     }
                 }, enabled = !active || screenActive) {
-                    Text(if (screenActive) "Stop screen viewer" else "Share screen with AI")
+                    Text(if (screenActive) "Stop screen" else "Share screen")
                 }
             }
         }
@@ -2734,6 +2775,23 @@ fun CameraWorkspace() {
         }
     }
     DeviceIntelligencePanel("AI Live Camera")
+
+    if (showLiveTerms) {
+        AlertDialog(
+            onDismissRequest = { showLiveTerms = false },
+            title = { Text("Before you start Live Camera") },
+            text = { Text("By continuing, you agree that BQ Sqwad AI may use your camera, microphone, or shared screen only for the Live Camera session. Screen sharing can capture information visible on your device, so avoid displaying private or confidential information. You are responsible for content you choose to stream or share. You can stop the session at any time. Live Camera usage may consume BQ Sqwad credits according to the displayed rate.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    liveTermsAccepted = true
+                    context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).edit().putBoolean("accepted", true).apply()
+                    showLiveTerms = false
+                    startLiveCamera()
+                }) { Text("Accept & Continue") }
+            },
+            dismissButton = { TextButton(onClick = { showLiveTerms = false }) { Text("Cancel") } }
+        )
+    }
 
     if (permissionExplanation) {
         AlertDialog(
