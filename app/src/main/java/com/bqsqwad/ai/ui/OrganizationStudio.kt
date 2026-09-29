@@ -669,7 +669,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching {
                                     val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
-                                    api.startOrganizationSocialOAuth(orgId, "tiktok", "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback")
+                                    api.startOrganizationSocialOAuth(orgId, "tiktok", "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback")
                                 }.onSuccess {
                                     val url = it.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -700,7 +700,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching {
                                     val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
-                                    api.startOrganizationYouTubeOAuth(orgId, "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback")
+                                    api.startOrganizationYouTubeOAuth(orgId, "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback")
                                 }.onSuccess {
                                     val url = it.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
