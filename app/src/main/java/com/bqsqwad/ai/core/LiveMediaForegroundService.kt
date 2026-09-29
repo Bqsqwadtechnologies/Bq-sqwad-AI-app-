@@ -64,6 +64,7 @@ class LiveMediaForegroundService : Service() {
     private var organizationStreamer: OrganizationLiveStreamer? = null
     private var youtubeAccountId: String? = null
     private var youtubeBroadcastId: String? = null
+    private var lastVisualFrameAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -235,7 +236,11 @@ class LiveMediaForegroundService : Service() {
         val density = intent?.getIntExtra(EXTRA_DENSITY, metrics.densityDpi) ?: metrics.densityDpi
         screenSession = runCatching {
             ScreenCaptureSession(this, onFrame = { bytes ->
-                visualVoice?.sendVisualFrame(bytes)
+                val now = System.currentTimeMillis()
+                if (now - lastVisualFrameAt >= 1800L) {
+                    lastVisualFrameAt = now
+                    visualVoice?.sendVisualFrame(bytes)
+                }
             }, onStopped = {
                 writeState(false, "Screen sharing was stopped by Android or the user.")
                 stopSelf()
