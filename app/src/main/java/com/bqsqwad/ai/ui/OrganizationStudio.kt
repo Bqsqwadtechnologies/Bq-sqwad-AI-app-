@@ -82,6 +82,8 @@ fun OrganizationStudioWorkspace() {
     var aiLivePrivacyAccepted by remember { mutableStateOf(false) }
     var aiLiveViewerReplies by remember { mutableStateOf(false) }
     var aiLiveScreenAwareness by remember { mutableStateOf(false) }
+    var organizationAccess by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var organizationCatalog by remember { mutableStateOf<org.json.JSONArray?>(null) }
 
     val youtubeChatLog = remember { mutableStateListOf<String>() }
     val processedYouTubeMessages = remember { mutableStateOf(emptySet<String>()) }
