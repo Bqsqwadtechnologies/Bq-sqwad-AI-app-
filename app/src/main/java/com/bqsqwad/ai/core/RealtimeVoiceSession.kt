@@ -8,6 +8,7 @@ import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RealtimeVoiceSession(
+    private val context: Context,
     private val clientSecret: String, // Server-issued short-lived realtime credential; never a permanent API key.
     private val model: String,
     private val onState: (String) -> Unit,
@@ -206,6 +207,7 @@ class RealtimeVoiceSession(
         runCatching { player?.flush() }
         player?.release()
         player = null
+        releaseAudioFocus()
         socket = null
     }
 }
