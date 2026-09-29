@@ -2205,9 +2205,13 @@ export const bqSqwadApi = onRequest(
       if (req.method === "GET" && path === "play/catalog") {
         const snap = await getFirestore().collection("playCatalog").doc("config").get();
         const configuredProducts = snap.exists && Array.isArray(snap.data()?.products) ? snap.data().products : [];
-         const canonicalProducts = canonicalPlayProducts();
-         const configuredProductIds = new Set(configuredProducts.map(p => String(p.productId || "")));
-         const sourceProducts = [...configuredProducts, ...canonicalProducts.filter(p => p.organizationWalletTopup === true && !configuredProductIds.has(String(p.productId || "")))];
+        const organizationContext = String(req.query?.context || "").trim().toLowerCase() === "organization";
+        const canonicalProducts = canonicalPlayProducts();
+        const configuredProductIds = new Set(configuredProducts.map(p => String(p.productId || "")));
+        const sourceProducts = [
+          ...configuredProducts,
+          ...canonicalProducts.filter(p => p.organizationWalletTopup === true && !configuredProductIds.has(String(p.productId || "")))
+        ].filter(p => organizationContext ? p.organizationWalletTopup === true : p.organizationWalletTopup !== true);
         const products = sourceProducts.map(p => ({
           planId: String(p.planId || ""),
           productId: String(p.productId || ""),
