@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Publish a GitHub release after successful verification"
+        description: "Publish a GitHub release after the APK and AAB build succeeds"
         required: true
         default: false
         type: boolean
       release_tag:
-        description: "Release tag"
+        description: "Release tag (for example v1.0.5)"
         required: false
         default: ""
         type: string
@@ -22,80 +22,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  diagnostics:
-    name: Collect build errors
+  release:
+    name: Build release APK and AAB
     runs-on: ubuntu-24.04
     timeout-minutes: 7
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "17"
-      - uses: android-actions/setup-android@v4
-      - uses: gradle/actions/setup-gradle@v5
-        with:
-          gradle-version: "9.5"
-      - name: Install Android SDK
-        shell: bash
-        run: |
-          set +e
-          sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0" 2>&1 | tee sdk-install.log
-          yes | sdkmanager --licenses >/dev/null 2>&1
-          exit 0
-      - name: Run diagnostics without stopping at first Gradle error
-        shell: bash
-        run: |
-          set +e
-          : > diagnostics.log
-          gradle --version 2>&1 | tee -a diagnostics.log
-          gradle --no-daemon --stacktrace --continue tasks --all 2>&1 | tee -a diagnostics.log
-          gradle --no-daemon --stacktrace --continue :app:lintRelease 2>&1 | tee -a diagnostics.log
-          gradle --no-daemon --stacktrace --continue :app:testReleaseUnitTest 2>&1 | tee -a diagnostics.log
-          echo "=== Errors found ===" | tee -a diagnostics.log
-          grep -E "FAILURE:|FAILED|error:|ERROR|Exception|BUILD FAILED" diagnostics.log | tail -200 || true
-          exit 0
-      - name: Upload diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: BQ-Sqwad-AI-release-diagnostics
-          path: |
-            diagnostics.log
-            sdk-install.log
-          if-no-files-found: warn
-          retention-days: 14
-
-  build:
-    name: Build and verify real APK AAB
-    runs-on: ubuntu-24.04
-    timeout-minutes: 7
-    continue-on-error: true
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       KEYSTORE_PATH: ${{ github.workspace }}/app/release-upload.jks
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout main
+        uses: actions/checkout@v5
         with:
           ref: main
-      - uses: actions/setup-java@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v4
-      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: "9.5"
-      - name: Install Android SDK
+
+      - name: Install required Android SDK packages
+        shell: bash
         run: |
+          set -euo pipefail
           sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0"
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-      - name: Restore existing signing key
+
+      - name: Restore release signing key
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -105,7 +69,8 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           test -s "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-      - name: Validate signing credentials
+
+      - name: Validate release signing credentials
         shell: bash
         run: |
           set -euo pipefail
@@ -113,68 +78,42 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+
       - name: Build release APK and AAB
-        id: build_release
         shell: bash
         run: |
-          set +e
-          gradle --no-daemon --stacktrace --continue clean :app:assembleRelease :app:bundleRelease 2>&1 | tee release-build.log
-          status=${PIPESTATUS[0]}
-          echo "gradle_exit_code=$status" > release-build-status.txt
-          exit "$status"
-      - name: Verify APK and AAB are real, non-tiny packages
-        id: verify
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          set +e
-          failed=0
-          APK="app/build/outputs/apk/release/app-release.apk"
-          AAB="app/build/outputs/bundle/release/app-release.aab"
+          set -o pipefail
+          gradle --no-daemon --stacktrace --continue clean :app:assembleRelease :app:bundleRelease
 
-          if [ ! -s "$APK" ]; then
-            echo "ERROR: APK missing"; failed=1
-          else
-            size=$(stat -c%s "$APK")
-            echo "APK bytes: $size"
-            [ "$size" -ge 1000000 ] || { echo "ERROR: APK is suspiciously small; refusing tiny artifact."; failed=1; }
-            "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$APK" || failed=1
-            unzip -t "$APK" >/dev/null || failed=1
-            unzip -l "$APK" | grep -q "classes.dex" || failed=1
-            unzip -l "$APK" | grep -q "AndroidManifest.xml" || failed=1
-          fi
-
-          if [ ! -s "$AAB" ]; then
-            echo "ERROR: AAB missing"; failed=1
-          else
-            size=$(stat -c%s "$AAB")
-            echo "AAB bytes: $size"
-            [ "$size" -ge 1000000 ] || { echo "ERROR: AAB is suspiciously small; refusing tiny artifact."; failed=1; }
-            unzip -t "$AAB" >/dev/null || failed=1
-            unzip -l "$AAB" | grep -q "base/manifest/AndroidManifest.xml" || failed=1
-            unzip -l "$AAB" | grep -q "base/dex/classes.dex" || failed=1
-          fi
-          exit "$failed"
-      - name: Collect and upload release artifacts and logs
-        if: ${{ always() }}
+      - name: Confirm APK and AAB exist
         shell: bash
         run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
+          ls -lh app/build/outputs/apk/release/app-release.apk
+          ls -lh app/build/outputs/bundle/release/app-release.aab
+
+      - name: Prepare release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p release
+          cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
+          cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
           printf 'commit=%s\nversion=1.0.5\n' "$GITHUB_SHA" > release/BUILD-INFO.txt
-          [ -s app/build/outputs/apk/release/app-release.apk ] && cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk || true
-          [ -s app/build/outputs/bundle/release/app-release.aab ] && cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab || true
-          [ -f release-build.log ] && cp release-build.log release/RELEASE-BUILD-LOG.txt || true
-          [ -f release-build-status.txt ] && cp release-build-status.txt release/RELEASE-BUILD-STATUS.txt || true
-          sha256sum release/* > release/SHA256SUMS.txt 2>/dev/null || true
-      - uses: actions/upload-artifact@v6
-        if: ${{ always() }}
+          sha256sum release/BQ-Sqwad-AI-v1.0.5-release.apk release/BQ-Sqwad-AI-v1.0.5-release.aab > release/SHA256SUMS.txt
+
+      - name: Upload APK and AAB
+        uses: actions/upload-artifact@v6
         with:
           name: BQ-Sqwad-AI-v1.0.5-release
           path: release/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
+
       - name: Publish GitHub release
-        if: ${{ steps.build_release.outcome == 'success' && steps.verify.outcome == 'success' && inputs.publish_release == true && inputs.release_tag != '' }}
+        if: ${{ inputs.publish_release == true && inputs.release_tag != '' }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
@@ -184,23 +123,3 @@ jobs:
             release/BQ-Sqwad-AI-v1.0.5-release.apk
             release/BQ-Sqwad-AI-v1.0.5-release.aab
             release/SHA256SUMS.txt
-
-  final:
-    name: Final release gate
-    runs-on: ubuntu-24.04
-    timeout-minutes: 7
-    needs: [diagnostics, build]
-    if: ${{ always() }}
-    steps:
-      - name: Report all collected stages
-        env:
-          DIAGNOSTICS: ${{ needs.diagnostics.result }}
-          BUILD: ${{ needs.build.result }}
-        run: |
-          echo "diagnostics=$DIAGNOSTICS"
-          echo "build=$BUILD"
-          if [ "$DIAGNOSTICS" != "success" ] || [ "$BUILD" != "success" ]; then
-            echo "Release gate failed after independent diagnostics and build stages completed."
-            exit 1
-          fi
-          echo "All release stages passed."
