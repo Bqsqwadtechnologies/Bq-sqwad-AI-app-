@@ -33,6 +33,10 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     var memoryEnabled by remember { mutableStateOf(true) }
     var notice by remember { mutableStateOf<String?>(null) }
     var loadingAccess by remember { mutableStateOf(true) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var saveHistory by remember { mutableStateOf(true) }
+    var notifications by remember { mutableStateOf(true) }
+    var safeMode by remember { mutableStateOf(true) }
     var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
     var catalogPlans by remember { mutableStateOf<List<CompanionPlan>>(emptyList()) }
     val messages = remember { mutableStateListOf<CompanionMessage>() }
@@ -66,8 +70,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
         loadingAccess = true
         runCatching {
             val api = WorkspaceApiClient()
-            val catalog = api.nativeCatalog()
+            val catalog = api.companionCatalog()
             val entitlements = api.entitlements()
+            val companionSettings = api.companionSettings().optJSONObject("settings") ?: JSONObject()
+            notifications = companionSettings.optBoolean("notifications", true)
+            saveHistory = companionSettings.optBoolean("saveHistory", true)
+            safeMode = companionSettings.optBoolean("safeMode", true)
             val plans = parseCompanionPlans(catalog)
             catalogPlans = plans
             val items = entitlements.optJSONArray("items") ?: JSONArray()
@@ -90,6 +98,19 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             currentPlan = null
         }
         loadingAccess = false
+    }
+
+    fun saveSettings() {
+        scope.launch {
+            runCatching {
+                WorkspaceApiClient().saveCompanionSettings(JSONObject()
+                    .put("notifications", notifications)
+                    .put("saveHistory", saveHistory)
+                    .put("safeMode", safeMode)
+                    .put("voiceName", "Aurora")
+                    .put("avatarStyle", "Natural"))
+            }.onFailure { notice = it.message ?: "Companion settings could not be saved." }
+        }
     }
 
     if (loadingAccess) {
@@ -196,6 +217,27 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                 }
                 DeviceIntelligencePanel("AI Companion")
                 return@Column
+            }
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Companion settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            TextButton(onClick = { settingsOpen = !settingsOpen }) { Text(if (settingsOpen) "Hide" else "Open") }
+        }
+        if (settingsOpen) {
+            Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 2.dp) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Notifications"); Switch(checked = notifications, onCheckedChange = { notifications = it })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Save conversation history"); Switch(checked = saveHistory, onCheckedChange = { saveHistory = it })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Safety mode"); Switch(checked = safeMode, onCheckedChange = { safeMode = it })
+                    }
+                    Button(onClick = ::saveSettings, modifier = Modifier.fillMaxWidth()) { Text("Save settings") }
+                }
             }
         }
 
