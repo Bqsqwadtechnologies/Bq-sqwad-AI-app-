@@ -2,6 +2,7 @@ import { restoreServicesAfterRenewal, deactivateExpiredUserServices } from "./ca
 import crypto from "node:crypto";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { canonicalPlayProducts } from "./play-catalog.js";
+import { creditOrganizationWallet } from "./organization-billing.js";
 
 const PACKAGE_NAME = "com.bqsqwad.ai";
 
@@ -80,9 +81,13 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   }
   const db = getFirestore();
   const catalogSnap = await db.collection("playCatalog").doc("config").get();
-  const products = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products) && catalogSnap.data().products.length
-    ? catalogSnap.data().products
-    : canonicalPlayProducts();
+  const configuredProducts = catalogSnap.exists && Array.isArray(catalogSnap.data()?.products) ? catalogSnap.data().products : [];
+  const canonicalProducts = canonicalPlayProducts();
+  const configuredIds = new Set(configuredProducts.map(p => String(p.productId || "")));
+  const products = [
+    ...configuredProducts,
+    ...canonicalProducts.filter(p => !configuredIds.has(String(p.productId || "")) && p.organizationWalletTopup === true)
+  ];
   const productMappings = products.filter(p => p.productId === productId && p.enabled === true);
   if (!productMappings.length) throw new Error("play_product_not_configured");
 
@@ -220,7 +225,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
     tx.create(db.collection("billingReceipts").doc(paymentReference), {
       uid, module: String(mapping.product || "general"), planName: String(mapping.name || mapping.planId || productId),
       cycle: isSubscription ? period : "one_time", amount: paymentAmount, currency: paymentCurrency,
-      reference: paymentReference, kind: isSubscription ? "subscription" : "credit_purchase",
+      reference: paymentReference, kind: walletTopupCents > 0 ? "organization_wallet_deposit" : (isSubscription ? "subscription" : "credit_purchase"),
       status: "paid", provider: "google_play", productId, planId: String(mapping.planId || ""),
       basePlanId: verifiedBasePlanId || null, createdAt: FieldValue.serverTimestamp()
     });
@@ -241,7 +246,7 @@ export async function verifyPlayPurchase({ uid, productId, purchaseToken, obfusc
   }
 
   await restoreServicesAfterRenewal(db, uid);
-  return { ok: true, alreadyProcessed: false, state: "verified" };
+  return { ok: true, alreadyProcessed: false, state: "verified", organizationWalletTopupCents: Number(mapping.walletTopupCents || 0) };
 }
 
 
