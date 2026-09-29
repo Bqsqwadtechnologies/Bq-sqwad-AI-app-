@@ -1255,6 +1255,151 @@ export const bqSqwadApi = onRequest(
         }
       }
 
+      if (req.method === "GET" && path === "companion/catalog") {
+        const catalog = COMMERCIAL_CATALOG.sections.companion || [];
+        const entSnap = await getFirestore().collection("entitlements").doc(user.uid).get();
+        const ent = entSnap.exists ? (entSnap.data() || {}) : {};
+        const activeStates = new Set(["active", "grace", "on_hold", "paused"]);
+        const rawPlanId = String(ent.planId || "companionfree");
+        const authUser = await getAuth().getUser(user.uid);
+        const claims = authUser.customClaims || {};
+        const isSuperAdmin = authUser.email === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+        const testSnap = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
+        const adminTestMode = isSuperAdmin && testSnap.exists && testSnap.data()?.enabled === true;
+        const activePlanId = adminTestMode ? "admin-unlimited" : (activeStates.has(String(ent.state || "")) ? rawPlanId : "companionfree");
+        return send(res, 200, {
+          ok: true,
+          activePlanId,
+          adminTestMode,
+          plans: catalog.map(item => ({
+            id:item.id,name:item.name,description:item.description || "",price:item.price || {},
+            features:item.features || [],limits:item.limits || {},basePlans:item.basePlans || [],
+            billingPeriods:item.billingPeriods || [],trialDays:item.trialDays || 0,playEligible:item.playEligible === true,
+            productId:item.productId || null
+          }))
+        });
+      }
+
+      if (req.method === "GET" && path === "companion/profile") {
+        const ref = getFirestore().collection("companionProfiles").doc(user.uid);
+        const snap = await ref.get();
+        const data = snap.exists ? (snap.data() || {}) : {};
+        return send(res, 200, {
+          ok:true,
+          profile:{
+            personality:String(data.personality || "Warm"),
+            name:String(data.name || "BQ Companion"),
+            memoryEnabled:data.memoryEnabled !== false,
+            checkInsEnabled:data.checkInsEnabled !== false,
+            voiceEnabled:data.voiceEnabled === true,
+            cameraEnabled:data.cameraEnabled === true,
+            updatedAt:data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : null
+          }
+        });
+      }
+
+      if (req.method === "PUT" && path === "companion/profile") {
+        const personality = String(body.personality || "Warm").trim().slice(0,40);
+        const name = String(body.name || "BQ Companion").trim().slice(0,60);
+        const memoryEnabled = body.memoryEnabled !== false;
+        const checkInsEnabled = body.checkInsEnabled !== false;
+        const voiceEnabled = body.voiceEnabled === true;
+        const cameraEnabled = body.cameraEnabled === true;
+        const gate = await authorizeCapability(user.uid, "capability_companion");
+        try {
+          await getFirestore().collection("companionProfiles").doc(user.uid).set({
+            uid:user.uid,name,personality,memoryEnabled,checkInsEnabled,voiceEnabled,cameraEnabled,
+            updatedAt:FieldValue.serverTimestamp()
+          }, {merge:true});
+          return send(res,200,{ok:true,profile:{name,personality,memoryEnabled,checkInsEnabled,voiceEnabled,cameraEnabled}});
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "GET" && path === "companion/history") {
+        const snap = await getFirestore().collection("companionMessages").where("uid","==",user.uid).orderBy("createdAt","desc").limit(100).get();
+        return send(res,200,{ok:true,items:snap.docs.map(d=>({id:d.id,...(d.data()||{})}))});
+      }
+
+      if (req.method === "POST" && path === "companion/chat") {
+        const message = String(body.message || "").trim().slice(0,12000);
+        if (!message) return send(res,400,{error:"message_required"});
+        const gate = await authorizeCapability(user.uid, "capability_companion");
+        let reservation = null;
+        try {
+          reservation = await reserveCredits(user.uid, gate.creditCost, "companion");
+          const profileSnap = await getFirestore().collection("companionProfiles").doc(user.uid).get();
+          const profile = profileSnap.exists ? (profileSnap.data() || {}) : {};
+          const memoryGate = gate.planId === "admin-unlimited" || ["companionbasic","companionplus","companionpremium","companionultimate"].includes(gate.planId);
+          let memory = "";
+          if (memoryGate && profile.memoryEnabled !== false) {
+            const ms = await getFirestore().collection("companionMessages").where("uid","==",user.uid).orderBy("createdAt","desc").limit(20).get();
+            memory = ms.docs.reverse().map(d => {
+              const x=d.data()||{}; return String(x.role||"user")+": "+String(x.text||"").slice(0,1000);
+            }).join("\n");
+          }
+          const system = [
+            "You are BQ Sqwad AI Companion.",
+            "Be warm, supportive, respectful and concise.",
+            "Do not claim to be human or a real-world person.",
+            "Respect the user's boundaries and do not pressure them.",
+            "Personality: "+String(profile.personality||"Warm"),
+            memory ? "Conversation memory:\n"+memory : ""
+          ].filter(Boolean).join("\n");
+          const result = await runAi({capability:"companion",message,system});
+          const batch = getFirestore().batch();
+          const userRef = getFirestore().collection("companionMessages").doc();
+          const assistantRef = getFirestore().collection("companionMessages").doc();
+          batch.set(userRef,{uid:user.uid,role:"user",text:message,createdAt:FieldValue.serverTimestamp()});
+          batch.set(assistantRef,{uid:user.uid,role:"assistant",text:result.text || "",createdAt:FieldValue.serverTimestamp(),providerId:result.providerId || null,modelId:result.modelId || null});
+          await batch.commit();
+          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion");
+          gate.commit();
+          return send(res,200,{ok:true,text:result.text || "",answer:result.text || "",creditsCharged:reservation?.amount || 0});
+        } catch(error) {
+          await reverseCredits(user.uid,reservation?.reservationId);
+          throw error;
+        } finally { await gate.release(); }
+      }
+
+      if (req.method === "GET" && path === "companion/checkins") {
+        const snap = await getFirestore().collection("companionCheckins").where("uid","==",user.uid).orderBy("createdAt","desc").limit(60).get();
+        return send(res,200,{ok:true,items:snap.docs.map(d=>({id:d.id,...(d.data()||{})}))});
+      }
+
+      if (req.method === "POST" && path === "companion/checkin") {
+        const prompt = String(body.prompt || "How are you doing today?").trim().slice(0,500);
+        const gate = await authorizeCapability(user.uid, "capability_companion_checkin");
+        let reservation=null;
+        try {
+          reservation = await reserveCredits(user.uid,gate.creditCost,"companion_checkin");
+          const result=await runAi({capability:"companion_checkin",message:prompt,system:"Give a brief reflective check-in prompt. Do not present yourself as a human."});
+          const ref=getFirestore().collection("companionCheckins").doc();
+          await ref.set({uid:user.uid,prompt,response:result.text||"",createdAt:FieldValue.serverTimestamp()});
+          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion_checkin");
+          gate.commit();
+          return send(res,200,{ok:true,text:result.text||"",creditsCharged:reservation?.amount||0});
+        }catch(error){await reverseCredits(user.uid,reservation?.reservationId);throw error;}
+        finally{await gate.release();}
+      }
+
+      if (req.method === "GET" && path === "companion/settings") {
+        const ref=getFirestore().collection("companionSettings").doc(user.uid);
+        const snap=await ref.get();
+        return send(res,200,{ok:true,settings:snap.exists?(snap.data()||{}):{notifications:true,saveHistory:true}});
+      }
+
+      if (req.method === "PUT" && path === "companion/settings") {
+        const gate=await authorizeCapability(user.uid,"capability_companion");
+        try {
+          const allowed=["notifications","saveHistory","safeMode","voiceName","avatarStyle"];
+          const patch={};
+          for(const key of allowed) if(body[key] !== undefined) patch[key]=body[key];
+          patch.updatedAt=FieldValue.serverTimestamp();
+          await getFirestore().collection("companionSettings").doc(user.uid).set(patch,{merge:true});
+          return send(res,200,{ok:true});
+        } finally { await gate.release(); }
+      }
+
       if (req.method === "GET" && path === "learning/catalog") {
         const catalog = COMMERCIAL_CATALOG.sections.learning || [];
         const addOns = COMMERCIAL_CATALOG.sections.learningExamAddOns || [];
