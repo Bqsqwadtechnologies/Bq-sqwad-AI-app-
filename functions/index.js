@@ -135,9 +135,8 @@ async function requireRequiredConsent(uid) {
   }
 }
 
-async function assertSuperAdmin(await userFromRequest(req)) {
+async function adminFromRequest(req) {
   const user = await userFromRequest(req);
-      // All capability endpoints below require a verified Firebase ID token.
   const admin = await assertSuperAdmin(user);
   await requireStepUp(admin.uid);
   return admin;
@@ -1939,7 +1938,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/test-mode") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const enabled = body.enabled === true;
         const current = await getFirestore().collection("adminAdvancedOptions").doc("admin_testing_mode").get();
         return send(res, 200, { ok: true, option: await updateAdvancedAdminOption({ id: "admin_testing_mode", enabled, version: Math.max(1, Number(current.data()?.version || 1)) }, admin.uid) });
@@ -1948,7 +1947,7 @@ export const bqSqwadApi = onRequest(
       // Canonical Admin Control Center: adminAdvancedOptions is the single source of truth.
       // The legacy adminControls store and endpoints are intentionally removed.
       if (path === "admin/runtime" || path.startsWith("admin/runtime/")) {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const parts = path.split("/");
         const type = String(req.query?.type || body.type || parts[2] || "agents").trim();
         if (!["jobs","workflows","agents","evaluations","plugins"].includes(type)) {
@@ -2054,7 +2053,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/play-catalog") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, canonicalAdminCatalog());
       }
 
@@ -2085,13 +2084,13 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/contact-sales") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const snap = await getFirestore().collection("contactSalesRequests").orderBy("createdAt", "desc").limit(100).get();
         return send(res, 200, { requests: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
       }
 
       if (req.method === "POST" && path === "admin/contact-sales/status") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const requestId = String(body.requestId || "").trim();
         const status = String(body.status || "").trim().toLowerCase();
         if (!requestId || !["seen","contacted","replied","closed"].includes(status)) return send(res, 400, { error: "invalid_request_status" });
@@ -2102,7 +2101,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/plan-catalog") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const snap = await getFirestore().collection("planCatalog").doc("config").get();
         if (snap.exists) {
           const data = snap.data() || {};
@@ -2117,7 +2116,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/plan-catalog") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const incoming = body.catalog;
         if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
           return send(res, 400, { error: "catalog_object_required" });
@@ -2177,7 +2176,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/plan/status") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const planId = String(body.planId || "").trim();
         if (!/^[a-z0-9-]+$/.test(planId)) return send(res, 400, { error: "invalid_plan_id" });
         const active = body.active === true;
@@ -2205,7 +2204,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/plan/popular") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const planId = String(body.planId || "").trim();
         if (!/^[a-z0-9-]+$/.test(planId)) return send(res, 400, { error: "invalid_plan_id" });
         const ref = getFirestore().collection("planCatalog").doc("config");
@@ -2235,37 +2234,37 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/security/status") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await securityStatus());
       }
 
       if (req.method === "POST" && path === "admin/security/password") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await configurePassword(String(body.password || ""), admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/security/totp/start") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await beginTotpSetup(admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/security/totp/confirm") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await confirmTotpSetup(String(body.code || ""), admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/security/unlock") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await unlockAdmin(admin.uid, String(body.password || ""), String(body.code || "")));
       }
 
       if (req.method === "GET" && path === "admin/security/biometric") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await biometricStatus());
       }
 
       if (req.method === "POST" && path === "admin/security/biometric/register") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await registerBiometric(admin.uid, String(body.publicKey || "")));
       }
 
@@ -2280,27 +2279,27 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "DELETE" && path === "admin/security/biometric") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await removeBiometric(admin.uid));
       }
 
       if (req.method === "GET" && path === "admin/config") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
       }
 
       if (req.method === "GET" && path === "admin/controls") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
       }
 
       if (req.method === "GET" && path === "admin/business/test-session") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await getBusinessTestSession(admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/business/test-session") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await setBusinessTestSession(
           admin.uid,
           String(body.planId || ""),
@@ -2310,18 +2309,18 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/business/test-suite") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const planId = String(body.planId || "");
         return send(res, 200, await runBusinessPlanTestSuite(admin.uid, planId));
       }
 
       if (req.method === "GET" && path === "admin/business/subscriptions") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, { items: await listAdminBusinessSubscriptions() });
       }
 
       if (req.method === "POST" && path === "admin/business/subscription-status") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const uid = String(body.uid || "").trim();
         const planId = String(body.planId || "").trim();
         const active = body.active === true;
@@ -2332,7 +2331,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/business/plan-status") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const planId = String(body.planId || "").trim();
         if (!planId) return send(res, 400, { error: "business_plan_id_required" });
         const active = body.active !== false;
@@ -2348,7 +2347,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/plan") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const id = String(body.id || "").trim();
         if (!id || !/^[a-z0-9-]{1,80}$/.test(id)) return send(res, 400, { error: "invalid_plan_id" });
         const plan = {
@@ -2372,7 +2371,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/control") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, {
           ok: true,
           option: await updateAdvancedAdminOption({
@@ -2723,37 +2722,37 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/config") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, await getAdminControlConfig());
       }
 
       if (req.method === "POST" && path === "admin/media-rights/review") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await reviewMediaRights(admin.uid, String(body.rightsId || ""), String(body.decision || ""), String(body.note || "")));
       }
 
       if (req.method === "GET" && path === "admin/media-rights/pending") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, { items: await listPendingMediaRights() });
       }
 
       if (req.method === "GET" && path === "admin/social-integrations") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, { config: await getSocialConfig(), platforms: listSocialPlatforms() });
       }
 
       if (req.method === "POST" && path === "admin/social-integrations") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, { ok: true, config: await updateSocialConfig(body, admin.uid), platforms: listSocialPlatforms() });
       }
 
       if (req.method === "POST" && path === "admin/social-secret") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await saveSocialClientSecret(String(body.platform || ""), String(body.secretValue || ""), admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/social-test") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const config = await getSocialConfig();
         const platform = String(body.platform || "");
         const p = config.platforms?.[platform];
@@ -2771,12 +2770,12 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/social-accounts") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, { accounts: await listSocialAccounts(admin.uid) });
       }
 
       if (req.method === "POST" && path === "admin/social-oauth/start") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const platform = String(body.platform || "");
         const config = await getSocialConfig();
         const redirectUri = String(body.redirectUri || config.callbackBaseUrl || "");
@@ -2798,7 +2797,7 @@ export const bqSqwadApi = onRequest(
 
 
       if (req.method === "GET" && path === "admin/providers") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const db = getFirestore();
         const config = await getAdminControlConfig();
         const providers = await Promise.all(
@@ -2857,7 +2856,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/provider-secret") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const providerId = String(body.providerId || "");
         if (!/^[a-z][a-z0-9_.-]{1,79}$/i.test(providerId)) return send(res, 400, { error: "invalid_provider_id" });
         const value = String(body.secretValue || "");
@@ -2874,7 +2873,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/route") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const capability = String(body.capabilityId || "");
         if (!capability) return send(res, 400, { error: "capability_required" });
         const route = {
@@ -2886,7 +2885,7 @@ export const bqSqwadApi = onRequest(
           updatedAt: FieldValue.serverTimestamp()
         };
         const optionId = "capability_" + capability;
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, {
           ok: true,
           option: await updateAdvancedAdminOption({
@@ -2900,12 +2899,12 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/advanced-options") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         return send(res, 200, { options: await listAdvancedAdminOptions() });
       }
 
       if (req.method === "POST" && path === "admin/advanced-option") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, {
           ok: true,
           option: await updateAdvancedAdminOption(body, admin.uid)
@@ -2913,18 +2912,18 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/organization") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await getAdminOrganizationControl(admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/organization/plan-status") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const planId = String(body.planId || "").trim();
         return send(res, 200, await setOrganizationPlanStatus(admin.uid, planId, body.active !== false, body.confirmDeactivation === true));
       }
 
       if (req.method === "POST" && path === "admin/organization/entitlement") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const uid = String(body.uid || "").trim();
         const planId = String(body.planId || "").trim();
         if (!uid || !planId) return send(res, 400, { error: "organization_entitlement_target_required" });
@@ -2932,27 +2931,27 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "GET" && path === "admin/organization/test-session") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await getOrganizationTestSession(admin.uid));
       }
 
       if (req.method === "POST" && path === "admin/organization/test-session") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, await setOrganizationTestSession(admin.uid, String(body.planId || ""), body.enabled !== false, Number(body.durationMinutes || 120)));
       }
       if (req.method === "GET" && path === "admin/organization-billing") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const snap = await getFirestore().collection("adminAdvancedOptions").doc("organization_billing").get();
         return send(res, 200, { enabled: snap.exists ? snap.data()?.enabled !== false : true, config: snap.exists ? (snap.data()?.config || {}) : {} });
       }
 
       if (req.method === "POST" && path === "admin/organization-billing") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         return send(res, 200, { ok: true, config: await organizationBillingAdminConfig(admin.uid, body) });
       }
 
       if (req.method === "GET" && path === "admin/live-voice-pricing") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const snap = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
         return send(res, 200, {
           enabled: snap.exists ? snap.data()?.enabled !== false : false,
@@ -2962,7 +2961,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/live-voice-pricing") {
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const pricing = {
           creditsPerMinute: body.creditsPerMinute == null ? null : Math.max(0, Number(body.creditsPerMinute)),
           minimumMinutes: body.minimumMinutes == null ? null : Math.max(0, Number(body.minimumMinutes)),
@@ -2980,7 +2979,7 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/web-search-pricing") {
-        await assertSuperAdmin(await userFromRequest(req));
+        await adminFromRequest(req);
         const pricing = {
           enabled: body.enabled !== false,
           creditsPerSearch: Math.max(0, Number(body.creditsPerSearch ?? 1)),
@@ -2990,7 +2989,7 @@ export const bqSqwadApi = onRequest(
           dailyUserLimit: body.dailyUserLimit == null ? null : Math.max(0, Number(body.dailyUserLimit)),
           planOverrides: body.planOverrides || {}
         };
-        const admin = await assertSuperAdmin(await userFromRequest(req));
+        const admin = await adminFromRequest(req);
         const current = await getFirestore().collection("adminAdvancedOptions").doc("web_search_pricing").get();
         return send(res, 200, {
           ok: true,
