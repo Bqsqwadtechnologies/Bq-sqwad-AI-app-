@@ -14,11 +14,15 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.firebase.storage.FirebaseStorage
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
 import org.json.JSONObject
 
 @Composable
@@ -32,6 +36,29 @@ fun AdminOperationsPanel(onBack: () -> Unit) {
     var staff by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var authVideoUrl by remember { mutableStateOf("") }
+    var authVideoEnabled by remember { mutableStateOf(false) }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            runCatching {
+                val ref = FirebaseStorage.getInstance().reference.child("auth-background/" + System.currentTimeMillis() + ".mp4")
+                kotlinx.coroutines.suspendCancellableCoroutine<String> { cont ->
+                    ref.putFile(uri).addOnSuccessListener {
+                        ref.downloadUrl.addOnSuccessListener { url -> if (cont.isActive) cont.resume(url.toString()) }
+                            .addOnFailureListener { if (cont.isActive) cont.resumeWith(Result.failure(it)) }
+                    }.addOnFailureListener { if (cont.isActive) cont.resumeWith(Result.failure(it)) }
+                }
+            }.onSuccess { url ->
+                authVideoUrl = url
+                runCatching { api.setAdminAuthBackgroundVideo(url, true) }
+                    .onSuccess { authVideoEnabled = true; status = "Sign-in background video published." }
+                    .onFailure { status = it.message }
+            }.onFailure { status = it.message }
+            busy = false
+        }
+    }
 
     fun reloadStaff() {
         scope.launch {
@@ -88,6 +115,37 @@ fun AdminOperationsPanel(onBack: () -> Unit) {
                             busy = false
                         }
                     }) { Text("Add / update staff") }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Sign-in background video", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Optional branded video behind the sign-in form. The sign-in controls remain in the foreground.", style = MaterialTheme.typography.bodySmall)
+                    Button(enabled = !busy, onClick = { videoPicker.launch("video/*") }) { Text(if (busy) "Uploading…" else "Upload / replace video") }
+                    OutlinedTextField(authVideoUrl, { authVideoUrl = it }, label = { Text("Published video URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = !busy && authVideoUrl.startsWith("https://"), onClick = {
+                            busy = true
+                            scope.launch {
+                                runCatching { api.setAdminAuthBackgroundVideo(authVideoUrl.trim(), true) }
+                                    .onSuccess { authVideoEnabled = true; status = "Sign-in video enabled." }
+                                    .onFailure { status = it.message }
+                                busy = false
+                            }
+                        }) { Text("Publish URL") }
+                        OutlinedButton(enabled = !busy, onClick = {
+                            busy = true
+                            scope.launch {
+                                runCatching { api.setAdminAuthBackgroundVideo("", false) }
+                                    .onSuccess { authVideoEnabled = false; status = "Sign-in video disabled." }
+                                    .onFailure { status = it.message }
+                                busy = false
+                            }
+                        }) { Text("Disable") }
+                    }
+                    Text(if (authVideoEnabled) "Status: enabled" else "Status: disabled", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
