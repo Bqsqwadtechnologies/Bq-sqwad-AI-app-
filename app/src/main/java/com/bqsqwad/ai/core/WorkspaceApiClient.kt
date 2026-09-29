@@ -152,6 +152,8 @@ class WorkspaceApiClient {
     suspend fun runOrganizationScheduledTask(id:String): JSONObject =
         request("/organization/scheduled-tasks/" + java.net.URLEncoder.encode(id, "UTF-8") + "/run", payload=JSONObject())
 
+    suspend fun organizationBilling(): JSONObject = request("/organization/billing","GET")
+
     suspend fun organization(): JSONObject = request("/organization","GET")
 
     suspend fun updateOrganization(name:String, description:String): JSONObject =
