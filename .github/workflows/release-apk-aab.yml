@@ -1,4 +1,4 @@
-name: Release APK and AAB
+name: BQ Sqwad AI — Release APK & AAB
 
 on:
   workflow_dispatch:
@@ -17,9 +17,13 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: bq-sqwad-release-main
+  cancel-in-progress: true
+
 jobs:
   release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 7
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -36,25 +40,18 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-
-      - name: Install required Android SDK packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          "$SDKMANAGER" --channel=3 "platform-tools" "platforms;android-37" "build-tools;37.0.0"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
-          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
-          test -x "$ANDROID_HOME/platform-tools/adb"
+        with:
+          cmdline-tools-version: "15859902"
+          packages: "platform-tools platforms;android-37 build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.5.0"
 
       - name: Restore release signing key
         shell: bash
@@ -76,34 +73,86 @@ jobs:
           test -n "$KEY_PASSWORD"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Build signed release APK and AAB
-        run: gradle --no-daemon --stacktrace --continue clean assembleRelease bundleRelease
+      - name: Build release APK
+        shell: bash
+        run: |
+          set +e
+          mkdir -p build-logs
+          gradle --no-daemon --stacktrace clean assembleRelease 2>&1 | tee build-logs/release-apk.log
+          status=${PIPESTATUS[0]}
+          printf '%s\n' "$status" > build-logs/release-apk.status
+          echo "APK build exit code: $status"
+          exit 0
 
-      - name: Verify APK and AAB
+      - name: Build release AAB
+        shell: bash
+        run: |
+          set +e
+          mkdir -p build-logs
+          gradle --no-daemon --stacktrace bundleRelease 2>&1 | tee build-logs/release-aab.log
+          status=${PIPESTATUS[0]}
+          printf '%s\n' "$status" > build-logs/release-aab.status
+          echo "AAB build exit code: $status"
+          exit 0
+
+      - name: Report build results
         shell: bash
         run: |
           set -euo pipefail
+          apk_status="$(cat build-logs/release-apk.status)"
+          aab_status="$(cat build-logs/release-aab.status)"
+          echo "APK build exit code: $apk_status"
+          echo "AAB build exit code: $aab_status"
+
+          if [ "$apk_status" -ne 0 ] || [ "$aab_status" -ne 0 ]; then
+            echo "One or more release builds failed. Both build logs were collected above."
+            exit 1
+          fi
+
+      - name: Verify release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
           APK="app/build/outputs/apk/release/app-release.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
+
           test -s "$APK"
           test -s "$AAB"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -perm -u+x -print -quit)"
+          test -n "$APKSIGNER"
+          echo "Using apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
           jarsigner -verify "$AAB"
 
       - name: Record build identifier
         shell: bash
         run: |
+          set -euo pipefail
           printf 'commit=%s\nshort_sha=%s\nversion=1.0.5\n' "$GITHUB_SHA" "${GITHUB_SHA:0:7}" > build-info.txt
 
       - name: Prepare release files
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release
           cp app/build/outputs/apk/release/app-release.apk release/BQ-Sqwad-AI-v1.0.5-release.apk
           cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
           cp build-info.txt release/BUILD-INFO.txt
           sha256sum release/* > release/SHA256SUMS.txt
 
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: BQ-Sqwad-AI-v1.0.5-build-logs
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Upload APK and AAB
+        if: success()
         uses: actions/upload-artifact@v6
         with:
           name: BQ-Sqwad-AI-v1.0.5-release
@@ -112,7 +161,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub release
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
