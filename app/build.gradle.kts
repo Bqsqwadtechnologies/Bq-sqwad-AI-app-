@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId = "com.bqsqwad.ai"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 5
         versionName = "1.0.5"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
