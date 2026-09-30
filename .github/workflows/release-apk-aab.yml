@@ -63,8 +63,9 @@ jobs:
           test -f build.gradle.kts
           command -v gradle
           gradle --version
-          test -d "$ANDROID_HOME/platforms/android-36"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
           test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          sdkmanager --list_installed | grep -E "platforms;android-36|build-tools;36.0.0"
 
       - name: Restore release signing key
         shell: bash
@@ -92,14 +93,16 @@ jobs:
         run: |
           set +e
 
+          mkdir -p build-logs
+
           echo "=== Building release APK ==="
-          gradle --no-daemon --stacktrace clean assembleRelease
-          apk_status=$?
+          gradle --no-daemon --stacktrace --continue clean assembleRelease 2>&1 | tee build-logs/release-apk.log
+          apk_status=${PIPESTATUS[0]}
           echo "APK build exit code: $apk_status"
 
           echo "=== Building release AAB ==="
-          gradle --no-daemon --stacktrace bundleRelease
-          aab_status=$?
+          gradle --no-daemon --stacktrace --continue bundleRelease 2>&1 | tee build-logs/release-aab.log
+          aab_status=${PIPESTATUS[0]}
           echo "AAB build exit code: $aab_status"
 
           echo "=== Release build summary ==="
@@ -110,6 +113,15 @@ jobs:
             echo "One or more release builds failed. Both build attempts were allowed to finish so all available errors are visible in this job log."
             exit 1
           fi
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: BQ-Sqwad-AI-v1.0.5-build-logs
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Verify release artifacts
         shell: bash
