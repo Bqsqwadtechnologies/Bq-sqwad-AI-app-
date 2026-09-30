@@ -77,7 +77,7 @@ jobs:
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
       - name: Build signed release APK and AAB
-        run: gradle --no-daemon --stacktrace clean assembleRelease bundleRelease
+        run: gradle --no-daemon --stacktrace --continue clean assembleRelease bundleRelease
 
       - name: Verify APK and AAB
         shell: bash
