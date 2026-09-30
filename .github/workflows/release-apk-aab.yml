@@ -24,7 +24,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 30
     env:
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -46,12 +46,25 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: "15859902"
-          packages: "platform-tools platforms;android-37 build-tools;36.0.0"
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: "9.5.0"
+
+      - name: Verify build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Workspace: $GITHUB_WORKSPACE"
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          test -f build.gradle.kts
+          command -v gradle
+          gradle --version
+          test -d "$ANDROID_HOME/platforms/android-36"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
 
       - name: Restore release signing key
         shell: bash
@@ -60,6 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_BASE64"
+          mkdir -p "$(dirname "$KEYSTORE_PATH")"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
           test -s "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
@@ -74,7 +88,9 @@ jobs:
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
       - name: Build release APK
+        id: apk
         shell: bash
+        continue-on-error: true
         run: |
           set +e
           mkdir -p build-logs
@@ -85,7 +101,9 @@ jobs:
           exit 0
 
       - name: Build release AAB
+        id: aab
         shell: bash
+        continue-on-error: true
         run: |
           set +e
           mkdir -p build-logs
@@ -99,13 +117,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk_status="$(cat build-logs/release-apk.status)"
-          aab_status="$(cat build-logs/release-aab.status)"
+          apk_status="$(cat build-logs/release-apk.status 2>/dev/null || echo 1)"
+          aab_status="$(cat build-logs/release-aab.status 2>/dev/null || echo 1)"
           echo "APK build exit code: $apk_status"
           echo "AAB build exit code: $aab_status"
-
           if [ "$apk_status" -ne 0 ] || [ "$aab_status" -ne 0 ]; then
-            echo "One or more release builds failed. Both build logs were collected above."
+            echo "One or more release builds failed. Both build logs were collected."
             exit 1
           fi
 
@@ -113,16 +130,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           APK="app/build/outputs/apk/release/app-release.apk"
           AAB="app/build/outputs/bundle/release/app-release.aab"
-
           test -s "$APK"
           test -s "$AAB"
-
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -perm -u+x -print -quit)"
-          test -n "$APKSIGNER"
-          echo "Using apksigner: $APKSIGNER"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
           jarsigner -verify "$AAB"
 
