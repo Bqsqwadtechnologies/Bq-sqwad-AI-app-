@@ -87,42 +87,27 @@ jobs:
           test -n "$KEY_PASSWORD"
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
 
-      - name: Build release APK
-        id: apk
+      - name: Build release APK and AAB
         shell: bash
-        continue-on-error: true
         run: |
           set +e
-          mkdir -p build-logs
-          gradle --no-daemon --stacktrace clean assembleRelease 2>&1 | tee build-logs/release-apk.log
-          status=${PIPESTATUS[0]}
-          printf '%s\n' "$status" > build-logs/release-apk.status
-          echo "APK build exit code: $status"
-          exit 0
 
-      - name: Build release AAB
-        id: aab
-        shell: bash
-        continue-on-error: true
-        run: |
-          set +e
-          mkdir -p build-logs
-          gradle --no-daemon --stacktrace bundleRelease 2>&1 | tee build-logs/release-aab.log
-          status=${PIPESTATUS[0]}
-          printf '%s\n' "$status" > build-logs/release-aab.status
-          echo "AAB build exit code: $status"
-          exit 0
-
-      - name: Report build results
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk_status="$(cat build-logs/release-apk.status 2>/dev/null || echo 1)"
-          aab_status="$(cat build-logs/release-aab.status 2>/dev/null || echo 1)"
+          echo "=== Building release APK ==="
+          gradle --no-daemon --stacktrace clean assembleRelease
+          apk_status=$?
           echo "APK build exit code: $apk_status"
+
+          echo "=== Building release AAB ==="
+          gradle --no-daemon --stacktrace bundleRelease
+          aab_status=$?
           echo "AAB build exit code: $aab_status"
+
+          echo "=== Release build summary ==="
+          echo "APK: $apk_status"
+          echo "AAB: $aab_status"
+
           if [ "$apk_status" -ne 0 ] || [ "$aab_status" -ne 0 ]; then
-            echo "One or more release builds failed. Both build logs were collected."
+            echo "One or more release builds failed. Both build attempts were allowed to finish so all available errors are visible in this job log."
             exit 1
           fi
 
@@ -153,15 +138,6 @@ jobs:
           cp app/build/outputs/bundle/release/app-release.aab release/BQ-Sqwad-AI-v1.0.5-release.aab
           cp build-info.txt release/BUILD-INFO.txt
           sha256sum release/* > release/SHA256SUMS.txt
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: BQ-Sqwad-AI-v1.0.5-build-logs
-          path: build-logs/
-          if-no-files-found: warn
-          retention-days: 30
 
       - name: Upload APK and AAB
         if: success()
