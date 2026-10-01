@@ -98,7 +98,7 @@ fun LifeMathisPlanGate(
 
     DisposableEffect(activity) {
         if (activity != null) {
-            val manager = PlayBillingClient(activity) { state -> onStatus(state.message) }
+            val manager = PlayBillingClient(activity, onPurchaseState = { state -> onStatus(state.message) })
             billing = manager
             manager.start()
             onDispose { manager.close() }
