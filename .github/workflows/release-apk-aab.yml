@@ -46,7 +46,7 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: "15859902"
-          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+          packages: "platform-tools platforms;android-37 build-tools;37.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
@@ -63,9 +63,9 @@ jobs:
           test -f build.gradle.kts
           command -v gradle
           gradle --version
-          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
-          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          sdkmanager --list_installed | grep -E "platforms;android-36|build-tools;36.0.0"
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          sdkmanager --list_installed | grep -E "platforms;android-37|build-tools;37.0.0"
 
       - name: Restore release signing key
         shell: bash
@@ -131,7 +131,7 @@ jobs:
           AAB="app/build/outputs/bundle/release/app-release.aab"
           test -s "$APK"
           test -s "$AAB"
-          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
           "$APKSIGNER" verify --verbose "$APK"
           jarsigner -verify "$AAB"
 
