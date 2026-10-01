@@ -27,7 +27,7 @@ private data class TruthGuardPlan(
 )
 
 @Composable
-fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
+fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var claim by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -175,7 +175,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                     Button(
                         onClick = ::verify,
                         enabled = !busy && claim.isNotBlank(),
-                        Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth()
                     ) { Text(if (busy) "Verifying…" else "Verify claim") }
                     Text(
                         "Successful checks use the server-controlled TruthGuard credit price. Plan limits are enforced on the backend.",
@@ -322,7 +322,7 @@ private fun TruthGuardResultCard(result: JSONObject, showSources: Boolean, showR
 
 @Composable
 private fun TruthGuardHistoryCard(item: JSONObject, onOpen: () -> Unit) {
-    OutlinedCard(Modifier.fillMaxWidth(), onClick = onOpen) {
+    OutlinedCard(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(item.optString("claim"), fontWeight = FontWeight.SemiBold, maxLines = 3)
             Text(
