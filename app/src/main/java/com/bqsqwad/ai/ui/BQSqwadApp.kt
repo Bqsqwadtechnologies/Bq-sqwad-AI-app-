@@ -2872,7 +2872,7 @@ fun CameraWorkspace() {
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.bq_sqwad_ai_main_app_logo),
+                        painter = painterResource(R.drawable.bq_sqwad_logo),
                         contentDescription = "BQ Sqwad AI",
                         modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
                         contentScale = ContentScale.Crop
