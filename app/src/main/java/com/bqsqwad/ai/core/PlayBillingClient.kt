@@ -150,7 +150,7 @@ class PlayBillingClient(
             runCatching {
                 val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
                 val token = Tasks.await(user.getIdToken(false)).token ?: return@runCatching
-                val catalogPath = if (organizationContext) "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
+                val catalogPath = if (catalogContext == "organization") "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
                 val connection = (URL(catalogPath).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
