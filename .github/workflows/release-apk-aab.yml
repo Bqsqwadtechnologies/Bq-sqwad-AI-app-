@@ -96,12 +96,12 @@ jobs:
           mkdir -p build-logs
 
           echo "=== Building release APK ==="
-          gradle --no-daemon --stacktrace --continue clean assembleRelease 2>&1 | tee build-logs/release-apk.log
+          gradle --no-daemon --stacktrace clean assembleRelease 2>&1 | tee build-logs/release-apk.log
           apk_status=${PIPESTATUS[0]}
           echo "APK build exit code: $apk_status"
 
           echo "=== Building release AAB ==="
-          gradle --no-daemon --stacktrace --continue bundleRelease 2>&1 | tee build-logs/release-aab.log
+          gradle --no-daemon --stacktrace bundleRelease 2>&1 | tee build-logs/release-aab.log
           aab_status=${PIPESTATUS[0]}
           echo "AAB build exit code: $aab_status"
 
