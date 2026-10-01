@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminAdvancedClient
+import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.AdminOperationalConfig
 import com.bqsqwad.ai.core.AdminPlayCatalogItem
 import com.bqsqwad.ai.core.AdvancedAdminOption
