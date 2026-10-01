@@ -853,7 +853,7 @@ fun OrganizationStudioWorkspace() {
                         Text("AI may use live screen/program context")
                         Switch(aiLiveScreenAwareness, onCheckedChange = { if (aiLiveMode == "full_audience") aiLiveScreenAwareness = it })
                     }
-                    Text("Live billing rate: $" + "%.2f".format(java.util.Locale.US, aiLiveCreditsPerMinute) + "/minute. Live usage is deducted continuously from the Organization balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Live billing rate: $" + "%.2f".format(java.util.Locale.US, (organizationBilling?.optJSONObject("liveRateCentsPerMinute")?.optDouble(aiLiveMode, 0.0) ?: 0.0) / 100.0) + "/minute. Live usage is deducted continuously from the Organization balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(
                         enabled = aiLivePrivacyAccepted && !busy,
                         onClick = {
