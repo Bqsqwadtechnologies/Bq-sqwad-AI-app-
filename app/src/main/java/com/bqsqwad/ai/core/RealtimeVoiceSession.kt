@@ -232,7 +232,6 @@ class RealtimeVoiceSession(
         runCatching { player?.flush() }
         player?.release()
         player = null
-        releaseAudioFocus()
         socket = null
     }
 }
