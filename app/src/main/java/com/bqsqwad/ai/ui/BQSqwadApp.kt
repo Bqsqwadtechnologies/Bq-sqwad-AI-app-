@@ -2595,7 +2595,7 @@ fun CameraWorkspace() {
         else livePermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
     }
 
-    val toggleFlashlight = {
+    val toggleFlashlight: () -> Unit = {
         runCatching {
             val manager = context.getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
             val id = manager.cameraIdList.firstOrNull { cameraId ->
@@ -3157,14 +3157,14 @@ private fun PlansSheet(onDismiss: () -> Unit) {
             status = "Google Play billing is unavailable in this context."
             onDispose { }
         } else {
-            val manager = PlayBillingClient(activity) { state ->
+            val manager = PlayBillingClient(activity, onPurchaseState = { state ->
                 status = when (state.status) {
                     "success" -> state.message
                     "pending" -> state.message
                     "verifying" -> state.message
                     else -> state.message
                 }
-            }
+            })
             billing = manager
             manager.start()
             status = "Loading Play products…"
@@ -3340,7 +3340,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                                 Text(
                                     (FirebaseAuth.getInstance().currentUser?.displayName?.trim()?.firstOrNull()
                                         ?: FirebaseAuth.getInstance().currentUser?.email?.trim()?.firstOrNull()
-                                        ?: "U").uppercase(),
+                                        ?: "U").toString().uppercase(),
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
