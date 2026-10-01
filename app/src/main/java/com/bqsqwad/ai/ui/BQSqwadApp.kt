@@ -37,6 +37,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -916,7 +917,6 @@ private fun isImageGenerationRequest(text: String): Boolean {
 private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
 
 @Composable
-@Composable
 private fun BqHeaderIconButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
@@ -934,6 +934,7 @@ private fun BqHeaderIconButton(
     }
 }
 
+@Composable
 private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -2468,8 +2469,6 @@ private fun DataAnalysisWorkspace() {
             }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
         }
     }
-    LaunchedEffect(active) { if (!active && flashlightOn) toggleFlashlight() }
-
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Data Analyst", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Analyze CSV, JSON and supported text-based datasets, then generate an AI explanation or report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2744,7 +2743,7 @@ fun CameraWorkspace() {
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.bq_sqwad_ai_main_app_logo),
+                        painter = painterResource(R.drawable.bq_sqwad_logo),
                         contentDescription = "BQ Sqwad AI",
                         modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
                         contentScale = ContentScale.Crop
