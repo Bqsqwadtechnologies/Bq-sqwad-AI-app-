@@ -43,7 +43,7 @@ fun BqGeneratingIndicator(label: String = "BQ Sqwad AI is generating…", modifi
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
                 Image(
-                    painter = painterResource(R.drawable.bq_sqwad_ai_main_app_logo),
+                    painter = painterResource(R.drawable.bq_sqwad_logo),
                     contentDescription = "BQ Sqwad AI",
                     modifier = Modifier.size(54.dp).alpha(alpha)
                 )
