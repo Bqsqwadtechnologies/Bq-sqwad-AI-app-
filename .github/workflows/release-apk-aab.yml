@@ -54,6 +54,8 @@ jobs:
           exit 0
 
       - name: Set up JDK 17
+        id: setup_jdk
+        continue-on-error: true
         uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -61,6 +63,7 @@ jobs:
 
       - name: Set up Android SDK tools
         id: android_tools
+        continue-on-error: true
         uses: android-actions/setup-android@v4
         with:
           cmdline-tools-version: "15859902"
@@ -99,6 +102,7 @@ jobs:
 
       - name: Set up Gradle
         id: setup_gradle
+        continue-on-error: true
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: ${{ steps.gradle_source.outputs.wrapper == 'true' && 'wrapper' || '9.5.0' }}
@@ -458,6 +462,9 @@ jobs:
         if: ${{ always() }}
         shell: bash
         env:
+          JDK_SETUP: ${{ steps.setup_jdk.outcome }}
+          ANDROID_TOOLS: ${{ steps.android_tools.outcome }}
+          GRADLE_SETUP: ${{ steps.setup_gradle.outcome }}
           REPO_CHECK: ${{ steps.repo_check.outputs.status }}
           ANDROID_SDK: ${{ steps.android_sdk.outputs.status }}
           PROJECT_AUDIT: ${{ steps.project_audit.outputs.status }}
@@ -478,6 +485,9 @@ jobs:
             echo
             echo "| Stage | Result |"
             echo "|---|---|"
+            printf '| JDK setup | %s |\n' "${JDK_SETUP:-failure}"
+            printf '| Android SDK tools setup | %s |\n' "${ANDROID_TOOLS:-failure}"
+            printf '| Gradle setup | %s |\n' "${GRADLE_SETUP:-failure}"
             printf '| Repository/branch | %s |\n' "${REPO_CHECK:-FAIL}"
             printf '| Android SDK API 37 | %s |\n' "${ANDROID_SDK:-FAIL}"
             printf '| Project inspection | %s |\n' "${PROJECT_AUDIT:-FAIL}"
@@ -527,6 +537,9 @@ jobs:
             fi
           }
 
+          check "JDK setup" "$JDK_SETUP"
+          check "Android SDK tools setup" "$ANDROID_TOOLS"
+          check "Gradle setup" "$GRADLE_SETUP"
           check "repository/branch" "$REPO_CHECK"
           check "Android SDK" "$ANDROID_SDK"
           check "project audit" "$PROJECT_AUDIT"
