@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.bqsqwad.ai"
-    compileSdk = 36
+    compileSdk {\n        version = release(37) {\n            minorApiLevel = 0\n        }\n    }
 
     defaultConfig {
         applicationId = "com.bqsqwad.ai"
