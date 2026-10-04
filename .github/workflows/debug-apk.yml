@@ -29,8 +29,12 @@ jobs:
           cmdline-tools-version: "15859902"
           packages: "platform-tools build-tools;36.0.0"
 
-      - name: Install Android API 37
-        run: sdkmanager --channel=1 "platforms;android-37"
+      - name: Install Android 17 SDK preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --channel=3 "platforms;android-37"
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -39,6 +43,7 @@ jobs:
           cache-provider: basic
 
       - name: Test and build debug APK
+        shell: bash
         run: |
           set -euo pipefail
           gradle --no-daemon --stacktrace :app:testDebugUnitTest
