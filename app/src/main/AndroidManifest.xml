@@ -23,6 +23,7 @@
         </intent>
     </queries>
     <application
+        android:name=".BqApplication"
         android:icon="@drawable/bq_sqwad_logo"
         android:roundIcon="@drawable/bq_sqwad_logo"
         android:allowBackup="false"
