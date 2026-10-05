@@ -24,14 +24,22 @@ async function proxyUpstream(request, url) {
   const upstreamUrl = UPSTREAM + url.pathname + url.search;
   const headers = new Headers(request.headers);
   headers.delete("host");
-  const upstream = await fetch(upstreamUrl, {
+  let upstream;
+  try {
+    upstream = await fetch(upstreamUrl, {
     method: request.method,
     headers,
     body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
     redirect: "follow"
-  });
+    });
+  } catch (error) {
+    return json({ error: "not_migrated", path: url.pathname, detail: error?.message || "upstream_unavailable" }, 501);
+  }
+  if (upstream.status === 404 || upstream.status === 405) {
+    return json({ error: "not_migrated", path: url.pathname }, 501);
+  }
   const responseHeaders = new Headers(upstream.headers);
-  for (const [key, value] of Object.entries(corsHeaders())) responseHeaders.set(key, value);
+  for (const [key, value] of Object.entries(corsHeaders(request))) responseHeaders.set(key, value);
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
@@ -39,12 +47,16 @@ async function proxyUpstream(request, url) {
   });
 }
 
-function corsHeaders() {
+function corsHeaders(request = null) {
+  const configured = String(globalThis.__bqEnv?.ALLOWED_ORIGINS || "").split(",").map(x => x.trim()).filter(Boolean);
+  const origin = request?.headers?.get("Origin") || "";
+  const allowOrigin = configured.length === 0 ? "*" : (configured.includes(origin) ? origin : configured[0]);
   return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, Idempotency-Key",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff"
   };
 }
 function json(value, status = 200) {
@@ -348,7 +360,7 @@ async function stream(request, user, body) {
         }
       }
     });
-    return new Response(output, { status: 200, headers: { ...corsHeaders(), "content-type": "text/event-stream", "cache-control": "no-cache" } });
+    return new Response(output, { status: 200, headers: { ...corsHeaders(request), "content-type": "text/event-stream", "cache-control": "no-cache" } });
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
     throw error;
@@ -361,7 +373,7 @@ export default {
     configureFirebaseEnv(env);
     globalThis.__bqEnv = env;
     const url = new URL(request.url);
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
       // All feature routes not implemented natively in this Worker are intentionally forwarded to the canonical Firebase backend below.\n      // Keep this catch-through behavior so Android always uses this stable API origin while legacy backend handlers remain available.\n      const firebaseBackedPath =
