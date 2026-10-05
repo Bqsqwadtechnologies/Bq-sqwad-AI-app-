@@ -69,15 +69,15 @@ jobs:
           cmdline-tools-version: "15859902"
           packages: "platform-tools build-tools;36.0.0"
 
-      - name: Install Android API 37
+      - name: Install Android API 36
         id: android_sdk
         shell: bash
         continue-on-error: true
         run: |
           set +e
-          sdkmanager --channel=3 "platforms;android-37"
+          sdkmanager "platforms;android-36"
           install_status=$?
-          if [[ $install_status -eq 0 && -f "$ANDROID_HOME/platforms/android-37/android.jar" ]]; then
+          if [[ $install_status -eq 0 && -f "$ANDROID_HOME/platforms/android-36/android.jar" ]]; then
             status=PASS
           else
             status=FAIL
