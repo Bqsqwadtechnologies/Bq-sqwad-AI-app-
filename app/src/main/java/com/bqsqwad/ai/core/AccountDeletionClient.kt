@@ -15,7 +15,7 @@ class AccountDeletionClient {
     private fun endpoint(): String {
         val projectId = com.google.firebase.FirebaseApp.getInstance().options.projectId
             ?: error("Firebase project ID is unavailable")
-        return "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/account"
+        return "${API_BASE_URL_PLACEHOLDER}/account"
     }
 
     suspend fun deleteAccount(): JSONObject = withContext(Dispatchers.IO) {
