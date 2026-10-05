@@ -568,6 +568,29 @@ export default {
         return json({ ok:true });
       }
 
+
+      if (url.pathname === "/notifications/token" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const token = String(body.token || "").trim();
+        if (!token || token.length > 4096) return json({ error:"notification_token_required" }, 400);
+        const platform = String(body.platform || "android").slice(0,40);
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+        const hash = Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2,"0")).join("");
+        await firestoreSet("notificationTokens/" + user.uid + "_" + hash, { uid:user.uid, token, tokenHash:hash, platform, enabled:true, updatedAt:new Date() }, true);
+        return json({ ok:true, registered:true });
+      }
+      if (url.pathname === "/notifications/token" && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const token = String(body.token || "").trim();
+        if (!token) return json({ error:"notification_token_required" }, 400);
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+        const hash = Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2,"0")).join("");
+        await firestoreDelete("notificationTokens/" + user.uid + "_" + hash);
+        return json({ ok:true, removed:true });
+      }
+
       if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
