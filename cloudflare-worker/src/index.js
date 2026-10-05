@@ -8,10 +8,11 @@ function hasWorkerFirebaseConfig(env) {
   return Boolean(env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON);
 }
 
-function isSuperAdmin(user) {
+function isSuperAdmin(user, env) {
   const claims = user?.customAttributes || {};
   const email = String(user?.email || "").toLowerCase();
-  return email === "isaacoshiomole0@gmail.com" && (
+  const owner = String(env?.SUPER_ADMIN_EMAIL || "").toLowerCase();
+  return Boolean(owner) && email === owner && (
     claims.admin === true ||
     claims.superAdmin === true ||
     claims.role === "admin" ||
@@ -123,7 +124,7 @@ async function readCanonicalUserBalance(uid) {
 async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   const charge = Math.max(0, Number(amount || 0));
   if (!charge) return { reservationId: null, amount: 0 };
-  if (isSuperAdmin(adminUser)) return { reservationId: null, amount: 0, adminUnlimited: true };
+  if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
 
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -411,7 +412,7 @@ export default {
 
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        if (isSuperAdmin(user)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+        if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
         if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
@@ -432,7 +433,7 @@ export default {
 
       if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        if (!isSuperAdmin(user)) throw new Error("Admin access required");
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
         return json({
           configured: providerSecretStatus(env),
           checkedAt: new Date().toISOString()
