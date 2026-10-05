@@ -11,6 +11,7 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 
 data class ChatReply(
     val text: String,
@@ -34,6 +35,7 @@ class ChatApiClient(
     ): ChatReply =
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
+            val idempotencyKey = UUID.randomUUID().toString()
             val connection = (URL("$baseUrl/ai").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
@@ -42,6 +44,7 @@ class ChatApiClient(
                 doOutput = true
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Idempotency-Key", idempotencyKey)
             }
             connection.outputStream.use {
                 it.write(JSONObject().apply {
@@ -87,6 +90,7 @@ class ChatApiClient(
     ): ChatReply = withTimeout(120000) {
         withContext(Dispatchers.IO) {
             val token = authToken()
+            val idempotencyKey = UUID.randomUUID().toString()
             val connection = (URL("$baseUrl/ai/stream").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
@@ -97,6 +101,7 @@ class ChatApiClient(
                 setRequestProperty("Cache-Control", "no-cache")
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Idempotency-Key", idempotencyKey)
             }
 
             try {
