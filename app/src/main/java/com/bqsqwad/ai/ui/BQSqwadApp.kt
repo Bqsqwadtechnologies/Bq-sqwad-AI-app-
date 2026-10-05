@@ -1288,7 +1288,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine && m.text == "Generating image…") {
                             BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
                         } else {
-                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { Text(m.text, Modifier.padding(14.dp)) }
+                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) }
                         }
                         if (!m.mine) Row {
                             TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
