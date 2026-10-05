@@ -4,12 +4,16 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val releaseSigningReady = listOf("KEYSTORE_PATH", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+    .all { !System.getenv(it).isNullOrBlank() }
+
 android {
     namespace = "com.bqsqwad.ai"
     compileSdk = 37
 
     defaultConfig {
         applicationId = "com.bqsqwad.ai"
+        buildConfigField("String", "API_BASE_URL", "\"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev\"")
         minSdk = 24
         targetSdk = 36
         versionCode = 5
@@ -27,25 +31,13 @@ android {
                 "proguard-rules.pro"
             )
 
-            val keystorePath = System.getenv("KEYSTORE_PATH")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAlias = System.getenv("KEY_ALIAS")
-            val keyPassword = System.getenv("KEY_PASSWORD")
-
-            val signingValuesPresent = !keystorePath.isNullOrBlank() &&
-                !keystorePassword.isNullOrBlank() &&
-                !keyAlias.isNullOrBlank() &&
-                !keyPassword.isNullOrBlank()
-
-            check(signingValuesPresent) {
-                "Release signing is not configured. Set KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD before building a release artifact."
-            }
-
-            signingConfig = signingConfigs.create("releaseCi") {
-                storeFile = file(requireNotNull(keystorePath))
-                storePassword = requireNotNull(keystorePassword)
-                this.keyAlias = requireNotNull(keyAlias)
-                this.keyPassword = requireNotNull(keyPassword)
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.create("releaseCi") {
+                    storeFile = file(requireNotNull(System.getenv("KEYSTORE_PATH")))
+                    storePassword = requireNotNull(System.getenv("KEYSTORE_PASSWORD"))
+                    keyAlias = requireNotNull(System.getenv("KEY_ALIAS"))
+                    keyPassword = requireNotNull(System.getenv("KEY_PASSWORD"))
+                }
             }
         }
     }
