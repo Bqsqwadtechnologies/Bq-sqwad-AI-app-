@@ -33,8 +33,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager --channel=3 "platforms;android-37"
-          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
+          sdkmanager "platforms;android-36"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
