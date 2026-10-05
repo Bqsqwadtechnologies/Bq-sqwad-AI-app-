@@ -43,3 +43,16 @@ No GitHub Actions workflow is being created or intentionally triggered by this m
 
 ### Worker environment variables
 - `SUPER_ADMIN_EMAIL`: owner/admin email used by the Worker for super-admin authorization. Keep the value in Cloudflare Worker environment configuration; never commit it as a secret or hardcoded value.
+
+
+### Required Worker secrets / variables
+Configure these in Cloudflare, never in source control:
+- `BQ_FIREBASE_SERVICE_ACCOUNT_JSON`
+- `FIREBASE_WEB_API_KEY`
+- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
+- `TAVILY_API_KEY`
+- `SUPER_ADMIN_EMAIL`
+- `ALLOWED_ORIGINS`
+- Social OAuth secrets used by `social.js`
+- Google Play verification secrets used by the canonical Play verification path
