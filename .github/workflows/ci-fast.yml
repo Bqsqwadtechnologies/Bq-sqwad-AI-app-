@@ -1,11 +1,6 @@
-name: BQ Sqwad AI — Fast CI
+name: BQ Sqwad AI — Fast CI (Manual Only)
 
 on:
-  push:
-    branches: [main]
-    paths-ignore: ["preview/**", "docs/**", "**/*.md"]
-  pull_request:
-    paths-ignore: ["preview/**", "docs/**", "**/*.md"]
   workflow_dispatch:
 
 permissions:
