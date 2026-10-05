@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.bqsqwad.ai.core.LiveMediaForegroundService
+import com.bqsqwad.ai.core.ApiConfig
 import com.bqsqwad.ai.core.PlayBillingClient
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
