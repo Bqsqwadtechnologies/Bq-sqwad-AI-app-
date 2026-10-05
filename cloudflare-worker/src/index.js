@@ -376,7 +376,9 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
-      // All feature routes not implemented natively in this Worker are intentionally forwarded to the canonical Firebase backend below.\n      // Keep this catch-through behavior so Android always uses this stable API origin while legacy backend handlers remain available.\n      const firebaseBackedPath =
+      // All feature routes not implemented natively in this Worker are forwarded to the canonical Firebase backend below.
+      // Keep this catch-through behavior so Android always uses this stable API origin while legacy backend handlers remain available.
+      const firebaseBackedPath =
         url.pathname === "/ai" ||
         url.pathname === "/ai/stream" ||
         url.pathname === "/ai/vision" ||
