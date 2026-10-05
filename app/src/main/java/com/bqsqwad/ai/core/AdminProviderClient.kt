@@ -33,7 +33,7 @@ data class AdminProviderRoute(
 )
 
 class AdminProviderClient(
-    private val baseUrl: String = "${API_BASE_URL_PLACEHOLDER}"
+    private val baseUrl: String = "${ApiConfig.baseUrl}"
 ) {
     suspend fun planCatalog(): JSONObject = request("GET", "/admin/plan-catalog", null)
 
