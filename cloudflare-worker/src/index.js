@@ -382,6 +382,9 @@ export default {
         url.pathname === "/entitlement" ||
         url.pathname === "/admin/access" ||
         url.pathname === "/admin/test-mode";
+      if (firebaseBackedPath && !request.headers.get("Authorization") && ["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"].includes(url.pathname)) {
+        return json({ error: "auth_required" }, 401);
+      }
       if (firebaseBackedPath && !hasWorkerFirebaseConfig(env)) {
         return await proxyUpstream(request, url);
       }
