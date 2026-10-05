@@ -502,6 +502,72 @@ export default {
         return json({ ok:true });
       }
 
+
+      if (url.pathname === "/memory" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const memory = await firestoreGet("userMemory/" + user.uid);
+        return json({ enabled:memory?.enabled !== false, items:Array.isArray(memory?.items) ? memory.items.slice(-80) : [] });
+      }
+      if (url.pathname === "/memory" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const value = String(body.text || "").trim().slice(0, 4000);
+        if (!value) return json({ error:"memory_text_required" }, 400);
+        const memory = await firestoreGet("userMemory/" + user.uid);
+        const items = Array.isArray(memory?.items) ? memory.items.slice(-199) : [];
+        const item = { id:crypto.randomUUID(), text:value, source:String(body.source || "chat").slice(0,40), createdAt:new Date() };
+        items.push(item);
+        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:memory?.enabled !== false, items, updatedAt:new Date() }, true);
+        return json({ ok:true, item });
+      }
+      if (url.pathname === "/memory/settings" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const enabled = body.enabled === true;
+        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled, updatedAt:new Date() }, true);
+        return json({ enabled });
+      }
+      if (url.pathname === "/memory" && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:true, items:[], updatedAt:new Date() }, true);
+        return json({ ok:true, items:[] });
+      }
+      if (url.pathname === "/feature-settings" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const snap = await firestoreGet("userFeatureSettings/" + user.uid);
+        return json({ uid:user.uid, settings:snap?.settings || {}, exists:Boolean(snap) });
+      }
+      if (url.pathname === "/feature-settings" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const workspace = String(body.workspaceId || "global").slice(0,80);
+        const allowed = new Set(["web_search","memory","notifications","history","auto_run","streaming","voice_responses","save_files","personalization","background_jobs"]);
+        const incoming = body.settings && typeof body.settings === "object" ? body.settings : {};
+        const cleaned = {};
+        for (const key of allowed) if (typeof incoming[key] === "boolean") cleaned[key] = incoming[key];
+        const snap = await firestoreGet("userFeatureSettings/" + user.uid);
+        const current = snap?.settings || {};
+        const next = { ...current, [workspace]: { ...(current[workspace] || {}), ...cleaned } };
+        await firestoreSet("userFeatureSettings/" + user.uid, { uid:user.uid, settings:next, updatedAt:new Date() }, true);
+        return json({ uid:user.uid, settings:next });
+      }
+      if (url.pathname === "/feedback" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const message = String(body.message || "");
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message));
+        const messageHash = Array.from(new Uint8Array(hash)).map(x => x.toString(16).padStart(2,"0")).join("");
+        await firestoreCreate("aiFeedback/" + crypto.randomUUID(), {
+          uid:user.uid, messageId:body.messageId == null ? null : String(body.messageId).slice(0,120),
+          category:String(body.category || "general").slice(0,40),
+          sentiment:body.sentiment == null ? null : String(body.sentiment).slice(0,20),
+          reason:body.reason == null ? null : String(body.reason).slice(0,80),
+          comment:body.comment == null ? null : String(body.comment).slice(0,1000),
+          messageHash, createdAt:new Date()
+        });
+        return json({ ok:true });
+      }
+
       if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
