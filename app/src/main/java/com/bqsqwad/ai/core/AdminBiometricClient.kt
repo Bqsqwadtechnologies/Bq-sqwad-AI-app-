@@ -25,7 +25,7 @@ import java.net.URL
 
 class AdminBiometricClient(private val context: Context) {
     private val alias = "bq_admin_biometric_v1"
-    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
+    private val baseUrl = "${API_BASE_URL_PLACEHOLDER}"
 
     private suspend fun request(path: String, method: String = "POST", payload: JSONObject = JSONObject()): JSONObject = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
