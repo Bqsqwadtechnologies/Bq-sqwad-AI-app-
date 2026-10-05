@@ -217,6 +217,35 @@ export async function firestoreCommit(writes) {
   return result;
 }
 
+export async function firestoreQuery(collection, {
+  parent = null,
+  filters = [],
+  orderBy = null,
+  limit = 100
+} = {}) {
+  const project = encodeURIComponent(projectId());
+  const parentPath = parent ? "/" + parent.split("/").map(encodeURIComponent).join("/") : "";
+  const url = FIRESTORE_BASE + "/projects/" + project + "/databases/(default)/documents:runQuery";
+  const from = [{ collectionId: collection }];
+  const structuredQuery = { from };
+  if (filters.length) {
+    structuredQuery.where = filters.length === 1
+      ? { fieldFilter: filters[0] }
+      : { compositeFilter: { op: "AND", filters: filters.map(fieldFilter => ({ fieldFilter })) } };
+  }
+  if (orderBy) structuredQuery.orderBy = [{ field: { fieldPath: orderBy.field }, direction: orderBy.direction || "DESCENDING" }];
+  if (limit) structuredQuery.limit = Math.min(100, Math.max(1, Number(limit) || 100));
+  const token = await googleAccessToken();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+    body: JSON.stringify({ structuredQuery, parent: parent ? "projects/" + projectId() + "/databases/(default)/documents/" + parent.split("/").map(encodeURIComponent).join("/") : "projects/" + projectId() + "/databases/(default)/documents" })
+  });
+  const result = await response.json().catch(() => []);
+  if (!response.ok) throw new Error(result.error?.message || "Firestore query failed");
+  return (Array.isArray(result) ? result : []).filter(row => row.document).map(row => decodeDocument(row.document));
+}
+
 export async function firestoreQueryCollection(collection, parent = null) {
   const url = FIRESTORE_BASE + "/projects/" + encodeURIComponent(projectId()) + "/databases/(default)/documents/" + collection.split("/").map(encodeURIComponent).join("/");
   return firestoreFetch(url);
