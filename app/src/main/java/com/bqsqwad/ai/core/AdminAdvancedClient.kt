@@ -83,7 +83,7 @@ data class AdminPlayCatalogItem(
 )
 
 class AdminAdvancedClient(
-    private val baseUrl: String = "${API_BASE_URL_PLACEHOLDER}"
+    private val baseUrl: String = "${ApiConfig.baseUrl}"
 ) {
     suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/config", null).let { root ->
         parseOptions(root.optJSONArray("options") ?: JSONArray())
