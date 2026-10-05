@@ -414,4 +414,4 @@ export async function processPlayRtdn(event) {
     await deactivateExpiredUserServices(db, uid);
   }
   return { ok: true, state: normalized, notificationType, renewalProcessed };
-}\n
+}
