@@ -29,10 +29,10 @@ function entriesFor(item) {
     // private checkout mapping used to launch and verify Google Play purchases.
     let basePlanId = null;
     if (item.productType === "subs") {
-      if (period === "yearly") basePlanId = "yearly";
-      else if (period === "monthly") basePlanId = "monthly";
-      else if (period === "term") basePlanId = "term";
-      else basePlanId = item.basePlans?.find(x => x.includes(period)) || period;
+      if (Array.isArray(item.basePlans)) {
+        basePlanId = item.basePlans.find(x => String(x).endsWith("-" + period)) || item.basePlans.find(x => String(x).includes(period)) || null;
+      }
+      if (!basePlanId) basePlanId = period;
 
       if (!Array.isArray(item.basePlans) || !item.basePlans.includes(basePlanId)) {
         throw new Error("missing_base_plan:" + item.id + ":" + basePlanId);
