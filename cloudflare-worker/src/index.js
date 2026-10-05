@@ -448,6 +448,60 @@ export default {
         });
       }
 
+
+      if (url.pathname === "/history" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
+        const docs = await firestoreQuery("chatHistory", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }], limit: 100 });
+        docs.sort((a,b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+        return json({ items: docs.slice(0, limit).map(item => ({
+          id: String(item.__name || "").split("/").pop(),
+          title: String(item.title || "New chat"),
+          updatedAt: String(item.updatedAt || ""),
+          messageCount: Array.isArray(item.messages) ? item.messages.length : 0
+        })) });
+      }
+
+      if (url.pathname.startsWith("/history/") && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const id = decodeURIComponent(url.pathname.slice("/history/".length)).trim();
+        if (!id || id.includes("/")) return json({ error: "invalid_history_id" }, 400);
+        const item = await firestoreGet("chatHistory/" + id);
+        if (!item || String(item.uid || "") !== user.uid) return json({ error: "history_not_found" }, 404);
+        return json({ id, title: String(item.title || "New chat"), messages: Array.isArray(item.messages) ? item.messages : [] });
+      }
+
+      if (url.pathname === "/history" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const requestedId = String(body.id || "").trim();
+        const id = requestedId || crypto.randomUUID();
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) return json({ error: "invalid_history_id" }, 400);
+        const existing = requestedId ? await firestoreGet("chatHistory/" + id) : null;
+        if (existing && String(existing.uid || "") !== user.uid) return json({ error: "history_forbidden" }, 403);
+        const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+        const messages = rawMessages.slice(-100).map(item => ({
+          id: String(item?.id || crypto.randomUUID()).slice(0, 120),
+          mine: item?.mine === true,
+          text: String(item?.text || "").slice(0, 20000),
+          ...(item?.prompt ? { prompt: String(item.prompt).slice(0, 20000) } : {})
+        })).filter(item => item.text.length > 0);
+        if (!messages.length) return json({ error: "history_messages_required" }, 400);
+        const title = String(body.title || messages.find(item => item.mine)?.text || "New chat").trim().slice(0, 180);
+        await firestoreSet("chatHistory/" + id, { uid:user.uid, title, messages, createdAt:existing?.createdAt || new Date(), updatedAt:new Date() }, true);
+        return json({ ok:true, id, title, messageCount:messages.length });
+      }
+
+      if (url.pathname.startsWith("/history/") && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        const id = decodeURIComponent(url.pathname.slice("/history/".length)).trim();
+        if (!id || id.includes("/")) return json({ error: "invalid_history_id" }, 400);
+        const item = await firestoreGet("chatHistory/" + id);
+        if (!item || String(item.uid || "") !== user.uid) return json({ error: "history_not_found" }, 404);
+        await firestoreDelete("chatHistory/" + id);
+        return json({ ok:true });
+      }
+
       if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
