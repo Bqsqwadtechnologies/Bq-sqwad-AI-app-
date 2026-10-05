@@ -75,7 +75,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          sdkmanager --channel=1 "platforms;android-37"
+          sdkmanager --channel=3 "platforms;android-37"
           install_status=$?
           if [[ $install_status -eq 0 && -f "$ANDROID_HOME/platforms/android-37/android.jar" ]]; then
             status=PASS
