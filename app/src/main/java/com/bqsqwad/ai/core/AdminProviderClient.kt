@@ -33,7 +33,7 @@ data class AdminProviderRoute(
 )
 
 class AdminProviderClient(
-    private val baseUrl: String = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
+    private val baseUrl: String = "${API_BASE_URL_PLACEHOLDER}"
 ) {
     suspend fun planCatalog(): JSONObject = request("GET", "/admin/plan-catalog", null)
 
