@@ -14,7 +14,7 @@ data class SearchSource(val title:String,val url:String,val snippet:String?)
 data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,val answer:String? = null)
 
 class WorkspaceApiClient {
-    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
+    private val baseUrl = "${ApiConfig.baseUrl}"
 
     private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
         val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
