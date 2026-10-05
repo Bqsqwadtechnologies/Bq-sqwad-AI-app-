@@ -3,6 +3,41 @@ import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretS
 import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
+const rateBuckets = new Map();
+
+async function requestKeyHash(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
+  return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
+}
+
+function enforceRateLimit(uid) {
+  const limit = Math.max(1, Number(globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60));
+  const now = Date.now();
+  const bucket = rateBuckets.get(uid);
+  if (!bucket || now - bucket.startedAt >= 60000) {
+    rateBuckets.set(uid, { startedAt: now, count: 1 });
+    return;
+  }
+  if (bucket.count >= limit) {
+    const retryAfter = Math.max(1, Math.ceil((60000 - (now - bucket.startedAt)) / 1000));
+    const error = new Error("rate_limited");
+    error.retryAfter = retryAfter;
+    throw error;
+  }
+  bucket.count += 1;
+}
+
+async function loadIdempotentResponse(request, user, path) {
+  const key = request.headers.get("Idempotency-Key")?.trim();
+  if (!key || key.length > 200) return null;
+  const hash = await requestKeyHash(user.uid + ":" + path + ":" + key);
+  const record = await firestoreGet("idempotency/" + hash);
+  if (!record || record.uid !== user.uid) return { hash, key, fresh: true };
+  if (record.status === "completed" && record.body) return { hash, replay: json(record.body, Number(record.httpStatus || 200)) };
+  if (record.status === "pending") throw Object.assign(new Error("idempotency_in_progress"), { httpStatus: 409 });
+  return { hash, key, fresh: true };
+}
+
 
 function hasWorkerFirebaseConfig(env) {
   return Boolean(env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -266,7 +301,11 @@ async function reverseCredits(uid, reservationId) {
 }
 
 async function ai(request, user, body) {
+  enforceRateLimit(user.uid);
   await requireConsent(user.uid);
+  const idem = await loadIdempotentResponse(request, user, "/ai");
+  if (idem?.replay) return idem.replay;
+  if (idem?.fresh) await firestoreCreate("idempotency/" + idem.hash, { uid:user.uid, status:"pending", createdAt:new Date(), expiresAt:new Date(Date.now()+600000) });
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
@@ -284,9 +323,12 @@ async function ai(request, user, body) {
     }, { message: userMessage, system });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
     await commitCredits(user.uid, reservation.reservationId, result.providerId);
-    return json({ text: result.text.trim(), providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() });
+    const responseBody = { text: result.text.trim(), providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() };
+    if (idem?.hash) await firestoreSet("idempotency/" + idem.hash, { uid:user.uid, status:"completed", body:responseBody, httpStatus:200, completedAt:new Date(), expiresAt:new Date(Date.now()+600000) }, true);
+    return json(responseBody);
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
+    if (idem?.hash) await firestoreDelete("idempotency/" + idem.hash).catch(() => {});
     throw error;
   }
 }
@@ -299,6 +341,7 @@ async function vision(request, user, body) {
 }
 
 async function stream(request, user, body) {
+  enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
@@ -706,6 +749,7 @@ export default {
 
       if (url.pathname === "/web-search" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid);
         await requireConsent(user.uid);
         const body = await readBody(request);
         const query = String(body.query || "").trim();
@@ -741,8 +785,8 @@ export default {
       return await proxyUpstream(request, url);
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : 500;
-      return json({error:message},status);
+      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500;
+      return new Response(JSON.stringify({error:message}), { status, headers: { ...corsHeaders(), "Retry-After": String(error?.retryAfter || "") , "content-type":"application/json; charset=utf-8" } });
     }
   }
 };
