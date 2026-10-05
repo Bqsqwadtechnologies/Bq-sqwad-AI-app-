@@ -39,3 +39,7 @@ These steps require access to the Cloudflare dashboard and Google/Firebase crede
 Firebase remains the data/auth source during the migration. Each subsystem is migrated to Cloudflare first, tested against the existing data model, and only then is the corresponding Firebase Function considered removable.
 
 No GitHub Actions workflow is being created or intentionally triggered by this migration.
+
+
+### Worker environment variables
+- `SUPER_ADMIN_EMAIL`: owner/admin email used by the Worker for super-admin authorization. Keep the value in Cloudflare Worker environment configuration; never commit it as a secret or hardcoded value.
