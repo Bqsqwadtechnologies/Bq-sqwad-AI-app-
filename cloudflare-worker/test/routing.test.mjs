@@ -16,7 +16,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"],
     ["POST", "/web-search"],
-    ["GET", "/history"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
