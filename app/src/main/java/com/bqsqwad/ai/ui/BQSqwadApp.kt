@@ -79,8 +79,8 @@ fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
 @Composable
 private fun AuthGate(modifier: Modifier) {
-    // Startup must never wait on Firebase/network state. Render the native chat immediately;
-    // authentication, consent and entitlements are checked only when protected features need them.
+    // Guest browsing remains available, but protected actions open the real Firebase auth flow.
+    // MainShell observes FirebaseAuth state so a successful sign-in immediately updates the UI.
     MainShell(modifier)
 }
 
@@ -599,9 +599,11 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
     // This is the explicit Google button flow. It avoids presenting the
     // generic Credential Manager sheet (which can include passkeys) and lets
     // users add/re-authenticate a Google account when necessary.
-    val googleOption = GetSignInWithGoogleOption.Builder(
-        "848359744340-kk08ve8dlk9o80584ijl214d6h25m2gt.apps.googleusercontent.com"
-    ).build()
+    val serverClientId = context.getString(R.string.default_web_client_id)
+    if (serverClientId.isBlank()) {
+        throw IllegalStateException("Google sign-in is not configured: default web client ID is missing.")
+    }
+    val googleOption = GetSignInWithGoogleOption.Builder(serverClientId).build()
     val request = GetCredentialRequest.Builder()
         .addCredentialOption(googleOption)
         .build()
@@ -648,7 +650,14 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
 @Composable
 private fun MainShell(modifier: Modifier) {
     val context = LocalContext.current
-    val email = FirebaseAuth.getInstance().currentUser?.email.orEmpty()
+    val auth = remember { FirebaseAuth.getInstance() }
+    var firebaseUser by remember { mutableStateOf(auth.currentUser) }
+    DisposableEffect(auth) {
+        val listener = FirebaseAuth.AuthStateListener { firebaseUser = it.currentUser }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+    val email = firebaseUser?.email.orEmpty()
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
@@ -666,6 +675,7 @@ private fun MainShell(modifier: Modifier) {
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var signInRequired by remember { mutableStateOf(false) }
+    var signUpRequired by remember { mutableStateOf(false) }
     var appLayoutOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     var appLayoutEnabled by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
@@ -869,15 +879,37 @@ private fun MainShell(modifier: Modifier) {
         }
     }
 
-    if (signInRequired) {
+    if (signInRequired || signUpRequired) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
         ) {
-            SignInScreen(
-                onOpenSignUp = { signInRequired = false; workspace = null },
-                onAuthenticated = { signInRequired = false }
-            )
+            if (signUpRequired) {
+                SignUpScreen(
+                    onBackToSignIn = {
+                        signUpRequired = false
+                        signInRequired = true
+                    },
+                    onAuthenticated = {
+                        signUpRequired = false
+                        signInRequired = false
+                        workspace = null
+                    }
+                )
+            } else {
+                SignInScreen(
+                    onOpenSignUp = {
+                        signInRequired = false
+                        signUpRequired = true
+                        workspace = null
+                    },
+                    onAuthenticated = {
+                        signInRequired = false
+                        signUpRequired = false
+                        workspace = null
+                    }
+                )
+            }
         }
     }
 
