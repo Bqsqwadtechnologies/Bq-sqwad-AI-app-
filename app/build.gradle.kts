@@ -9,7 +9,7 @@ val releaseSigningReady = listOf("KEYSTORE_PATH", "KEYSTORE_PASSWORD", "KEY_ALIA
 
 android {
     namespace = "com.bqsqwad.ai"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.bqsqwad.ai"
