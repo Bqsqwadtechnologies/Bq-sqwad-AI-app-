@@ -21,7 +21,7 @@ data class AdminRuntimeRecord(
 )
 
 class AdminRuntimeClient {
-    private val baseUrl = "${API_BASE_URL_PLACEHOLDER}"
+    private val baseUrl = "${ApiConfig.baseUrl}"
 
     suspend fun list(type: String): List<AdminRuntimeRecord> =
         request("GET", "/admin/runtime?type=" + URLEncoder.encode(type, "UTF-8"))
