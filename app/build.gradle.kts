@@ -89,3 +89,17 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
+
+
+gradle.taskGraph.whenReady {
+    val wantsRelease = allTasks.any {
+        it.project == project &&
+            (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package")) &&
+            it.name.endsWith("Release")
+    }
+    if (wantsRelease) {
+        check(releaseSigningReady) {
+            "Release signing is not configured. Set KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD before building a release artifact."
+        }
+    }
+}
