@@ -10,7 +10,7 @@ class BqApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching {
                 File(filesDir, "last_crash.txt").writeText(
-                    "\${System.currentTimeMillis()}\\n\${error.stackTraceToString()}"
+                    "${System.currentTimeMillis()}\n${error.stackTraceToString()}"
                 )
             }
             previous?.uncaughtException(thread, error)
