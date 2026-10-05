@@ -75,6 +75,16 @@ jobs:
           echo "Cloudflare health response: $BODY"
           echo "$BODY" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
 
+      - name: Verify protected Worker route rejects missing auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(curl --silent --show-error --max-time 20 -o /tmp/worker-ai-response.txt -w '%{http_code}' -X POST "${CLOUDFLARE_WORKER_URL}/ai" -H 'Content-Type: application/json' --data '{}')"
+          echo "Cloudflare /ai unauthenticated status: $STATUS"
+          cat /tmp/worker-ai-response.txt
+          test "$STATUS" = "401"
+          grep -Eq '"error"[[:space:]]*:[[:space:]]*"auth_required"' /tmp/worker-ai-response.txt
+
       - name: Report Firebase deployment status
         shell: bash
         run: |
