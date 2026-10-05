@@ -41,7 +41,7 @@ class PlayBillingClient(
     private val catalogContext: String? = null
 ) : BillingClientStateListener {
 
-    private val baseUrl = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
+    private val baseUrl = "${ApiConfig.baseUrl}"
 
     private val client = BillingClient.newBuilder(activity)
         .setListener { result, purchases ->
