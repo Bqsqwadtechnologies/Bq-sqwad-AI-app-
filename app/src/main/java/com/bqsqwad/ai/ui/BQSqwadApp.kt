@@ -669,10 +669,11 @@ private fun GoogleLogoMark(size: Dp) {
         val center = androidx.compose.ui.geometry.Offset(size.toPx() / 2f, size.toPx() / 2f)
         val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
         val style = Stroke(width = stroke, cap = StrokeCap.Butt)
-        drawArc(Color(0xFF4285F4), -45f, 100f, false, center, arcSize, style)
-        drawArc(Color(0xFF34A853), 55f, 95f, false, center, arcSize, style)
-        drawArc(Color(0xFFFBBC05), 150f, 95f, false, center, arcSize, style)
-        drawArc(Color(0xFFEA4335), 245f, 70f, false, center, arcSize, style)
+        val topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius)
+        drawArc(Color(0xFF4285F4), -45f, 100f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFF34A853), 55f, 95f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFFFBBC05), 150f, 95f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFFEA4335), 245f, 70f, false, topLeft, arcSize, style = style)
         drawLine(Color(0xFF4285F4), center, androidx.compose.ui.geometry.Offset(size.toPx() * 0.88f, center.y), stroke, StrokeCap.Butt)
     }
 }
