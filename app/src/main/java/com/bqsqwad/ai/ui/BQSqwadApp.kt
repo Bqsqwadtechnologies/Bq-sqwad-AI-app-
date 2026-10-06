@@ -142,7 +142,7 @@ private fun authSignOutForConsent() {
 }
 
 @Composable
-private fun ConsentGate(modifier: Modifier) {
+private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(false) }
@@ -178,7 +178,7 @@ private fun ConsentGate(modifier: Modifier) {
     LaunchedEffect(Unit) { refresh() }
 
     if (completed) {
-        MainShell(modifier)
+        onComplete()
     } else if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -689,6 +689,44 @@ private fun MainShell(modifier: Modifier) {
     var signUpRequired by remember { mutableStateOf(false) }
     var appLayoutOrder by remember { mutableStateOf<List<String>>(emptyList()) }
     var appLayoutEnabled by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var consentRequired by remember { mutableStateOf(false) }
+    var consentLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(email) {
+        adminAuthorized = if (email.isBlank()) false else runCatching {
+            WorkspaceApiClient().adminAccess().optBoolean("allowed")
+        }.getOrDefault(false)
+    }
+
+    LaunchedEffect(email) {
+        if (email.isBlank()) {
+            consentRequired = false
+            consentLoading = false
+            accessLoading = false
+            workspaceAccess = WorkspaceAccessSnapshot.empty()
+            return@LaunchedEffect
+        }
+        consentLoading = true
+        consentRequired = runCatching {
+            !WorkspaceApiClient().consent().optBoolean("requiredAccepted", false)
+        }.getOrDefault(true)
+        consentLoading = false
+
+        accessLoading = true
+        val api = WorkspaceApiClient()
+        runCatching { api.nativeCatalog() }
+            .onSuccess { catalog ->
+                val entitlements = runCatching { api.entitlements() }.getOrElse { JSONObject() }
+                val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
+                val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
+                runCatching {
+                    WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
+                }.onSuccess { workspaceAccess = it }
+                 .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+            }
+            .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+        accessLoading = false
+    }
 
     LaunchedEffect(email) {
         // The backend is authoritative for admin visibility. Normal users never receive
@@ -833,7 +871,17 @@ private fun MainShell(modifier: Modifier) {
         },
         modifier = modifier
     ) {
-        when {
+        if (firebaseUser != null && (consentLoading || consentRequired)) {
+            if (consentLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                ConsentGate(Modifier.fillMaxSize()) {
+                    consentRequired = false
+                }
+            }
+        } else when {
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
                 onPlans = { featureHub = false; plans = true },
