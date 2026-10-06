@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    env:
+      KEYSTORE_PATH: ${{ github.workspace }}/app/release-upload.jks
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -21,6 +27,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Restore Release Keystore
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          test -n "${{ secrets.KEYSTORE_BASE64 }}"
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
 
       - name: Build Release APK
         uses: gradle/actions/setup-gradle@v6
