@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +41,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -657,6 +660,23 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
             ?: "Google sign-in could not be completed. Please try again."
     }
 }
+
+@Composable
+private fun GoogleLogoMark(size: Dp) {
+    Canvas(Modifier.size(size)) {
+        val stroke = size.toPx() * 0.18f
+        val radius = (size.toPx() - stroke) / 2f
+        val center = androidx.compose.ui.geometry.Offset(size.toPx() / 2f, size.toPx() / 2f)
+        val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
+        val style = Stroke(width = stroke, cap = StrokeCap.Butt)
+        drawArc(Color(0xFF4285F4), -45f, 100f, false, center, arcSize, style)
+        drawArc(Color(0xFF34A853), 55f, 95f, false, center, arcSize, style)
+        drawArc(Color(0xFFFBBC05), 150f, 95f, false, center, arcSize, style)
+        drawArc(Color(0xFFEA4335), 245f, 70f, false, center, arcSize, style)
+        drawLine(Color(0xFF4285F4), center, androidx.compose.ui.geometry.Offset(size.toPx() * 0.88f, center.y), stroke, StrokeCap.Butt)
+    }
+}
+
 
 @Composable
 private fun MainShell(modifier: Modifier) {
@@ -1417,6 +1437,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             }
                         }
                     }
+                }
                 }
                 if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
