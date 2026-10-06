@@ -3646,8 +3646,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("The AI That Grows With You")
                         Text("BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("com.bqsqwad.ai", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                                            }
                 }
             }
         }
