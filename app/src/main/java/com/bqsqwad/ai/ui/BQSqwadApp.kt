@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -350,7 +351,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                 notice = null
                 scope.launch {
                     try {
-                        withTimeout(30000) { performGoogleSignIn(context, auth) }
+                        withTimeout(15000) { performGoogleSignIn(context, auth) }
                         notice = "Google sign-in successful."
                         onAuthenticated()
                     } catch (t: Throwable) {
@@ -362,7 +363,17 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GoogleLogoMark(22.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(if (busy) "Signing in with Google…" else "Continue with Google")
+            }
+        }
 
         TextButton(onClick = onOpenSignUp, enabled = !busy) {
             Text("Don't have an account? Sign up")
@@ -1316,7 +1327,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
                 items(messages) { m ->
-                    Column(Modifier.fillMaxWidth(if (m.mine) .88f else 1f).align(if (m.mine) Alignment.End else Alignment.Start)) {
+                    Box(Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth(if (m.mine) 0.88f else 1f)
+                                .align(if (m.mine) Alignment.CenterEnd else Alignment.CenterStart)
+                        ) {
                         if (!m.mine && m.text == "Generating image…") {
                             BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
                         } else {
