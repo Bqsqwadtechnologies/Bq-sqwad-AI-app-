@@ -72,7 +72,7 @@ export async function playCatalog(firestore, context) {
       basePlanId: p.basePlanId ? String(p.basePlanId) : null, offerId: p.offerId ? String(p.offerId) : null,
       productType: String(p.productType || ""), enabled: p.enabled === true, consumable: p.consumable === true,
       trialOfferId: p.trialOfferId ? String(p.trialOfferId) : null, trialDays: Number(p.trialDays || 0),
-      billingPeriod: String(p.billingPeriod || ""), priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
+      billingPeriod: String(p.billingPeriod || ""), priceUsd: p.priceUsd == null ? null : Number(p.priceUsd), organizationWalletTopup: p.organizationWalletTopup === true, organizationAmountCents: Math.max(0, Number(p.organizationAmountCents || (p.organizationWalletTopup ? Number(p.priceUsd || 0) * 100 : 0)))
     }))
     .filter(p => p.productId && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
   return { version: Number(config?.version || 1), products };
@@ -212,6 +212,7 @@ export async function verifyPlayPurchase(env, firestore, input) {
       create: true
     });
   }
+  if (mapping.organizationWalletTopup === true) { const amountCents=Math.floor(Number(mapping.organizationAmountCents||0)); if(amountCents<=0) throw new Error("organization_wallet_topup_amount_invalid"); const wallet=await firestore.get("organizationWallets/"+uid); const before=Math.max(0,Number(wallet?.balanceCents||0)); const after=before+amountCents; writes.push({path:"organizationWallets/"+uid,data:{uid,balanceCents:after,currency:"USD",status:"active",updatedAt:new Date()}}); writes.push({path:"organizationWalletLedger/"+crypto.randomUUID(),data:{uid,type:"deposit",amountCents,balanceBeforeCents:before,balanceAfterCents:after,currency:"USD",productId,provider:"google_play",providerReference:purchaseToken,note:"Organization usage balance deposit",createdAt:new Date()},create:true}); }
   await firestore.commit(writes);
 
   // Shared website payment history. The website already reads these Firestore
