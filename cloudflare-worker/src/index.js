@@ -55,33 +55,6 @@ function isSuperAdmin(user, env) {
   );
 }
 
-async function proxyUpstream(request, url) {
-  const upstreamUrl = UPSTREAM + url.pathname + url.search;
-  const headers = new Headers(request.headers);
-  headers.delete("host");
-  let upstream;
-  try {
-    upstream = await fetch(upstreamUrl, {
-    method: request.method,
-    headers,
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-    redirect: "follow"
-    });
-  } catch (error) {
-    return json({ error: "not_migrated", path: url.pathname, detail: error?.message || "upstream_unavailable" }, 501);
-  }
-  if (upstream.status === 404 || upstream.status === 405) {
-    return json({ error: "not_migrated", path: url.pathname }, 501);
-  }
-  const responseHeaders = new Headers(upstream.headers);
-  for (const [key, value] of Object.entries(corsHeaders(request))) responseHeaders.set(key, value);
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: responseHeaders
-  });
-}
-
 function corsHeaders(request = null) {
   const configured = String(globalThis.__bqEnv?.ALLOWED_ORIGINS || "").split(",").map(x => x.trim()).filter(Boolean);
   const origin = request?.headers?.get("Origin") || "";
