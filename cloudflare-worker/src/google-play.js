@@ -61,8 +61,21 @@ async function playApi(env, path, method = "GET", body) {
   return payload;
 }
 
-export async function playCatalog() {
-  return null;
+export async function playCatalog(firestore, context) {
+  const config = await firestore.get("playCatalog/config");
+  const configuredProducts = Array.isArray(config?.products) ? config.products : [];
+  const organizationContext = String(context || "").trim().toLowerCase() === "organization";
+  const products = configuredProducts
+    .filter(p => (organizationContext ? p.organizationWalletTopup === true : p.organizationWalletTopup !== true))
+    .map(p => ({
+      planId: String(p.planId || ""), productId: String(p.productId || ""),
+      basePlanId: p.basePlanId ? String(p.basePlanId) : null, offerId: p.offerId ? String(p.offerId) : null,
+      productType: String(p.productType || ""), enabled: p.enabled === true, consumable: p.consumable === true,
+      trialOfferId: p.trialOfferId ? String(p.trialOfferId) : null, trialDays: Number(p.trialDays || 0),
+      billingPeriod: String(p.billingPeriod || ""), priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
+    }))
+    .filter(p => p.productId && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
+  return { version: Number(config?.version || 1), products };
 }
 
 export async function verifyPlayPurchase(env, firestore, input) {
