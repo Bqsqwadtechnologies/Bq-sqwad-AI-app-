@@ -1,8 +1,8 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete } from "./firebase.js";
+import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
-const UPSTREAM = "https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi";
 const rateBuckets = new Map();
 
 async function requestKeyHash(value) {
@@ -442,9 +442,6 @@ export default {
       if (firebaseBackedPath && !request.headers.get("Authorization") && ["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"].includes(url.pathname)) {
         return json({ error: "auth_required" }, 401);
       }
-      if (firebaseBackedPath && !hasWorkerFirebaseConfig(env)) {
-        return await proxyUpstream(request, url);
-      }
 
       if (url.pathname === "/ai" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
@@ -459,15 +456,23 @@ export default {
         return await stream(request, user, await readBody(request));
       }
       if (url.pathname === "/play/catalog" && request.method === "GET") {
-        // Keep Google Play catalog authoritative in the canonical Firebase backend.
-        // The Worker remains the stable app-facing origin and preserves query context.
-        return await proxyUpstream(request, url);
+        await verifyFirebaseUser(request);
+        const firestore = { get: firestoreGet, commit: firestoreCommit };
+        return json(await playCatalog(firestore, url.searchParams.get("context")));
       }
 
       if (url.pathname === "/play/verify" && request.method === "POST") {
-        // Purchase verification, entitlement grants, Organization wallet deposits,
-        // and Play acknowledgement/consumption remain in the canonical backend.
-        return await proxyUpstream(request, url);
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const firestore = { get: firestoreGet, commit: firestoreCommit };
+        return json(await verifyPlayPurchase(env, firestore, {
+          uid: user.uid,
+          productId: String(body.productId || ""),
+          purchaseToken: String(body.purchaseToken || ""),
+          obfuscatedAccountId: String(body.obfuscatedAccountId || ""),
+          requestedBasePlanId: String(body.basePlanId || ""),
+          requestedOfferId: String(body.offerId || "")
+        }));
       }
 
       if (url.pathname === "/credits" && request.method === "GET") {
