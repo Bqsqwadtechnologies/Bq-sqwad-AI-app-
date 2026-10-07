@@ -90,3 +90,27 @@ Configure these in Cloudflare, never in source control:
 - Active Worker code contains no `proxyUpstream` reference and no retired Firebase Cloud Function URL.
 - Training-asset binary upload URL issuance still requires an explicit Firebase Storage signing configuration; the metadata/finalize routes are native and no retired backend fallback exists.
 - Provider secrets remain Cloudflare Worker secrets rather than being written into Firestore by the Worker admin API.
+
+
+## Backblaze B2 training-asset storage — 2026-10-07
+
+Firebase Storage is not used for Business training-asset binaries because the project must remain off Firebase Blaze.
+
+The native Worker now uses Backblaze B2 for the existing `businessTrainingAssets` flow:
+
+- `POST /business/training-assets/upload-url` — authenticates the Firebase user, checks Business manager access, creates the existing `businessTrainingAssets/{assetId}` metadata record with `upload_pending`, and returns a temporary B2 upload URL plus upload authorization token.
+- `POST /business/training-assets/finalize` — verifies the B2 object exists and its size matches the Firestore metadata, then changes the existing asset to `uploaded` and maintains the existing `businessWorkspaces/{workspaceId}.trainingAssets` mirror.
+- `GET /business/training-assets/download?assetId=...` — returns a short-lived B2 download authorization for an uploaded private asset.
+- `DELETE /business/training-assets?assetId=...` — removes the B2 object and existing Firestore metadata/mirror entry.
+
+Required Cloudflare Worker secrets:
+
+- `B2_APPLICATION_KEY_ID`
+- `B2_APPLICATION_KEY`
+- `B2_BUCKET_ID`
+
+The B2 application key should be restricted to the dedicated training-assets bucket and granted only the capabilities required for listing, uploading, downloading authorization, and deleting training assets. Do not commit B2 credentials to GitHub or place them in Android.
+
+The existing Firestore collection and metadata model are preserved. The storage provider changes from Firebase Storage to B2; Firebase Auth and Firestore remain the source of identity/metadata.
+
+Backblaze's current documentation confirms that B2's first 10 GB of storage is free, and its Native API supports temporary upload authorization and private-file download authorization. The free allowance is an account-level allowance, not 10 GB per workspace.
