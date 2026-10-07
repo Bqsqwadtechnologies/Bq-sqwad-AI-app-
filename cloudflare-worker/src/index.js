@@ -426,14 +426,7 @@ async function ai(request, user, body) {
     throw error;
   }
 }
-async function vision(request, user, body) {
-  // AI Live Camera uses the canonical Firebase backend for consent,
-  // capability/credit authorization, provider routing, and audit logging.
-  // Do not charge or call OpenAI again in the Worker: that would double-charge
-  // each sampled frame and bypass the backend source of truth.
-  return proxyUpstream(request, new URL(request.url));
-}
-
+async function vision(request, user, body) {,  enforceRateLimit(user.uid);,  await requireConsent(user.uid);,  const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);,  const imageBase64 = String(body.imageBase64 || "");,  if (!imageBase64) throw new Error("image_required");,  if (imageBase64.length > 8000000) throw new Error("image_too_large");,  const control = await capability(user.uid, "live_camera");,  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);,  try {,    const response = await callOpenAI(globalThis.__bqEnv, {,      model: control.modelId || DEFAULT_MODELS.openai,,      message,,      imageBase64,,      mimeType: String(body.mimeType || "image/jpeg").slice(0, 80),    });,    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));,    const result = await response.json();,    const text = outputText(result).trim();,    if (!text) throw new Error("The AI service returned an empty response.");,    await commitCredits(user.uid, reservation.reservationId, "openai");,    return json({ text, providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });,  } catch (error) {,    await reverseCredits(user.uid, reservation.reservationId);,    throw error;,  },},
 async function stream(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
@@ -574,10 +567,9 @@ export default {
         if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
-        if (!hasWorkerFirebaseConfig(env)) return await proxyUpstream(request, url);
         const profile = await readCanonicalUserBalance(user.uid);
         const balance = canonicalUserBalance(profile);
-        if (!balance) return await proxyUpstream(request, url);
+        if (!balance) throw new Error("Account not found.");
         return json({
           available: balance.total,
           reserved: 0,
@@ -817,13 +809,8 @@ export default {
         const platform = String(body.platform || "").trim().toLowerCase();
         if (platform === "tiktok") {
           if (!accountId || !workspaceId) return json({ error: "tiktok_account_required" }, 400);
-          const authHeaders = new Headers(request.headers);
-          authHeaders.delete("host");
-          const gate = await fetch(UPSTREAM + "/business/workspace?workspaceId=" + encodeURIComponent(workspaceId), { method: "GET", headers: authHeaders });
-          if (!gate.ok) {
-            const detail = await gate.text();
-            return new Response(detail, { status: gate.status, headers: { ...corsHeaders(), "content-type": "application/json; charset=utf-8" } });
-          }
+          const workspace = await firestoreGet("businessWorkspaces/" + workspaceId);
+          if (!workspace || String(workspace.ownerUid || workspace.uid || "") !== user.uid) return json({ error: "business_workspace_not_found" }, 404);
           return json(await publishTikTok(env, user.uid, accountId, workspaceId, body));
         }
       }
@@ -881,7 +868,7 @@ export default {
           throw error;
         }
       }
-      return await proxyUpstream(request, url);
+      return json({ error: "route_not_migrated", path: url.pathname }, 501);
     } catch(error) {
       const message = error?.message || "backend_unavailable";
       const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500;
