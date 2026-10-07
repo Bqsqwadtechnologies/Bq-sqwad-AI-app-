@@ -300,6 +300,100 @@ async function reverseCredits(uid, reservationId) {
   }
 }
 
+async function nativeCatalog() {
+  const [plans, planCatalog, playCatalogConfig, features, bindings, addOns, businessPricing] = await Promise.all([
+    firestoreQuery("plans", { filters: [{ field: { fieldPath: "active" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }),
+    firestoreGet("planCatalog/config"),
+    firestoreGet("playCatalog/config"),
+    firestoreQuery("featureRegistry", { limit: 100 }),
+    firestoreQuery("planFeatureBindings", { limit: 100 }),
+    firestoreQuery("addOns", { filters: [{ field: { fieldPath: "enabled" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }),
+    firestoreGet("config/businessPricing")
+  ]);
+  const safePlan = (id, data = {}) => ({
+    id,
+    name: String(data.name || ""),
+    description: String(data.description || ""),
+    module: String(data.module || data.product || ""),
+    productId: data.productId ? String(data.productId) : null,
+    basePlans: Array.isArray(data.basePlans) ? data.basePlans.map(String).filter(Boolean) : [],
+    features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
+    limits: data.limits && typeof data.limits === "object" ? data.limits : {},
+    price: data.price && typeof data.price === "object" ? data.price : {},
+    trialDays: Number(data.trialDays || 0),
+    trialEligible: data.trialEligible === true,
+    offerId: data.offerId ? String(data.offerId) : null,
+    paymentChannel: String(data.paymentChannel || (data.playEligible ? "play" : (data.contactSales ? "contact_sales" : "website"))),
+    playEligible: data.playEligible === true,
+    contactSales: data.contactSales === true,
+    popular: data.popular === true || data.badge === "popular",
+    badge: data.badge ? String(data.badge) : null,
+    highlighted: data.highlighted === true,
+    sortOrder: Number(data.sortOrder || 0),
+    visible: data.visible !== false,
+    active: data.active !== false,
+    version: Number(data.version || 1),
+    effectiveDate: data.effectiveDate || null
+  });
+  const configuredSections = planCatalog?.catalog?.sections;
+  const configuredPlans = configuredSections
+    ? Object.values(configuredSections).flat().map(item => safePlan(item.id, item))
+    : [];
+  const firestorePlans = plans.map(d => safePlan(String(d.__name || "").split("/").pop(), d));
+  const basePlans = configuredPlans.length ? configuredPlans : firestorePlans;
+  const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
+  const products = configuredProducts.map(p => ({
+    planId: String(p.planId || ""),
+    productId: String(p.productId || ""),
+    basePlanId: p.basePlanId ? String(p.basePlanId) : null,
+    productType: String(p.productType || ""),
+    enabled: p.enabled === true,
+    consumable: p.consumable === true,
+    billingPeriod: p.billingPeriod ? String(p.billingPeriod) : null,
+    priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
+  })).filter(p => p.productId && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
+  const featureRows = features.map(x => ({
+    id: String(x.__name || "").split("/").pop(),
+    name: String(x.name || x.title || String(x.__name || "").split("/").pop()),
+    description: String(x.description || ""),
+    group: String(x.group || x.category || ""),
+    product: String(x.product || ""),
+    defaultState: String(x.defaultState || "unavailable"),
+    visible: x.visible !== false,
+    comingSoon: x.comingSoon === true
+  })).filter(x => x.visible);
+  const bindingRows = bindings.map(x => ({
+    id: String(x.__name || "").split("/").pop(),
+    planId: String(x.planId || ""),
+    featureId: String(x.featureId || ""),
+    state: String(x.state || "unavailable"),
+    quota: x.quota ?? null,
+    creditCost: x.creditCost ?? null,
+    note: x.note ? String(x.note) : null,
+    version: Number(x.version || 1)
+  }));
+  const addOnRows = addOns.map(x => ({
+    id: String(x.__name || "").split("/").pop(),
+    name: String(x.name || String(x.__name || "").split("/").pop()),
+    description: String(x.description || ""),
+    type: String(x.type || ""),
+    enabled: x.enabled !== false,
+    eligiblePlanIds: Array.isArray(x.eligiblePlanIds) ? x.eligiblePlanIds.map(String) : [],
+    quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : []
+  }));
+  return {
+    version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
+    plans: basePlans.filter(x => x.visible && x.active),
+    products,
+    publicContactSales: [],
+    features: featureRows,
+    bindings: bindingRows,
+    addOns: addOnRows,
+    businessPricingConfigured: businessPricing !== null,
+    businessPricing: businessPricing || null
+  };
+}
+
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
