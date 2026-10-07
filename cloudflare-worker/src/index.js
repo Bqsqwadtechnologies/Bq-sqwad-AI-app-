@@ -1,4 +1,4 @@
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
