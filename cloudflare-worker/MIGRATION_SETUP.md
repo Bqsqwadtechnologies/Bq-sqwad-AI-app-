@@ -65,3 +65,8 @@ Configure these in Cloudflare, never in source control:
 - `functions/` remains reference-only; the retired Cloud Function URL is no longer present in `cloudflare-worker/src/index.js`.
 - BQ Sqwad AI catalog remains the app-facing catalog. Google Play is used only for purchase verification/acknowledgement.
 - Full legacy route parity remains open for the old organization, business, admin, generation, companion, learning, TruthGuard, passkey and payment routes; these require complete Worker ports before the migration is finished.
+
+- Added native `/native/catalog`, `/entitlement`, `/entitlements`, and `/usage` Firestore routes using the existing BQ data model.
+- Removed the Worker proxy function and retired Cloud Function URL from the active router. Unmigrated legacy endpoints now return an explicit `route_not_migrated` response instead of forwarding to the retired backend.
+- Added native Live Camera `/ai/vision` provider/credit path using the existing Worker provider gateway and `capability_live_camera` authorization.
+- Removed the retired-backend workspace gate from TikTok publishing; Worker checks the Firestore business workspace directly.
