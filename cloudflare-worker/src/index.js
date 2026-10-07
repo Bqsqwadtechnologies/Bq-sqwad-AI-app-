@@ -399,7 +399,33 @@ async function ai(request, user, body) {
     throw error;
   }
 }
-async function vision(request, user, body) {,  enforceRateLimit(user.uid);,  await requireConsent(user.uid);,  const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);,  const imageBase64 = String(body.imageBase64 || "");,  if (!imageBase64) throw new Error("image_required");,  if (imageBase64.length > 8000000) throw new Error("image_too_large");,  const control = await capability(user.uid, "live_camera");,  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);,  try {,    const response = await callOpenAI(globalThis.__bqEnv, {,      model: control.modelId || DEFAULT_MODELS.openai,,      message,,      imageBase64,,      mimeType: String(body.mimeType || "image/jpeg").slice(0, 80),    });,    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));,    const result = await response.json();,    const text = outputText(result).trim();,    if (!text) throw new Error("The AI service returned an empty response.");,    await commitCredits(user.uid, reservation.reservationId, "openai");,    return json({ text, providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });,  } catch (error) {,    await reverseCredits(user.uid, reservation.reservationId);,    throw error;,  },},
+async function vision(request, user, body) {
+  enforceRateLimit(user.uid);
+  await requireConsent(user.uid);
+  const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);
+  const imageBase64 = String(body.imageBase64 || "");
+  if (!imageBase64) throw new Error("image_required");
+  if (imageBase64.length > 8000000) throw new Error("image_too_large");
+  const control = await capability(user.uid, "live_camera");
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);
+  try {
+    const response = await callOpenAI(globalThis.__bqEnv, {
+      model: control.modelId || DEFAULT_MODELS.openai,
+      message,
+      imageBase64,
+      mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
+    });
+    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));
+    const result = await response.json();
+    const text = outputText(result).trim();
+    if (!text) throw new Error("The AI service returned an empty response.");
+    await commitCredits(user.uid, reservation.reservationId, "openai");
+    return json({ text, providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });
+  } catch (error) {
+    await reverseCredits(user.uid, reservation.reservationId);
+    throw error;
+  }
+}
 async function stream(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
