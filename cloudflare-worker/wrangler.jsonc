@@ -3,5 +3,6 @@
   "name": "bq-sqwad-ai-app",
   "main": "src/index.js",
   "compatibility_date": "2026-09-27",
+  "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true }
 }
