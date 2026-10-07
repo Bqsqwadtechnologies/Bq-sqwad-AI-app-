@@ -14,6 +14,7 @@ import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, aut
 import { orgWallet, orgTopUps, orgLiveStart, orgChargeAssistant, orgLiveGet, orgLiveHeartbeat, orgLiveStop, orgBillingConfig } from "./organization-billing-native.js";
 import { youtubeChannel, youtubeCreateLive, youtubeTransition, youtubeStatus, youtubeChat, youtubeReply } from "./youtube-native.js";
 import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runtime-native.js";
+import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const rateBuckets = new Map();
@@ -795,8 +796,53 @@ export default {
       if (url.pathname === "/paystack/webhook" && request.method === "POST") { return json({error:"paystack_retired",message:"BQ Sqwad AI billing is Google Play only."},410); }
       if (["/payments/preview","/payments/initialize","/payments/verify","/payments/auto-renew"].includes(url.pathname) && request.method === "POST") { return json({error:"google_play_billing_required",message:"BQ Sqwad AI billing is handled through Google Play Billing."},410); }
       if (url.pathname === "/business/training-assets" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),wid=String(b.workspaceId||"");const w=await businessWorkspace(u.uid,{workspaceId:wid}),type=String(b.type||"").toLowerCase();if(!["text","document","photo","voice","video","step_by_step","appearance_hair"].includes(type))throw new Error("unsupported_training_asset_type");const title=String(b.title||"").trim().slice(0,180),purpose=String(b.purpose||"").trim().slice(0,1000);if(!title||!purpose)throw new Error("training_asset_title_and_purpose_required");const id=crypto.randomUUID(),asset={id,workspaceId:w.workspaceId,type,title,purpose,status:"metadata_saved",createdAt:new Date().toISOString()};await firestoreSet("businessTrainingAssets/"+id,{...asset,uid:u.uid,createdAt:new Date(),updatedAt:new Date()},false);return json({ok:true,asset}); }
-      if (url.pathname === "/business/training-assets/upload-url" && request.method === "POST") { return json({error:"training_asset_upload_storage_not_configured",message:"The Worker requires an explicit Firebase Storage signing configuration before issuing upload URLs."},503); }
-      if (url.pathname === "/business/training-assets/finalize" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),x=await firestoreGet("businessTrainingAssets/"+String(b.assetId||""));if(!x||x.uid!==u.uid)throw new Error("training_asset_not_found");await firestoreSet("businessTrainingAssets/"+String(b.assetId),{status:"uploaded",uploadedAt:new Date(),updatedAt:new Date()},true);return json({ok:true,asset:{...x,status:"uploaded"}}); }
+      if (url.pathname === "/business/training-assets/upload-url" && request.method === "POST") {
+        const u=await verifyFirebaseUser(request),b=await readBody(request),workspace=await businessWorkspace(u.uid,{workspaceId:b.workspaceId});
+        await requireBusinessAccess(u.uid,workspace.workspaceId,"manager");
+        const type=String(b.type||"").trim().toLowerCase(),allowed=new Set(["text","document","photo","voice","video","step_by_step","appearance_hair"]);
+        if(!allowed.has(type))return json({error:"unsupported_training_asset_type"},400);
+        const title=String(b.title||"").trim().slice(0,180),purpose=String(b.purpose||"").trim().slice(0,1000),fileName=String(b.fileName||"training-asset").trim().slice(0,160),contentType=String(b.contentType||"application/octet-stream").trim().slice(0,120),size=Math.max(0,Number(b.size||0));
+        if(!title||!purpose||!fileName||!size)return json({error:"training_asset_metadata_required"},400);
+        if(size>500*1024*1024)return json({error:"training_asset_too_large"},413);
+        const assetId=crypto.randomUUID(),safeName=fileName.replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,120),objectPath="business-training/"+u.uid+"/"+workspace.workspaceId+"/"+assetId+"-"+safeName;
+        const session=await createTrainingAssetUploadSession({fileName:safeName,contentType,objectPath});
+        await firestoreSet("businessTrainingAssets/"+assetId,{id:assetId,uid:u.uid,workspaceId:workspace.workspaceId,type,title,purpose,fileName:safeName,contentType,size,objectPath,status:"upload_pending",createdAt:new Date(),updatedAt:new Date()},false);
+        return json({ok:true,assetId,workspaceId:workspace.workspaceId,uploadUrl:session.uploadUrl,authorizationToken:session.authorizationToken,objectPath,expiresInSeconds:session.expiresInSeconds});
+      }
+      if (url.pathname === "/business/training-assets/finalize" && request.method === "POST") {
+        const u=await verifyFirebaseUser(request),b=await readBody(request),assetId=String(b.assetId||"").trim();
+        if(!assetId)return json({error:"training_asset_id_required"},400);
+        const ref=await firestoreGet("businessTrainingAssets/"+assetId);
+        if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
+        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        const object=await inspectTrainingAssetObject(String(ref.objectPath||""));
+        if(!object)return json({error:"training_asset_upload_missing"},409);
+        const expectedSize=Number(ref.size||0);
+        if(!object.size||(expectedSize&&object.size!==expectedSize))return json({error:"training_asset_size_mismatch"},409);
+        const entry={id:assetId,type:String(ref.type||""),title:String(ref.title||""),purpose:String(ref.purpose||""),fileName:String(ref.fileName||""),contentType:String(ref.contentType||object.contentType||""),size:object.size,objectPath:String(ref.objectPath||""),status:"uploaded",workspaceId:String(ref.workspaceId||""),createdAt:new Date().toISOString()};
+        await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",uploadedAt:new Date(),updatedAt:new Date()},true);
+        const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets:[];
+        if(!existing.some(x=>String(x?.id||"")===assetId))await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:[...existing,entry],updatedAt:new Date()},true);
+        return json({ok:true,asset:entry});
+      }
+      if (url.pathname === "/business/training-assets/download" && request.method === "GET") {
+        const u=await verifyFirebaseUser(request),assetId=String(url.searchParams.get("assetId")||"").trim(),ref=await firestoreGet("businessTrainingAssets/"+assetId);
+        if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
+        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        if(ref.status!=="uploaded")return json({error:"training_asset_not_uploaded"},409);
+        const auth=await createTrainingAssetDownloadAuthorization(String(ref.objectPath||""),900);
+        return json({ok:true,downloadUrl:auth.downloadUrl,authorizationToken:auth.authorizationToken,fileNamePrefix:auth.fileNamePrefix,expiresInSeconds:auth.expiresInSeconds});
+      }
+      if (url.pathname === "/business/training-assets" && request.method === "DELETE") {
+        const u=await verifyFirebaseUser(request),b=await readBody(request),assetId=String(b.assetId||url.searchParams.get("assetId")||"").trim(),ref=await firestoreGet("businessTrainingAssets/"+assetId);
+        if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
+        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        await deleteTrainingAssetObject(String(ref.objectPath||""));
+        await firestoreDelete("businessTrainingAssets/"+assetId);
+        const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets.filter(x=>String(x?.id||"")!==assetId):[];
+        await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:existing,updatedAt:new Date()},true);
+        return json({ok:true,deleted:true,assetId});
+      }
       if (url.pathname === "/account" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),cols=["chatHistory","businessTrainingAssets","aiFeedback","contactSalesRequests","creditReservations","creditLedger","playPurchases","passkeys","passkeyChallenges","socialAccounts","organizationProductionEvents","aiJobs","aiWorkflows","aiAgents","aiEvaluations","aiPlugins","aiActivity","organizationScheduledTasks","organizationWalletLedger","organizationLiveSessions","organizationProductionLiveSessions","learningSessions","companionMessages","companionCheckins","companionProfiles","companionSettings","truthGuardChecks","truthGuardSettings","businessAdvancedAiJobs","businessIntegrationConfigs"];for(const col of cols){let guard=0;while(guard++<20){const rows=await firestoreQuery(col,{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:100});if(!rows.length)break;for(const row of rows){const name=String(row.__name||"");if(name)await firestoreDelete(name.replace("projects/"+JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id+"/databases/(default)/documents/",""));}if(rows.length<100)break;}}for(const [col,id] of [["userConsents",u.uid],["userMemory",u.uid],["organizationWorkspaces",u.uid],["organizationProduction",u.uid],["organizationWallets",u.uid],["organizationEntitlements",u.uid],["organizationTestSessions",u.uid],["entitlements",u.uid],["userFeatureSettings",u.uid]])await firestoreDelete(col+"/"+id);const key=env.FIREBASE_WEB_API_KEY||"AIzaSyBcbFDXG6IsKatj8DjpCOQjJJ4DHv536eo";const authz=request.headers.get("authorization")||"";const rr=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key="+encodeURIComponent(key),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idToken:authz.slice(7)})});if(!rr.ok)return json({error:"account_data_deleted_auth_delete_failed"},502);return json({ok:true,deleted:true,retainedRecords:"Only records required by applicable financial, tax, fraud-prevention or security obligations may remain in minimized or anonymized form."}); }
       if (url.pathname === "/public/app-config" && request.method === "GET") { const x=await firestoreGet("publicAppConfig/app"),d=x||{}; const ids=["CHAT","VIDEO","SEARCH","TRUTH_GUARD","FRONTIER_LAB","CAMERA","VOICE","PERSONAL","LIFE","COMPANION","LEARNING","BUSINESS","ORGANIZATION_STUDIO","DATA_ANALYSIS","ADMIN"]; return json({authBackgroundVideoUrl:d.authBackgroundVideoUrl||null,authBackgroundVideoEnabled:d.authBackgroundVideoEnabled===true,workspaceOrder:Array.isArray(d.workspaceOrder)?d.workspaceOrder.filter(x=>ids.includes(String(x))):ids,workspaceEnabled:d.workspaceEnabled&&typeof d.workspaceEnabled==="object"?d.workspaceEnabled:Object.fromEntries(ids.map(x=>[x,true])),themeMode:["system","light","dark"].includes(String(d.themeMode||""))?String(d.themeMode):"system"}); }
       if (url.pathname === "/plans" && request.method === "GET") { return json({plans:await firestoreQuery("plans",{filters:[{field:{fieldPath:"active"},op:"EQUAL",value:{booleanValue:true}}],limit:100})}); }
