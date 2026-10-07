@@ -1,6 +1,7 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
@@ -768,6 +769,18 @@ export default {
       }
 
       // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
+      if (url.pathname === "/organization/production" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getProduction(u.uid)); }
+      if (url.pathname === "/organization/production/config" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await updateProductionConfig(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/source" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await upsertSource(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/source/remove" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await removeSource(u.uid,(await readBody(request)).sourceId)); }
+      if (url.pathname === "/organization/production/scene" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await upsertScene(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/destination" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await upsertDestination(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/state" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await setProductionState(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/health" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await updateHealth(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/event" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await addProductionEvent(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/production/ai-live" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getOrganizationAiLiveConfig(u.uid)); }
+      if (url.pathname === "/organization/production/ai-live" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await updateOrganizationAiLiveConfig(u.uid,await readBody(request))); }
+
       if (url.pathname === "/business/workspace" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await businessWorkspace(u.uid,{workspaceId:url.searchParams.get("workspaceId")})); }
       if (url.pathname === "/business/workspace" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await businessWorkspace(u.uid,b)); }
       if (url.pathname === "/business/members" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await addBusinessMember(u.uid,await readBody(request))); }
