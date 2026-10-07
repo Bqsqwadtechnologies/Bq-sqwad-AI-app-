@@ -830,7 +830,7 @@ export default {
         if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
         await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
         if(ref.status!=="uploaded")return json({error:"training_asset_not_uploaded"},409);
-        const auth=await createTrainingAssetDownloadAuthorization(String(ref.objectPath||""),900);
+        const auth=await createTrainingAssetDownloadAuthorization({objectPath:String(ref.objectPath||""),durationSeconds:900});
         return json({ok:true,downloadUrl:auth.downloadUrl,authorizationToken:auth.authorizationToken,fileNamePrefix:auth.fileNamePrefix,expiresInSeconds:auth.expiresInSeconds});
       }
       if (url.pathname === "/business/training-assets" && request.method === "DELETE") {
