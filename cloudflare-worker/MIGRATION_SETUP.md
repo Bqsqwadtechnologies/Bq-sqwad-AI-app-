@@ -80,3 +80,13 @@ Configure these in Cloudflare, never in source control:
 - Added a native Organization plan/catalog/access module; its router wiring remains pending verification.
 - Removed all active proxyUpstream/retired Firebase Cloud Function forwarding from cloudflare-worker/src/index.js.
 - The Worker still intentionally reports route_not_migrated for specialized surfaces that have not yet been ported, rather than silently calling the retired backend.
+
+## End-to-end migration audit — 2026-10-07
+- Re-audited `functions/index.js` route patterns against the active Worker router.
+- Legacy route-pattern audit: 172 unique old routes; 177 Worker route patterns; 0 old route patterns missing from the Worker router after accounting for path-prefix routing.
+- Added native Worker modules/routes for YouTube Live, live chat, protected-content policy, Organization wallet/live billing, Business advanced AI/integrations/enterprise, runtime records, passkeys, admin security, notifications, X actions, Organization social, Companion memory, realtime sessions, account deletion, Contact Sales, app configuration, plans/credits/usage, Play subscription management, media-rights, admin layout/staff/runtime/provider/social controls, and Google Play-only payment compatibility routes.
+- Paystack payment endpoints are explicitly retired and return a Google Play billing response; they do not forward to the old backend.
+- `cloudflare-worker/package.json` syntax checking now covers all native migration modules.
+- Active Worker code contains no `proxyUpstream` reference and no retired Firebase Cloud Function URL.
+- Training-asset binary upload URL issuance still requires an explicit Firebase Storage signing configuration; the metadata/finalize routes are native and no retired backend fallback exists.
+- Provider secrets remain Cloudflare Worker secrets rather than being written into Firestore by the Worker admin API.
