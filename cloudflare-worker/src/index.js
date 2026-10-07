@@ -767,6 +767,20 @@ export default {
       }
 
       // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
+      if (url.pathname === "/device-command" && request.method === "POST") {
+        const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const b=await readBody(request);
+        const control=await capability(u.uid,"device_commands");
+        const r=await chargeCredits(u.uid,control.creditCost||0,"device_commands",u);
+        try {
+          const z=await runProvider(env,{primaryProviderId:"gemini",primaryModelId:control.modelId||DEFAULT_MODELS.gemini,fallbackProviderIds:[]},{message:String(b.message||"").slice(0,4000),system:'Return ONLY JSON: {"actions":[{"type":"...","value":null}],"message":"short confirmation"}. Allowed actions: torch_on, torch_off, set_brightness, volume_up, volume_down, play_media, pause_media, next_media, previous_media, open_settings, open_wifi_settings, open_bluetooth_settings, open_camera, open_calendar, open_maps. Never invent an action type. The Android app performs the final action and enforces permissions.'});
+          let parsed={actions:[],message:"No supported device action."}; try{parsed=JSON.parse(z.text||"")}catch{}
+          const allowed=new Set(["torch_on","torch_off","set_brightness","volume_up","volume_down","play_media","pause_media","next_media","previous_media","open_settings","open_wifi_settings","open_bluetooth_settings","open_camera","open_calendar","open_maps"]);
+          const actions=Array.isArray(parsed.actions)?parsed.actions.filter(x=>allowed.has(x?.type)).map(x=>({type:x.type,value:x.value??null})): [];
+          await commitCredits(u.uid,r.reservationId,z.providerId||"gemini");
+          return json({providerId:z.providerId,modelId:z.modelId,message:parsed.message||"",actions,creditsCharged:r.amount});
+        }catch(e){await reverseCredits(u.uid,r.reservationId);throw e}
+      }
+
       if (url.pathname === "/companion/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCatalog(u,env)); }
       if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionProfile(u.uid)); }
       if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
