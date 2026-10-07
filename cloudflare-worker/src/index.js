@@ -1,6 +1,7 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { socialStart, socialCallback, listSocialAccounts, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const rateBuckets = new Map();
@@ -764,6 +765,37 @@ export default {
         await firestoreSet("userConsents/" + user.uid, {uid:user.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()}, true);
         return json({ok:true,trainingConsent});
       }
+
+      // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
+      if (url.pathname === "/companion/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCatalog(u,env)); }
+      if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionProfile(u.uid)); }
+      if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
+      if (url.pathname === "/companion/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionHistory(u.uid)); }
+      if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCheckins(u.uid)); }
+      if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/companion/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionSettings(u.uid)); }
+      if (url.pathname === "/companion/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionSettings(u.uid,await readBody(request))); }
+
+      if (url.pathname === "/learning/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningCatalog(u,env)); }
+      if (url.pathname === "/learning/progress" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningProgress(u.uid)); }
+      if (url.pathname === "/learning/session" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await learningSession(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+
+      if (url.pathname === "/truthguard/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardCatalog(u,env)); }
+      if (url.pathname === "/truthguard/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardSettings(u.uid)); }
+      if (url.pathname === "/truthguard/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
+      if (url.pathname === "/truthguard/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardHistory(u.uid)); }
+      if (url.pathname === "/truthguard/check" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await truthguardCheck(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+
+      if (url.pathname === "/organization" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await organizationGet(u.uid)); }
+      if (url.pathname === "/organization" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationUpdate(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/channels" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationChannel(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/settings" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationSettings(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/knowledge" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationKnowledge(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/members" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationMember(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/member-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationMemberState(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/channel-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationChannelState(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationAssistant(env,u,await readBody(request))); }
 
       if (url.pathname === "/social/oauth/start" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
