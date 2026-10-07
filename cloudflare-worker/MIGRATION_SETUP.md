@@ -70,3 +70,13 @@ Configure these in Cloudflare, never in source control:
 - Removed the Worker proxy function and retired Cloud Function URL from the active router. Unmigrated legacy endpoints now return an explicit `route_not_migrated` response instead of forwarding to the retired backend.
 - Added native Live Camera `/ai/vision` provider/credit path using the existing Worker provider gateway and `capability_live_camera` authorization.
 - Removed the retired-backend workspace gate from TikTok publishing; Worker checks the Firestore business workspace directly.
+
+## Native migration continuation — 2026-10-07
+- Added native Worker route modules for Companion, Learning, TruthGuard and core Organization operations.
+- Added native Business workspace/CRM/extended-record/automation handlers.
+- Added native Organization production configuration/source/scene/destination/state/health/AI-live handlers.
+- Added native Organization scheduled-task handlers.
+- Added native admin test-mode, plan-catalog, plan-status/popular, admin control/config/advanced-option, Business test-session and Business plan-status handlers.
+- Added a native Organization plan/catalog/access module; its router wiring remains pending verification.
+- Removed all active proxyUpstream/retired Firebase Cloud Function forwarding from cloudflare-worker/src/index.js.
+- The Worker still intentionally reports route_not_migrated for specialized surfaces that have not yet been ported, rather than silently calling the retired backend.
