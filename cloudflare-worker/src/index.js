@@ -1,6 +1,7 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
@@ -769,6 +770,11 @@ export default {
       }
 
       // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
+      if (url.pathname === "/organization/scheduled-tasks" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({tasks:await listOrganizationScheduledTasks(u.uid)}); }
+      if (url.pathname === "/organization/scheduled-tasks" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await createOrganizationScheduledTask(u.uid,await readBody(request))); }
+      if (url.pathname.startsWith("/organization/scheduled-tasks/") && url.pathname.endsWith("/run") && request.method === "POST") { const u=await verifyFirebaseUser(request),id=decodeURIComponent(url.pathname.slice("/organization/scheduled-tasks/".length,-4)); return json(await runOrganizationScheduledTask(env,u.uid,id)); }
+      if (url.pathname.startsWith("/organization/scheduled-tasks/") && request.method === "PATCH") { const u=await verifyFirebaseUser(request),id=decodeURIComponent(url.pathname.slice("/organization/scheduled-tasks/".length)); return json(await updateOrganizationScheduledTask(u.uid,id,await readBody(request))); }
+
       if (url.pathname === "/organization/production" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getProduction(u.uid)); }
       if (url.pathname === "/organization/production/config" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await updateProductionConfig(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/production/source" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await upsertSource(u.uid,await readBody(request))); }
