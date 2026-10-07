@@ -56,3 +56,12 @@ Configure these in Cloudflare, never in source control:
 - `ALLOWED_ORIGINS`
 - Social OAuth secrets used by `social.js`
 - Google Play verification secrets used by the canonical Play verification path
+
+
+## 2026-10-07 migration pass
+- Restored native Firestore imports in the Worker, including firestoreQuery for `/history`.
+- Migrated `/play/catalog` to the Worker and Firestore-backed BQ catalog projection.
+- Migrated `/play/verify` to the native Google Play verification implementation.
+- `functions/` remains reference-only; the retired Cloud Function URL is no longer present in `cloudflare-worker/src/index.js`.
+- BQ Sqwad AI catalog remains the app-facing catalog. Google Play is used only for purchase verification/acknowledgement.
+- Full legacy route parity remains open for the old organization, business, admin, generation, companion, learning, TruthGuard, passkey and payment routes; these require complete Worker ports before the migration is finished.
