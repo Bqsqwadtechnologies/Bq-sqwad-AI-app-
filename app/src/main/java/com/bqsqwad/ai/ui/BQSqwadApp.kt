@@ -1114,7 +1114,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val used = (baseline - available).coerceAtLeast(0.0)
         val usedPercent = if (baseline > 0.0) (used / baseline).coerceIn(0.0, 1.0) else 0.0
         val expiryMillis = listOf("subscriptionExpiresAt", "trialExpiresAt")
-            .mapNotNull { key -> snapshot.optString(key).takeIf { it.isNotBlank() && it != "null" }?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } }
+            .mapNotNull { key ->
+                snapshot.optString(key).takeIf { it.isNotBlank() && it != "null" }?.let { value ->
+                    runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX", java.util.Locale.US).parse(value)?.time }.getOrNull()
+                        ?: runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX", java.util.Locale.US).parse(value)?.time }.getOrNull()
+                }
+            }
             .filter { it > System.currentTimeMillis() }
             .minOrNull()
         val daysToExpiry = expiryMillis?.let { kotlin.math.ceil((it - System.currentTimeMillis()) / 86_400_000.0).toInt() }
