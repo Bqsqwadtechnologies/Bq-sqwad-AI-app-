@@ -1,8 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker from "../src/index.js";
+import worker, { isPublicCatalogPlan } from "../src/index.js";
 
 globalThis.fetch = async () => new Response('{"ok":true}', { status: 200 });
+
+test("public catalog exposes shared credit packs and hides feature-specific credit plans", () => {
+  for (const id of ["credit100", "credit250", "credit500", "credit1000"]) {
+    assert.equal(isPublicCatalogPlan({ id, name: id, module: "credits", active: true, visible: true }), true);
+  }
+  for (const plan of [
+    { id: "ai-live-m-credit", name: "AI Live M Credit", module: "live-camera", active: true, visible: true },
+    { id: "live-camera-credits", name: "Live Camera Credits", module: "live-camera", active: true, visible: true },
+    { id: "credit-special", name: "Special Credits", module: "credits", active: true, visible: true },
+    { id: "ai-live-m", name: "AI Live M", module: "live-camera", active: true, visible: true }
+  ]) {
+    assert.equal(isPublicCatalogPlan(plan), false, JSON.stringify(plan));
+  }
+});
 
 test("/health is public and ok", async () => {
   const res = await worker.fetch(new Request("https://x.dev/health"), {});
