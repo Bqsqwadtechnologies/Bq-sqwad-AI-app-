@@ -3588,9 +3588,15 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Live credit balance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(if (adminUnlimited) "Unlimited credits" else String.format(java.util.Locale.US, "%.0f credits", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Shared by eligible AI features. The backend remains the source of truth.", style = MaterialTheme.typography.bodySmall)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                BqLogo(38.dp)
+                                Column(Modifier.weight(1f)) {
+                                    Text("BQ Sqwad Credits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("One shared balance for eligible AI features", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text(if (adminUnlimited) "Unlimited" else String.format(java.util.Locale.US, "%.0f", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Your balance is managed securely by BQ Sqwad AI.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
