@@ -3536,10 +3536,13 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Column(Modifier.padding(14.dp)) {
-                                    Text("Credits", style = MaterialTheme.typography.labelLarge)
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        BqLogo(26.dp)
+                                        Text("BQ Sqwad Credits", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                    }
                                     Text(if (loadingAccount) "…" else balanceLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                    Text("Available", style = MaterialTheme.typography.bodySmall)
+                                    Text("Available shared balance", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                             Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
