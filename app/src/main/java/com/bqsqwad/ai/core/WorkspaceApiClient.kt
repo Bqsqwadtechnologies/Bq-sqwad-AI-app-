@@ -48,7 +48,7 @@ class WorkspaceApiClient {
             val serverError = body?.optString("error").orEmpty().lowercase()
             val friendly = when {
                 status >= 500 || serverError == "route_not_migrated" ->
-                    "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                    "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
                 status == 401 || serverError == "auth_required" ->
                     "Please sign in again to continue."
                 status == 402 || serverError.contains("insufficient credits") ->
@@ -62,7 +62,7 @@ class WorkspaceApiClient {
             error(friendly)
         }
         if(body == null) {
-            error("BQ Sqwad AI received an unexpected response. The team has been notified and is working on it.")
+            error("BQ Sqwad AI received an unexpected response. The BQ Sqwad AI team is working on it.")
         }
         body
     }
