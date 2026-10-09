@@ -66,6 +66,7 @@ fun AdminControlCenter() {
     var grantReason by remember { mutableStateOf("Admin free-credit grant") }
     var grantSaving by remember { mutableStateOf(false) }
     var adminCredits by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var adminIssueRows by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -75,6 +76,14 @@ fun AdminControlCenter() {
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
         runCatching { client.testMode() }.onSuccess { testMode = it }
         runCatching { WorkspaceApiClient().credits() }.onSuccess { adminCredits = it }
+        runCatching { WorkspaceApiClient().adminIssues() }.onSuccess { body ->
+            val items = body.optJSONArray("items")
+            adminIssueRows = if (items == null) emptyList() else List(items.length()) { i ->
+                val item = items.optJSONObject(i) ?: org.json.JSONObject()
+                "HTTP " + item.optInt("status", 500) + " • " +
+                    item.optString("route", "/") + " • " + item.optString("code", "backend_unavailable")
+            }
+        }
     }
 
     val sections = listOf(
@@ -209,6 +218,20 @@ fun AdminControlCenter() {
             }
         }
         OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
+        if (adminIssueRows.isNotEmpty()) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Open service incidents", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text("The backend has recorded issues that need administrator review.", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    adminIssueRows.take(5).forEach { row ->
+                        Text(row, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
         Card(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
