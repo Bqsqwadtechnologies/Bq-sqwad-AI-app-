@@ -22,8 +22,13 @@ class WorkspaceApiClient {
         }
         val status=c.responseCode
         val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
-        if(status !in 200..299) error("HTTP $status: " + raw.take(1000))
-        JSONObject(raw)
+        if(status !in 200..299) error(
+            if (status >= 500) "BQ Sqwad AI is temporarily unavailable. The team is working on it. Please try again shortly."
+            else "BQ Sqwad AI couldn't load this information right now. Please try again."
+        )
+        runCatching { JSONObject(raw) }.getOrElse {
+            error("BQ Sqwad AI received an unexpected response. Please try again shortly.")
+        }
     }
 
     private suspend fun request(path:String, method:String="POST", payload:JSONObject=JSONObject()):JSONObject = withContext(Dispatchers.IO) {
