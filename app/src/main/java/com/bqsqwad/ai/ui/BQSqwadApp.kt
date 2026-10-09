@@ -1098,14 +1098,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
         creditsExhausted = available <= 0.0
+        val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
         val creditPrefs = context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE)
-        val previousBaseline = creditPrefs.getFloat("credit_cycle_baseline", -1f).toDouble()
+        val baselineKey = "credit_cycle_baseline_$userKey"
+        val previousBaseline = creditPrefs.getFloat(baselineKey, -1f).toDouble()
         val baseline = if (previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
-        if (baseline > 0.0) creditPrefs.edit().putFloat("credit_cycle_baseline", baseline.toFloat()).apply()
-        val usedPercent = if (baseline > 0.0) ((baseline - available) / baseline).coerceIn(0.0, 1.0) else 0.0
+        if (baseline > 0.0) creditPrefs.edit().putFloat(baselineKey, baseline.toFloat()).apply()
+        val used = (baseline - available).coerceAtLeast(0.0)
+        val usedPercent = if (baseline > 0.0) (used / baseline).coerceIn(0.0, 1.0) else 0.0
+        val expiryMillis = listOf("subscriptionExpiresAt", "trialExpiresAt")
+            .mapNotNull { key -> snapshot.optString(key).takeIf { it.isNotBlank() && it != "null" }?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } }
+            .filter { it > System.currentTimeMillis() }
+            .minOrNull()
+        val daysToExpiry = expiryMillis?.let { kotlin.math.ceil((it - System.currentTimeMillis()) / 86_400_000.0).toInt() }
         creditNotice = when {
-            available <= 0.0 -> "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
-            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of this credit balance. ${String.format(java.util.Locale.US, "%.1f", available)} credits remain."
+            available <= 0.0 -> "You've run out of BQ Sqwad AI credits. AI chat, live camera, live voice and other AI features are paused. Buy credits to continue."
+            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of your credits (${String.format(java.util.Locale.US, "%.1f", used)} of ${String.format(java.util.Locale.US, "%.1f", baseline)} used). ${String.format(java.util.Locale.US, "%.1f", available)} remain."
+            daysToExpiry != null && daysToExpiry <= 5 -> "Your plan or free-credit period expires in ${daysToExpiry.coerceAtLeast(1)} day(s). Renew or buy credits to keep using BQ Sqwad AI."
             else -> null
         }
     }
@@ -1707,7 +1716,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                     }
                                 },
-                                enabled = !busy
+                                enabled = !busy && !creditsExhausted
                             ) {
                                 Icon(
                                     if (isListening) Icons.Default.Stop else Icons.Default.Mic,
@@ -1715,7 +1724,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     tint = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
+                            IconButton(onClick = { if (!creditsExhausted) picker.launch(arrayOf("*/*")) }, enabled = !creditsExhausted) {
                                 Icon(
                                     Icons.Default.AttachFile,
                                     contentDescription = "Upload attachment",
@@ -1730,9 +1739,10 @@ val composerShape = RoundedCornerShape(26.dp)
                                 micError = null
                                 message = value
                             },
+                            enabled = !creditsExhausted,
                             placeholder = {
                                 Text(
-                                    "Message BQ Sqwad AI",
+                                    if (creditsExhausted) "Credits used up — buy credits to continue" else "Message BQ Sqwad AI",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
@@ -1763,7 +1773,7 @@ val composerShape = RoundedCornerShape(26.dp)
                         )
 
                         IconButton(
-                            enabled = message.isNotBlank() || attachments.isNotEmpty() || busy,
+                            enabled = busy || (!creditsExhausted && (message.isNotBlank() || attachments.isNotEmpty())),
                             onClick = {
                                 if (busy) {
                                     streamJob?.cancel()
