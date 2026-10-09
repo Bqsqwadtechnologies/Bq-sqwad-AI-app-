@@ -64,8 +64,8 @@ function isSuperAdmin(user, env) {
   // The explicitly configured owner email is the bootstrap administrator.
   // Require a verified Firebase identity for that email; optional custom claims
   // remain supported for delegated administrators.
-  return Boolean(owner) && email === owner && (
-    user?.emailVerified === true ||
+  return Boolean(owner) && (
+    (email === owner && user?.emailVerified === true) ||
     claims.admin === true ||
     claims.superAdmin === true ||
     claims.role === "admin" ||
