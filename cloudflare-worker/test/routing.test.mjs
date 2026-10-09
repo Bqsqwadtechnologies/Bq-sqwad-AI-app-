@@ -30,7 +30,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"],
     ["POST", "/web-search"],
-    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
@@ -54,6 +54,14 @@ test("native BQ catalog route is registered and requires Firebase auth", async (
   assert.equal(res.status, 401);
   const body = await res.json();
   assert.equal(body.error, "Authentication required");
+});
+
+test("unmigrated routes return a safe branded service error", async () => {
+  const res = await worker.fetch(new Request("https://x.dev/not-yet-migrated"), {});
+  assert.equal(res.status, 501);
+  const body = await res.json();
+  assert.equal(body.error, "service_temporarily_unavailable");
+  assert.equal(body.path, undefined);
 });
 
 test("CORS preflight returns 204", async () => {
