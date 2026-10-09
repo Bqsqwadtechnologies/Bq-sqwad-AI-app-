@@ -84,10 +84,11 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
       state: "open",
       createdAt: new Date()
     });
-    const owner = String(env?.SUPER_ADMIN_EMAIL || "").trim().toLowerCase();
+    const ownerRaw = String(env?.SUPER_ADMIN_EMAIL || "").trim();
+    const owner = ownerRaw.toLowerCase();
     if (!owner || !env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON) return;
     const admins = await firestoreQuery("users", {
-      filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: owner } }],
+      filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: ownerRaw } }],
       limit: 1
     });
     const admin = admins[0];
