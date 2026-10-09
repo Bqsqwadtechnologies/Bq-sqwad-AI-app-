@@ -3,6 +3,7 @@ package com.bqsqwad.ai.core
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,11 +18,19 @@ class WorkspaceApiClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
 
     private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
-        val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-            requestMethod=method; connectTimeout=10000; readTimeout=15000; doInput=true
+        val statusAndBody = try {
+            val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
+                requestMethod=method; connectTimeout=10000; readTimeout=15000; doInput=true
+            }
+            val status=c.responseCode
+            val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
+            status to raw
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
         }
-        val status=c.responseCode
-        val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
+        val (status, raw) = statusAndBody
         if(status !in 200..299) error(
             if (status >= 500) "BQ Sqwad AI is temporarily unavailable. The team is working on it. Please try again shortly."
             else "BQ Sqwad AI couldn't load this information right now. Please try again."
@@ -34,15 +43,23 @@ class WorkspaceApiClient {
     private suspend fun request(path:String, method:String="POST", payload:JSONObject=JSONObject()):JSONObject = withContext(Dispatchers.IO) {
         val user=FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token=Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
-        val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-            requestMethod=method; connectTimeout=15000; readTimeout=120000; doInput=true
-            if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
-            setRequestProperty("Authorization","Bearer $token")
+        val statusAndRaw = try {
+            val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
+                requestMethod=method; connectTimeout=15000; readTimeout=120000; doInput=true
+                if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
+                setRequestProperty("Authorization","Bearer $token")
+            }
+            if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
+            val status=c.responseCode
+            val stream=if(status in 200..299)c.inputStream else c.errorStream
+            val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+            status to raw
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
         }
-        if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
-        val status=c.responseCode
-        val stream=if(status in 200..299)c.inputStream else c.errorStream
-        val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+        val (status, raw) = statusAndRaw
         val body=runCatching{JSONObject(raw)}.getOrNull()
         if(status !in 200..299) {
             val serverError = body?.optString("error").orEmpty().lowercase()
