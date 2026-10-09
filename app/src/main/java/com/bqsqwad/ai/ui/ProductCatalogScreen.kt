@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -143,15 +144,28 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         ) {
                             Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(14.dp)) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    BqLogo(42.dp)
-                                    Column(Modifier.weight(1f)) {
+                                    Surface(
+                                        modifier = Modifier.size(48.dp),
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.MonetizationOn,
+                                                contentDescription = "Shared BQ Sqwad credits",
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(30.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         Text("BQ Sqwad Credits", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
-                                        Text("One shared balance for eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("One shared balance across eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
                                     }
                                     BqStatusBadge("LIVE")
                                 }
                                 Text(
-                                    String.format(java.util.Locale.US, "%.2f", balance.optDouble("available", 0.0)),
+                                    formatCredits(balance.optDouble("available", 0.0)),
                                     style=MaterialTheme.typography.displaySmall,
                                     fontWeight=FontWeight.Bold,
                                     color=MaterialTheme.colorScheme.primary
@@ -160,13 +174,13 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                     Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         Column(Modifier.padding(14.dp)) {
                                             Text("Available", style=MaterialTheme.typography.labelLarge)
-                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
+                                            Text(formatCredits(balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
                                         }
                                     }
                                     Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         Column(Modifier.padding(14.dp)) {
                                             Text("Reserved", style=MaterialTheme.typography.labelLarge)
-                                            Text(String.format(java.util.Locale.US, "%.2f", balance.optDouble("reserved", 0.0)), fontWeight=FontWeight.Bold)
+                                            Text(formatCredits(balance.optDouble("reserved", 0.0)), fontWeight=FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -604,6 +618,8 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
                 (!plan.module.equals("credits", ignoreCase = true) || canonicalCreditPack)
         }
 }
+private fun formatCredits(value: Double): String = if (value % 1.0 == 0.0) String.format(java.util.Locale.US, "%,.0f", value) else String.format(java.util.Locale.US, "%,.2f", value)
+
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
 @Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
