@@ -735,19 +735,21 @@ private fun MainShell(modifier: Modifier) {
         }.getOrDefault(true)
         consentLoading = false
 
+    }
+
+    LaunchedEffect(email, workspace) {
+        // Refresh when returning from a workspace so an administrator's test-mode
+        // change is reflected without requiring an app restart.
         accessLoading = true
         val api = WorkspaceApiClient()
-        runCatching { api.nativeCatalog() }
-            .onSuccess { catalog ->
-                val entitlements = runCatching { api.entitlements() }.getOrElse { JSONObject() }
-                val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
-                val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
-                runCatching {
-                    WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
-                }.onSuccess { workspaceAccess = it }
-                 .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
-            }
-            .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+        runCatching {
+            val catalog = api.nativeCatalog()
+            val entitlements = runCatching { api.entitlements() }.getOrElse { JSONObject() }
+            val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
+            val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
+            WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
+        }.onSuccess { workspaceAccess = it }
+         .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
         accessLoading = false
     }
 
