@@ -589,9 +589,18 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
         )}.filter { plan ->
             val canonicalCreditPack = plan.id.matches(Regex("credit(100|250|500|1000)")) ||
                 plan.name.matches(Regex("(?i)(100|250|500|1,000) credits"))
-            val featureSpecificLiveCredit = (plan.id + " " + plan.name).contains("live", ignoreCase = true) &&
-                (plan.id + " " + plan.name).contains("credit", ignoreCase = true)
-            plan.id.isNotBlank() && !featureSpecificLiveCredit &&
+            val searchable = (plan.id + " " + plan.name + " " + plan.module)
+                .lowercase(java.util.Locale.ROOT)
+                .replace(Regex("[^a-z0-9]+"), " ")
+                .trim()
+            val compact = searchable.replace(" ", "")
+            val featureSpecificLiveCredit =
+                (searchable.contains("live") && searchable.contains("credit")) ||
+                Regex("\\bai live m\\b").containsMatchIn(searchable) ||
+                compact.contains("ailivem")
+            val anyNonCanonicalCreditPlan =
+                Regex("(^| )credits?( |$)").containsMatchIn(searchable) && !canonicalCreditPack
+            plan.id.isNotBlank() && !featureSpecificLiveCredit && !anyNonCanonicalCreditPlan &&
                 (!plan.module.equals("credits", ignoreCase = true) || canonicalCreditPack)
         }
 }
