@@ -732,12 +732,18 @@ private fun MainShell(modifier: Modifier) {
     var consentLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(email) {
-        adminAuthorized = if (email.isBlank()) false else runCatching {
-            WorkspaceApiClient().adminAccess().optBoolean("allowed")
-        }.getOrDefault(false)
-        if (email.isNotBlank()) {
-            // Register the current device token after sign-in too; FCM may have issued
-            // the token before the administrator authenticated.
+        if (email.isBlank()) {
+            adminAuthorized = false
+            return@LaunchedEffect
+        }
+        // Keep startup work parallel: chat stays visible while admin status and push
+        // registration load independently, so incident alerts are registered sooner.
+        launch {
+            adminAuthorized = runCatching {
+                WorkspaceApiClient().adminAccess().optBoolean("allowed")
+            }.getOrDefault(false)
+        }
+        launch {
             runCatching {
                 withContext(Dispatchers.IO) {
                     val token = Tasks.await(FirebaseMessaging.getInstance().token)
