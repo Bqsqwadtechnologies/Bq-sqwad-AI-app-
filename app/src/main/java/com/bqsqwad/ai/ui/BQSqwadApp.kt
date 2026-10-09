@@ -740,33 +740,16 @@ private fun MainShell(modifier: Modifier) {
     LaunchedEffect(email, workspace) {
         // Refresh when returning from a workspace so an administrator's test-mode
         // change is reflected without requiring an app restart.
+        if (email.isBlank()) {
+            workspaceAccess = WorkspaceAccessSnapshot.empty()
+            accessLoading = false
+            return@LaunchedEffect
+        }
         accessLoading = true
         val api = WorkspaceApiClient()
         runCatching {
             val catalog = api.nativeCatalog()
             val entitlements = runCatching { api.entitlements() }.getOrElse { JSONObject() }
-            val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
-            val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
-            WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
-        }.onSuccess { workspaceAccess = it }
-         .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
-        accessLoading = false
-    }
-
-    LaunchedEffect(email) {
-        // The backend is authoritative for admin visibility. Normal users never receive
-        // an Admin workspace merely because of a client-side email comparison.
-        adminAuthorized = runCatching {
-            WorkspaceApiClient().adminAccess().optBoolean("allowed")
-        }.getOrDefault(false)
-    }
-
-    LaunchedEffect(email) {
-        accessLoading = true
-        val api = WorkspaceApiClient()
-        runCatching {
-            val catalog = api.nativeCatalog()
-            val entitlements = api.entitlements()
             val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
             val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
             WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
