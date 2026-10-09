@@ -387,7 +387,11 @@ async function nativeCatalog() {
     : [];
   const firestorePlans = plans.map(d => safePlan(String(d.__name || "").split("/").pop(), d));
   const basePlans = configuredPlans.length ? configuredPlans : firestorePlans;
+  const publicPlans = basePlans.filter(isPublicCatalogPlan);
+  const visiblePlanIds = new Set(publicPlans.map(p => p.id));
   const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
+  // Return only checkout mappings attached to visible BQ Sqwad AI plans. Raw Play
+  // products remain private to purchase verification and are never a second catalog.
   const products = configuredProducts.map(p => ({
     planId: String(p.planId || ""),
     productId: String(p.productId || ""),
@@ -397,7 +401,7 @@ async function nativeCatalog() {
     consumable: p.consumable === true,
     billingPeriod: p.billingPeriod ? String(p.billingPeriod) : null,
     priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
-  })).filter(p => p.productId && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
+  })).filter(p => p.productId && visiblePlanIds.has(p.planId) && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
   const featureRows = features.map(x => ({
     id: String(x.__name || "").split("/").pop(),
     name: String(x.name || x.title || String(x.__name || "").split("/").pop()),
@@ -429,7 +433,7 @@ async function nativeCatalog() {
   }));
   return {
     version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
-    plans: basePlans.filter(isPublicCatalogPlan),
+    plans: publicPlans,
     products,
     publicContactSales: [],
     features: featureRows,
