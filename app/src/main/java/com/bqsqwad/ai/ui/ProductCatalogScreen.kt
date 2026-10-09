@@ -106,9 +106,6 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         if(playProducts.isEmpty()) status="Google Play products are not available on this device yet."
     }
     LaunchedEffect(Unit){load()}
-    LaunchedEffect(Unit) {
-        while (true) { kotlinx.coroutines.delay(30000); runCatching { load() } }
-    }
 
     Scaffold(topBar={
         TopAppBar(
