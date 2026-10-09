@@ -90,7 +90,7 @@ import org.json.JSONObject
 private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
-    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:", RegexOption.IGNORE_CASE)
+    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|not_configured|client_secret_missing|realtime_session_failed|firebase|firestore|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
     return if (technical.containsMatchIn(message)) {
         "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
     } else message.take(240)
