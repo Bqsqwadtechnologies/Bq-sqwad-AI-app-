@@ -556,7 +556,8 @@ async function stream(request, user, body) {
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
-          emit({ type: "error", message: error.message || "stream_failed" });
+          await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed");
+          emit({ type: "error", message: "service_temporarily_unavailable" });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
