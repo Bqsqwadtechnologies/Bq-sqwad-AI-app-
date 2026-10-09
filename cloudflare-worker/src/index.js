@@ -1,3 +1,4 @@
+import { broadcast } from "./notifications-native.js";
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
@@ -71,6 +72,42 @@ function isSuperAdmin(user, env) {
     claims.role === "admin" ||
     claims.role === "super_admin"
   );
+}
+
+async function notifyAdminOfIssue(env, route, status, errorCode) {
+  try {
+    const issueId = crypto.randomUUID();
+    await firestoreCreate("adminIssues/" + issueId, {
+      id: issueId,
+      route: String(route || "/").slice(0, 160),
+      status: Number(status || 500),
+      code: String(errorCode || "backend_unavailable").replace(/https?:\\/\\/\\S+/gi, "[redacted-url]").slice(0, 160),
+      state: "open",
+      createdAt: new Date()
+    });
+    const owner = String(env?.SUPER_ADMIN_EMAIL || "").trim().toLowerCase();
+    if (!owner || !env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON) return;
+    const admins = await firestoreQuery("users", {
+      filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: owner } }],
+      limit: 1
+    });
+    const admin = admins[0];
+    const adminUid = String(admin?.uid || String(admin?.__name || "").split("/").pop() || "");
+    if (!adminUid) return;
+    const docs = await firestoreQuery("notificationTokens", {
+      filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: adminUid } }],
+      limit: 100
+    });
+    const tokens = docs.map(x => String(x.token || "")).filter(Boolean);
+    if (tokens.length) {
+      const service = JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON);
+      await broadcast(env, service.project_id, tokens, "BQ Sqwad AI needs attention",
+        "A service issue was detected. Open the Admin Dashboard to review the incident.",
+        { type: "admin_issue", issueId });
+    }
+  } catch {
+    // Issue reporting must never break the user's request.
+  }
 }
 
 function corsHeaders(request = null) {
@@ -1175,11 +1212,13 @@ export default {
           throw error;
         }
       }
-      return json({ error: "route_not_migrated", path: url.pathname }, 501);
+      throw Object.assign(new Error("route_not_migrated"), { httpStatus: 501 });
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = /Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500;
-      return new Response(JSON.stringify({error:message}), { status, headers: { ...corsHeaders(), "Retry-After": String(error?.retryAfter || "") , "content-type":"application/json; charset=utf-8" } });
+      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
+      if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
+      const safeError = status >= 500 ? "service_temporarily_unavailable" : message;
+      return new Response(JSON.stringify({ error: safeError }), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
   }
 };
