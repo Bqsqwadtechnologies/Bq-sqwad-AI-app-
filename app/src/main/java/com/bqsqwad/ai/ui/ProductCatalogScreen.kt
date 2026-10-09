@@ -142,10 +142,11 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             modifier=Modifier.fillMaxWidth()
                         ) {
                             Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                    BqLogo(42.dp)
                                     Column(Modifier.weight(1f)) {
-                                        Text("Live credit balance", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
-                                        Text("Shared across eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("BQ Sqwad Credits", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                        Text("One shared balance for eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     BqStatusBadge("LIVE")
                                 }
@@ -587,7 +588,12 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             p.optBoolean("playEligible",false),
             p.optBoolean("contactSales",false),
             p.optBoolean("popular",false)
-        )}.filter{it.id.isNotBlank()}
+        )}.filter { plan ->
+            plan.id.isNotBlank() && (
+                !plan.module.equals("credits", ignoreCase = true) ||
+                plan.id.matches(Regex("credit(100|250|500|1000)"))
+            )
+        }
 }
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
 @Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
