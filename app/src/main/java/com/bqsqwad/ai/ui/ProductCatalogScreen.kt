@@ -167,7 +167,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.MonetizationOn, contentDescription = "Shared credits", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(30.dp))
+                                            BqLogo(34.dp)
                                         }
                                     }
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
