@@ -30,7 +30,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
-private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false)
+private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false,val sortOrder:Int = 0)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
@@ -138,7 +138,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             error!=null->ProductError(Modifier.padding(padding),::load)
             else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(plans.isNotEmpty())Text("${plans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                if(plans.isEmpty()) item { ProductNotice("Plans temporarily unavailable","The BQ Sqwad AI team is working to restore the catalog. Please refresh shortly.") }
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 salesNotice?.let { notice -> item { ProductNotice("Sales update", notice) } }
                 item {
@@ -420,11 +421,17 @@ private fun LivePlanCard(
     var selectedPeriod by remember(plan.id) { mutableStateOf(supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty()) }
     val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod } ?: playEntries.firstOrNull()
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
-    val priceText = plan.price.entries.joinToString(" • ") { (period, value) ->
-        val numeric = value.toDoubleOrNull()
-        val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
-        period.replaceFirstChar { it.uppercase() } + ": " + shown
-    }.ifBlank { if (plan.contactSales) "Contact Sales" else "Price not configured" }
+    val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
+    val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
+    val priceText = when {
+        isContactSales -> "Contact Sales"
+        isFreePlan -> "Free"
+        else -> plan.price.entries.joinToString(" • ") { (period, value) ->
+            val numeric = value.toDoubleOrNull()
+            val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
+            period.replaceFirstChar { it.uppercase() } + ": " + shown
+        }.ifBlank { "Price not configured" }
+    }
     val truthGuard = plan.module.equals("truthguard", ignoreCase = true)
     val tierContainer = when (plan.id) {
         "truthguardfree" -> MaterialTheme.colorScheme.surfaceVariant
@@ -506,35 +513,39 @@ private fun LivePlanCard(
                     )
                 }
             }
-            Button(
-                onClick = {
-                    when {
-                        plan.contactSales || plan.paymentChannel == "contact_sales" -> onContact()
-                        plan.paymentChannel == "website" -> {
-                            onStatus("Opening BQ Sqwad AI website checkout.")
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com")))
-                            }.onFailure {
-                                onStatus("Could not open the BQ Sqwad AI website.")
+            if (isFreePlan) {
+                Text("Included at no cost. No purchase is required.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            } else {
+                Button(
+                    onClick = {
+                        when {
+                            isContactSales -> onContact()
+                            plan.paymentChannel == "website" -> {
+                                onStatus("Opening BQ Sqwad AI website checkout.")
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com")))
+                                }.onFailure {
+                                    onStatus("Could not open the BQ Sqwad AI website.")
+                                }
                             }
+                            plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true -> {
+                                val result=billing.launchPurchase(selectedProduct.productId, selectedEntry.basePlanId)
+                                onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
+                            }
+                            else -> onStatus("This plan is not currently purchasable on this device.")
                         }
-                        plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true -> {
-                            val result=billing.launchPurchase(selectedProduct.productId, selectedEntry.basePlanId)
-                            onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
+                    },
+                    modifier=Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        when {
+                            isContactSales -> "Contact Sales"
+                            plan.paymentChannel=="website" -> "Continue on BQ Sqwad AI website"
+                            plan.playEligible -> "Continue with Google Play"
+                            else -> "Unavailable"
                         }
-                        else -> onStatus("This plan is not currently purchasable on this device.")
-                    }
-                },
-                modifier=Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    when {
-                        plan.contactSales || plan.paymentChannel=="contact_sales" -> "Contact Sales"
-                        plan.paymentChannel=="website" -> "Subscribe on website"
-                        plan.playEligible -> "Continue with Google Play"
-                        else -> "Unavailable"
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -611,7 +622,8 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             p.optString("paymentChannel").ifBlank{if(p.optBoolean("playEligible",false))"play" else "website"},
             p.optBoolean("playEligible",false),
             p.optBoolean("contactSales",false),
-            p.optBoolean("popular",false)
+            p.optBoolean("popular",false),
+            p.optInt("sortOrder",0)
         )}.filter { plan ->
             val canonicalCreditPack = plan.id.matches(Regex("credit(100|250|500|1000)")) ||
                 plan.name.matches(Regex("(?i)(100|250|500|1,000) credits"))
@@ -628,7 +640,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
                 Regex("(^| )credits?( |$)").containsMatchIn(searchable) && !canonicalCreditPack
             plan.id.isNotBlank() && !featureSpecificLiveCredit && !anyNonCanonicalCreditPlan &&
                 (!plan.module.equals("credits", ignoreCase = true) || canonicalCreditPack)
-        }
+        }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 }
 private fun formatCredits(value: Double): String = if (value % 1.0 == 0.0) String.format(java.util.Locale.US, "%,.0f", value) else String.format(java.util.Locale.US, "%,.2f", value)
 
