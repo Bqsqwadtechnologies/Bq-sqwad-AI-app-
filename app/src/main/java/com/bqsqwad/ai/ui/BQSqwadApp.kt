@@ -18,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -1397,7 +1398,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) }
                         }
                         if (!m.mine) Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
