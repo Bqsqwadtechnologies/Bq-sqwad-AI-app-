@@ -809,6 +809,17 @@ export default {
         return json({ ok:true, removed:true });
       }
 
+      if (url.pathname === "/issues/report" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid);
+        const body = await readBody(request);
+        const requestedRoute = String(body.route || "/live-voice").slice(0, 80);
+        const allowedRoutes = new Set(["/live-voice", "/live-camera", "/screen-share", "/ai/stream", "/ai/vision"]);
+        if (!allowedRoutes.has(requestedRoute)) return json({ error: "invalid_issue_route" }, 400);
+        await notifyAdminOfIssue(env, requestedRoute, 500, String(body.code || "client_runtime_issue").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || "client_runtime_issue");
+        return json({ ok: true, received: true });
+      }
+
       if (url.pathname === "/admin/issues" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
