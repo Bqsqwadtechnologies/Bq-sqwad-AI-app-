@@ -1086,20 +1086,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
     var privateChat by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
-    var availableCredits by remember { mutableStateOf<Double?>(null) }
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     fun applyCreditSnapshot(snapshot: JSONObject) {
         if (snapshot.optBoolean("adminUnlimited")) {
-            availableCredits = null
             creditNotice = null
             creditsExhausted = false
             return
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
-        availableCredits = available
         creditsExhausted = available <= 0.0
         val creditPrefs = context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE)
         val previousBaseline = creditPrefs.getFloat("credit_cycle_baseline", -1f).toDouble()
@@ -1108,7 +1105,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val usedPercent = if (baseline > 0.0) ((baseline - available) / baseline).coerceIn(0.0, 1.0) else 0.0
         creditNotice = when {
             available <= 0.0 -> "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
-            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of this credit balance. ${formatCredits(available)} credits remain."
+            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of this credit balance. ${String.format(java.util.Locale.US, "%.1f", available)} credits remain."
             else -> null
         }
     }
