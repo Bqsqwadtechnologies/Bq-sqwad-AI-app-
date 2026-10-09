@@ -380,10 +380,16 @@ async function nativeCatalog() {
       const name = String(x.name || "").toLowerCase();
       const module = String(x.module || "").toLowerCase();
       const sharedCreditPack = new Set(["credit100", "credit250", "credit500", "credit1000"]).has(id);
-      const featureSpecificLiveCredit = (id + " " + name).includes("live") && (id + " " + name).includes("credit");
-      // One BQ Sqwad AI credit balance; only the four canonical shared packs are public.
+      const searchable = (id + " " + name + " " + module).replace(/[^a-z0-9]+/g, " ").trim();
+      const featureSpecificLiveCredit =
+        (searchable.includes("live") && searchable.includes("credit")) ||
+        /\bai live m\b/.test(searchable) ||
+        /\bailivem\b/.test(searchable.replace(/ /g, ""));
+      // All credit-consuming features use the one shared BQ Sqwad AI balance.
+      // Never expose feature-specific live-camera/live-voice credit plans.
       if (featureSpecificLiveCredit) return false;
       if (module === "credits" && !sharedCreditPack) return false;
+      if (/(^| )credit(s)?( |$)/.test(searchable) && !sharedCreditPack) return false;
       return true;
     }),
     products,
