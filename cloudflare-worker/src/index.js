@@ -804,6 +804,24 @@ export default {
         return json({ ok:true, removed:true });
       }
 
+      if (url.pathname === "/admin/issues" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
+        const issues = await firestoreQuery("adminIssues", {
+          filters: [{ field: { fieldPath: "state" }, op: "EQUAL", value: { stringValue: "open" } }],
+          limit: 50
+        });
+        issues.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        return json({ items: issues.map(x => ({
+          id: String(x.id || String(x.__name || "").split("/").pop()),
+          route: String(x.route || "/"),
+          status: Number(x.status || 500),
+          code: String(x.code || "backend_unavailable"),
+          state: String(x.state || "open"),
+          createdAt: x.createdAt || null
+        })) });
+      }
+
       if (url.pathname === "/admin/cloudflare/secrets" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
