@@ -582,7 +582,7 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
             if(p.has("priceUsd") && !p.isNull("priceUsd")) p.optDouble("priceUsd") else null,
             p.optString("billingPeriod").ifBlank{null}
         )
-    }.filter{it.productId.isNotBlank()}
+    }.filter{it.productId.isNotBlank() && it.planId in parsePlans(body).map { plan -> plan.id }.toSet()}
 }
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{
