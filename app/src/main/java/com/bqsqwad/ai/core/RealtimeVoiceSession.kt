@@ -40,6 +40,7 @@ class RealtimeVoiceSession(
         val request = Request.Builder()
             .url("wss://api.openai.com/v1/realtime?model=${java.net.URLEncoder.encode(model, "UTF-8")}")
             .addHeader("Authorization", "Bearer $clientSecret")
+            .addHeader("OpenAI-Beta", "realtime=v1")
             .build()
         socket = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
