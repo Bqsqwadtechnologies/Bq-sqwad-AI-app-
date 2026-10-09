@@ -369,6 +369,28 @@ async function reverseCredits(uid, reservationId) {
   }
 }
 
+async function assertSharedCreditsAvailable(user) {
+  if (isSuperAdmin(user, globalThis.__bqEnv)) return;
+  await applyConfiguredCreditTrial(user.uid);
+  const profile = await readCanonicalUserBalance(user.uid);
+  if (!profile) throw new Error("Account not found.");
+  const balance = canonicalUserBalance(profile);
+  if (!balance || balance.total <= 0) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
+}
+
+async function withSharedCreditCharge(user, capabilityName, action) {
+  const control = await capability(user.uid, capabilityName);
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
+  try {
+    const result = await action(control);
+    await commitCredits(user.uid, reservation.reservationId, result?.providerId || "openai");
+    return { ...result, creditsCharged: Number(reservation.amount || 0) };
+  } catch (error) {
+    await reverseCredits(user.uid, reservation.reservationId);
+    throw error;
+  }
+}
+
 export function isPublicCatalogPlan(x) {
   if (!x.visible || !x.active) return false;
   const id = String(x.id || "").toLowerCase();
