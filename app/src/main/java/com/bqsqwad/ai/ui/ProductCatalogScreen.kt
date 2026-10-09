@@ -109,7 +109,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 
     Scaffold(topBar={
         TopAppBar(
-            title={Column{Text("Plans & Products",maxLines=1,fontWeight=FontWeight.Bold);Text("BQ Sqwad AI",style=MaterialTheme.typography.labelSmall)}},
+            title={Column{Text("Plans & Credits",maxLines=1,fontWeight=FontWeight.Bold);Text("BQ Sqwad AI catalog",style=MaterialTheme.typography.labelSmall)}},
             navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,contentDescription="Back")}},
             actions={IconButton(onClick={::load},enabled=!loading){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
         )
