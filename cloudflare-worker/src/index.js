@@ -291,6 +291,25 @@ async function reverseCredits(uid, reservationId) {
   }
 }
 
+export function isPublicCatalogPlan(x) {
+  if (!x.visible || !x.active) return false;
+  const id = String(x.id || "").toLowerCase();
+  const name = String(x.name || "").toLowerCase();
+  const module = String(x.module || "").toLowerCase();
+  const sharedCreditPack = new Set(["credit100", "credit250", "credit500", "credit1000"]).has(id);
+  const searchable = (id + " " + name + " " + module).replace(/[^a-z0-9]+/g, " ").trim();
+  const featureSpecificLiveCredit =
+    (searchable.includes("live") && searchable.includes("credit")) ||
+    /\\bai live m\\b/.test(searchable) ||
+    /\\bailivem\\b/.test(searchable.replace(/ /g, ""));
+  // All credit-consuming features use the one shared BQ Sqwad AI balance.
+  // Never expose feature-specific live-camera/live-voice credit plans.
+  if (featureSpecificLiveCredit) return false;
+  if (module === "credits" && !sharedCreditPack) return false;
+  if (/(^| )credit(s)?( |$)/.test(searchable) && !sharedCreditPack) return false;
+  return true;
+}
+
 async function nativeCatalog() {
   const [plans, planCatalog, playCatalogConfig, features, bindings, addOns, businessPricing] = await Promise.all([
     firestoreQuery("plans", { filters: [{ field: { fieldPath: "active" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }),
@@ -374,24 +393,7 @@ async function nativeCatalog() {
   }));
   return {
     version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
-    plans: basePlans.filter(x => {
-      if (!x.visible || !x.active) return false;
-      const id = String(x.id || "").toLowerCase();
-      const name = String(x.name || "").toLowerCase();
-      const module = String(x.module || "").toLowerCase();
-      const sharedCreditPack = new Set(["credit100", "credit250", "credit500", "credit1000"]).has(id);
-      const searchable = (id + " " + name + " " + module).replace(/[^a-z0-9]+/g, " ").trim();
-      const featureSpecificLiveCredit =
-        (searchable.includes("live") && searchable.includes("credit")) ||
-        /\bai live m\b/.test(searchable) ||
-        /\bailivem\b/.test(searchable.replace(/ /g, ""));
-      // All credit-consuming features use the one shared BQ Sqwad AI balance.
-      // Never expose feature-specific live-camera/live-voice credit plans.
-      if (featureSpecificLiveCredit) return false;
-      if (module === "credits" && !sharedCreditPack) return false;
-      if (/(^| )credit(s)?( |$)/.test(searchable) && !sharedCreditPack) return false;
-      return true;
-    }),
+    plans: basePlans.filter(isPublicCatalogPlan),
     products,
     publicContactSales: [],
     features: featureRows,
