@@ -75,7 +75,7 @@ class RealtimeVoiceSession(
                 put("output_modalities", org.json.JSONArray().put("audio"))
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
-                        put("format", JSONObject().put("type", "audio/pcm"))
+                        put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
                         put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
@@ -172,7 +172,17 @@ class RealtimeVoiceSession(
         val min = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN, ENCODING)
         if (min <= 0) throw IllegalStateException("Microphone audio format is unavailable.")
         recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
+        if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+            recorder?.release()
+            recorder = null
+            throw IllegalStateException("Microphone audio could not be initialized on this device.")
+        }
         recorder?.startRecording()
+        if (recorder?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            recorder?.release()
+            recorder = null
+            throw IllegalStateException("BQ Sqwad AI could not start microphone capture. Check microphone permission and try again.")
+        }
         audioJob = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             val buffer = ByteArray(min.coerceAtLeast(2048))
             while (isActive && running.get()) {
