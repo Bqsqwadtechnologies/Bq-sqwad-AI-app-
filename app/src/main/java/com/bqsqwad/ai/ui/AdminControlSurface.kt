@@ -60,6 +60,10 @@ fun AdminControlCenter() {
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
     var testModeSaving by remember { mutableStateOf(false) }
+    var trialEnabled by remember { mutableStateOf(false) }
+    var trialCredits by remember { mutableStateOf("5") }
+    var trialDays by remember { mutableStateOf("5") }
+    var trialSaving by remember { mutableStateOf(false) }
     var showGrantCredits by remember { mutableStateOf(false) }
     var grantEmail by remember { mutableStateOf("") }
     var grantAmount by remember { mutableStateOf("100") }
@@ -75,6 +79,11 @@ fun AdminControlCenter() {
         loading = false
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
         runCatching { client.testMode() }.onSuccess { testMode = it }
+        runCatching { client.creditTrial() }.onSuccess {
+            trialEnabled = it.optBoolean("enabled", false)
+            trialCredits = it.optInt("credits", 5).toString()
+            trialDays = it.optInt("days", 5).toString()
+        }
         runCatching { WorkspaceApiClient().credits() }.onSuccess { adminCredits = it }
         runCatching { WorkspaceApiClient().adminIssues() }.onSuccess { body ->
             val items = body.optJSONArray("items")
@@ -251,6 +260,47 @@ fun AdminControlCenter() {
                         }
                     }
                 )
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Free-credit trial", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("Configure the one-time starter credit grant for new accounts. The server expires trial credits after the configured number of days.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Enable free-credit trial")
+                    Switch(checked = trialEnabled, enabled = !trialSaving, onCheckedChange = { trialEnabled = it })
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = trialCredits,
+                        onValueChange = { trialCredits = it.filter(Char::isDigit).take(6) },
+                        label = { Text("Starter credits") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        enabled = !trialSaving
+                    )
+                    OutlinedTextField(
+                        value = trialDays,
+                        onValueChange = { trialDays = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Valid days (1–30)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        enabled = !trialSaving
+                    )
+                }
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !trialSaving && (trialCredits.toIntOrNull() ?: 0) in 1..100000 && (trialDays.toIntOrNull() ?: 0) in 1..30,
+                    onClick = {
+                        trialSaving = true
+                        scope.launch {
+                            runCatching { client.setCreditTrial(trialEnabled, trialCredits.toInt(), trialDays.toInt()) }
+                                .onSuccess { error = null }
+                                .onFailure { error = it.message ?: "Could not save the free-credit trial." }
+                            trialSaving = false
+                        }
+                    }
+                ) { Text(if (trialSaving) "Saving trial…" else "Save free-credit trial") }
             }
         }
         OutlinedButton(onClick = { showGrantCredits = true }, modifier = Modifier.fillMaxWidth()) { Text("Grant Free Credits to User") }
