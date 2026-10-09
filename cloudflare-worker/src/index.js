@@ -1102,7 +1102,11 @@ export default {
       if (url.pathname === "/notifications/token" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreDelete("notificationTokens/"+u.uid+"_"+h); return json({ok:true,removed:true}); }
       if (url.pathname === "/video/generate" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const control=await capability(u.uid,"video_generation"); const b=await readBody(request); b.creditCost=control.creditCost;b.model=b.model||control.modelId;return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
       if (url.pathname.startsWith("/video/jobs/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/video/jobs/".length)))); }
-      if (url.pathname.startsWith("/video/jobs/") && url.pathname.endsWith("/content") && request.method === "GET") { const u=await verifyFirebaseUser(request); return await getVideoContentNative(env,u,decodeURIComponent(url.pathname.slice("/video/jobs/".length,-8))); }
+      if (url.pathname.startsWith("/video/jobs/") && url.pathname.endsWith("/content") && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        await assertSharedCreditsAvailable(u);
+        return await getVideoContentNative(env, u, decodeURIComponent(url.pathname.slice("/video/jobs/".length, -8)));
+      }
       if (url.pathname === "/ai/image" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const control=await capability(u.uid,"image_generation"); return json(await generateImageNative(env,u,await readBody(request),(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
       if (url.pathname === "/ai/video" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const control=await capability(u.uid,"video_generation"); const b=await readBody(request); b.creditCost=control.creditCost; b.model=b.model||control.modelId; return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
       if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
@@ -1141,8 +1145,31 @@ export default {
       if (url.pathname === "/organization/production/ai-live" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getOrganizationAiLiveConfig(u.uid)); }
       if (url.pathname === "/organization/production/ai-live" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await updateOrganizationAiLiveConfig(u.uid,await readBody(request))); }
 
-      if (url.pathname === "/business/plan-builder" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),w=await businessWorkspace(u.uid,{workspaceId:b.workspaceId}),brief=String(b.brief||b.message||"").trim().slice(0,12000);if(!brief)throw new Error("business_plan_brief_required");const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:brief,system:"You are the BQ Sqwad AI Business Plan Builder. Use only supplied business information. Do not invent market facts, guarantees, licenses, tax or legal status. Return executive summary, objectives, target customers, value proposition, operations, marketing, sales, technology/AI plan, risks, KPIs and 30/60/90-day actions."});return json({ok:true,workspaceId:w.workspaceId,answer:z.text,providerId:z.providerId,modelId:z.modelId}); }
-      if (url.pathname === "/business/advanced-ai" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await advancedAiNative(env,u.uid,await readBody(request))); }
+      if (url.pathname === "/business/plan-builder" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const b = await readBody(request);
+        const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
+        const brief = String(b.brief || b.message || "").trim().slice(0, 12000);
+        if (!brief) throw new Error("business_plan_brief_required");
+        return json(await withSharedCreditCharge(u, "business_ai", async control => {
+          const z = await runProvider(env, {
+            primaryProviderId: control.providerId,
+            primaryModelId: control.modelId,
+            fallbackProviderIds: control.config.fallbackProviderIds
+          }, {
+            message: brief,
+            system: "You are the BQ Sqwad AI Business Plan Builder. Use only supplied business information. Do not invent market facts, guarantees, licenses, tax or legal status. Return executive summary, objectives, target customers, value proposition, operations, marketing, sales, technology/AI plan, risks, KPIs and 30/60/90-day actions."
+          });
+          return { ok: true, workspaceId: w.workspaceId, answer: z.text, providerId: z.providerId, modelId: z.modelId };
+        }));
+      }
+      if (url.pathname === "/business/advanced-ai" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const b = await readBody(request);
+        return json(await withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, b)));
+      }
       if (url.pathname === "/business/advanced-ai/jobs" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({jobs:await advancedJobs(u.uid,String(url.searchParams.get("workspaceId")||""))}); }
       if (url.pathname === "/business/integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await integrationConfig(u.uid,String(url.searchParams.get("workspaceId")||""))); }
       if (url.pathname === "/business/integrations" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await configureIntegration(u.uid,await readBody(request))); }
@@ -1165,7 +1192,24 @@ export default {
       if (url.pathname.startsWith("/business/extended/") && request.method === "PATCH") { const u=await verifyFirebaseUser(request),p=url.pathname.split("/"); return json(await updateBusinessExtended(u.uid,p[3],decodeURIComponent(p[4]||""),await readBody(request))); }
       if (url.pathname === "/business/automations/run" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await runBusinessAutomation(u.uid,String(b.automationId||""),b.event||{})); }
       if (url.pathname === "/business/automations/webhook" && request.method === "POST") { const b=await readBody(request); return json(await receiveBusinessAutomationWebhook(String(b.token||""),b.event||{})); }
-      if (url.pathname === "/business/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),w=await businessWorkspace(u.uid,{workspaceId:b.workspaceId}),k=await businessKnowledgeForWorkspace(u.uid,w.workspaceId,50); const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:String(b.message||""),system:"You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\nBusiness knowledge:\n"+k.map(x=>x.content||x.text||"").filter(Boolean).join("\n")}); return json({answer:z.text||"",providerId:z.providerId||null,modelId:z.modelId||null}); }
+      if (url.pathname === "/business/assistant" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const b = await readBody(request);
+        const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
+        const k = await businessKnowledgeForWorkspace(u.uid, w.workspaceId, 50);
+        return json(await withSharedCreditCharge(u, "business_ai", async control => {
+          const z = await runProvider(env, {
+            primaryProviderId: control.providerId,
+            primaryModelId: control.modelId,
+            fallbackProviderIds: control.config.fallbackProviderIds
+          }, {
+            message: String(b.message || ""),
+            system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\\nBusiness knowledge:\\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\\n")
+          });
+          return { answer: z.text || "", providerId: z.providerId || null, modelId: z.modelId || null, workspaceId: w.workspaceId };
+        }));
+      }
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
       if (url.pathname === "/admin/route" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),id=String(b.id||b.capability||"");if(!id)throw new Error("capability_required");const key=id.startsWith("capability_")?id:"capability_"+id;await firestoreSet("adminAdvancedOptions/"+key,{...b,id:key,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/"+key)); }
