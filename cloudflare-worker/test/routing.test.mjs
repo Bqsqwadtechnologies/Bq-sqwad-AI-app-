@@ -30,7 +30,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"],
     ["POST", "/web-search"],
-    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/issues/report"], ["POST", "/realtime/session"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/issues/report"], ["POST", "/realtime/session"], ["POST", "/realtime/heartbeat"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
@@ -57,7 +57,7 @@ test("native BQ catalog route is registered and requires Firebase auth", async (
 });
 
 test("realtime voice and client issue reporting require Firebase auth", async () => {
-  for (const [path, method] of [["/realtime/session", "POST"], ["/issues/report", "POST"]]) {
+  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/issues/report", "POST"]]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
       body: "{}"
