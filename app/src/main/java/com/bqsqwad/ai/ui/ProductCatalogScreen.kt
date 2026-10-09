@@ -589,10 +589,12 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             p.optBoolean("contactSales",false),
             p.optBoolean("popular",false)
         )}.filter { plan ->
-            plan.id.isNotBlank() && (
-                !plan.module.equals("credits", ignoreCase = true) ||
-                plan.id.matches(Regex("credit(100|250|500|1000)"))
-            )
+            val canonicalCreditPack = plan.id.matches(Regex("credit(100|250|500|1000)")) ||
+                plan.name.matches(Regex("(?i)(100|250|500|1,000) credits"))
+            val featureSpecificLiveCredit = (plan.id + " " + plan.name).contains("live", ignoreCase = true) &&
+                (plan.id + " " + plan.name).contains("credit", ignoreCase = true)
+            plan.id.isNotBlank() && !featureSpecificLiveCredit &&
+                (!plan.module.equals("credits", ignoreCase = true) || canonicalCreditPack)
         }
 }
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
