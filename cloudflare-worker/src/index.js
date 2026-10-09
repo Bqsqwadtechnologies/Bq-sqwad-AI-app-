@@ -300,8 +300,8 @@ export function isPublicCatalogPlan(x) {
   const searchable = (id + " " + name + " " + module).replace(/[^a-z0-9]+/g, " ").trim();
   const featureSpecificLiveCredit =
     (searchable.includes("live") && searchable.includes("credit")) ||
-    /\\bai live m\\b/.test(searchable) ||
-    /\\bailivem\\b/.test(searchable.replace(/ /g, ""));
+    /\bai live m\b/.test(searchable) ||
+    /\bailivem\b/.test(searchable.replace(/ /g, ""));
   // All credit-consuming features use the one shared BQ Sqwad AI balance.
   // Never expose feature-specific live-camera/live-voice credit plans.
   if (featureSpecificLiveCredit) return false;
