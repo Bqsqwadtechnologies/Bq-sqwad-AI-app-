@@ -85,7 +85,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 val cache=context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE)
                 val c=cache.getString("catalog",null)
                 if(c!=null){val cached=JSONObject(c);plans=parsePlans(cached);catalog=parseCatalog(cached);features=parseFeatures(cached);bindings=parseBindings(cached);contactOptions=parseContactOptions(cached);offline=true}
-                else error=t.message?:"Product configuration could not be loaded."
+                else error="BQ Sqwad AI plans are temporarily unavailable. The team is working on it. Please try again shortly."
             } finally { loading=false }
         }
     }
@@ -147,7 +147,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                         color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            BqLogo(30.dp)
+                                            Icon(Icons.Default.MonetizationOn, contentDescription = "Shared credits", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(30.dp))
                                         }
                                     }
                                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -613,7 +613,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
 private fun formatCredits(value: Double): String = if (value % 1.0 == 0.0) String.format(java.util.Locale.US, "%,.0f", value) else String.format(java.util.Locale.US, "%,.2f", value)
 
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
-@Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Retry")}}}
+@Composable private fun ProductError(message:String,modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text("The BQ Sqwad AI team is working to restore this service. Please try again shortly.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Try again")}}}
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
 
 private fun parseFeatures(body:JSONObject):List<CatalogFeature>{
