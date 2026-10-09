@@ -181,15 +181,40 @@ function canonicalUserBalance(profile) {
   if (!profile) return null;
   const expiresAt = profile.subExpiresAt ? String(profile.subExpiresAt) : null;
   const subscriptionLive = expiresAt ? Date.parse(expiresAt) > Date.now() : false;
+  const trialExpiresAt = profile.trialExpiresAt ? String(profile.trialExpiresAt) : null;
+  const trialLive = trialExpiresAt ? Date.parse(trialExpiresAt) > Date.now() : false;
   const permanent = Math.max(0, Number(profile.credits || 0));
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
+  const trial = trialLive ? Math.max(0, Number(profile.trialCredits || 0)) : 0;
   return {
     permanent,
     subscription,
-    total: permanent + subscription,
+    trial,
+    total: permanent + subscription + trial,
     subscriptionExpiresAt: subscriptionLive ? expiresAt : null,
+    trialExpiresAt: trialLive ? trialExpiresAt : null,
     plan: String(profile.subscriptionPlan || "free")
   };
+}
+
+async function applyConfiguredCreditTrial(uid) {
+  const config = await firestoreGet("adminAdvancedOptions/credit_trial_config");
+  if (config?.enabled !== true) return;
+  const credits = Math.max(0, Number(config.credits || 0));
+  const days = Math.max(1, Math.min(30, Number(config.days || 5)));
+  if (!credits) return;
+  const profile = await firestoreGet("users/" + uid);
+  if (!profile || profile.creditTrialGrantedAt) return;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + days * 86400000);
+  try {
+    await firestoreCommit([
+      { path: "users/" + uid, data: { trialCredits: credits, trialExpiresAt: expiresAt, creditTrialGrantedAt: now, updatedAt: now }, updateTime: profile.__updateTime },
+      { path: "creditTrialGrants/" + uid, data: { uid, credits, days, grantedAt: now, expiresAt }, exists: false }
+    ]);
+  } catch {
+    // A concurrent first request may have granted the trial already.
+  }
 }
 
 async function readCanonicalUserBalance(uid) {
@@ -200,6 +225,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   const charge = Math.max(0, Number(amount || 0));
   if (!charge) return { reservationId: null, amount: 0 };
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
+  await applyConfiguredCreditTrial(uid);
 
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -212,8 +238,10 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
     // The website's users/{uid} document is the shared credit authority.
     // Reserve the exact bucket(s) here so website and app cannot both spend
     // the same credits. The reservation is reversed if the AI call fails.
-    const fromSubscription = Math.min(balance.subscription, charge);
-    const fromPermanent = charge - fromSubscription;
+    const fromTrial = Math.min(balance.trial, charge);
+    const afterTrial = charge - fromTrial;
+    const fromSubscription = Math.min(balance.subscription, afterTrial);
+    const fromPermanent = afterTrial - fromSubscription;
     try {
       await firestoreCommit([
         {
@@ -221,6 +249,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
           data: {
             credits: balance.permanent - fromPermanent,
             subCredits: Math.max(0, balance.subscription - fromSubscription),
+            trialCredits: Math.max(0, balance.trial - fromTrial),
             updatedAt: new Date()
           },
           updateTime: profile.__updateTime
@@ -231,6 +260,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
             uid,
             capability: capabilityName,
             amount: charge,
+            fromTrial,
             fromSubscription,
             fromPermanent,
             status: "reserved",
@@ -306,6 +336,7 @@ async function reverseCredits(uid, reservationId) {
           data: {
             credits: Number(profile.credits || 0) + Number(reservation.fromPermanent || 0),
             subCredits: Number(profile.subCredits || 0) + Number(reservation.fromSubscription || 0),
+            trialCredits: Number(profile.trialCredits || 0) + Number(reservation.fromTrial || 0),
             updatedAt: new Date()
           },
           updateTime: profile.__updateTime
