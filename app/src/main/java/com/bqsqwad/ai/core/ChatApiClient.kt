@@ -55,19 +55,24 @@ class ChatApiClient(
             val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             val body = runCatching { JSONObject(raw) }.getOrNull()
             if (status !in 200..299) {
-                val serverError = body?.optString("error").orEmpty()
-                val trimmed = raw.trim()
-                val detail = serverError.ifBlank {
-                    if (trimmed.startsWith("<html", ignoreCase = true) || trimmed.startsWith("<!doctype", ignoreCase = true)) {
-                        "BQ Sqwad AI's secure backend is unavailable right now. Please try again shortly."
-                    } else {
-                        trimmed.take(2000).ifBlank { "No response body" }
-                    }
+                val serverError = body?.optString("error").orEmpty().lowercase()
+                val friendly = when {
+                    status >= 500 || serverError == "route_not_migrated" || serverError == "service_temporarily_unavailable" ->
+                        "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                    status == 401 || serverError.contains("auth") ->
+                        "Please sign in again to continue."
+                    status == 402 || serverError.contains("credit") ->
+                        "Your shared BQ Sqwad AI credit balance is too low for this request."
+                    status == 403 || serverError.contains("consent") ->
+                        "Please review and accept the required BQ Sqwad AI terms to continue."
+                    status == 429 || serverError.contains("rate_limited") ->
+                        "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                    else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                 }
-                throw IllegalStateException("HTTP $status: $detail")
+                throw IllegalStateException(friendly)
             }
             if (body == null) {
-                throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+                throw IllegalStateException("BQ Sqwad AI received an unexpected response. The team has been notified and is working on it.")
             }
             val text = body.optString("text").trim()
             if (text.isBlank()) throw IllegalStateException("The AI service returned an empty response.")
@@ -114,16 +119,17 @@ class ChatApiClient(
                 if (status !in 200..299) {
                     val raw = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     val body = runCatching { JSONObject(raw) }.getOrNull()
-                    val detail = body?.optString("error").orEmpty()
-                        .ifBlank { raw.trim().take(1000) }
-                        .ifBlank { "AI request failed (HTTP $status)." }
+                    val detail = body?.optString("error").orEmpty().lowercase()
                     val friendly = when {
-                        detail.contains("consent_required", ignoreCase = true) -> "Please accept the required BQ Sqwad AI consent before sending messages."
-                        detail.contains("Authentication required", ignoreCase = true) -> "Please sign in to use this AI feature."
-                        detail.contains("Insufficient credits", ignoreCase = true) -> "You do not have enough credits for this AI request."
-                        detail.contains("message_required", ignoreCase = true) -> "Enter a message before sending."
-                        detail.contains("capability_disabled", ignoreCase = true) -> "This AI capability is currently disabled by the administrator."
-                        else -> detail
+                        status >= 500 || detail == "route_not_migrated" || detail == "service_temporarily_unavailable" ->
+                            "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                        detail.contains("consent_required") -> "Please accept the required BQ Sqwad AI consent before sending messages."
+                        detail.contains("auth") -> "Please sign in to use this AI feature."
+                        status == 402 || detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
+                        detail.contains("message_required") -> "Enter a message before sending."
+                        detail.contains("capability_disabled") -> "This AI capability is currently unavailable."
+                        status == 429 || detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                        else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                     }
                     throw IllegalStateException(friendly)
                 }
@@ -155,7 +161,14 @@ class ChatApiClient(
                             completed = true
                         }
                         "error" -> {
-                            throw IllegalStateException(json.optString("message").ifBlank { "Streaming failed." })
+                            val detail = json.optString("message").lowercase()
+                            val friendly = when {
+                                detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
+                                detail.contains("consent") -> "Please review and accept the required BQ Sqwad AI terms to continue."
+                                detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                                else -> "BQ Sqwad AI is experiencing a temporary issue. The team has been notified and is working on it."
+                            }
+                            throw IllegalStateException(friendly)
                         }
                     }
                 }
