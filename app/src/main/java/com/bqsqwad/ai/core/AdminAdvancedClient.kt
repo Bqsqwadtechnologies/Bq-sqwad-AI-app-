@@ -118,6 +118,15 @@ class AdminAdvancedClient(
             put("reason", reason.trim().ifBlank { "admin_grant" })
         })
 
+    suspend fun creditTrial(): JSONObject = request("GET", "/admin/credit-trial", null)
+
+    suspend fun setCreditTrial(enabled: Boolean, credits: Int, days: Int): JSONObject =
+        request("POST", "/admin/credit-trial", JSONObject().apply {
+            put("enabled", enabled)
+            put("credits", credits)
+            put("days", days)
+        })
+
     suspend fun testMode(): Boolean =
         request("GET", "/admin/test-mode", null).optBoolean("enabled", false)
 
