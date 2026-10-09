@@ -733,12 +733,16 @@ private fun MainShell(modifier: Modifier) {
             workspaceAccess = WorkspaceAccessSnapshot.empty()
             return@LaunchedEffect
         }
-        consentLoading = true
-        consentRequired = runCatching {
-            !WorkspaceApiClient().consent().optBoolean("requiredAccepted", false)
-        }.getOrDefault(true)
+        // Keep the main chat interactive during startup. Consent is still enforced by
+        // the backend for protected actions; a slow status check must not block the chat UI.
         consentLoading = false
-
+        runCatching { WorkspaceApiClient().consent() }
+            .onSuccess { consentRequired = !it.optBoolean("requiredAccepted", false) }
+            .onFailure {
+                val acceptedLocally = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
+                    .getBoolean("required_consent_accepted", false)
+                if (!acceptedLocally) consentRequired = false
+            }
     }
 
     LaunchedEffect(email, workspace) {
