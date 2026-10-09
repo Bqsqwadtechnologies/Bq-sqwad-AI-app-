@@ -87,3 +87,25 @@ This table intentionally separates real server/client wiring from provider-depen
 - OpenAI remains the server-side default provider; Gemini remains an available fallback. Provider and YouTube/X secrets continue to come from the encrypted server-side secret store and are never returned to Android.
 - Google Play remains authoritative for real subscription cancellation/renewal. Admin Test Mode is the server-controlled QA bypass; it does not fabricate a paid Google Play entitlement.
 
+
+
+## Catalog and release audit — 2026-10-09
+
+### Changes made in this pass
+- Android Plans & Credits cards now sort by the admin-configured `sortOrder`, then plan name, so the catalog remains organized even when several plans share the same order.
+- Free plans display a clear **Free** price and no misleading purchase button.
+- Contact Sales plans display **Contact Sales** rather than a raw `custom: CONTACT` price.
+- The catalog shows the number of plans returned by the service and a branded recovery notice if the service returns an empty list.
+- Worker regression coverage now explicitly checks that active/visible workspace, free and Contact Sales plans remain public while inactive/hidden plans and feature-specific credit products remain excluded.
+- GitHub Actions workflows remain manual-only with `workflow_dispatch`; no push, pull-request or scheduled build trigger was added.
+
+### Remaining before claiming full completion
+1. **Live catalog data:** the app renders every plan returned by the configured Firestore catalog that is active and visible, except the deliberately removed feature-specific credit plans. I cannot confirm the exact production plan count or that every desired plan is enabled without a successful authenticated production catalog response and review of the live `planCatalog/config` data.
+2. **Automated verification:** the latest source edits have not yet been run through the manual GitHub validation workflow. The previously successful release run was on an earlier commit, so it does not prove this commit builds.
+3. **Live camera and voice:** source-level wiring exists, but actual camera/microphone permissions, OpenAI Realtime credentials, session setup, audio playback, camera frame delivery and credit reservation/rollback still require a real-device test.
+4. **Credits and expiry notices:** the app has shared-balance notices and blocks chat when the balance is exhausted. Confirm the admin-configured trial values, expiry timestamps, 90% warning, and server-side denial across chat, live camera, live voice, learning downloads and other paid AI routes using test accounts before release.
+5. **Administrator alerts:** the Worker records issues for the admin dashboard, but notification delivery must be confirmed with the configured admin account and a real test incident. A recorded issue alone does not prove that a push notification was delivered.
+6. **Cold start and all workspaces:** first-launch timing, sign-in, catalog, history, attachments, purchases, each specialized workspace and Android back/keyboard behavior remain device-test items. A source audit cannot substitute for a successful APK install and smoke test.
+7. **Organization AI production:** the previously documented provider-dependent limitations remain open, including physical multi-source live switching, real-time compositing/overlays, simulcast beyond the supported output, viewer analytics, and provider-backed moderated chat.
+
+Do not mark these items as verified until the corresponding automated or real-device check passes. Keep user-facing errors branded and do not expose raw HTTP status, URLs, stack traces or backend exception strings.
