@@ -40,19 +40,24 @@ class WorkspaceApiClient {
         val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
         val body=runCatching{JSONObject(raw)}.getOrNull()
         if(status !in 200..299) {
-            val serverError=body?.optString("error").orEmpty()
-            val trimmed = raw.trim()
-            val detail = serverError.ifBlank {
-                if (trimmed.startsWith("<html", ignoreCase = true) || trimmed.startsWith("<!doctype", ignoreCase = true)) {
-                    "BQ Sqwad AI's secure backend is unavailable right now. Please try again shortly."
-                } else {
-                    trimmed.take(2000).ifBlank { "No response body" }
-                }
+            val serverError = body?.optString("error").orEmpty().lowercase()
+            val friendly = when {
+                status >= 500 || serverError == "route_not_migrated" ->
+                    "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                status == 401 || serverError == "auth_required" ->
+                    "Please sign in again to continue."
+                status == 402 || serverError.contains("insufficient credits") ->
+                    "Your shared BQ Sqwad AI credit balance is too low for this request."
+                status == 403 || serverError.contains("consent") ->
+                    "Please review and accept the required BQ Sqwad AI terms to continue."
+                status == 429 || serverError.contains("rate_limited") ->
+                    "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                else -> "BQ Sqwad AI couldn't complete that request. Please try again."
             }
-            error("HTTP $status: $detail")
+            error(friendly)
         }
         if(body == null) {
-            error("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+            error("BQ Sqwad AI received an unexpected response. The team has been notified and is working on it.")
         }
         body
     }
