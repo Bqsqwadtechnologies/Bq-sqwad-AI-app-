@@ -374,7 +374,18 @@ async function nativeCatalog() {
   }));
   return {
     version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
-    plans: basePlans.filter(x => x.visible && x.active),
+    plans: basePlans.filter(x => {
+      if (!x.visible || !x.active) return false;
+      const id = String(x.id || "").toLowerCase();
+      const name = String(x.name || "").toLowerCase();
+      const module = String(x.module || "").toLowerCase();
+      const sharedCreditPack = new Set(["credit100", "credit250", "credit500", "credit1000"]).has(id);
+      const featureSpecificLiveCredit = (id + " " + name).includes("live") && (id + " " + name).includes("credit");
+      // One BQ Sqwad AI credit balance; only the four canonical shared packs are public.
+      if (featureSpecificLiveCredit) return false;
+      if (module === "credits" && !sharedCreditPack) return false;
+      return true;
+    }),
     products,
     publicContactSales: [],
     features: featureRows,
