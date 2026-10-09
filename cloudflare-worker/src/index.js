@@ -81,7 +81,7 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
       id: issueId,
       route: String(route || "/").slice(0, 160),
       status: Number(status || 500),
-      code: String(errorCode || "backend_unavailable").replace(/https?:\\/\\/\\S+/gi, "[redacted-url]").slice(0, 160),
+      code: String(errorCode || "backend_unavailable").replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 160),
       state: "open",
       createdAt: new Date()
     });
