@@ -188,7 +188,7 @@ class LiveMediaForegroundService : Service() {
                 clientSecret = secret,
                 model = model,
                 onState = { state -> writeState(true, state) },
-                onError = { error -> writeError(error) },
+                onError = { error -> writeError(error); stopSelf() },
                 onAudioLevel = { level -> updateAudioLevel(level) },
                 // Visual voice is deliberately audio-only in the UI; transcripts are not rendered.
                 onTranscript = { _, _ -> }
