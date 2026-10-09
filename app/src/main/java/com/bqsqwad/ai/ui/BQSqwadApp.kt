@@ -1299,6 +1299,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             creditNotice = "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
                             error = creditNotice
                         } else {
+                            if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
+                                scope.launch(Dispatchers.IO) {
+                                    runCatching { WorkspaceApiClient().reportIssue("/ai/stream", "chat_request_failed") }
+                                }
+                            }
                             error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete your request. The BQ Sqwad AI team is working on it.")
                         }
                         statusText = "Request failed. You can try again."
