@@ -84,6 +84,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             try {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
+                offline = false
                 plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); contactOptions=parseContactOptions(live); entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 credits=runCatching{api.credits()}.getOrNull()
