@@ -58,7 +58,7 @@ class ChatApiClient(
                 val serverError = body?.optString("error").orEmpty().lowercase()
                 val friendly = when {
                     status >= 500 || serverError == "route_not_migrated" || serverError == "service_temporarily_unavailable" ->
-                        "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                        "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
                     status == 401 || serverError.contains("auth") ->
                         "Please sign in again to continue."
                     status == 402 || serverError.contains("credit") ->
@@ -72,7 +72,7 @@ class ChatApiClient(
                 throw IllegalStateException(friendly)
             }
             if (body == null) {
-                throw IllegalStateException("BQ Sqwad AI received an unexpected response. The team has been notified and is working on it.")
+                throw IllegalStateException("BQ Sqwad AI received an unexpected response. The BQ Sqwad AI team is working on it.")
             }
             val text = body.optString("text").trim()
             if (text.isBlank()) throw IllegalStateException("The AI service returned an empty response.")
@@ -122,7 +122,7 @@ class ChatApiClient(
                     val detail = body?.optString("error").orEmpty().lowercase()
                     val friendly = when {
                         status >= 500 || detail == "route_not_migrated" || detail == "service_temporarily_unavailable" ->
-                            "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team has been notified and is working on it. Please try again shortly."
+                            "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
                         detail.contains("consent_required") -> "Please accept the required BQ Sqwad AI consent before sending messages."
                         detail.contains("auth") -> "Please sign in to use this AI feature."
                         status == 402 || detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
@@ -166,7 +166,7 @@ class ChatApiClient(
                                 detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
                                 detail.contains("consent") -> "Please review and accept the required BQ Sqwad AI terms to continue."
                                 detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
-                                else -> "BQ Sqwad AI is experiencing a temporary issue. The team has been notified and is working on it."
+                                else -> "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it."
                             }
                             throw IllegalStateException(friendly)
                         }
