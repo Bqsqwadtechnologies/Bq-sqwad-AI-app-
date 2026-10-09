@@ -708,6 +708,7 @@ private fun MainShell(modifier: Modifier) {
         onDispose { auth.removeAuthStateListener(listener) }
     }
     val email = firebaseUser?.email.orEmpty()
+    val adminNotificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
@@ -772,6 +773,16 @@ private fun MainShell(modifier: Modifier) {
                 // checked by the backend before they execute.
                 consentRequired = false
             }
+    }
+
+    LaunchedEffect(adminAuthorized) {
+        if (
+            adminAuthorized &&
+            android.os.Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            adminNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     LaunchedEffect(email, workspace) {
