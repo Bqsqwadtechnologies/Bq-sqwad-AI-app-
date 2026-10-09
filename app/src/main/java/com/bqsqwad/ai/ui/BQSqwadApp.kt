@@ -72,8 +72,11 @@ import com.bqsqwad.ai.core.*
 import com.bqsqwad.ai.domain.Workspace
 import io.github.thibaultbee.streampack.compose.SourcePreview
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
+import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -723,6 +726,16 @@ private fun MainShell(modifier: Modifier) {
         adminAuthorized = if (email.isBlank()) false else runCatching {
             WorkspaceApiClient().adminAccess().optBoolean("allowed")
         }.getOrDefault(false)
+        if (email.isNotBlank()) {
+            // Register the current device token after sign-in too; FCM may have issued
+            // the token before the administrator authenticated.
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val token = Tasks.await(FirebaseMessaging.getInstance().token)
+                    if (token.isNotBlank()) WorkspaceApiClient().registerNotificationToken(token)
+                }
+            }
+        }
     }
 
     LaunchedEffect(email) {
