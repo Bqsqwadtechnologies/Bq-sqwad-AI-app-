@@ -394,13 +394,35 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun writeError(message: String) {
+        val raw = message.trim()
+        val lower = raw.lowercase()
+        val creditProblem = lower.contains("insufficient credit") ||
+            lower.contains("credit balance") || lower.contains("out of credits") ||
+            lower.contains("organization_insufficient_balance")
+        val permissionProblem = lower.contains("permission")
+        val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|provider_not_configured|temporarily unavailable|could not start|failed", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+        val friendly = when {
+            creditProblem -> "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
+            technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
+            else -> raw.take(180).ifBlank { "BQ Sqwad AI could not start this session. Please try again." }
+        }
+        if (technicalProblem && !creditProblem && !permissionProblem) {
+            val issueRoute = when (mode) {
+                MODE_CAMERA -> "/live-camera"
+                MODE_SCREEN -> "/screen-share"
+                else -> "/live-voice"
+            }
+            serviceScope.launch {
+                runCatching { WorkspaceApiClient().reportIssue(issueRoute, "live_session_failed") }
+            }
+        }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean("active", false)
             .putString("mode", mode)
-            .putString("answer", message)
+            .putString("answer", friendly)
             .apply()
-        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = message, audioLevel = 0f, onlineBroadcast = false)
-        appendLog("Error: $message")
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, audioLevel = 0f, onlineBroadcast = false)
+        appendLog("BQ Sqwad AI status: $friendly")
     }
 
     override fun onDestroy() {
