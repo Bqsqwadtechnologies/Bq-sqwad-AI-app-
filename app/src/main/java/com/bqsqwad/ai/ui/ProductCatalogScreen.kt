@@ -62,7 +62,24 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
-        loading=true; error=null; offline=false
+        error = null
+        val cachedCatalog = context.getSharedPreferences("bq_product_catalog", Context.MODE_PRIVATE)
+            .getString("catalog", null)
+        val hasCachedCatalog = !cachedCatalog.isNullOrBlank()
+        if (hasCachedCatalog) {
+            runCatching {
+                val cached = JSONObject(cachedCatalog!!)
+                plans = parsePlans(cached)
+                catalog = parseCatalog(cached)
+                features = parseFeatures(cached)
+                bindings = parseBindings(cached)
+                contactOptions = parseContactOptions(cached)
+                offline = true
+            }.onFailure { offline = false }
+        } else {
+            offline = false
+        }
+        loading = !hasCachedCatalog
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
@@ -82,10 +99,12 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                     .putString("catalog",live.toString()).apply()
             } catch(t:Throwable) {
-                val cache=context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE)
-                val c=cache.getString("catalog",null)
-                if(c!=null){val cached=JSONObject(c);plans=parsePlans(cached);catalog=parseCatalog(cached);features=parseFeatures(cached);bindings=parseBindings(cached);contactOptions=parseContactOptions(cached);offline=true}
-                else error="BQ Sqwad AI plans are temporarily unavailable. The team is working on it. Please try again shortly."
+                if (hasCachedCatalog) {
+                    offline = true
+                    error = null
+                } else {
+                    error = "BQ Sqwad AI plans are temporarily unavailable. The team is working on it. Please try again shortly."
+                }
             } finally { loading=false }
         }
     }
