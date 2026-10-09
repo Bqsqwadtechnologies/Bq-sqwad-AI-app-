@@ -8,6 +8,9 @@ import android.net.Uri
 import android.util.Base64
 import android.provider.Settings
 import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.speech.SpeechRecognizer
+import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.widget.VideoView
 import java.util.UUID
@@ -1059,10 +1062,64 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val messages = remember { mutableStateListOf<ChatMessage>() }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-        if (spoken.isNotBlank()) message = if (message.isBlank()) spoken else "$message $spoken"
-        else micError = "No speech was detected. Try again."
+    var isListening by remember { mutableStateOf(false) }
+    val speechRecognizer = remember(context) {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } else null
+    }
+    DisposableEffect(speechRecognizer) {
+        val recognizer = speechRecognizer
+        if (recognizer != null) {
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { isListening = true; micError = null }
+                override fun onBeginningOfSpeech() { isListening = true }
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onEndOfSpeech() { isListening = false }
+                override fun onError(errorCode: Int) {
+                    isListening = false
+                    micError = when (errorCode) {
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required."
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech was detected. Try again."
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice input is busy. Try again in a moment."
+                        else -> "Voice input failed. Please try again."
+                    }
+                }
+                override fun onResults(results: Bundle?) {
+                    isListening = false
+                    val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (spoken.isNotBlank()) {
+                        message = if (message.isBlank()) spoken else "$message $spoken"
+                        micError = null
+                    } else micError = "No speech was detected. Try again."
+                }
+                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+        }
+        onDispose {
+            recognizer?.cancel()
+            recognizer?.destroy()
+        }
+    }
+    val startSpeechRecognition: () -> Unit = {
+        val recognizer = speechRecognizer
+        if (recognizer == null) {
+            micError = "Voice input is not available on this device."
+        } else {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
+            }
+            runCatching { recognizer.startListening(intent); isListening = true; micError = null }
+                .onFailure { isListening = false; micError = it.message ?: "Could not start voice input." }
+        }
+    }
+    val speechPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startSpeechRecognition()
+        else micError = "Allow microphone access to use voice input."
     }
 
     fun sendAuthenticatedMessage(text: String) {
@@ -1534,25 +1591,18 @@ val composerShape = RoundedCornerShape(26.dp)
                             IconButton(
                                 onClick = {
                                     micError = null
-                                    speechLauncher.launch(
-                                        Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                            putExtra(
-                                                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                                            )
-                                            putExtra(
-                                                android.speech.RecognizerIntent.EXTRA_PROMPT,
-                                                "Speak your message"
-                                            )
-                                        }
-                                    )
+                                    if (isListening) {
+                                        speechRecognizer?.stopListening()
+                                    } else {
+                                        speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
                                 },
                                 enabled = !busy
                             ) {
                                 Icon(
-                                    Icons.Default.Mic,
-                                    contentDescription = "Speech to text",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    if (isListening) Icons.Default.Stop else Icons.Default.Mic,
+                                    contentDescription = if (isListening) "Stop voice input" else "Start voice input",
+                                    tint = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                                 )
                             }
                             IconButton(onClick = { picker.launch(arrayOf("*/*")) }) {
