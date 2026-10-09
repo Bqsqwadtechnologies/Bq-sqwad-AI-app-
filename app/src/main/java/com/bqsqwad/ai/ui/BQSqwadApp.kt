@@ -975,6 +975,7 @@ private fun MainShell(modifier: Modifier) {
                 openHub = { drawerOpen = true },
                 openFeatures = { featureHub = true },
                 openSettings = { settings = true },
+                openPlans = { plans = true },
                 openHistory = { history = true },
                 openPlugins = { featureHub = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
@@ -1071,7 +1072,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -1374,7 +1375,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
-                        DropdownMenuItem(text = { Text("Plans & Credits") }, onClick = { menuOpen = false; openSettings() })
+                        DropdownMenuItem(text = { Text("Plans & Credits") }, onClick = { menuOpen = false; openPlans() })
                         DropdownMenuItem(text = { Text("Change background") }, onClick = { menuOpen = false; wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() })
                         DropdownMenuItem(text = { Text("Learn more") }, onClick = { menuOpen = false; onLearnMore() })
                         DropdownMenuItem(text = { Text("Privacy") }, onClick = { menuOpen = false; onPrivacy() })
@@ -1403,7 +1404,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             Text(if (creditsExhausted) "Credits used up" else "Credit balance notice", fontWeight = FontWeight.Bold)
                             Text(notice, style = MaterialTheme.typography.bodySmall)
                         }
-                        TextButton(onClick = openSettings) { Text("Buy credits") }
+                        TextButton(onClick = openPlans) { Text("Buy credits") }
                     }
                 }
             }
