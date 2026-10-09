@@ -20,7 +20,7 @@ class WorkspaceApiClient {
     private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
         val statusAndBody = try {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-                requestMethod=method; connectTimeout=10000; readTimeout=15000; doInput=true
+                requestMethod=method; connectTimeout=4500; readTimeout=6500; doInput=true
             }
             val status=c.responseCode
             val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
@@ -45,7 +45,7 @@ class WorkspaceApiClient {
         val token=Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val statusAndRaw = try {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-                requestMethod=method; connectTimeout=15000; readTimeout=120000; doInput=true
+                requestMethod=method; connectTimeout=6500; readTimeout=if (path == "/ai" || path == "/ai/stream" || path == "/ai/vision" || path == "/web-search") 120000 else 10000; doInput=true
                 if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
                 setRequestProperty("Authorization","Bearer $token")
             }
