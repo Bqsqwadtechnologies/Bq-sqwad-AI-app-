@@ -1237,7 +1237,7 @@ export default {
       throw Object.assign(new Error("route_not_migrated"), { httpStatus: 501 });
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
+      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing|Admin access required/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
       if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
       const safeError = status >= 500 ? "service_temporarily_unavailable" : message;
       return new Response(JSON.stringify({ error: safeError }), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
