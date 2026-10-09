@@ -87,6 +87,15 @@ import kotlin.coroutines.resumeWithException
 import org.json.JSONArray
 import org.json.JSONObject
 
+private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
+    val message = throwable.message?.trim().orEmpty()
+    if (message.isBlank()) return fallback
+    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:", RegexOption.IGNORE_CASE)
+    return if (technical.containsMatchIn(message)) {
+        "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
+    } else message.take(240)
+}
+
 @Composable
 fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
 
@@ -1179,7 +1188,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 } catch (t: Throwable) {
                     scope.launch(Dispatchers.Main) {
                         if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
-                        error = t.message ?: "Image generation failed"
+                        error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
                         busy = false
                         statusText = "Request failed. You can try again."
                         streamJob = null
@@ -1239,7 +1248,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
                     if (t !is kotlinx.coroutines.CancellationException) {
-                        error = t.message ?: "AI request failed"
+                        error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete your request. The team is working on it.")
                         statusText = "Request failed. You can try again."
                     } else {
                         statusText = "Stopped."
@@ -1496,7 +1505,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
                                         .onSuccess { error = "Report submitted for review." }
-                                        .onFailure { error = it.message ?: "Report failed." }
+                                        .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
                                 }
                             }) {
                                 Icon(Icons.Default.Flag, contentDescription = "Report response")
@@ -1505,7 +1514,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
                                         .onSuccess { error = "Thanks for the feedback." }
-                                        .onFailure { error = it.message ?: "Feedback failed." }
+                                        .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
                                 }
                             }) {
                                 Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response")
