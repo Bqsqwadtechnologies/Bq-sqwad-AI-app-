@@ -427,7 +427,7 @@ class LiveMediaForegroundService : Service() {
             lower.contains("credit balance") || lower.contains("out of credits") ||
             lower.contains("organization_insufficient_balance")
         val permissionProblem = lower.contains("permission")
-        val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|provider_not_configured|temporarily unavailable|could not start|failed", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+        val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|client_secret_missing|provider_not_configured|not_configured|temporarily unavailable|could not start|failed|internal server|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)
         val friendly = when {
             creditProblem -> "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
             technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
