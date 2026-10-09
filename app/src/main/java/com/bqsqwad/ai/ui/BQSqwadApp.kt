@@ -50,6 +50,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -1049,6 +1051,7 @@ private fun BqHeaderIconButton(
 @Composable
 private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE) }
@@ -1400,7 +1403,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth(if (m.mine) 0.88f else 1f)
-                                .align(if (m.mine) Alignment.CenterEnd else Alignment.CenterStart)
+                                .align(if (m.mine) Alignment.CenterEnd else Alignment.CenterStart),
+                            horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start
                         ) {
                         if (!m.mine && m.text == "Generating image…") {
                             BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
@@ -1447,13 +1451,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful")
                             }
                             if (m.prompt != null) {
-                                TextButton({
+                                IconButton(onClick = {
                                     message = m.prompt
                                     val text = m.prompt
                                     if (FirebaseAuth.getInstance().currentUser != null && !busy) {
                                         sendAuthenticatedMessage(text)
                                     }
-                                }) { Text("Regenerate") }
+                                }) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response")
+                                }
                             }
                         }
                     }
@@ -1584,7 +1590,10 @@ val composerShape = RoundedCornerShape(26.dp)
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 48.dp),
+                                .heightIn(min = 48.dp)
+                                .onFocusChanged { state ->
+                                    if (state.isFocused) keyboardController?.show()
+                                },
                             minLines = 1,
                             maxLines = 5,
                             textStyle = LocalTextStyle.current.copy(
