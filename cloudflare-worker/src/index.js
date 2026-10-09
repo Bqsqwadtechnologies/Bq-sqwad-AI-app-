@@ -87,10 +87,18 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
     const ownerRaw = String(env?.SUPER_ADMIN_EMAIL || "").trim();
     const owner = ownerRaw.toLowerCase();
     if (!owner || !env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON) return;
-    const admins = await firestoreQuery("users", {
-      filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: owner } }],
+    // Firestore string equality is case-sensitive. Try the configured spelling
+    // first, then lowercase, because Firebase profile email casing may differ.
+    let admins = await firestoreQuery("users", {
+      filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: ownerRaw } }],
       limit: 1
     });
+    if (!admins.length && ownerRaw !== owner) {
+      admins = await firestoreQuery("users", {
+        filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: owner } }],
+        limit: 1
+      });
+    }
     const admin = admins[0];
     const adminUid = String(admin?.uid || String(admin?.__name || "").split("/").pop() || "");
     if (!adminUid) return;
