@@ -561,6 +561,12 @@ export default {
         return json(await playCatalog(firestore, url.searchParams.get("context")));
       }
 
+      // Public-facing BQ Sqwad AI catalog. Keep Google Play IDs as internal checkout mappings only.
+      if (url.pathname === "/native/catalog" && request.method === "GET") {
+        await verifyFirebaseUser(request);
+        return json(await nativeCatalog());
+      }
+
       if (url.pathname === "/play/verify" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
