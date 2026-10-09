@@ -1205,7 +1205,7 @@ export default {
             fallbackProviderIds: control.config.fallbackProviderIds
           }, {
             message: String(b.message || ""),
-            system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\\nBusiness knowledge:\\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\\n")
+            system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\nBusiness knowledge:\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\n")
           });
           return { answer: z.text || "", providerId: z.providerId || null, modelId: z.modelId || null, workspaceId: w.workspaceId };
         }));
