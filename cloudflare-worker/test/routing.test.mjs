@@ -18,6 +18,19 @@ test("public catalog exposes shared credit packs and hides feature-specific cred
   }
 });
 
+test("public catalog keeps active visible workspace, free, and Contact Sales plans", () => {
+  for (const plan of [
+    { id: "explorer", name: "Explorer", module: "learning", active: true, visible: true, price: { free: 0 } },
+    { id: "businessenterprise", name: "Business Ultimate", module: "business", active: true, visible: true, contactSales: true },
+    { id: "bizstarter", name: "Business Starter", module: "business", active: true, visible: true },
+    { id: "companionpremium", name: "Companion Premium", module: "companion", active: true, visible: true }
+  ]) {
+    assert.equal(isPublicCatalogPlan(plan), true, JSON.stringify(plan));
+  }
+  assert.equal(isPublicCatalogPlan({ id: "hidden", name: "Hidden plan", module: "learning", active: true, visible: false }), false);
+  assert.equal(isPublicCatalogPlan({ id: "inactive", name: "Inactive plan", module: "learning", active: false, visible: true }), false);
+});
+
 test("/health is public and ok", async () => {
   const res = await worker.fetch(new Request("https://x.dev/health"), {});
   assert.equal(res.status, 200);
