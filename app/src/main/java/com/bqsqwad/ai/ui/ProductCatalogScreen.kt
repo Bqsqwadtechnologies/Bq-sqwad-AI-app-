@@ -283,28 +283,26 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                 }
-                if(features.isNotEmpty() && plans.isNotEmpty()) item {
-                    Surface(shape=RoundedCornerShape(18.dp),tonalElevation=2.dp,modifier=Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                            Text("Feature matrix",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                            Text("Every row is resolved against the live plan-feature bindings. No plan is treated as included unless its backend binding says so.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            plans.take(8).forEach { plan ->
-                                Text(plan.name.ifBlank { "Plan" },style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
-                                features.take(24).forEach { feature ->
-                                    val binding=bindings.firstOrNull{it.planId==plan.id && it.featureId==feature.id}
-                                    val state=binding?.state ?: if(feature.comingSoon) "coming_soon" else "unavailable"
-                                    val label=when(state){"included"->"Included";"add-on"->"Add-on";"coming_soon"->"Coming soon";else->"Unavailable"}
-                                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-                                        Text(if(state=="included")"✓" else "•",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
-                                        Column(Modifier.weight(1f)){Text(feature.name,fontWeight=FontWeight.SemiBold);binding?.quota?.takeIf{it.isNotBlank()}?.let{Text("Quota: $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
-                                        Text(label,style=MaterialTheme.typography.labelMedium)
-                                    }
+                if (plans.isNotEmpty()) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                BqLogo(42.dp)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("BQ Sqwad AI plans", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text("Clear options by workspace. All eligible AI tools share one credit balance.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
                         }
                     }
-                }
-                if (plans.isNotEmpty()) {
                     item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
                     val moduleOrder = listOf("business","learning","truthguard","life-mathis","companion","learning-capability","frontier","data-analysis","organization","credits")
                     val grouped = plans.groupBy { it.module }
