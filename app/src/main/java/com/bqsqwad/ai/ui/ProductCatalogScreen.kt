@@ -571,6 +571,7 @@ private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
 
 private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
     val a=body.optJSONArray("products")?:JSONArray()
+    val visiblePlanIds = parsePlans(body).map { it.id }.toSet()
     return List(a.length()){i ->
         val p=a.getJSONObject(i)
         PlayCatalogEntry(
@@ -582,7 +583,7 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
             if(p.has("priceUsd") && !p.isNull("priceUsd")) p.optDouble("priceUsd") else null,
             p.optString("billingPeriod").ifBlank{null}
         )
-    }.filter{it.productId.isNotBlank() && it.planId in parsePlans(body).map { plan -> plan.id }.toSet()}
+    }.filter{it.productId.isNotBlank() && it.planId in visiblePlanIds}
 }
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{
