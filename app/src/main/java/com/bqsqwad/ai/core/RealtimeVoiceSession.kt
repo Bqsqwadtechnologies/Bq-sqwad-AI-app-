@@ -44,9 +44,14 @@ class RealtimeVoiceSession(
             .build()
         socket = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                sendSessionUpdate(webSocket)
-                startAudioCapture()
-                onState("connected")
+                try {
+                    sendSessionUpdate(webSocket)
+                    startAudioCapture()
+                    onState("connected")
+                } catch (failure: Throwable) {
+                    onError(failure.message ?: "BQ Sqwad AI could not start the live audio session.")
+                    stopInternal()
+                }
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 handleEvent(webSocket, text)
