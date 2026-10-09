@@ -222,10 +222,20 @@ async function readCanonicalUserBalance(uid) {
 }
 
 async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
-  const charge = Math.max(0, Number(amount || 0));
-  if (!charge) return { reservationId: null, amount: 0 };
+  let charge = Math.max(0, Number(amount || 0));
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   await applyConfiguredCreditTrial(uid);
+  if (!charge) {
+    const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
+    charge = Math.max(0, Number(configured?.creditCost || 0));
+  }
+  if (!charge) {
+    const profile = await readCanonicalUserBalance(uid);
+    if (!profile) throw new Error("Account not found.");
+    const balance = canonicalUserBalance(profile);
+    if (!balance || balance.total <= 0) throw new Error("Insufficient credits");
+    return { reservationId: null, amount: 0 };
+  }
 
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 5; attempt++) {
