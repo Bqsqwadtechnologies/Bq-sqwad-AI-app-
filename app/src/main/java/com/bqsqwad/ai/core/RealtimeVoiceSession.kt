@@ -49,6 +49,7 @@ class RealtimeVoiceSession(
                     startAudioCapture()
                     onState("connected")
                 } catch (failure: Throwable) {
+                    webSocket.close(1011, "Audio initialization failed")
                     onError(failure.message ?: "BQ Sqwad AI could not start the live audio session.")
                     stopInternal()
                 }
