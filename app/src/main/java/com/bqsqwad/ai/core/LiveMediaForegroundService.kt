@@ -71,6 +71,7 @@ class LiveMediaForegroundService : Service() {
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
     private var organizationBillingJob: Job? = null
+    private var realtimeBillingJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -154,10 +155,11 @@ class LiveMediaForegroundService : Service() {
                         clientSecret = secret,
                         model = model,
                         onState = { state -> writeState(true, state) },
-                        onError = { error -> writeError(error) },
+                        onError = { error -> writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
                         onTranscript = { speaker, text -> appendLog("$speaker: $text") }
                     ).also { it.start() }
+                    startRealtimeBillingHeartbeat(MODE_VOICE)
                 }
             } catch (t: Throwable) {
                 writeError(t.message ?: "Realtime voice could not start.")
@@ -191,6 +193,31 @@ class LiveMediaForegroundService : Service() {
                 // Visual voice is deliberately audio-only in the UI; transcripts are not rendered.
                 onTranscript = { _, _ -> }
             ).also { it.start() }
+            startRealtimeBillingHeartbeat(sessionMode)
+        }
+    }
+
+    private fun startRealtimeBillingHeartbeat(sessionMode: String) {
+        if (organizationMode || realtimeBillingJob?.isActive == true) return
+        realtimeBillingJob = serviceScope.launch {
+            while (isActive && (realtimeVoice != null || visualVoice != null)) {
+                delay(60_000L)
+                if (!isActive || (realtimeVoice == null && visualVoice == null)) break
+                runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode) }
+                    .onSuccess { result ->
+                        if (!result.optBoolean("ok", false)) {
+                            writeError("You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue.")
+                            stopSelf()
+                            return@launch
+                        }
+                    }
+                    .onFailure { failure ->
+                        val message = failure.message.orEmpty()
+                        writeError(message.ifBlank { "BQ Sqwad AI could not verify the live session balance." })
+                        stopSelf()
+                        return@launch
+                    }
+            }
         }
     }
 
@@ -433,6 +460,8 @@ class LiveMediaForegroundService : Service() {
         cameraSession?.stop()
         cameraSession = null
         runBlocking {
+            realtimeBillingJob?.cancelAndJoin()
+            realtimeBillingJob = null
             organizationBillingJob?.cancelAndJoin()
             organizationBillingJob = null
             runCatching {
