@@ -820,6 +820,37 @@ export default {
         return json({ ok: true, received: true });
       }
 
+      if (url.pathname === "/admin/credits/grant" && request.method === "POST") {
+        const admin = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(admin, env)) throw new Error("Admin access required");
+        const body = await readBody(request);
+        const email = String(body.email || "").trim().toLowerCase();
+        const amount = Number(body.amount);
+        const reason = String(body.reason || "admin_grant").trim().slice(0, 200);
+        if (!email || !email.includes("@") || !Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
+          return json({ error: "valid_email_and_credit_amount_required" }, 400);
+        }
+        const matches = await firestoreQuery("users", {
+          filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: email } }],
+          limit: 1
+        });
+        const target = matches[0];
+        const targetUid = String(target?.uid || String(target?.__name || "").split("/").pop() || "");
+        if (!targetUid) return json({ error: "credit_recipient_not_found" }, 404);
+        const profile = await firestoreGet("users/" + targetUid);
+        if (!profile) return json({ error: "credit_recipient_not_found" }, 404);
+        const oldBalance = canonicalUserBalance(profile);
+        const nextPermanent = oldBalance.permanent + amount;
+        const legacy = await firestoreGet("creditBalances/" + targetUid);
+        const entryId = crypto.randomUUID();
+        await firestoreCommit([
+          { path: "users/" + targetUid, data: { credits: nextPermanent, updatedAt: new Date() }, updateTime: profile.__updateTime },
+          { path: "creditBalances/" + targetUid, data: { uid: targetUid, available: nextPermanent + oldBalance.subscription, reserved: Math.max(0, Number(legacy?.reserved || 0)), updatedAt: new Date() }, merge: true },
+          { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt: new Date() }, exists: false }
+        ]);
+        return json({ ok: true, uid: targetUid, email, amount, available: nextPermanent + oldBalance.subscription });
+      }
+
       if (url.pathname === "/admin/issues" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
