@@ -680,6 +680,7 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+        await applyConfiguredCreditTrial(user.uid);
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
         const profile = await readCanonicalUserBalance(user.uid);
@@ -690,8 +691,10 @@ export default {
           reserved: 0,
           permanent: balance.permanent,
           subscription: balance.subscription,
+          trial: balance.trial,
           plan: balance.plan,
           subscriptionExpiresAt: balance.subscriptionExpiresAt,
+          trialExpiresAt: balance.trialExpiresAt,
           updatedAt: profile.updatedAt || null,
           source: "firebase_users"
         });
@@ -1156,6 +1159,26 @@ export default {
       if (url.pathname === "/admin/social-integrations" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("socialIntegrations/global",{enabled:b.enabled!==false,testMode:b.testMode!==false,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true}); }
       if (url.pathname === "/admin/notifications/broadcast" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),title=String(b.title||"").trim().slice(0,120),body=String(b.body||"").trim().slice(0,1200);if(!title||!body)throw new Error("notification_title_and_body_required");const rows=await firestoreQuery("notificationTokens",{filters:[{field:{fieldPath:"enabled"},op:"EQUAL",value:{booleanValue:true}}],limit:100});const tokens=rows.map(x=>String(x.token||"")).filter(Boolean),project=JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id,result=await broadcast(env,project,tokens,title,body,b.data&&typeof b.data==="object"?Object.fromEntries(Object.entries(b.data).slice(0,20).map(([k,v])=>[String(k).slice(0,40),String(v).slice(0,500)])):{}),id=crypto.randomUUID();await firestoreCreate("adminBroadcasts/"+id,{id,title,body,data:b.data||{},...result,createdBy:u.uid,createdAt:new Date()});return json({ok:true,broadcastId:id,...result}); }
       if (url.pathname === "/admin/access" && request.method === "GET") { const u=await verifyFirebaseUser(request); return isSuperAdmin(u,env)?json({allowed:true}):json({allowed:false,error:"Admin access required"},403); }
+      if (url.pathname === "/admin/credit-trial" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
+        const config = await firestoreGet("adminAdvancedOptions/credit_trial_config");
+        return json({ enabled: config?.enabled === true, credits: Math.max(0, Number(config?.credits || 5)), days: Math.max(1, Math.min(30, Number(config?.days || 5))) });
+      }
+      if (url.pathname === "/admin/credit-trial" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
+        const body = await readBody(request);
+        const credits = Number(body.credits);
+        const days = Number(body.days);
+        if (!Number.isFinite(credits) || credits < 1 || credits > 100000 || !Number.isInteger(days) || days < 1 || days > 30) {
+          return json({ error: "trial_credits_must_be_positive_and_days_must_be_1_to_30" }, 400);
+        }
+        const config = { id: "credit_trial_config", enabled: body.enabled === true, credits, days, updatedBy: user.uid, updatedAt: new Date() };
+        await firestoreSet("adminAdvancedOptions/credit_trial_config", config, true);
+        return json({ ok: true, enabled: config.enabled, credits, days });
+      }
+
       if (url.pathname === "/admin/test-mode" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const x=await firestoreGet("adminAdvancedOptions/admin_testing_mode"); return json({enabled:x?.enabled===true,serverControlled:true}); }
       if (url.pathname === "/admin/test-mode" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const b=await readBody(request); await firestoreSet("adminAdvancedOptions/admin_testing_mode",{id:"admin_testing_mode",enabled:b.enabled===true,version:Number((await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.version||1)+1,updatedBy:u.uid,updatedAt:new Date()},true); return json({ok:true,enabled:b.enabled===true}); }
       if (url.pathname === "/admin/plan-catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const x=await firestoreGet("planCatalog/config"); return json({version:Number(x?.version||1),catalog:x?.catalog||{sections:{}},source:x?"firestore":"empty"}); }
