@@ -30,7 +30,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"],
     ["POST", "/web-search"],
-    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/issues/report"], ["POST", "/realtime/session"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
@@ -54,6 +54,16 @@ test("native BQ catalog route is registered and requires Firebase auth", async (
   assert.equal(res.status, 401);
   const body = await res.json();
   assert.equal(body.error, "Authentication required");
+});
+
+test("realtime voice and client issue reporting require Firebase auth", async () => {
+  for (const [path, method] of [["/realtime/session", "POST"], ["/issues/report", "POST"]]) {
+    const res = await worker.fetch(new Request("https://x.dev" + path, {
+      method,
+      body: "{}"
+    }), {});
+    assert.equal(res.status, 401, path);
+  }
 });
 
 test("unmigrated routes return a safe branded service error", async () => {
