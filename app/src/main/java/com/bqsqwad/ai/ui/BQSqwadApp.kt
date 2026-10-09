@@ -1086,7 +1086,39 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
     var privateChat by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
+    var availableCredits by remember { mutableStateOf<Double?>(null) }
+    var creditNotice by remember { mutableStateOf<String?>(null) }
+    var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+
+    fun applyCreditSnapshot(snapshot: JSONObject) {
+        if (snapshot.optBoolean("adminUnlimited")) {
+            availableCredits = null
+            creditNotice = null
+            creditsExhausted = false
+            return
+        }
+        val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
+        availableCredits = available
+        creditsExhausted = available <= 0.0
+        val creditPrefs = context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE)
+        val previousBaseline = creditPrefs.getFloat("credit_cycle_baseline", -1f).toDouble()
+        val baseline = if (previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
+        if (baseline > 0.0) creditPrefs.edit().putFloat("credit_cycle_baseline", baseline.toFloat()).apply()
+        val usedPercent = if (baseline > 0.0) ((baseline - available) / baseline).coerceIn(0.0, 1.0) else 0.0
+        creditNotice = when {
+            available <= 0.0 -> "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
+            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of this credit balance. ${formatCredits(available)} credits remain."
+            else -> null
+        }
+    }
+
+    LaunchedEffect(FirebaseAuth.getInstance().currentUser?.uid) {
+        if (FirebaseAuth.getInstance().currentUser != null) {
+            runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                .onSuccess { applyCreditSnapshot(it) }
+        }
+    }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var isListening by remember { mutableStateOf(false) }
@@ -1151,6 +1183,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
+        if (creditsExhausted) {
+            error = "You've run out of BQ Sqwad AI credits. Buy credits to continue."
+            creditNotice = error
+            return
+        }
         val activeCapability = selectedAdvanced?.capability ?: "chat"
         val conversationContext = messages
             .filter { it.text.isNotBlank() && it.text != "Generating image…" }
@@ -1235,6 +1272,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     busy = false
                     streamJob = null
                     statusText = "Done."
+                    runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                        .onSuccess { applyCreditSnapshot(it) }
                     if (!privateChat) {
                         val snapshot = messages.map { HistoryMessage(it.mine, it.text, it.id, it.prompt) }
                         runCatching {
@@ -1248,7 +1287,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
                     if (t !is kotlinx.coroutines.CancellationException) {
-                        error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete your request. The team is working on it.")
+                        val detail = t.message.orEmpty().lowercase()
+                        if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
+                            creditsExhausted = true
+                            creditNotice = "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
+                            error = creditNotice
+                        } else {
+                            error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete your request. The BQ Sqwad AI team is working on it.")
+                        }
                         statusText = "Request failed. You can try again."
                     } else {
                         statusText = "Stopped."
@@ -1323,6 +1369,26 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     contentDescription = "Settings",
                     onClick = openSettings
                 )
+            }
+            creditNotice?.let { notice ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (creditsExhausted) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        BqLogo(28.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(if (creditsExhausted) "Credits used up" else "Credit balance notice", fontWeight = FontWeight.Bold)
+                            Text(notice, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = openSettings) { Text("Buy credits") }
+                    }
+                }
             }
             if (privateChat) {
                 Surface(
