@@ -1407,26 +1407,45 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         } else {
                             Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) }
                         }
-                        if (!m.mine) Row {
-                            TextButton({ clipboard.setText(AnnotatedString(m.text)) }) { Text("Copy") }
-                            TextButton({ shareText(context, m.text) }) { Text("Share") }
-                            TextButton({ speakTextWhenReady(context, m.text) { error = it } }) { Text("Read aloud") }
-                            TextButton({ message = m.prompt ?: m.text }) { Text("Resend") }
-                            TextButton({
+                        if (!m.mine) Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            BqLogo(22.dp)
+                            IconButton(onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response")
+                            }
+                            IconButton(onClick = { shareText(context, m.text) }) {
+                                Icon(Icons.Default.Share, contentDescription = "Share response")
+                            }
+                            IconButton(onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud")
+                            }
+                            IconButton(onClick = { message = m.prompt ?: m.text }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt")
+                            }
+                            IconButton(onClick = {
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
                                         .onSuccess { error = "Report submitted for review." }
                                         .onFailure { error = it.message ?: "Report failed." }
                                 }
-                            }) { Text("Report") }
-                            TextButton({
+                            }) {
+                                Icon(Icons.Default.Flag, contentDescription = "Report response")
+                            }
+                            IconButton(onClick = {
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
                                         .onSuccess { error = "Thanks for the feedback." }
                                         .onFailure { error = it.message ?: "Feedback failed." }
                                 }
-                            }) { Text("👍") }
-                            TextButton({ feedbackTarget = m }) { Text("👎") }
+                            }) {
+                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response")
+                            }
+                            IconButton(onClick = { feedbackTarget = m }) {
+                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful")
+                            }
                             if (m.prompt != null) {
                                 TextButton({
                                     message = m.prompt
