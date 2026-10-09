@@ -120,6 +120,7 @@ class WorkspaceApiClient {
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
     suspend fun registerNotificationToken(token:String):JSONObject = request("/notifications/token", payload=JSONObject().put("token", token).put("platform", "android"))
     suspend fun adminIssues():JSONObject = request("/admin/issues","GET")
+    suspend fun reportIssue(route: String, code: String = "client_runtime_issue"): JSONObject = request("/issues/report", payload = JSONObject().put("route", route).put("code", code))
 
     suspend fun publicAppConfig():JSONObject = publicRequest("/public/app-config","GET")
     suspend fun setAdminAppLayout(workspaceOrder: List<String>, workspaceEnabled: JSONObject, themeMode: String = "system"): JSONObject =
