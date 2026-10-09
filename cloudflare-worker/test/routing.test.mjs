@@ -35,6 +35,13 @@ test("protected AI routes reject missing auth with 401", async () => {
   assert.equal(res.status, 401);
 });
 
+test("native BQ catalog route is registered and requires Firebase auth", async () => {
+  const res = await worker.fetch(new Request("https://x.dev/native/catalog"), {});
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error, "Authentication required");
+});
+
 test("CORS preflight returns 204", async () => {
   const res = await worker.fetch(new Request("https://x.dev/ai", { method: "OPTIONS" }), {});
   assert.equal(res.status, 204);
