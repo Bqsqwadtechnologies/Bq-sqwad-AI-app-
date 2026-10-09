@@ -752,9 +752,10 @@ private fun MainShell(modifier: Modifier) {
         runCatching { WorkspaceApiClient().consent() }
             .onSuccess { consentRequired = !it.optBoolean("requiredAccepted", false) }
             .onFailure {
-                val acceptedLocally = context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE)
-                    .getBoolean("required_consent_accepted", false)
-                if (!acceptedLocally) consentRequired = false
+                // Do not trap users behind a startup spinner if the consent-status
+                // endpoint is temporarily unavailable; protected requests are still
+                // checked by the backend before they execute.
+                consentRequired = false
             }
     }
 
