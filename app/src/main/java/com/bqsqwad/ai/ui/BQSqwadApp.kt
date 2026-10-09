@@ -1128,8 +1128,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     LaunchedEffect(FirebaseAuth.getInstance().currentUser?.uid) {
         if (FirebaseAuth.getInstance().currentUser != null) {
-            runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                .onSuccess { applyCreditSnapshot(it) }
+            while (true) {
+                runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                    .onSuccess { applyCreditSnapshot(it) }
+                delay(30_000L)
+            }
         }
     }
 
