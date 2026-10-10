@@ -187,3 +187,9 @@ This is a source-level findings and repair plan. It does not certify the current
 
 - Commit [5702f30](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/5702f3015a9b94b833dfc7286cb7efd09895081f): added this approved source-level findings, repair plan, acceptance criteria, and verification boundaries.
 - Verification performed: file was fetched successfully from `main`. Documentation only; it does not establish runtime feature completion.
+
+
+### 2026-10-10 — Catalog checkout messaging
+
+- Commit [ba2fe22](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/ba2fe2257772d1522528f0ef77389af9f20b7d2f): replaced customer-visible internal troubleshooting wording about Play product IDs/base plans with clear guest-vs-signed-in checkout guidance. This changes messaging only; it does not change product IDs, plan prices, eligibility, or purchase verification.
+- Verification performed: fetched the edited source from `main` and checked that the new guest/signed-in branches are present. No build, workflow, or runtime checkout test was run.
