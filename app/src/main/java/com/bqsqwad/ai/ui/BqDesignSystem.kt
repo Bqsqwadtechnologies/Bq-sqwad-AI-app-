@@ -95,7 +95,7 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
     val bitmap by produceState<Bitmap?>(initialValue = null, uri) {
         value = if (uri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.openInputStream(Uri.parse(uri))?.use(BitmapFactory::decodeStream)
+                context.contentResolver.openInputStream(Uri.parse(uri))?.use { stream -> BitmapFactory.decodeStream(stream) }
             }.getOrNull()
         }
     }
