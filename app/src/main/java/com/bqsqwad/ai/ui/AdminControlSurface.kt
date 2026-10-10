@@ -323,8 +323,8 @@ fun AdminControlCenter() {
         if (playCatalog.isNotEmpty()) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Google Play Plan Catalog", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text("Admin-only internal IDs. Customer screens do not display these IDs.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("BQ Catalog • Payment Mappings", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("Internal checkout mappings only. Customer plan names, descriptions and prices come from the BQ Sqwad AI catalog; Google Play is only the payment method.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     playCatalog.forEach { item ->
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
                             Text(item.name, fontWeight = FontWeight.SemiBold)
