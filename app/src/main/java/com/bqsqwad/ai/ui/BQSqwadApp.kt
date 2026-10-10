@@ -4,6 +4,8 @@ package com.bqsqwad.ai.ui
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
+import java.net.URL
 import android.net.Uri
 import android.util.Base64
 import android.provider.Settings
@@ -45,6 +47,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -1080,7 +1084,80 @@ private fun isImageGenerationRequest(text: String): Boolean {
     return explicit.any(q::startsWith)
 }
 
-private data class ChatMessage(val mine: Boolean, val text: String, val id: String = UUID.randomUUID().toString(), val prompt: String? = null)
+private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null)
+private data class ChatMessage(
+    val mine: Boolean,
+    val text: String,
+    val id: String = UUID.randomUUID().toString(),
+    val prompt: String? = null,
+    val attachments: List<ChatMessageAttachment> = emptyList(),
+    val imageUrl: String? = null
+)
+
+
+@Composable
+private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
+    val image = remember(attachment.imageBase64) {
+        attachment.imageBase64?.let { encoded ->
+            runCatching {
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    if (image != null) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Image(
+                bitmap = image,
+                contentDescription = attachment.name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp))
+            )
+            Text(attachment.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(if (attachment.mimeType.startsWith("image/")) Icons.Default.Image else Icons.Default.AttachFile, contentDescription = null)
+                Column {
+                    Text(attachment.name, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    Text(if (attachment.mimeType.startsWith("image/")) "Image attachment" else attachment.mimeType, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoteChatImage(url: String) {
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                if (!url.startsWith("https://", ignoreCase = true)) return@runCatching null
+                URL(url).openConnection().apply {
+                    connectTimeout = 10000
+                    readTimeout = 20000
+                }.getInputStream().use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = "Generated image",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(12.dp))
+        )
+    } else {
+        Text("Loading generated image…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
 @Composable
 private fun BqHeaderIconButton(
@@ -1141,7 +1218,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         historyId = saved.first
         messages.clear()
         messages.addAll(saved.second.map { item ->
-            ChatMessage(mine = item.mine, text = item.text, id = item.id, prompt = item.prompt)
+            ChatMessage(
+                mine = item.mine,
+                text = item.text,
+                id = item.id,
+                prompt = item.prompt,
+                attachments = item.attachmentNames.map { encoded ->
+                    val split = encoded.indexOf('|')
+                    if (split > 0) ChatMessageAttachment(encoded.substring(split + 1), encoded.substring(0, split))
+                    else ChatMessageAttachment(encoded, "application/octet-stream")
+                }
+            )
         })
         attachments = emptyList()
         selectedAdvanced = null
@@ -1312,7 +1399,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 try {
                     val generated = GenerationApiClient().generateImage(promptText)
                     scope.launch(Dispatchers.Main) {
-                        messages[aiIndex] = messages[aiIndex].copy(text = "Image generated. Open the generated image: " + generated.url)
+                        messages[aiIndex] = messages[aiIndex].copy(text = "Image generated.", imageUrl = generated.url)
                         busy = false
                         statusText = "Ready"
                         streamJob = null
@@ -1342,7 +1429,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             return
         }
         val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
-        messages.add(ChatMessage(true, displayText))
+        messages.add(ChatMessage(true, displayText, attachments = selectedAttachments.map { ChatMessageAttachment(it.name, it.mimeType, it.imageBase64) }))
         val aiIndex = messages.size
         messages.add(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
@@ -1370,7 +1457,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                     if (!privateChat) {
-                        val snapshot = messages.map { HistoryMessage(it.mine, it.text, it.id, it.prompt) }
+                        val snapshot = messages.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
                         }.onFailure { error = "The response was generated, but chat history could not be saved." }
@@ -1621,7 +1708,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine && m.text == "Generating image…") {
                             BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
                         } else {
-                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { SelectionContainer { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else if (streamJob != null && messages.lastOrNull()?.id == m.id) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) } }
+                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) {
+                                SelectionContainer {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (m.text.isNotBlank()) {
+                                            if (m.mine || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
+                                                Text(m.text, color = MaterialTheme.colorScheme.onSurface)
+                                            } else {
+                                                MarkdownText(m.text)
+                                            }
+                                        }
+                                        m.attachments.forEach { attachment -> ChatAttachmentPreview(attachment) }
+                                        m.imageUrl?.let { url -> RemoteChatImage(url) }
+                                    }
+                                }
+                            }
                         }
                         if (!m.mine) Row(
                             modifier = Modifier
