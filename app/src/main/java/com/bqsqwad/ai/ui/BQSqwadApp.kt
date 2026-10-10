@@ -1097,24 +1097,29 @@ private data class ChatMessage(
 
 @Composable
 private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
-    val image = remember(attachment.imageBase64) {
-        attachment.imageBase64?.let { encoded ->
+    var decoding by remember(attachment.imageBase64) { mutableStateOf(attachment.imageBase64 != null) }
+    val image by produceState<ImageBitmap?>(initialValue = null, key1 = attachment.imageBase64) {
+        val encoded = attachment.imageBase64
+        value = if (encoded.isNullOrBlank()) null else withContext(Dispatchers.IO) {
             runCatching {
                 val bytes = Base64.decode(encoded, Base64.DEFAULT)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
             }.getOrNull()
         }
+        decoding = false
     }
     if (image != null) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Image(
-                bitmap = image,
+                bitmap = image!!,
                 contentDescription = attachment.name,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp))
             )
             Text(attachment.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    } else if (decoding) {
+        Text("Loading " + attachment.name + "…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -1125,7 +1130,15 @@ private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
                 Icon(if (attachment.mimeType.startsWith("image/")) Icons.Default.Image else Icons.Default.AttachFile, contentDescription = null)
                 Column {
                     Text(attachment.name, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-                    Text(if (attachment.mimeType.startsWith("image/")) "Image attachment" else attachment.mimeType, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        when {
+                            attachment.mimeType.startsWith("image/") -> "Image attachment"
+                            attachment.mimeType.startsWith("text/") -> "Text attachment"
+                            else -> attachment.mimeType
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
