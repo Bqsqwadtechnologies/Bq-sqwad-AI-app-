@@ -121,11 +121,12 @@ class RealtimeVoiceSession(
             "session.created" -> onState("configuring")
             "session.updated" -> {
                 if (audioCaptureStarted.compareAndSet(false, true)) {
-                    runCatching { startAudioCapture() }
-                        .onFailure {
-                            audioCaptureStarted.set(false)
-                            onError(it.message ?: "Microphone audio could not start.")
-                        }
+                    val capture = runCatching { startAudioCapture() }
+                    if (capture.isFailure) {
+                        audioCaptureStarted.set(false)
+                        onError(capture.exceptionOrNull()?.message ?: "Microphone audio could not start.")
+                        return
+                    }
                 }
                 onState("listening")
             }
