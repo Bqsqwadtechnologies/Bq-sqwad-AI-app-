@@ -54,7 +54,10 @@ class RealtimeVoiceSession(
                 }
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                handleEvent(webSocket, text)
+                runCatching { handleEvent(webSocket, text) }
+                    .onFailure { failure ->
+                        onError(failure.message ?: "BQ Sqwad AI received an unreadable live-audio event.")
+                    }
             }
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 onState("stopping")
@@ -163,7 +166,8 @@ class RealtimeVoiceSession(
                     onTranscript("BQ Sqwad AI", transcript)
                 }
             }
-            "response.output_audio.delta" -> {
+            // Accept both current GA and legacy Realtime audio-delta event names.
+            "response.output_audio.delta", "response.audio.delta" -> {
                 val encoded = event.optString("delta")
                 if (encoded.isNotBlank()) {
                     val bytes = Base64.decode(encoded, Base64.DEFAULT)
@@ -171,7 +175,9 @@ class RealtimeVoiceSession(
                     player?.play()
                     playing.set(true)
                     onAudioLevel(pcmRms(bytes))
-                    player?.write(bytes, 0, bytes.size)
+                    val track = player ?: return
+                    val written = track.write(bytes, 0, bytes.size)
+                    if (written < 0) throw IllegalStateException("Audio playback failed ($written).")
                     onState("speaking")
                 }
             }
