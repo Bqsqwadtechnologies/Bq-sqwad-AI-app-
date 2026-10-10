@@ -141,7 +141,7 @@ object ChatAttachmentReader {
                     }
                     .filter { it.isNotBlank() }
                     .joinToString("\n")
-                path.substringAfterLast('/') + "\\n" + rows
+                path.substringAfterLast('/') + "\n" + rows
             }
     }
 
