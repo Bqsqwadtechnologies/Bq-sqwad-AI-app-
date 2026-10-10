@@ -157,7 +157,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         }
         playProducts = billing?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            status = "Google Play products are not available on this device yet. Check the Play Console product IDs and base plans."
+            status = "Your BQ Sqwad AI plan catalog remains separate from Google Play. The plan list comes from BQ Sqwad AI; Google Play is used only to process and verify purchases. Checkout is not ready on this device yet—check the Play product IDs and base plans."
         }
     }
     LaunchedEffect(Unit){load()}
