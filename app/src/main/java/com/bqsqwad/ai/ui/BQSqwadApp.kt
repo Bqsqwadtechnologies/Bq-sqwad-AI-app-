@@ -25,6 +25,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -1617,7 +1618,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine && m.text == "Generating image…") {
                             BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
                         } else {
-                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else if (streamJob != null && messages.lastOrNull()?.id == m.id) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) }
+                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) { SelectionContainer { if (m.mine) Text(m.text, Modifier.padding(14.dp)) else if (streamJob != null && messages.lastOrNull()?.id == m.id) Text(m.text, Modifier.padding(14.dp)) else MarkdownText(m.text, Modifier.padding(14.dp)) } }
                         }
                         if (!m.mine) Row(
                             modifier = Modifier
