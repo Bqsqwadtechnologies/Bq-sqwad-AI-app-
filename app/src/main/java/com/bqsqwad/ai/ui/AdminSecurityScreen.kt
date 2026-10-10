@@ -88,9 +88,13 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) {
         runCatching { client.status() }
-            .onSuccess { biometricConfigured = it.biometricConfigured; status = "Password: " + if (it.passwordConfigured) "configured" else "not configured" +
-                " • Authenticator: " + if (it.totpConfigured) "configured" else "not configured" +
-                " • Fingerprint: " + if (it.biometricConfigured) "configured" else "not configured" }
+            .onSuccess {
+                biometricConfigured = it.biometricConfigured
+                status = "Password: " + (if (it.passwordConfigured) "configured" else "not configured") +
+                    " • Authenticator: " + (if (it.totpConfigured) "configured" else "not configured") +
+                    " • Fingerprint: " + (if (it.biometricConfigured) "configured" else "not configured") +
+                    " • Encryption key: " + (if (it.encryptionKeyConfigured) "configured" else "missing")
+            }
             .onFailure { error = it.message }
         runCatching { passkeyClient.status() }
             .onSuccess { json ->
