@@ -1223,6 +1223,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 text = item.text,
                 id = item.id,
                 prompt = item.prompt,
+                imageUrl = item.imageUrl,
                 attachments = item.attachmentNames.map { encoded ->
                     val split = encoded.indexOf('|')
                     if (split > 0) ChatMessageAttachment(encoded.substring(split + 1), encoded.substring(0, split))
@@ -1426,6 +1427,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         if (imageParts.size > 4) {
             error = "You can attach up to 4 images per message. Remove extra images and try again."
             attachments = selectedAttachments
+            message = text
             return
         }
         val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
@@ -1475,6 +1477,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val current = messages.getOrNull(aiIndex)
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
+                    message = text
                     if (t !is kotlinx.coroutines.CancellationException) {
                         val detail = t.message.orEmpty().lowercase()
                         if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
