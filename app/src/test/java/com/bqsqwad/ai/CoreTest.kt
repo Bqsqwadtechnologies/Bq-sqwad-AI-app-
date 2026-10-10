@@ -5,7 +5,6 @@ import com.bqsqwad.ai.core.ApiError
 import com.bqsqwad.ai.core.apiErrorFrom
 import com.bqsqwad.ai.core.withRetry
 import com.bqsqwad.ai.core.parseGeneratedImage
-import org.json.JSONObject
 import com.bqsqwad.ai.ui.MdBlock
 import com.bqsqwad.ai.ui.parseBlocks
 import kotlinx.coroutines.runBlocking
@@ -39,7 +38,10 @@ class CoreTest {
 
     @Test fun generatedImageParserAcceptsWorkerBase64Contract() {
         val generated = parseGeneratedImage(
-            JSONObject().put("imageBase64", "cG5nLWJ5dGVz").put("creditsCharged", 1.0)
+            imageUrl = null,
+            imageBase64 = "cG5nLWJ5dGVz",
+            creditsCharged = 1.0,
+            modelId = null
         )
         assertEquals("", generated.url)
         assertEquals("cG5nLWJ5dGVz", generated.imageBase64)
@@ -47,7 +49,7 @@ class CoreTest {
     }
 
     @Test fun generatedImageParserRejectsEmptyImageResponse() {
-        val failure = runCatching { parseGeneratedImage(JSONObject().put("creditsCharged", 1.0)) }.exceptionOrNull()
+        val failure = runCatching { parseGeneratedImage(imageUrl = null, imageBase64 = null, creditsCharged = 1.0, modelId = null) }.exceptionOrNull()
         assertTrue(failure is IllegalArgumentException)
     }
 
