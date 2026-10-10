@@ -433,9 +433,16 @@ private fun LivePlanCard(
     onStatus: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val supportedPeriods = plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
-    var selectedPeriod by remember(plan.id) { mutableStateOf(supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty()) }
-    val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod } ?: playEntries.firstOrNull()
+    val supportedPeriods = if (plan.playEligible) {
+        playEntries.mapNotNull { it.billingPeriod?.takeIf { period -> period in setOf("monthly", "yearly", "term", "weekly") } }
+            .distinct()
+    } else {
+        plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
+    }
+    var selectedPeriod by remember(plan.id) {
+        mutableStateOf(supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty())
+    }
+    val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
