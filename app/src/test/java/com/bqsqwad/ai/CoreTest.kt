@@ -26,6 +26,15 @@ class CoreTest {
         assertTrue(blocks[2] is MdBlock.Code)
     }
 
+    @Test fun markdownRecognizesImageLinks() {
+        val blocks = parseBlocks("![preview](https://example.com/image.png)")
+        assertEquals(1, blocks.size)
+        assertTrue(blocks[0] is MdBlock.Image)
+        val image = blocks[0] as MdBlock.Image
+        assertEquals("preview", image.alt)
+        assertEquals("https://example.com/image.png", image.url)
+    }
+
     @Test fun retryRetriesIoFailure() = runBlocking {
         var calls = 0
         val result = withRetry(attempts = 3, initialDelayMs = 1) {
