@@ -51,6 +51,35 @@ class CoreTest {
         assertTrue(text.contains("Hello BQ Sqwad AI"))
     }
 
+    @Test fun xlsxAttachmentExtractsSharedStringsAndValues() {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            val entries = mapOf(
+                "xl/sharedStrings.xml" to "<sst><si><t>Customer</t></si></sst>",
+                "xl/worksheets/sheet1.xml" to "<worksheet><sheetData><row r=\"1\"><c r=\"A1\" t=\"s\"><v>0</v></c><c r=\"B1\"><v>42</v></c></row></sheetData></worksheet>"
+            )
+            entries.forEach { (name, xml) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(xml.toByteArray())
+                zip.closeEntry()
+            }
+        }
+        val text = ChatAttachmentReader.extractOfficeText(output.toByteArray(), "xlsx")
+        assertTrue(text.contains("Customer"))
+        assertTrue(text.contains("42"))
+    }
+
+    @Test fun pptxAttachmentExtractsSlideText() {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("ppt/slides/slide1.xml"))
+            zip.write("<p:sld><a:p><a:r><a:t>Project update</a:t></a:r></a:p></p:sld>".toByteArray())
+            zip.closeEntry()
+        }
+        val text = ChatAttachmentReader.extractOfficeText(output.toByteArray(), "pptx")
+        assertTrue(text.contains("Project update"))
+    }
+
     @Test fun generatedImageParserAcceptsWorkerBase64Contract() {
         val generated = parseGeneratedImage(
             imageUrl = null,
