@@ -47,7 +47,7 @@ class GenerationApiClient {
             put("prompt", prompt.take(12000)); put("size", size); put("quality", quality)
         })
         return GeneratedImage(
-            url = body.optString("imageUrl").takeIf { it.isNotBlank() },
+            url = body.optString("imageUrl").takeIf { it.isNotBlank() }.orEmpty(),
             creditsCharged = body.optDouble("creditsCharged", 0.0),
             modelId = body.optString("modelId").takeIf { it.isNotBlank() },
             imageBase64 = body.optString("imageBase64").takeIf { it.isNotBlank() }
