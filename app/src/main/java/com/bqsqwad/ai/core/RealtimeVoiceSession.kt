@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 import okhttp3.*
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class RealtimeVoiceSession(
     private val context: Context,
@@ -33,6 +34,10 @@ class RealtimeVoiceSession(
     private val running = AtomicBoolean(false)
     private val audioCaptureStarted = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
+    // Realtime accepts one active response at a time. Keep only the newest visual frame
+    // while speech is being answered, then submit it when the current response finishes.
+    private val responseInProgress = AtomicBoolean(false)
+    private val pendingVisualFrame = AtomicReference<ByteArray?>(null)
     private val inputTranscript = StringBuilder()
     private val outputTranscript = StringBuilder()
 
@@ -96,11 +101,26 @@ class RealtimeVoiceSession(
         }.toString())
     }
 
-    /** Sends a current camera/screen frame into the same voice session. The response remains audio-only. */
+    /**
+     * Queues the latest camera/screen frame. Audio turns and visual prompts share one Realtime
+     * response stream, so requesting a response for every frame can collide with an active
+     * speech response and terminate the session. Keep the newest frame and process it when idle.
+     */
     fun sendVisualFrame(jpegBytes: ByteArray) {
-        if (!running.get()) return
-        val encoded = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
-        socket?.send(JSONObject().apply {
+        if (!running.get() || jpegBytes.isEmpty()) return
+        pendingVisualFrame.set(jpegBytes)
+        socket?.let(::sendPendingVisualFrameIfIdle)
+    }
+
+    private fun sendPendingVisualFrameIfIdle(ws: WebSocket) {
+        if (!running.get() || !responseInProgress.compareAndSet(false, true)) return
+        val frame = pendingVisualFrame.getAndSet(null)
+        if (frame == null) {
+            responseInProgress.set(false)
+            return
+        }
+        val encoded = Base64.encodeToString(frame, Base64.NO_WRAP)
+        val itemSent = ws.send(JSONObject().apply {
             put("type", "conversation.item.create")
             put("item", JSONObject().apply {
                 put("type", "message")
@@ -113,15 +133,17 @@ class RealtimeVoiceSession(
                 ))
             })
         }.toString())
-        socket?.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
+        val responseSent = itemSent && ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
             put("output_modalities", org.json.JSONArray().put("audio"))
         }).toString())
+        if (!responseSent) responseInProgress.set(false)
     }
 
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
             "session.created" -> onState("configuring")
+            "response.created" -> responseInProgress.set(true)
             "session.updated" -> {
                 if (audioCaptureStarted.compareAndSet(false, true)) {
                     val capture = runCatching { startAudioCapture() }
@@ -182,10 +204,15 @@ class RealtimeVoiceSession(
                 }
             }
             "response.done" -> {
+                responseInProgress.set(false)
                 onAudioLevel(0f)
                 onState("listening")
+                sendPendingVisualFrameIfIdle(ws)
             }
-            "error" -> onError(event.optJSONObject("error")?.optString("message") ?: "Realtime voice error")
+            "error" -> {
+                responseInProgress.set(false)
+                onError(event.optJSONObject("error")?.optString("message") ?: "Realtime voice error")
+            }
         }
     }
 
