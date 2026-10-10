@@ -100,6 +100,7 @@ The following source changes have been committed to `main` after the approved au
 - `9e719d3` — reject text attachments over 120,000 characters instead of silently truncating them.
 - `2c87d0f` and `022344f` — add a Continue in Chat action and restore selected history messages plus their history ID into Main Chat.
 - `8e20a43` — replace the misleading “Connected capability” label with “Requested capability” and clarify that listing a feature does not establish an external connection.
+- `efb007c` — remove the unused legacy PlansSheet that listed Google Play products directly, leaving the canonical BQ Sqwad AI catalog as the app's plan-browsing screen.
 - `84304d3` — document saved-chat continuation and remaining attachment limitations.
 - `05c3315` and `825d83f` — correct Organization Studio findings: a YouTube OAuth/create-live/RTMP camera-stream path exists in source, while the device-to-YouTube flow and other destinations remain unverified or partial.
 - `3242f04` — align the plan with the saved-chat continuation implementation.
