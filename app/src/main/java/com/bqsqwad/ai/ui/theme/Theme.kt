@@ -7,12 +7,15 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 
 private val BQSignature = Color(0xFF5BA9FF)
 private val BQBlue = Color(0xFF2196F3)
@@ -136,12 +139,14 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     var mode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
     var accentName by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+    var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
 
     DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
                 "theme_mode" -> mode = prefs.getString(key, "system") ?: "system"
                 "accent_palette" -> accentName = prefs.getString(key, "signature") ?: "signature"
+                "text_scale" -> textScale = prefs.getFloat(key, 1.0f).coerceIn(0.85f, 1.4f)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -163,9 +168,17 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     val primary = accent(accentName)
     val palette = if (dark) darkPalette(primary, schemeMode) else lightPalette(primary, schemeMode)
 
-    MaterialTheme(
-        colorScheme = paletteScheme(palette, dark),
-        typography = Typography(),
-        content = content
-    )
+    val systemDensity = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = systemDensity.density,
+            fontScale = systemDensity.fontScale * textScale
+        )
+    ) {
+        MaterialTheme(
+            colorScheme = paletteScheme(palette, dark),
+            typography = Typography(),
+            content = content
+        )
+    }
 }
