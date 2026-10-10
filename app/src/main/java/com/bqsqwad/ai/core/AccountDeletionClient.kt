@@ -18,6 +18,33 @@ class AccountDeletionClient {
 
     suspend fun cancelDeletion(): JSONObject = post("/account/cancel-deletion")
 
+    suspend fun deletionStatus(): JSONObject = get("/account/deletion-status")
+
+    private suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) {
+        val user = FirebaseAuth.getInstance().currentUser ?: error("No signed-in account")
+        val token = awaitTask(user.getIdToken(false)).token ?: error("Authentication token unavailable")
+        val connection = (URL(endpoint(path)).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 15000
+            doInput = true
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept", "application/json")
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) throw IllegalStateException(
+                runCatching { JSONObject(body).optString("message").ifBlank { JSONObject(body).optString("error") } }
+                    .getOrDefault("Account status request failed")
+            )
+            JSONObject(body)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private suspend fun post(path: String): JSONObject = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("No signed-in account")
         val token = awaitTask(user.getIdToken(true)).token ?: error("Authentication token unavailable")
