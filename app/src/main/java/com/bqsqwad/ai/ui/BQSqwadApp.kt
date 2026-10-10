@@ -1404,6 +1404,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         busy = false
                         statusText = "Ready"
                         streamJob = null
+                        if (!privateChat) {
+                            runCatching {
+                                withContext(Dispatchers.IO) {
+                                    val snapshot = messages.map { m ->
+                                        HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                    }
+                                    historyId = HistoryApiClient().save(historyId, promptText, snapshot)
+                                }
+                            }.onFailure {
+                                error = "The image was generated, but this conversation could not be saved."
+                            }
+                        }
                     }
                 } catch (t: Throwable) {
                     scope.launch(Dispatchers.Main) {
@@ -1466,7 +1478,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                     if (!privateChat) {
-                        val snapshot = messages.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }) }
+                        val snapshot = messages.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
                         }.onFailure { error = "The response was generated, but chat history could not be saved." }
