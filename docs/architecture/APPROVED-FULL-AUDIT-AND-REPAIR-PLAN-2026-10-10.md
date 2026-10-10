@@ -250,3 +250,9 @@ This is a source-level findings and repair plan. It does not certify the current
 
 - Commit [0fe3c2c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/0fe3c2c28e544284382588c87c522b35ba2c30ac) prevents the generic `/video/jobs/{id}` GET route from matching `/video/jobs/{id}/content` before the content handler can run.
 - Verification performed: source route ordering/conditions inspected after the edit. The authenticated video download and playback flow still needs client implementation and a provider/device test; this route fix alone does not make video playback complete.
+
+
+### 2026-10-10 — Screen capture revocation cleanup
+
+- Commit [f7dbc9c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/f7dbc9c2a82c89b75bdeac9c78abbb9a96958af8) closes the screen-capture handler thread when Android revokes MediaProjection access, rather than only cleaning up the virtual display and reader.
+- Verification performed: source lifecycle path inspected after the edit. Device tests for grant, deny, revoke, stop, and restart remain pending.
