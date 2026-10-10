@@ -52,8 +52,13 @@ class ScreenCaptureSession(
         }
         mediaProjection.registerCallback(callback!!, handler)
 
-        val safeWidth = width.coerceIn(320, 1920)
-        val safeHeight = height.coerceIn(320, 1080)
+        // Downscale proportionally rather than clamping width/height independently;
+        // independent clamps distort portrait screens and can make text harder for the AI to read.
+        val sourceWidth = width.coerceAtLeast(1)
+        val sourceHeight = height.coerceAtLeast(1)
+        val scale = minOf(1f, 1280f / sourceWidth, 1280f / sourceHeight)
+        val safeWidth = (sourceWidth * scale).toInt().coerceAtLeast(320)
+        val safeHeight = (sourceHeight * scale).toInt().coerceAtLeast(320)
         reader = ImageReader.newInstance(
             safeWidth,
             safeHeight,
