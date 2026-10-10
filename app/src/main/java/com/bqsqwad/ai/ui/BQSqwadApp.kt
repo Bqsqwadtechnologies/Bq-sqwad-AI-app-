@@ -2231,6 +2231,7 @@ private fun FeatureHub(
         Workspace.DATA_ANALYSIS
     ).filter { visibleWorkspaces.contains(it) }
     val more = visibleWorkspaces.filter { it !in primary }
+    val advancedFeatures = ADVANCED_APP_FEATURES
 
     fun iconFor(w: Workspace) = when (w) {
         Workspace.LEARNING -> Icons.Default.School
@@ -2361,6 +2362,47 @@ private fun FeatureHub(
                                     Icon(Icons.Default.ChevronRight, null)
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            if (advancedFeatures.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Advanced AI capabilities", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Browse registered capabilities. Actual availability depends on server configuration, plan access and provider support; this directory does not promise every capability is live.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(advancedFeatures, key = { it.id }) { feature ->
+                    Card(
+                        onClick = { onAdvancedFeature(feature) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(15.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.size(42.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(feature.title, fontWeight = FontWeight.SemiBold)
+                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Explore ${feature.title}")
                         }
                     }
                 }
