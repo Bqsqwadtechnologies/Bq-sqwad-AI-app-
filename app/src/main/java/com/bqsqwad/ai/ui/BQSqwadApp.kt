@@ -1133,7 +1133,7 @@ private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
 }
 
 @Composable
-private fun RemoteChatImage(url: String) {
+internal fun ChatRemoteImage(url: String, description: String = "Image") {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         value = withContext(Dispatchers.IO) {
             runCatching {
@@ -1150,7 +1150,7 @@ private fun RemoteChatImage(url: String) {
     if (bitmap != null) {
         Image(
             bitmap = bitmap!!,
-            contentDescription = "Generated image",
+            contentDescription = description,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(12.dp))
         )
@@ -1726,7 +1726,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                             }
                                         }
                                         m.attachments.forEach { attachment -> ChatAttachmentPreview(attachment) }
-                                        m.imageUrl?.let { url -> RemoteChatImage(url) }
+                                        m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
                                     }
                                 }
                             }
