@@ -86,8 +86,31 @@ class AdminAdvancedClient(
     private val baseUrl: String = "${ApiConfig.baseUrl}"
 ) {
     suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/advanced-options", null).let { root ->
-        parseOptions(root.optJSONArray("options") ?: JSONArray())
-            .distinctBy { it.id }
+        val merged = LinkedHashMap<String, AdvancedAdminOption>()
+        AdminControlCatalog.advancedControls.forEach { id ->
+            val label = id.split(Regex("[-_]+"))
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+            val section = when {
+                id.contains("provider") || id.contains("model") -> "providers"
+                id.contains("capability") || id.contains("search_domain") || id.contains("routing") -> "capabilities"
+                id.contains("credit") || id.contains("pricing") || id.contains("subscription") || id.contains("regional") -> "pricing"
+                id.contains("device") || id.contains("cross_device") || id.contains("accessibility") || id.contains("multilingual") -> "device"
+                id.contains("agent") || id.contains("approval") || id.contains("action") || id.contains("sandbox") || id.contains("workflow") -> "agents"
+                id.contains("plugin") -> "plugins"
+                id.contains("monitor") || id.contains("forecast") || id.contains("background_jobs") || id.contains("scheduled") -> "monitoring"
+                id.contains("emergency") || id.contains("kill") || id.contains("testing") -> "emergency"
+                id.contains("security") || id.contains("passkey") || id.contains("vault") || id.contains("session") -> "security"
+                id.contains("rollout") || id.contains("experiment") -> "rollouts"
+                id.contains("data") || id.contains("upload") || id.contains("snapshot") -> "data"
+                id.contains("business") -> "business"
+                id.contains("incident") -> "incidents"
+                else -> "system"
+            }
+            merged[id] = AdvancedAdminOption(id = id, label = label, section = section)
+        }
+        parseOptions(root.optJSONArray("options") ?: JSONArray()).forEach { merged[it.id] = it }
+        merged.values.toList()
     }
 
     suspend fun playCatalog(): List<AdminPlayCatalogItem> = request("GET", "/admin/play-catalog", null).let { root ->
