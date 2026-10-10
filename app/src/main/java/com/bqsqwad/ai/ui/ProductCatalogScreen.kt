@@ -157,7 +157,11 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         }
         playProducts = billing?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            status = "Your BQ Sqwad AI plan catalog remains separate from Google Play. The plan list comes from BQ Sqwad AI; Google Play is used only to process and verify purchases. Checkout is not ready on this device yet—check the Play product IDs and base plans."
+            status = if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
+                "Browse the BQ Sqwad AI plans freely. Sign in before purchasing so checkout and access can be verified securely."
+            } else {
+                "Your BQ Sqwad AI plans are shown above, but Google Play checkout is not ready on this device yet. Refresh the catalog and try again shortly."
+            }
         }
     }
     LaunchedEffect(Unit){load()}
