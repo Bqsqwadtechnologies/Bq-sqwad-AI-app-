@@ -1541,29 +1541,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            val logoPulseTransition = rememberInfiniteTransition(label = "bqPulse")
-            val logoPulse by logoPulseTransition.animateFloat(
-                initialValue = 0.35f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1200, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "bqPulseValue"
-            )
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (messages.isEmpty()) {
                     item {
-                        val floatTransition = rememberInfiniteTransition(label = "bqFloatingLogo")
-                        val floatOffset by floatTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = -8f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1400, easing = FastOutSlowInEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "bqFloatingLogoOffset"
-                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1574,24 +1554,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier
-                                    .offset(y = floatOffset.dp)
-                                    .clickable(onClick = openFeatures)
+                                        .clickable(onClick = openFeatures)
                                     .padding(horizontal = 18.dp)
                             ) {
-                                Surface(
-                                    modifier = Modifier
-                                        .size(76.dp)
-                                        .border(
-                                            2.dp,
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.55f + (logoPulse * 0.45f)),
-                                            CircleShape
-                                        ),
-                                    shape = CircleShape,
-                                    color = Color.Transparent,
-                                    shadowElevation = 22.dp
-                                ) {
-                                    FloatingLogo(Modifier.fillMaxSize())
-                                }
+                                BqLogo(76.dp)
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
