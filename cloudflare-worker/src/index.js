@@ -7,7 +7,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
-import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
+import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
 import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, authenticationOptionsNative, verifyAuthenticationNative, removePasskeyNative } from "./passkeys-native.js";
@@ -753,17 +753,17 @@ export default {
       // Every admin route except the identity/session bootstrap endpoints requires a fresh,
       // server-verified 30-minute step-up session.
       const adminBootstrapRoutes = new Set([
-        "/admin/access",
-        "/admin/security/status",
-        "/admin/security/password",
-        "/admin/security/totp/start",
-        "/admin/security/totp/confirm",
-        "/admin/security/unlock",
-        "/admin/security/biometric",
-        "/admin/security/biometric/challenge",
-        "/admin/security/biometric/verify"
+        "GET /admin/access",
+        "GET /admin/security/status",
+        "POST /admin/security/password",
+        "POST /admin/security/totp/start",
+        "POST /admin/security/totp/confirm",
+        "POST /admin/security/unlock",
+        "GET /admin/security/biometric",
+        "POST /admin/security/biometric/challenge",
+        "POST /admin/security/biometric/verify"
       ]);
-      if (url.pathname.startsWith("/admin/") && !adminBootstrapRoutes.has(url.pathname)) {
+      if (url.pathname.startsWith("/admin/") && !adminBootstrapRoutes.has(request.method + " " + url.pathname)) {
         const adminIdentity = await verifyFirebaseUser(request);
         if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         await requireAdminSessionNative(adminIdentity.uid);
@@ -1391,9 +1391,10 @@ export default {
       if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit(u.uid,8);const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }
       if (url.pathname === "/admin/security/unlock" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit(u.uid,8);const b=await readBody(request);return json(await unlockAdminNative(env,u.uid,String(b.password||""),String(b.code||""))); }
       if (url.pathname === "/admin/security/biometric" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await biometricStatusNative()); }
-      if (url.pathname === "/admin/security/biometric/register" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await registerBiometricNative(u.uid,String(b.publicKeyBase64||""))); }
+       if (url.pathname === "/admin/security/biometric" && request.method === "DELETE") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");await requireAdminSessionNative(u.uid);return json(await removeBiometricNative(u.uid)); }
+      if (url.pathname === "/admin/security/biometric/register" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await registerBiometricNative(u.uid,String(b.publicKeyBase64||b.publicKey||""))); }
       if (url.pathname === "/admin/security/biometric/challenge" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await beginBiometricNative(u.uid)); }
-      if (url.pathname === "/admin/security/biometric/verify" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await verifyBiometricNative(u.uid,String(b.challengeId||""),String(b.signatureBase64||""))); }
+      if (url.pathname === "/admin/security/biometric/verify" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await verifyBiometricNative(u.uid,String(b.challengeId||""),String(b.signatureBase64||b.signature||""))); }
       if (url.pathname === "/admin/provider-secret" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({error:"cloudflare_secret_required",message:"Provider credentials are managed as Cloudflare Worker secrets. Update the Worker secret instead of writing provider credentials to Firestore."},409); }
       if (url.pathname === "/admin/providers" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const rows=await firestoreQuery("adminAdvancedOptions",{limit:200});return json({providers:providerSecretStatus(env),routes:rows.filter(x=>String(x.__name||"").split("/").pop().startsWith("capability_")).map(x=>({capability:String(x.__name||"").split("/").pop().replace(/^capability_/,""),providerId:x.providerId||"openai",modelId:x.modelId||DEFAULT_MODELS.openai,enabled:x.enabled!==false&&x.killSwitch!==true}))}); }
       if (url.pathname === "/admin/social-integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const x=await firestoreGet("socialIntegrations/global");return json({config:x||{enabled:true},platforms:["x","youtube","tiktok"]}); }
