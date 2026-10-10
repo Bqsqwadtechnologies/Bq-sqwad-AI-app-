@@ -603,13 +603,21 @@ async function vision(request, user, body) {
   const imageBase64 = String(body.imageBase64 || "");
   if (!imageBase64) throw new Error("image_required");
   if (imageBase64.length > 8000000) throw new Error("image_too_large");
-  const control = await capability(user.uid, "live_camera");
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, "live_camera", user);
+  // Keep live camera on its own capability by default, while allowing the
+  // authenticated main-chat attachment path to use the selected chat capability.
+  // The capability resolver remains the authority for availability and pricing.
+  const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
+  const control = await capability(user.uid, capabilityName);
+  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
+    const requestedSystem = String(body.system || "").slice(0, 12000).trim();
+    const system = requestedSystem
+      ? BQ_APP_KNOWLEDGE + "\n\n" + requestedSystem
+      : BQ_APP_KNOWLEDGE;
     const response = await callOpenAI(globalThis.__bqEnv, {
       model: control.modelId || DEFAULT_MODELS.openai,
       message,
-      system: BQ_APP_KNOWLEDGE,
+      system,
       imageBase64,
       mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
     });
