@@ -135,4 +135,4 @@ Backblaze's current documentation confirms that B2's first 10 GB of storage is f
 - Settings AI feature cards now open an explanation and a Try it action that navigates through the existing workspace access gate.
 - Live Voice now has a connection watchdog and preserves its terminal error state after the foreground service stops.
 - Validation still requires a manual Validate Main and Debug APK workflow run against the latest main; a previous successful Release APK run is from an older commit and does not verify these changes.
-
+- The service account in BQ_FIREBASE_SERVICE_ACCOUNT_JSON must also have the Firebase Authentication IAM permission `firebaseauth.users.delete` for scheduled account deletion to finish; without it, the job retries safely and leaves Firestore data intact.
