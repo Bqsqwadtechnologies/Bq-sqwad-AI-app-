@@ -22,7 +22,7 @@ class CoreTest {
         val blocks = parseBlocks("# Title\n- one\n```kotlin\nprintln(1)")
         assertEquals(3, blocks.size)
         assertTrue(blocks[0] is MdBlock.Heading)
-        assertTrue(blocks[1] is MdBlock.Bullet)
+        assertTrue(blocks[1] is MdBlock.BulletList)
         assertTrue(blocks[2] is MdBlock.Code)
     }
 
