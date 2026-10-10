@@ -3683,6 +3683,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var vibration by remember { mutableStateOf(prefs.getBoolean("vibration_enabled", true)) }
     var reduceMotion by remember { mutableStateOf(prefs.getBoolean("reduce_motion", false)) }
     var compactUi by remember { mutableStateOf(prefs.getBoolean("compact_ui", false)) }
+    var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
     var consentStatus by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
     var entitlements by remember { mutableStateOf(emptyList<JSONObject>()) }
@@ -3911,6 +3912,21 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                 }
             }
 
+            item {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Text size", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Adjust text across the app from smaller to larger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Slider(value = textScale, onValueChange = { value ->
+                        textScale = value
+                        prefs.edit().putFloat("text_scale", value).apply()
+                    }, valueRange = 0.85f..1.4f, steps = 10)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Smaller", style = MaterialTheme.typography.labelSmall)
+                        Text((textScale * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        Text("Larger", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
             item { SettingsSectionTitle("Chat & intelligence", "Control how the assistant works for you") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
