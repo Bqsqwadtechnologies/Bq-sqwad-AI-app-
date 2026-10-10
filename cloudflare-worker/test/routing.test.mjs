@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { isPublicCatalogPlan } from "../src/index.js";
-import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "../src/plan-catalog-native.js";
+import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "../src/plan-catalog-native.js";
 import { playCatalog } from "../src/google-play.js";
 
 globalThis.fetch = async () => new Response('{"ok":true}', { status: 200 });
@@ -123,4 +123,41 @@ test("Google Play catalog and verification share canonical fallback mappings", a
   for (const item of result.products) {
     assert.match(item.productId, /^[a-z0-9-]+$/);
   }
+});
+
+
+test("partial Firestore catalog overrides do not remove other canonical plans", () => {
+  const merged = mergeCommercialCatalog({
+    sections: { companion: [{ id: "companionfree", active: false, name: "Companion Free (paused)" }] }
+  });
+  const plans = Object.values(merged.sections).flat();
+  const byId = new Map(plans.map(plan => [plan.id, plan]));
+  assert.ok(byId.has("credit100"));
+  assert.ok(byId.has("bizstarter"));
+  assert.equal(byId.get("companionfree").active, false);
+  assert.equal(byId.get("companionfree").name, "Companion Free (paused)");
+});
+
+test("admin plan catalog drives Play mappings for custom eligible plans", async () => {
+  const custom = {
+    id: "custommonthly",
+    name: "Custom Monthly",
+    module: "chat",
+    productId: "custommonthly",
+    productType: "subs",
+    basePlans: ["monthly"],
+    playEligible: true,
+    paymentChannel: "play",
+    active: true,
+    price: { monthly: 9.99 },
+    entitlements: []
+  };
+  const result = await playCatalog({
+    get: async path => path === "planCatalog/config"
+      ? { catalog: { sections: { custom: [custom] } }, version: 8 }
+      : null
+  });
+  assert.ok(result.products.some(item =>
+    item.planId === "custommonthly" && item.productId === "custommonthly" && item.basePlanId === "monthly"
+  ));
 });
