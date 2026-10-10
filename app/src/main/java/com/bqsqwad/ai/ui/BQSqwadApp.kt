@@ -1218,7 +1218,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     LaunchedEffect(sharedText) {
         val incoming = sharedText?.trim().orEmpty()
         if (incoming.isNotBlank()) {
-            workspace = null
             message = "Please help me with this selected text:\n\n$incoming"
             onSharedTextConsumed()
         }
