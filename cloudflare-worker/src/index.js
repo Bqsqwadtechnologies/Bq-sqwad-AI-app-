@@ -604,12 +604,16 @@ async function vision(request, user, body) {
     ? body.images
     : [{ imageBase64: body.imageBase64, mimeType: body.mimeType }];
   if (rawImages.length < 1 || rawImages.length > 4) throw new Error("image_count_invalid");
-  const images = rawImages.map(item => ({
-    imageBase64: String(item?.imageBase64 || ""),
-    mimeType: String(item?.mimeType || "image/jpeg").slice(0, 80)
-  }));
+  const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
+  const images = rawImages.map(item => {
+    const requestedMime = String(item?.mimeType || "image/jpeg").slice(0, 80).toLowerCase();
+    return {
+      imageBase64: String(item?.imageBase64 || ""),
+      mimeType: requestedMime === "image/jpg" ? "image/jpeg" : requestedMime
+    };
+  });
   if (images.some(image => !image.imageBase64)) throw new Error("image_required");
-  if (images.some(image => !image.mimeType.toLowerCase().startsWith("image/"))) throw new Error("image_type_invalid");
+  if (images.some(image => !supportedImageTypes.has(image.mimeType))) throw new Error("image_type_invalid");
   if (images.reduce((total, image) => total + image.imageBase64.length, 0) > 8000000) throw new Error("image_too_large");
   // Keep live camera on its own capability by default, while allowing the
   // authenticated main-chat attachment path to use the selected chat capability.
