@@ -213,10 +213,10 @@ class PlayBillingClient(
         }
         Thread {
             runCatching {
-                val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
-                val token = Tasks.await(user.getIdToken(false)).token ?: return@runCatching
+                val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to verify this purchase.")
+                val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable.")
                 val products = purchase.products
-                if (products.isEmpty()) return@runCatching
+                if (products.isEmpty()) error("Google Play returned no product for this purchase.")
                 val payload = JSONObject()
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
@@ -252,6 +252,15 @@ class PlayBillingClient(
                 } else {
                     onPurchaseState(PlayPurchaseState("success", "Purchase verified. Your access is now active."))
                 }
+            }.onFailure {
+                // Do not leave the UI in a permanent "verifying" state. Access remains
+                // locked until the server verifies the purchase; users can retry restore.
+                onPurchaseState(
+                    PlayPurchaseState(
+                        "failed",
+                        "Purchase verification could not be completed. Your access remains locked until verification succeeds. Please try Restore purchases again."
+                    )
+                )
             }
         }.start()
     }
