@@ -117,6 +117,9 @@ class ScreenCaptureSession(
         projection = null
         if (currentProjection != null && notify) {
             onStopped()
+            // Android can revoke screen capture independently of our Stop button.
+            // Tear down the capture thread on that path too.
+            thread.quitSafely()
         }
         if (currentProjection != null && !notify) {
             runCatching { currentProjection.stop() }
