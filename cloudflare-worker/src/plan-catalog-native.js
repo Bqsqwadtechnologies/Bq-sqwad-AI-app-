@@ -275,12 +275,55 @@ validateCommercialCatalog();
 
 
 /**
+ * Merge saved admin overrides over the complete canonical catalog. A plan is
+ * hidden by setting active:false or visible:false; simply having a partial
+ * Firestore document must not accidentally remove every other catalog plan.
+ */
+export function mergeCommercialCatalog(overrideCatalog = null) {
+  const override = overrideCatalog && typeof overrideCatalog === "object" && !Array.isArray(overrideCatalog)
+    ? overrideCatalog
+    : {};
+  const overrideSections = override.sections && typeof override.sections === "object"
+    ? override.sections
+    : {};
+  const overrideById = new Map();
+  for (const rows of Object.values(overrideSections)) {
+    if (!Array.isArray(rows)) continue;
+    for (const item of rows) {
+      if (item && typeof item === "object" && item.id) {
+        overrideById.set(String(item.id), item);
+      }
+    }
+  }
+  const baseIds = new Set(Object.values(COMMERCIAL_CATALOG.sections || {}).flat().map(item => String(item.id)));
+  const sections = {};
+  for (const [section, rows] of Object.entries(COMMERCIAL_CATALOG.sections || {})) {
+    sections[section] = rows.map(item => ({
+      ...item,
+      ...(overrideById.get(String(item.id)) || {})
+    }));
+  }
+  for (const [section, rows] of Object.entries(overrideSections)) {
+    if (!Array.isArray(rows)) continue;
+    const custom = rows.filter(item => item && typeof item === "object" && item.id && !baseIds.has(String(item.id)));
+    if (custom.length) sections[section] = [...(sections[section] || []), ...custom];
+  }
+  return {
+    ...COMMERCIAL_CATALOG,
+    ...override,
+    version: Number(override.version || COMMERCIAL_CATALOG.version),
+    sections
+  };
+}
+
+/**
  * Canonical Google Play mappings used only when an admin has not supplied a
  * mapping for the same plan/base-plan pair. Product IDs and base-plan IDs are
  * copied from the canonical plan catalog; no IDs are synthesized.
  */
 export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
-  const rows = Object.values(catalog?.sections || {}).flat();
+  const resolvedCatalog = catalog === COMMERCIAL_CATALOG ? COMMERCIAL_CATALOG : mergeCommercialCatalog(catalog);
+  const rows = Object.values(resolvedCatalog?.sections || {}).flat();
   return rows.filter(plan =>
     plan && typeof plan === "object" &&
     plan.active !== false &&
