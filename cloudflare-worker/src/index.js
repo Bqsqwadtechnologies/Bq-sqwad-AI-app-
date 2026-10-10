@@ -1,6 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
-import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "./plan-catalog-native.js";
+import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
@@ -454,19 +454,18 @@ async function nativeCatalog() {
     version: Number(data.version || 1),
     effectiveDate: data.effectiveDate || null
   });
-  const configuredSections = planCatalog?.catalog?.sections;
-  const configuredPlans = configuredSections
-    ? Object.values(configuredSections).flat().filter(item => item && typeof item === "object").map(item => safePlan(item.id, item))
-    : [];
-  const firestorePlans = plans.map(d => safePlan(String(d.__name || "").split("/").pop(), d));
-  // Firestore is authoritative when it has a configured catalog. If no admin catalog
-  // or legacy plan documents exist yet, use the versioned in-repo catalog so the app
-  // still displays BQ Sqwad AI plans. Checkout mappings remain Firestore-only and are
-  // never invented by this fallback.
-  const fallbackPlans = Object.values(COMMERCIAL_CATALOG.sections || {}).flat()
+  const mergedCatalog = mergeCommercialCatalog(planCatalog?.catalog);
+  const catalogPlans = Object.values(mergedCatalog.sections || {}).flat()
     .filter(item => item && typeof item === "object")
     .map(item => safePlan(item.id, item));
-  const basePlans = configuredPlans.length ? configuredPlans : (firestorePlans.length ? firestorePlans : fallbackPlans);
+  const firestorePlans = plans.map(d => safePlan(String(d.__name || "").split("/").pop(), d));
+  const planIds = new Set(catalogPlans.map(plan => plan.id));
+  // Preserve additional active legacy plans without letting a partial legacy
+  // collection replace or hide the canonical plans and saved admin overrides.
+  const basePlans = [
+    ...catalogPlans,
+    ...firestorePlans.filter(plan => !planIds.has(plan.id))
+  ];
   const publicPlans = basePlans.filter(isPublicCatalogPlan);
   const visiblePlanIds = new Set(publicPlans.map(p => p.id));
   const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
@@ -1450,7 +1449,7 @@ export default {
 
       if (url.pathname === "/admin/test-mode" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const x=await firestoreGet("adminAdvancedOptions/admin_testing_mode"); return json({enabled:x?.enabled===true,serverControlled:true}); }
       if (url.pathname === "/admin/test-mode" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const b=await readBody(request); await firestoreSet("adminAdvancedOptions/admin_testing_mode",{id:"admin_testing_mode",enabled:b.enabled===true,version:Number((await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.version||1)+1,updatedBy:u.uid,updatedAt:new Date()},true); return json({ok:true,enabled:b.enabled===true}); }
-      if (url.pathname === "/admin/plan-catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const x=await firestoreGet("planCatalog/config"); const stored=x?.catalog; const hasPlans=Object.values(stored?.sections||{}).some(rows=>Array.isArray(rows)&&rows.length>0); return json({version:Number(x?.version||COMMERCIAL_CATALOG.version||1),catalog:hasPlans?stored:COMMERCIAL_CATALOG,source:hasPlans?"firestore":"code_fallback"}); }
+      if (url.pathname === "/admin/plan-catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const x=await firestoreGet("planCatalog/config"); const stored=x?.catalog; const hasPlans=Object.values(stored?.sections||{}).some(rows=>Array.isArray(rows)&&rows.length>0); return json({version:Number(x?.version||COMMERCIAL_CATALOG.version||1),catalog:mergeCommercialCatalog(stored),source:hasPlans?"firestore+fallback":"code_fallback"}); }
       if (url.pathname === "/admin/plan-catalog" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const b=await readBody(request),catalog=b.catalog;if(!catalog||typeof catalog!=="object"||Array.isArray(catalog))return json({error:"catalog_object_required"},400);const raw=JSON.stringify(catalog);if(raw.includes("_"))return json({error:"commercial_ids_must_not_contain_underscores"},400);const ids=[],products=[];const walk=v=>{if(!v||typeof v!=="object")return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v.id==="string"){if(!/^[a-z0-9-]+$/.test(v.id))throw new Error("invalid_commercial_id");if(ids.includes(v.id))throw new Error("duplicate_commercial_id");ids.push(v.id)}if(typeof v.productId==="string"&&v.productId){if(!/^[a-z0-9-]+$/.test(v.productId))throw new Error("invalid_product_id");products.push(v.productId)}Object.values(v).forEach(walk)};walk(catalog);const old=await firestoreGet("planCatalog/config"),version=Math.max(Number(old?.version||1),Number(b.version||0))+1;await firestoreSet("planCatalog/config",{version,catalog:{...catalog,version},commercialIdCount:ids.length,productIdCount:products.length,updatedBy:u.uid,updatedAt:new Date()},false);await firestoreCreate("adminConfigAudit/"+crypto.randomUUID(),{type:"plan_catalog_update",version,actorUid:u.uid,commercialIdCount:ids.length,productIdCount:products.length,createdAt:new Date()});return json({ok:true,version,catalog}); }
       if (url.pathname === "/admin/plan/status" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const b=await readBody(request),pid=String(b.planId||"");if(!/^[a-z0-9-]+$/.test(pid))return json({error:"invalid_plan_id"},400);const ref="planCatalog/config",x=await firestoreGet(ref),catalog=x?.catalog||{sections:{}},sections=catalog.sections||{};let found=false;for(const arr of Object.values(sections))if(Array.isArray(arr))for(const p of arr)if(String(p?.id||"")===pid){p.active=b.active===true;found=true}if(!found)return json({error:"plan_not_found"},404);const version=Number(x?.version||1)+1;await firestoreSet(ref,{version,catalog:{...catalog,version},updatedBy:u.uid,updatedAt:new Date()},false);return json({ok:true,planId:pid,active:b.active===true,version});}
       if (url.pathname === "/admin/plan/popular" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env)) throw new Error("Admin access required"); const b=await readBody(request),pid=String(b.planId||""),x=await firestoreGet("planCatalog/config"),catalog=x?.catalog||{sections:{}},sections=catalog.sections||{};let found=false;for(const arr of Object.values(sections))if(Array.isArray(arr))for(const p of arr)if(p&&typeof p==="object"){if(String(p.id||"")===pid){p.popular=true;found=true}else p.popular=false}if(!found)return json({error:"plan_not_found"},404);const version=Number(x?.version||1)+1;await firestoreSet("planCatalog/config",{version,catalog:{...catalog,version},updatedBy:u.uid,updatedAt:new Date()},false);return json({ok:true,planId:pid,version});}
