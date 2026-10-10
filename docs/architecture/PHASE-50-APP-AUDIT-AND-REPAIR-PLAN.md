@@ -87,3 +87,27 @@ No Android build, APK, live-device test, Worker deployment, or GitHub Actions wo
 - Canonical BQ Sqwad AI catalog drives visible plan names, features, prices and availability. Google Play Billing is used only for checkout, localized eligible price resolution, and secure purchase verification. Do not change existing product/base-plan IDs, invent prices, or add Paystack/NGN conversion.
 - Preserve Worker identity verification, consent enforcement, super-admin checks, rate limiting, idempotency, and credit charge/commit/reversal semantics.
 - Do not run a build, dispatch a workflow, deploy the Worker, or claim runtime/device success as part of this work unless separately authorized.
+
+
+## Implementation log — 2026-10-10
+
+The following source changes have been committed to `main` after the approved audit. These are code/documentation commits only; no build, workflow, or deployment was triggered.
+
+- `85edc4a` — initial approved source findings and repair plan.
+- `ebce7bc` — corrected the report to recognize current attachment/history and dedicated-workspace implementations.
+- `63f90e3` — refreshed the existing end-to-end audit to reflect current source.
+- `0eb0fe5` — prevent partial multi-file attachment submissions when any selected file fails to prepare.
+- `9e719d3` — reject text attachments over 120,000 characters instead of silently truncating them.
+- `2c87d0f` and `022344f` — add a Continue in Chat action and restore selected history messages plus their history ID into Main Chat.
+- `8e20a43` — replace the misleading “Connected capability” label with “Requested capability” and clarify that listing a feature does not establish an external connection.
+- `84304d3` — document saved-chat continuation and remaining attachment limitations.
+- `05c3315` and `825d83f` — correct Organization Studio findings: a YouTube OAuth/create-live/RTMP camera-stream path exists in source, while the device-to-YouTube flow and other destinations remain unverified or partial.
+- `3242f04` — align the plan with the saved-chat continuation implementation.
+
+### Verification status for these changes
+
+- Source edits were committed successfully to `main`.
+- Read-after-write inspection confirmed the attachment guard, explicit text limit, history continuation callback/state restoration, and capability disclosure are present in the current source.
+- Static code review only; no Gradle build or test suite was run.
+- No APK was produced, no GitHub Actions workflow was dispatched, and no Worker was deployed.
+- Android runtime, purchase verification, provider execution, permission lifecycle, and live broadcast checks remain pending. Do not mark any of them passed without test evidence.
