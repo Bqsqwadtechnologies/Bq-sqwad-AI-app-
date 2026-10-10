@@ -655,7 +655,7 @@ async function permanentlyDeleteAccount(uid) {
     "chatHistory", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
     "creditReservations", "creditLedger", "creditTransactions", "creditBalances",
     "billingReceipts", "payments", "playPurchases", "passkeys", "passkeyChallenges",
-    "socialAccounts", "notificationTokens", "organizationProductionEvents", "aiJobs",
+    "socialAccounts", "notificationTokens", "adminStepUp", "adminBiometricChallenges", "organizationProductionEvents", "aiJobs",
     "aiWorkflows", "aiAgents", "aiEvaluations", "aiPlugins", "aiActivity",
     "organizationScheduledTasks", "organizationWalletLedger", "organizationLiveSessions",
     "organizationProductionLiveSessions", "organizationWorkspaces", "learningSessions",
