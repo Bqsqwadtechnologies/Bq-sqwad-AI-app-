@@ -5,8 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -201,7 +202,10 @@ fun AdminControlCenter() {
 
     val filtered = if (selectedSection == "all") options else options.filter { it.section == selectedSection }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Card(
             Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
@@ -355,34 +359,36 @@ fun AdminControlCenter() {
             }
         }
 
-        LazyColumn(
+        Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(sections.take(9)) { (id, label) ->
-                        AssistChip(
-                            onClick = { selectedSection = id },
-                            label = { Text(label) },
-                            leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
-                        )
-                    }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(sections.take(9)) { (id, label) ->
+                    AssistChip(
+                        onClick = { selectedSection = id },
+                        label = { Text(label) },
+                        leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
+                    )
                 }
             }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(sections.drop(9)) { (id, label) ->
-                        AssistChip(
-                            onClick = { selectedSection = id },
-                            label = { Text(label) },
-                            leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
-                        )
-                    }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(sections.drop(9)) { (id, label) ->
+                    AssistChip(
+                        onClick = { selectedSection = id },
+                        label = { Text(label) },
+                        leadingIcon = if (selectedSection == id) ({ Text("✓") }) else null
+                    )
                 }
             }
-            item { HorizontalDivider() }
-            items(filtered, key = { it.id }) { option ->
+            HorizontalDivider()
+            if (filtered.isEmpty()) {
+                Text(
+                    "No controls are configured in this section yet. Choose All or refresh the admin screen.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            filtered.forEach { option ->
                 AdminOptionEditor(
                     option = option,
                     onSave = { updated ->
