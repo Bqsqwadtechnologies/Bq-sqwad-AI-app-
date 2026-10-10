@@ -1,5 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
+import { COMMERCIAL_CATALOG } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
@@ -455,10 +456,17 @@ async function nativeCatalog() {
   });
   const configuredSections = planCatalog?.catalog?.sections;
   const configuredPlans = configuredSections
-    ? Object.values(configuredSections).flat().map(item => safePlan(item.id, item))
+    ? Object.values(configuredSections).flat().filter(item => item && typeof item === "object").map(item => safePlan(item.id, item))
     : [];
   const firestorePlans = plans.map(d => safePlan(String(d.__name || "").split("/").pop(), d));
-  const basePlans = configuredPlans.length ? configuredPlans : firestorePlans;
+  // Firestore is authoritative when it has a configured catalog. If no admin catalog
+  // or legacy plan documents exist yet, use the versioned in-repo catalog so the app
+  // still displays BQ Sqwad AI plans. Checkout mappings remain Firestore-only and are
+  // never invented by this fallback.
+  const fallbackPlans = Object.values(COMMERCIAL_CATALOG.sections || {}).flat()
+    .filter(item => item && typeof item === "object")
+    .map(item => safePlan(item.id, item));
+  const basePlans = configuredPlans.length ? configuredPlans : (firestorePlans.length ? firestorePlans : fallbackPlans);
   const publicPlans = basePlans.filter(isPublicCatalogPlan);
   const visiblePlanIds = new Set(publicPlans.map(p => p.id));
   const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
@@ -507,7 +515,16 @@ async function nativeCatalog() {
     version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
     plans: publicPlans,
     products,
-    publicContactSales: [],
+    publicContactSales: publicPlans
+      .filter(p => p.contactSales === true || p.paymentChannel === "contact_sales")
+      .map(p => ({
+        name: p.name,
+        module: p.module,
+        billingPeriod: "custom",
+        price: "Contact Sales",
+        features: p.features,
+        limits: p.limits
+      })),
     features: featureRows,
     bindings: bindingRows,
     addOns: addOnRows,
