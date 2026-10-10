@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class HistoryItem(val id: String, val title: String, val updatedAt: String, val messageCount: Int)
-data class HistoryMessage(val mine: Boolean, val text: String, val id: String, val prompt: String?)
+data class HistoryMessage(val mine: Boolean, val text: String, val id: String, val prompt: String?, val attachmentNames: List<String> = emptyList())
 
 class HistoryApiClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
@@ -54,7 +54,7 @@ class HistoryApiClient {
         val rows = body.optJSONArray("messages") ?: JSONArray()
         return List(rows.length()) { i ->
             val item = rows.getJSONObject(i)
-            HistoryMessage(item.optBoolean("mine"), item.optString("text"), item.optString("id"), item.optString("prompt").ifBlank { null })
+            HistoryMessage(item.optBoolean("mine"), item.optString("text"), item.optString("id"), item.optString("prompt").ifBlank { null }, item.optJSONArray("attachments")?.let { array -> List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() } } ?: emptyList())
         }
     }
 
@@ -66,6 +66,7 @@ class HistoryApiClient {
                 put("mine", m.mine)
                 put("text", m.text.take(20000))
                 if (m.prompt != null) put("prompt", m.prompt.take(20000))
+                if (m.attachmentNames.isNotEmpty()) put("attachments", JSONArray(m.attachmentNames.take(8).map { it.take(300) }))
             })
         }
         val body = request("/history", "POST", JSONObject().apply {
