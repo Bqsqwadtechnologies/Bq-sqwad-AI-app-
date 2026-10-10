@@ -124,3 +124,15 @@ Backblaze's current documentation confirms that B2's first 10 GB of storage is f
 - A daily Cloudflare Cron Trigger at 03:00 UTC processes due records in `userAccountStatus` and reuses the shared permanent-deletion function.
 - The Worker service account must have the required Firebase Authentication user-delete permission in addition to its existing Firestore permissions. The cron handler retries failed deletion jobs by returning the record to `pending_deletion` and records a short failure reason.
 - The Android account deletion flow now schedules deletion and signs out only after the server confirms the schedule. The Settings screen shows the returned deadline and a cancel action when the user signs back in.
+
+## Follow-up hardening — October 2026
+
+- Admin API routes now require a server-checked step-up session that expires after 30 minutes. The identity bootstrap and security setup/unlock routes remain available so the owner can establish the first factor; existing factors are required to replace or extend configured security.
+- The Worker secret readiness endpoint reports configured/missing status only and never returns secret values. It now includes the super-admin allowlist, origin configuration, admin TOTP encryption key, Play Billing, and social provider keys.
+- Required for authenticator/TOTP setup: provision BQ_SECRET_ENCRYPTION_KEY as a Cloudflare Worker secret containing exactly 64 hexadecimal characters (32 random bytes). Never commit its value to Git or put it in the Android app. Password-only step-up does not require this encryption key.
+- The scheduled account-deletion job now orders pending accounts by their deadline, uses a Firestore update-time precondition before marking an account as deleting, preserves a cancellation that wins the race, and deletes the Firebase Auth account before removing associated Firestore data so missing Auth IAM permission does not wipe data.
+- wrangler.jsonc declares the daily 03:00 UTC cron. The cron only becomes active after the updated Worker configuration is deployed.
+- Settings AI feature cards now open an explanation and a Try it action that navigates through the existing workspace access gate.
+- Live Voice now has a connection watchdog and preserves its terminal error state after the foreground service stops.
+- Validation still requires a manual Validate Main and Debug APK workflow run against the latest main; a previous successful Release APK run is from an older commit and does not verify these changes.
+
