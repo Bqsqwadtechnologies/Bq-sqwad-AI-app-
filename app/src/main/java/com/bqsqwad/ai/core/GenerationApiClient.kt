@@ -16,12 +16,17 @@ data class GeneratedImage(
 )
 data class VideoJob(val jobId: String, val status: String, val progress: Int, val contentUrl: String?, val error: String?, val creditsCharged: Double = 0.0)
 
-internal fun parseGeneratedImage(body: JSONObject): GeneratedImage =
+internal fun parseGeneratedImage(
+    imageUrl: String?,
+    imageBase64: String?,
+    creditsCharged: Double,
+    modelId: String?
+): GeneratedImage =
     GeneratedImage(
-        url = body.optString("imageUrl").takeIf { it.isNotBlank() }.orEmpty(),
-        creditsCharged = body.optDouble("creditsCharged", 0.0),
-        modelId = body.optString("modelId").takeIf { it.isNotBlank() },
-        imageBase64 = body.optString("imageBase64").takeIf { it.isNotBlank() }
+        url = imageUrl?.takeIf { it.isNotBlank() }.orEmpty(),
+        creditsCharged = creditsCharged,
+        modelId = modelId?.takeIf { it.isNotBlank() },
+        imageBase64 = imageBase64?.takeIf { it.isNotBlank() }
     ).also { generated ->
         require(generated.url.isNotBlank() || !generated.imageBase64.isNullOrBlank()) {
             "Image generation returned no image data."
@@ -58,7 +63,7 @@ class GenerationApiClient {
         val body = request("/ai/image", payload = JSONObject().apply {
             put("prompt", prompt.take(12000)); put("size", size); put("quality", quality)
         })
-        return parseGeneratedImage(body)
+        return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
     }
 
     suspend fun createVideo(prompt: String, seconds: String = "8", size: String = "1280x720"): VideoJob {
