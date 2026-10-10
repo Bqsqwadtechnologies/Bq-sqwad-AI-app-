@@ -2898,6 +2898,8 @@ fun CameraWorkspace() {
     val scope = rememberCoroutineScope()
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
+    var previewEnabled by remember { mutableStateOf(false) }
+    var fullScreenPreview by remember { mutableStateOf(false) }
     var analyzing by remember { mutableStateOf(false) }
     var permissionExplanation by remember { mutableStateOf(false) }
     var lastAnalysisAt by remember { mutableLongStateOf(0L) }
@@ -2937,12 +2939,15 @@ fun CameraWorkspace() {
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (cameraOk && micOk && liveTermsAccepted) {
+            previewEnabled = true
             context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
                 .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                 .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                 .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                 .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
             active = true
+        } else {
+            streamError = "Camera and microphone permission are required for the live AI session."
         }
     }
 
@@ -2967,6 +2972,7 @@ fun CameraWorkspace() {
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (cameraOk && micOk && streamEndpoint.trim().isNotBlank()) {
+            previewEnabled = true
             context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
                 .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                 .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
@@ -3008,6 +3014,7 @@ fun CameraWorkspace() {
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
+    val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
     LaunchedEffect(liveUiState.log.size) {
         if (liveUiState.log.isNotEmpty()) cameraLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
     }
@@ -3051,13 +3058,15 @@ fun CameraWorkspace() {
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
-                    if (active) {
+                    if (active || previewEnabled) {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         active = false
+                        previewEnabled = false
+                        fullScreenPreview = false
                     } else {
                         startLiveCamera()
                     }
-                }) { Text(if (active) "End live camera" else "Start live camera") }
+                }) { Text(if (active || previewEnabled) "End live camera" else "Start live camera") }
                 OutlinedButton(onClick = {
                     lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                     if (active) {
@@ -3112,33 +3121,42 @@ fun CameraWorkspace() {
                 }
             }
             if (screenAnalyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
-        } else if (granted && active) {
-            val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
-            Box(
-                Modifier.fillMaxWidth().weight(1f).heightIn(min = 360.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black)
-            ) {
-                if (streamOnline && streamingPreview != null) {
-                    SourcePreview(
-                        videoSource = streamingPreview!!,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    NativeCameraPreview(
-                        modifier = Modifier.fillMaxSize(),
-                        lensFacing = lens,
-                        captureEveryMs = 1800L,
-                        onFrame = { bytes ->
-                            val now = System.currentTimeMillis()
-                            if (active && now - lastAnalysisAt >= 1600L) {
-                                lastAnalysisAt = now
-                                LiveMediaForegroundService.submitVisualFrame(bytes)
-                            }
+        } else if (granted && previewEnabled) {
+            if (!fullScreenPreview) {
+                Box(
+                    Modifier.fillMaxWidth().weight(1f).heightIn(min = 360.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                ) {
+                    if (streamOnline) {
+                        if (streamingPreview != null) {
+                            SourcePreview(
+                                videoSource = streamingPreview!!,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text("Connecting to live stream preview…", color = Color.White,
+                                modifier = Modifier.align(Alignment.Center))
                         }
-                    )
-                }
-                Surface(
+                    } else {
+                        NativeCameraPreview(
+                            modifier = Modifier.fillMaxSize(),
+                            lensFacing = lens,
+                            captureEveryMs = 1800L,
+                            onFrame = { bytes ->
+                                val now = System.currentTimeMillis()
+                                if (active && now - lastAnalysisAt >= 1600L) {
+                                    lastAnalysisAt = now
+                                    LiveMediaForegroundService.submitVisualFrame(bytes)
+                                }
+                            }
+                        )
+                    }
+                    TextButton(
+                        onClick = { fullScreenPreview = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                    ) { Text("Full screen", color = Color.White) }
+                    Surface(
                     modifier = Modifier.align(Alignment.TopStart).padding(10.dp),
                     shape = RoundedCornerShape(10.dp),
                     color = Color.Black.copy(alpha = 0.62f)
@@ -3149,9 +3167,12 @@ fun CameraWorkspace() {
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
                     )
+                    }
                 }
             }
-            SurfaceCard("Live indicator", "● Camera active • Android foreground service is running and BQ Sqwad AI is receiving sampled camera frames.")
+            SurfaceCard("Live indicator", if (liveServiceActive)
+                "● AI session connected • Camera preview remains visible independently of AI connection status."
+                else "Camera preview is open. If the AI connection is unavailable, the preview stays visible while the connection error is shown.")
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
@@ -3246,6 +3267,40 @@ fun CameraWorkspace() {
         }
     }
     DeviceIntelligencePanel("AI Live Camera")
+
+    if (fullScreenPreview && granted && previewEnabled) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { fullScreenPreview = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                if (streamOnline) {
+                    if (streamingPreview != null) {
+                        SourcePreview(videoSource = streamingPreview!!, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Text("Connecting to live stream preview…", color = Color.White, modifier = Modifier.align(Alignment.Center))
+                    }
+                } else {
+                    NativeCameraPreview(
+                        modifier = Modifier.fillMaxSize(),
+                        lensFacing = lens,
+                        captureEveryMs = 1800L,
+                        onFrame = { bytes ->
+                            val now = System.currentTimeMillis()
+                            if (active && now - lastAnalysisAt >= 1600L) {
+                                lastAnalysisAt = now
+                                LiveMediaForegroundService.submitVisualFrame(bytes)
+                            }
+                        }
+                    )
+                }
+                TextButton(
+                    onClick = { fullScreenPreview = false },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                ) { Text("Close preview", color = Color.White) }
+            }
+        }
+    }
 
     if (showLiveTerms) {
         AlertDialog(
