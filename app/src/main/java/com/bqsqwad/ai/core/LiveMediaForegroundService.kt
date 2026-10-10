@@ -209,8 +209,14 @@ class LiveMediaForegroundService : Service() {
                 onState = { state -> writeState(true, state) },
                 onError = { error -> writeError(error); stopSelf() },
                 onAudioLevel = { level -> updateAudioLevel(level) },
-                // Visual voice is deliberately audio-only in the UI; transcripts are not rendered.
-                onTranscript = { _, _ -> }
+                // Keep voice replies visible as well as audible so camera/screen sessions
+                // have clear feedback when the user cannot hear the speaker.
+                onTranscript = { speaker, text ->
+                    appendLog("$speaker: $text")
+                    if (speaker == "BQ Sqwad AI" && text.isNotBlank()) {
+                        writeState(true, text)
+                    }
+                }
             ).also { it.start() }
             startRealtimeBillingHeartbeat(sessionMode)
         }
