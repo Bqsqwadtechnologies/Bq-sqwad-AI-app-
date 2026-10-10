@@ -1466,8 +1466,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val displayText = if (attachmentNames.isBlank()) text else (text.ifBlank { "Please analyze these attachments." } + "\n📎 " + attachmentNames)
         val textParts = selectedAttachments.mapNotNull { a -> a.text?.let { "Attachment: " + a.name + "\n" + it } }
         val imageParts = selectedAttachments.filter { it.imageBase64 != null }
-        if (imageParts.size > 4) {
-            error = "You can attach up to 4 images per message. Remove extra images and try again."
+        val fileParts = selectedAttachments.filter { it.fileBase64 != null }
+        if (imageParts.size > 4 || fileParts.size > 4) {
+            error = "You can attach up to 4 images and 4 PDF files per message. Remove extra attachments and try again."
             attachments = selectedAttachments
             message = text
             return
@@ -1481,15 +1482,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         statusText = "Connecting to BQ Sqwad AI…"
         streamJob = scope.launch(Dispatchers.IO) {
             try {
-                val reply = if (imageParts.isNotEmpty()) {
-                    val image = imageParts.first()
+                val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
+                    val firstImage = imageParts.firstOrNull()
                     ChatApiClient().analyzeCameraFrame(
                         actualPrompt,
-                        image.imageBase64!!,
-                        image.mimeType,
+                        firstImage?.imageBase64,
+                        firstImage?.mimeType ?: "image/jpeg",
                         activeCapability,
                         activeSystem,
-                        imageParts.drop(1).map { it.mimeType to it.imageBase64!! }
+                        imageParts.drop(1).map { it.mimeType to it.imageBase64!! },
+                        fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
                     ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, onDelta = { delta ->
@@ -1522,12 +1524,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     message = text
                     if (t !is kotlinx.coroutines.CancellationException) {
                         val detail = t.message.orEmpty().lowercase()
-                        if (detail.contains("image_too_large")) {
-                            error = "These images are too large to send together. Remove an image or choose smaller image files, then try again."
+                        if (detail.contains("attachment_payload_too_large") || detail.contains("image_too_large")) {
+                            error = "These attachments are too large to send together. Remove a file or choose smaller files, then try again."
+                        } else if (detail.contains("file_type_invalid") || detail.contains("file_required")) {
+                            error = "Only PDF documents can be analyzed as file attachments right now. Choose a PDF or a supported text file."
                         } else if (detail.contains("image_type_invalid")) {
-                            error = "One selected image format is not supported. Choose a JPEG, PNG, or WebP image and try again."
-                        } else if (detail.contains("image_count_invalid")) {
-                            error = "Attach between 1 and 4 images per message."
+                            error = "One selected image format is not supported. Choose a JPEG, PNG, GIF, or WebP image and try again."
+                        } else if (detail.contains("attachment_count_invalid") || detail.contains("image_count_invalid")) {
+                            error = "Attach up to four images and four PDF files per message."
                         } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
                             creditsExhausted = true
                             creditNotice = "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
