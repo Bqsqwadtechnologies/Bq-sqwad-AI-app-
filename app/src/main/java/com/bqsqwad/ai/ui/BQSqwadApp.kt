@@ -1154,6 +1154,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var isListening by remember { mutableStateOf(false) }
+    val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        isListening = false
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+            if (spoken.isNotBlank()) {
+                message = if (message.isBlank()) spoken else "$message $spoken"
+                micError = null
+            } else {
+                micError = "No speech was detected. Try again."
+            }
+        }
+    }
     val speechRecognizer = remember(context) {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
             SpeechRecognizer.createSpeechRecognizer(context)
@@ -1195,17 +1207,25 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
     }
     val startSpeechRecognition: () -> Unit = {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
+        }
         val recognizer = speechRecognizer
-        if (recognizer == null) {
-            micError = "Voice input is not available on this device."
-        } else {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
-            }
+        if (recognizer != null) {
             runCatching { recognizer.startListening(intent); isListening = true; micError = null }
                 .onFailure { isListening = false; micError = it.message ?: "Could not start voice input." }
+        } else {
+            val canHandle = runCatching {
+                context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
+            }.getOrDefault(false)
+            if (canHandle) {
+                runCatching { fallbackSpeechLauncher.launch(intent); isListening = true; micError = null }
+                    .onFailure { isListening = false; micError = "Voice input could not be opened. Please check your installed speech apps." }
+            } else {
+                micError = "Voice input is not available on this device. Install or enable a speech recognition app and try again."
+            }
         }
     }
     val speechPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
