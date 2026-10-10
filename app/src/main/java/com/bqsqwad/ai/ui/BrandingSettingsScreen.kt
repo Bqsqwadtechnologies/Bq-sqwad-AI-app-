@@ -98,7 +98,7 @@ fun BrandingSettingsScreen(onBack: () -> Unit) {
             }
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
             Text(
-                "Logo changes are stored locally on this device. Use a square, clear image for the best result. App icons or special illustrations outside the shared logo component must be migrated separately.",
+                "One saved logo is used by every shared BQ Sqwad AI logo placement inside this app on this device. This does not change the Android launcher icon or other devices. Use a clear square image for the best result.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
