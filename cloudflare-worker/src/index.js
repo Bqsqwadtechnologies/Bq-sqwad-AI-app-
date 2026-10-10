@@ -684,8 +684,10 @@ export default {
     });
     for (const account of pending) {
       const uid = String(account.uid || String(account.__name || "").split("/").pop() || "");
-      const deadline = Date.parse(String(account.scheduledDeletionAt || ""));
-      if (!uid || !Number.isFinite(deadline) || deadline > now) continue;
+      if (!uid) continue;
+      const latest = await firestoreGet("userAccountStatus/" + uid);
+      const deadline = Date.parse(String(latest?.scheduledDeletionAt || ""));
+      if (latest?.status !== "pending_deletion" || !Number.isFinite(deadline) || deadline > now) continue;
       try {
         await firestoreSet("userAccountStatus/" + uid, { status: "deleting", deletionStartedAt: new Date(), updatedAt: new Date() }, true);
         await permanentlyDeleteAccount(uid);
