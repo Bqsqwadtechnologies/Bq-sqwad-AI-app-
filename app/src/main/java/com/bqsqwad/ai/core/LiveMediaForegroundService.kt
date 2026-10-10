@@ -484,6 +484,10 @@ class LiveMediaForegroundService : Service() {
         visualVoice = null
         cameraSession?.stop()
         cameraSession = null
+        // Always release MediaProjection/VirtualDisplay/ImageReader when the foreground
+        // service stops, including notification Stop, permission revocation, and errors.
+        screenSession?.stop()
+        screenSession = null
         runBlocking {
             realtimeBillingJob?.cancelAndJoin()
             realtimeBillingJob = null
