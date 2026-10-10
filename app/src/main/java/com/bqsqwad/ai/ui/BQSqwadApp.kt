@@ -1422,7 +1422,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 try {
                     val generated = GenerationApiClient().generateImage(promptText)
                     scope.launch(Dispatchers.Main) {
-                        messages[aiIndex] = messages[aiIndex].copy(text = "Image generated.", imageUrl = generated.url)
+                        messages[aiIndex] = messages[aiIndex].copy(
+                            text = "Image generated.",
+                            attachments = generated.imageBase64?.let {
+                                listOf(ChatMessageAttachment("Generated image.png", "image/png", it))
+                            } ?: emptyList(),
+                            imageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                        )
                         busy = false
                         statusText = "Ready"
                         streamJob = null
