@@ -1423,8 +1423,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val displayText = if (attachmentNames.isBlank()) text else (text.ifBlank { "Please analyze these attachments." } + "\n📎 " + attachmentNames)
         val textParts = selectedAttachments.mapNotNull { a -> a.text?.let { "Attachment: " + a.name + "\n" + it } }
         val imageParts = selectedAttachments.filter { it.imageBase64 != null }
-        if (imageParts.size > 1) {
-            error = "Please attach one image at a time. Multiple text attachments are supported."
+        if (imageParts.size > 4) {
+            error = "You can attach up to 4 images per message. Remove extra images and try again."
             attachments = selectedAttachments
             return
         }
@@ -1439,7 +1439,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             try {
                 val reply = if (imageParts.isNotEmpty()) {
                     val image = imageParts.first()
-                    ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType, activeCapability, activeSystem)
+                    ChatApiClient().analyzeCameraFrame(
+                        actualPrompt,
+                        image.imageBase64!!,
+                        image.mimeType,
+                        activeCapability,
+                        activeSystem,
+                        imageParts.drop(1).map { it.mimeType to it.imageBase64!! }
+                    )
                 } else {
                     ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
