@@ -193,3 +193,11 @@ This is a source-level findings and repair plan. It does not certify the current
 
 - Commit [ba2fe22](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/ba2fe2257772d1522528f0ef77389af9f20b7d2f): replaced customer-visible internal troubleshooting wording about Play product IDs/base plans with clear guest-vs-signed-in checkout guidance. This changes messaging only; it does not change product IDs, plan prices, eligibility, or purchase verification.
 - Verification performed: fetched the edited source from `main` and checked that the new guest/signed-in branches are present. No build, workflow, or runtime checkout test was run.
+
+
+### 2026-10-10 — Main Chat image attachment capability routing
+
+- Commit [a9d5018](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/a9d50188e51da613f246b5eb7c4f5d595bcfd65c): extended the Android vision request client to pass an explicit capability and optional system context; existing live-camera callers retain `live_camera` as the default.
+- Commit [392267b](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/392267bb1676210c5acfb204149ee206a3e8a9ab): Worker vision handling now resolves and charges the requested capability, defaulting to `live_camera`, and includes bounded caller-provided system context alongside the app knowledge prompt. Server capability resolution and credit reservation/commit/reversal remain in place.
+- Commit [e9acaaa](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/e9acaaaeb006c3ebea82e7041902366f06848fa5): Main Chat image attachments now forward the selected advanced capability and conversation system context instead of being treated unconditionally as live-camera usage.
+- Verification performed: re-fetched and inspected the changed Android and Worker source and confirmed the intended call chain. No build, tests, workflow, deployed Worker request, or device test was run, in accordance with the approved verification boundary. Runtime and billing behavior remain pending verification.
