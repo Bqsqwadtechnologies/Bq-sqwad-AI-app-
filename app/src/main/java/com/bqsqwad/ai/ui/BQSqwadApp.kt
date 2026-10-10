@@ -958,7 +958,8 @@ private fun MainShell(modifier: Modifier) {
             settings -> SettingsScreen(
                 onBack = { settings = false },
                 onOpenAccountProtection = { accountProtection = true },
-                onOpenLegalCenter = { legalCenter = true }
+                onOpenLegalCenter = { legalCenter = true },
+                onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
             history -> HistoryScreen { history = false }
             workspace != null -> {
@@ -3627,7 +3628,7 @@ private fun PlansSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -3659,6 +3660,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var cancellingDeletion by remember { mutableStateOf(false) }
     var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
+    var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
 
     fun putBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
     fun saveTheme(value: String) {
@@ -3872,12 +3874,12 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("TruthGuard evidence sources", "Show source-backed evidence and reliability details.", truthGuardSources) { truthGuardSources = it; putBoolean("truthguard_sources", it) }
-                    FeatureCard("Learning Studio", "Learning behavior, courses and tutoring controls live in its workspace.")
-                    FeatureCard("Life Matters", "Life guidance, routines and saved insights live in its workspace.")
-                    FeatureCard("Business Workspace", "Assistants, channels, inbox, leads, catalog and integrations.")
-                    FeatureCard("Organization Studio", "Organization knowledge, memory, production and team controls.")
-                    FeatureCard("Data Analyst", "Analysis preferences and saved analysis controls.")
-                    FeatureCard("Frontier Lab", "Advanced capabilities and provider-controlled experiments.")
+                    FeatureCard(Workspace.LEARNING.title, Workspace.LEARNING.description) { selectedAiFeature = Workspace.LEARNING }
+                    FeatureCard(Workspace.LIFE.title, Workspace.LIFE.description) { selectedAiFeature = Workspace.LIFE }
+                    FeatureCard(Workspace.BUSINESS.title, Workspace.BUSINESS.description) { selectedAiFeature = Workspace.BUSINESS }
+                    FeatureCard(Workspace.ORGANIZATION_STUDIO.title, Workspace.ORGANIZATION_STUDIO.description) { selectedAiFeature = Workspace.ORGANIZATION_STUDIO }
+                    FeatureCard(Workspace.DATA_ANALYSIS.title, Workspace.DATA_ANALYSIS.description) { selectedAiFeature = Workspace.DATA_ANALYSIS }
+                    FeatureCard(Workspace.FRONTIER_LAB.title, Workspace.FRONTIER_LAB.description) { selectedAiFeature = Workspace.FRONTIER_LAB }
                 }
             }
 
@@ -3961,6 +3963,28 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                 }) { Text(if (deletingAccount) "Scheduling…" else "Schedule deletion") }
             },
             dismissButton = { TextButton(enabled = !deletingAccount, onClick = { showDeleteAccount = false }) { Text("Cancel") } }
+        )
+    }
+    selectedAiFeature?.let { feature ->
+        AlertDialog(
+            onDismissRequest = { selectedAiFeature = null },
+            title = { Text(feature.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(featureLongDescription(feature))
+                    Text("How it works", fontWeight = FontWeight.SemiBold)
+                    Text(featureHowItWorks(feature), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    selectedAiFeature = null
+                    onOpenWorkspace(feature)
+                }) { Text("Try it") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedAiFeature = null }) { Text("Close") }
+            }
         )
     }
 }
