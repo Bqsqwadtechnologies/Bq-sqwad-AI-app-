@@ -204,11 +204,12 @@ class ChatApiClient(
 
     suspend fun analyzeCameraFrame(
         message: String,
-        imageBase64: String,
+        imageBase64: String?,
         mimeType: String = "image/jpeg",
         capability: String = "live_camera",
         system: String? = null,
-        additionalImages: List<Pair<String, String>> = emptyList()
+        additionalImages: List<Pair<String, String>> = emptyList(),
+        additionalFiles: List<Triple<String, String, String>> = emptyList()
     ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
         val connection = (URL("$baseUrl/ai/vision").openConnection() as HttpURLConnection).apply {
@@ -223,9 +224,15 @@ class ChatApiClient(
         connection.outputStream.use {
             it.write(JSONObject().apply {
                 put("message", message)
-                put("images", JSONArray().apply {
-                    (listOf(mimeType to imageBase64) + additionalImages).take(4).forEach { (type, encoded) ->
+                val images = (if (imageBase64.isNullOrBlank()) emptyList() else listOf(mimeType to imageBase64)) + additionalImages
+                if (images.isNotEmpty()) put("images", JSONArray().apply {
+                    images.take(4).forEach { (type, encoded) ->
                         put(JSONObject().put("mimeType", type).put("imageBase64", encoded))
+                    }
+                })
+                if (additionalFiles.isNotEmpty()) put("files", JSONArray().apply {
+                    additionalFiles.take(4).forEach { (name, type, encoded) ->
+                        put(JSONObject().put("name", name).put("mimeType", type).put("fileBase64", encoded))
                     }
                 })
                 put("capability", capability)
