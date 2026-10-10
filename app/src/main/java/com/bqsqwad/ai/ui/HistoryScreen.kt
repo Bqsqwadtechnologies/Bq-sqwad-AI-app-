@@ -17,7 +17,10 @@ import com.bqsqwad.ai.core.HistoryMessage
 import kotlinx.coroutines.launch
 
 @Composable
-fun HistoryScreen(onBack: () -> Unit) {
+fun HistoryScreen(
+    onBack: () -> Unit,
+    onContinue: (HistoryItem, List<HistoryMessage>) -> Unit
+) {
     val scope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<HistoryItem>>(emptyList()) }
     var selected by remember { mutableStateOf<Pair<HistoryItem, List<HistoryMessage>>?>(null) }
@@ -90,7 +93,15 @@ fun HistoryScreen(onBack: () -> Unit) {
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { selected = null }) { Text("Close") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    onContinue(item, messages)
+                    selected = null
+                }) { Text("Continue in Chat") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selected = null }) { Text("Close") }
+            }
         )
     }
 }
