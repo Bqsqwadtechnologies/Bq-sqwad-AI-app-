@@ -607,7 +607,7 @@ async function vision(request, user, body) {
   if (rawImages.length > 4 || rawFiles.length > 4 || rawImages.length + rawFiles.length < 1) {
     throw new Error("attachment_count_invalid");
   }
-  const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
+  const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   const images = rawImages.map(item => {
     const requestedMime = String(item?.mimeType || "image/jpeg").slice(0, 80).toLowerCase();
     return {
