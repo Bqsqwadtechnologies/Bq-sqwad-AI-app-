@@ -102,15 +102,17 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.size(size),
         shape = CircleShape,
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest
+        // One identical logo treatment throughout the app: no glow, fade, or
+        // feature-specific shadow effect.
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surface
     ) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
                 contentDescription = "BQ Sqwad AI logo",
-                modifier = Modifier.fillMaxWidth().clip(CircleShape),
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
         } else {
