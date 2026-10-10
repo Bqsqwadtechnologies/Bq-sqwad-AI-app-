@@ -44,18 +44,25 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], stream = false }) {
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false }) {
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
-  const input = imageInputs.length
-    ? [{ role: "user", content: [
-        { type: "input_text", text: String(message || "Describe what is visible in the attached image(s).") },
-        ...imageInputs.map(image => ({
-          type: "input_image",
-          image_url: "data:" + String(image.mimeType || "image/jpeg") + ";base64," + String(image.imageBase64 || "")
-        }))
-      ]}]
+  const fileInputs = Array.isArray(files) ? files : [];
+  const content = [
+    { type: "input_text", text: String(message || "Analyze the attached content.") },
+    ...imageInputs.map(image => ({
+      type: "input_image",
+      image_url: "data:" + String(image.mimeType || "image/jpeg") + ";base64," + String(image.imageBase64 || "")
+    })),
+    ...fileInputs.map(file => ({
+      type: "input_file",
+      filename: String(file.name || "document.pdf").slice(0, 180),
+      file_data: "data:" + String(file.mimeType || "application/pdf") + ";base64," + String(file.fileBase64 || "")
+    }))
+  ];
+  const input = imageInputs.length || fileInputs.length
+    ? [{ role: "user", content }]
     : String(message || "");
   const body = { model: model || DEFAULT_MODELS.openai, input, stream };
   if (system) body.instructions = system;
@@ -66,16 +73,23 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   });
 }
 
-export async function callGemini(env, { model, message, system, images = [], imageBase64, mimeType = "image/jpeg" }) {
+export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg" }) {
   const modelId = model || DEFAULT_MODELS.gemini;
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
-  const parts = [{ text: String(message || (imageInputs.length ? "Describe what is visible in the attached image(s)." : "")) }];
+  const fileInputs = Array.isArray(files) ? files : [];
+  const parts = [{ text: String(message || (imageInputs.length || fileInputs.length ? "Analyze the attached content." : "")) }];
   imageInputs.forEach(image => {
     parts.push({ inlineData: {
       mimeType: String(image.mimeType || "image/jpeg"),
       data: String(image.imageBase64 || "")
+    }});
+  });
+  fileInputs.forEach(file => {
+    parts.push({ inlineData: {
+      mimeType: String(file.mimeType || "application/pdf"),
+      data: String(file.fileBase64 || "")
     }});
   });
   const request = { contents: [{ role: "user", parts }] };
