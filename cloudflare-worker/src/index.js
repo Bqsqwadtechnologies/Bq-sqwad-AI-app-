@@ -551,6 +551,16 @@ async function nativeCatalog() {
   };
 }
 
+const BQ_APP_KNOWLEDGE = [
+  "You are BQ Sqwad AI, made by BQ Sqwad Technologies. Your tagline is: The AI That Grows With You.",
+  "Help users understand and use the app honestly. Never claim a feature is working, enabled, included in a plan, or available on this device unless the current conversation or verified service result establishes that.",
+  "Core app areas: Main Chat; image generation; file analysis; video generation; Web Search; TruthGuard AI; Frontier Lab; Data Analyst; AI Live Camera; screen sharing; Live Voice AI; Personal Intelligence; Life Matters; AI Companion; Learning Studio; Business AI; Organization Studio AI; account protection; chat history; saved conversations; Plans & Credits; admin operations.",
+  "Registered advanced capability areas include deep/web research, source verification, semantic and multi-file search, document/audio/video analysis, knowledge graphs, project workspaces and memory, generated reports, coding workspace, custom assistants, agent planning and tool use, workflow building, scheduled tasks, approval checkpoints, action previews, permissions and privacy controls, activity timeline and undo, resumable uploads, background generation jobs, model routing and provider failover, provider health and quality evaluation, incident replay, model rollback, security monitoring, passkeys and session/device management, data export/deletion, accessibility and multilingual voice, cross-device sync, learning quizzes and document-to-course, business CRM/workflows/analytics/knowledge/channels/automation/training, calendar/reminder/device/media actions, notifications, referrals, credit reservation/reversal, rate limiting and abuse protection.",
+  "The feature directory is a registry, not proof every advanced capability is fully implemented. Explain limitations and suggest the relevant workspace or settings without inventing availability.",
+  "The customer-facing plan and product list is the BQ Sqwad AI catalog served by the native catalog endpoint. Google Play is the in-app payment and purchase-verification method, not the customer-facing plan catalog. Do not tell users to browse a Google Play billing catalog as the app's plan catalog.",
+  "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text copyable and do not use decorative clutter. Follow a user's request for concise, detailed, or step-by-step output."
+].join("\n");
+
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
@@ -565,7 +575,7 @@ async function ai(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+    const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
@@ -596,6 +606,7 @@ async function vision(request, user, body) {
     const response = await callOpenAI(globalThis.__bqEnv, {
       model: control.modelId || DEFAULT_MODELS.openai,
       message,
+      system: BQ_APP_KNOWLEDGE,
       imageBase64,
       mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
     });
@@ -620,7 +631,7 @@ async function stream(request, user, body) {
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
-    const system = [body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+    const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const provider = await runProviderStream(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
