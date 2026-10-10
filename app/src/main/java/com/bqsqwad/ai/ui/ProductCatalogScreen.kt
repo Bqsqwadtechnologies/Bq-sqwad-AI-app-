@@ -116,13 +116,24 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             onDispose{manager.close()}
         } else onDispose{}
     }
-    LaunchedEffect(billing){
-        repeat(20){
-            val manager=billing
-            if(manager?.isReady()==true){playProducts=manager.availableProducts();return@LaunchedEffect}
+    LaunchedEffect(billing) {
+        // Billing can connect before queryProductDetailsAsync has returned. Keep polling
+        // briefly so the plan cards don't incorrectly appear unavailable on fast devices.
+        repeat(30) {
+            val manager = billing
+            if (manager?.isReady() == true) {
+                val loaded = manager.availableProducts()
+                if (loaded.isNotEmpty()) {
+                    playProducts = loaded
+                    return@LaunchedEffect
+                }
+            }
             kotlinx.coroutines.delay(400)
         }
-        if(playProducts.isEmpty()) status="Google Play products are not available on this device yet."
+        playProducts = billing?.availableProducts().orEmpty()
+        if (playProducts.isEmpty()) {
+            status = "Google Play products are not available on this device yet. Check the Play Console product IDs and base plans."
+        }
     }
     LaunchedEffect(Unit){load()}
 
