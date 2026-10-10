@@ -68,7 +68,7 @@ object ChatAttachmentReader {
                 }
                 PreparedChatAttachment(name, mime, text = text)
             }
-            else -> error("Unsupported attachment type for '" + name + "'. Use an image or text-based document.")
+            else -> error("Unsupported attachment type for '" + name + "'. Use an image, PDF, DOCX, XLSX, PPTX, or text-based document.")
         }
     }
 
