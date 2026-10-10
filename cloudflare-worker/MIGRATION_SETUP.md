@@ -138,3 +138,14 @@ Backblaze's current documentation confirms that B2's first 10 GB of storage is f
 - The service account in BQ_FIREBASE_SERVICE_ACCOUNT_JSON must also have the Firebase Authentication IAM permission `firebaseauth.users.delete` for scheduled account deletion to finish; without it, the job retries safely and leaves Firestore data intact.
 - Failed scheduled deletions are moved to a 24-hour retry deadline so a failed first page cannot starve other expired accounts; the app reflects the new retry date and cancellation remains available while Firebase Auth still exists.
 - Admin biometric enrollment/unlock payload names are now compatible between Android and the Worker, biometric removal has a server endpoint protected by the 30-minute session, and routing/session-expiry tests were added. The signed APK workflow now runs Android unit tests before assembling the release APK.
+
+
+## 2026-10-10 — Catalog and live media reliability follow-up
+- Kept the existing native Android app and Cloudflare Worker architecture; no platform replacement or old Firebase Functions proxy was introduced.
+- Made `GET /native/catalog` public for plan browsing before sign-in. Purchase verification and entitlement routes remain authenticated.
+- Updated the routing test to verify guest catalog access and canonical fallback plans.
+- Live Realtime camera/screen frames now queue the newest frame while a response is in progress, reducing overlapping `response.create` requests that could interrupt live voice.
+- Live camera/screen voice transcripts are now reflected in session status/logs instead of being discarded.
+- Screen capture dimensions are downscaled proportionally to preserve portrait/landscape aspect ratio, and the foreground service releases the screen capture session on shutdown.
+- Android MediaProjection still requires the user's explicit system consent; the app does not and must not capture another person's screen without that person's consent.
+- Validation status: these latest commits have not yet been run through the manual `validate-main.yml` and release APK workflows. Do not mark runtime behavior as verified until both automated checks and on-device permission/preview/voice/catalog tests pass.
