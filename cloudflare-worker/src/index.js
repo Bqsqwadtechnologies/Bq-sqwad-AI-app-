@@ -936,7 +936,13 @@ export default {
           id: String(item?.id || crypto.randomUUID()).slice(0, 120),
           mine: item?.mine === true,
           text: String(item?.text || "").slice(0, 20000),
-          ...(item?.prompt ? { prompt: String(item.prompt).slice(0, 20000) } : {})
+          ...(item?.prompt ? { prompt: String(item.prompt).slice(0, 20000) } : {}),
+          ...(Array.isArray(item?.attachments) ? {
+            attachments: item.attachments.slice(0, 8).map(value => String(value || "").slice(0, 300)).filter(Boolean)
+          } : {}),
+          ...(typeof item?.imageUrl === "string" && /^https:\/\//i.test(item.imageUrl)
+            ? { imageUrl: item.imageUrl.slice(0, 2000) }
+            : {})
         })).filter(item => item.text.length > 0);
         if (!messages.length) return json({ error: "history_messages_required" }, 400);
         const title = String(body.title || messages.find(item => item.mine)?.text || "New chat").trim().slice(0, 180);
