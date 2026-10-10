@@ -84,6 +84,9 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
                 val livePlans = parsePlans(live)
+                val catalogWarnings = live.optJSONObject("catalogStatus")?.optJSONArray("warnings")
+                    ?.let { warnings -> List(warnings.length()) { index -> warnings.optString(index) }.filter { it.isNotBlank() } }
+                    .orEmpty()
                 if (livePlans.isEmpty() && hasCachedCatalog) {
                     // A transient/partial backend response must not erase the last valid
                     // BQ catalog or replace it with an empty screen.
@@ -96,6 +99,13 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     features = parseFeatures(live)
                     bindings = parseBindings(live)
                     contactOptions = parseContactOptions(live)
+                    if (livePlans.isEmpty()) {
+                        status = buildString {
+                            append("The BQ Sqwad AI catalog endpoint returned zero visible plans.")
+                            if (catalogWarnings.isNotEmpty()) append(" Catalog data warnings: ").append(catalogWarnings.joinToString(", "))
+                            append(" Check the active canonical plan catalog and Worker Firebase configuration; no sample prices or fake plans were added.")
+                        }
+                    }
                     context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                         .putString("catalog",live.toString()).apply()
                 }
