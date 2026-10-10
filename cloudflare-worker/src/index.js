@@ -733,7 +733,9 @@ export default {
         await firestoreSet(statusPath, {
           uid,
           status: "pending_deletion",
-          scheduledDeletionAt: current.scheduledDeletionAt || latest.scheduledDeletionAt,
+          // Back off a failed deletion by 24 hours so a broken account does not
+          // occupy the first page of the ordered queue and starve other accounts.
+          scheduledDeletionAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           requestedAt: current.requestedAt || latest.requestedAt,
           lastDeletionAttemptAt: new Date(),
           lastDeletionError: String(error?.message || "deletion_failed").slice(0, 180),
