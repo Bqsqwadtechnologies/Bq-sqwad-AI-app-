@@ -1386,15 +1386,25 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         if (selected.isNotEmpty()) {
             scope.launch(Dispatchers.IO) {
                 val prepared = mutableListOf<PreparedChatAttachment>()
-                var failure: String? = null
+                val failures = mutableListOf<String>()
                 for (uri in selected) {
                     runCatching { ChatAttachmentReader.read(context, uri) }
                         .onSuccess { prepared += it }
-                        .onFailure { failure = it.message ?: "Could not read attachment." }
+                        .onFailure { failure ->
+                            failures += (failure.message ?: "Could not read an attachment.")
+                        }
                 }
                 scope.launch(Dispatchers.Main) {
-                    if (failure != null) error = failure
-                    attachments = prepared
+                    if (failures.isNotEmpty()) {
+                        // Do not silently send only the subset of files that happened
+                        // to parse successfully; keep the previous selection unchanged.
+                        error = "Could not prepare all selected files:\n" +
+                            failures.distinct().take(3).joinToString("\n") +
+                            if (failures.size > 3) "\n…and ${failures.size - 3} more." else ""
+                    } else {
+                        attachments = prepared
+                        error = null
+                    }
                 }
             }
         }
