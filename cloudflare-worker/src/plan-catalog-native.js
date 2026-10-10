@@ -279,18 +279,18 @@ validateCommercialCatalog();
  * mapping for the same plan/base-plan pair. Product IDs and base-plan IDs are
  * copied from the canonical plan catalog; no IDs are synthesized.
  */
-export function canonicalPlayMappings() {
-  const rows = Object.values(COMMERCIAL_CATALOG.sections || {}).flat();
+export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
+  const rows = Object.values(catalog?.sections || {}).flat();
   return rows.filter(plan =>
     plan && typeof plan === "object" &&
     plan.active !== false &&
-    plan.paymentChannel === "play" &&
+    (plan.paymentChannel === "play" || (!plan.paymentChannel && plan.playEligible === true)) &&
     plan.playEligible === true &&
     plan.productId &&
     (plan.productType === "subs" || plan.productType === "inapp")
   ).flatMap(plan => {
     const basePlans = plan.productType === "subs"
-      ? (Array.isArray(plan.basePlans) ? plan.basePlans.map(String).filter(Boolean) : [])
+      ? (Array.isArray(plan.basePlans) && plan.basePlans.length ? plan.basePlans.map(String).filter(Boolean) : (Array.isArray(plan.billingPeriods) ? plan.billingPeriods.map(String).filter(Boolean) : []))
       : [null];
     const entitlements = Array.isArray(plan.entitlements) ? plan.entitlements : [];
     const creditGrant = entitlements.reduce((total, value) => {
