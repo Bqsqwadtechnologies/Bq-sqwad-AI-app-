@@ -8,7 +8,12 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class GeneratedImage(val url: String, val creditsCharged: Double, val modelId: String?)
+data class GeneratedImage(
+    val url: String,
+    val creditsCharged: Double,
+    val modelId: String?,
+    val imageBase64: String? = null
+)
 data class VideoJob(val jobId: String, val status: String, val progress: Int, val contentUrl: String?, val error: String?, val creditsCharged: Double = 0.0)
 
 class GenerationApiClient {
@@ -42,10 +47,15 @@ class GenerationApiClient {
             put("prompt", prompt.take(12000)); put("size", size); put("quality", quality)
         })
         return GeneratedImage(
-            url = body.optString("imageUrl"),
+            url = body.optString("imageUrl").takeIf { it.isNotBlank() },
             creditsCharged = body.optDouble("creditsCharged", 0.0),
-            modelId = body.optString("modelId").takeIf { it.isNotBlank() }
-        )
+            modelId = body.optString("modelId").takeIf { it.isNotBlank() },
+            imageBase64 = body.optString("imageBase64").takeIf { it.isNotBlank() }
+        ).also { generated ->
+            require(!generated.url.isNullOrBlank() || !generated.imageBase64.isNullOrBlank()) {
+                "Image generation returned no image data."
+            }
+        }
     }
 
     suspend fun createVideo(prompt: String, seconds: String = "8", size: String = "1280x720"): VideoJob {
