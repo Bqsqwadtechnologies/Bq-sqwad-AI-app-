@@ -258,3 +258,10 @@ This is a source-level findings and repair plan. It does not certify the current
 - Verification performed: source lifecycle path inspected after the edit. Device tests for grant, deny, revoke, stop, and restart remain pending.
 
 - Commits [6c6de6c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/6c6de6cf0b257f72a966a0c6b56237fb68b2d439) and [9b3cdbf](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/9b3cdbfc05832a47835dca195382867fb2e0526b) make the generated-image response parser platform-independent and avoid relying on Android's mocked JSON implementation in local unit tests.
+
+
+### 2026-10-10 — Office document text ingestion
+
+- Commit [7f1b20a](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/7f1b20af372ce066967e7a25ae9e51c3003755c5) adds standard-library ZIP/XML text extraction for DOCX, PPTX and XLSX, with a 10 MiB decompressed-content cap and the existing 120,000-character prompt limit. Commit [b89256b](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/b89256b3e7375d1cffe8a58da6fb5c4862679dc8), [e74a18c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/e74a18c44e926cef96308170af860323745cfc27), and [a9a439f](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/a9a439f5ae0a38a07227532a8472852b3c7e2ab2) correct the Office XML patterns and line-break decoding; [33d6a99](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/33d6a992e843fd276d9c67598ec7ca619c55d288) updates unsupported-file guidance.
+- These Office files are extracted to bounded text before the AI request; PDF remains provider-native document input. Legacy binary Office formats (`.doc`, `.xls`, `.ppt`) are not supported. XLSX extraction is text/value-oriented and does not preserve workbook formulas, styles, charts, or full spreadsheet semantics.
+- Verification performed: source and regex patterns were inspected; a standalone Kotlin regex check passed. The Android build and attachment tests have not been run, so full compiler/runtime verification remains pending.
