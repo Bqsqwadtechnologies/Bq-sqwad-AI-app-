@@ -136,3 +136,4 @@ Backblaze's current documentation confirms that B2's first 10 GB of storage is f
 - Live Voice now has a connection watchdog and preserves its terminal error state after the foreground service stops.
 - Validation still requires a manual Validate Main and Debug APK workflow run against the latest main; a previous successful Release APK run is from an older commit and does not verify these changes.
 - The service account in BQ_FIREBASE_SERVICE_ACCOUNT_JSON must also have the Firebase Authentication IAM permission `firebaseauth.users.delete` for scheduled account deletion to finish; without it, the job retries safely and leaves Firestore data intact.
+- Failed scheduled deletions are moved to a 24-hour retry deadline so a failed first page cannot starve other expired accounts; the app reflects the new retry date and cancellation remains available while Firebase Auth still exists.
