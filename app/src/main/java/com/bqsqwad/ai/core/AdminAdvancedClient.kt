@@ -85,8 +85,9 @@ data class AdminPlayCatalogItem(
 class AdminAdvancedClient(
     private val baseUrl: String = "${ApiConfig.baseUrl}"
 ) {
-    suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/config", null).let { root ->
+    suspend fun list(): List<AdvancedAdminOption> = request("GET", "/admin/advanced-options", null).let { root ->
         parseOptions(root.optJSONArray("options") ?: JSONArray())
+            .distinctBy { it.id }
     }
 
     suspend fun playCatalog(): List<AdminPlayCatalogItem> = request("GET", "/admin/play-catalog", null).let { root ->
@@ -157,7 +158,31 @@ class AdminAdvancedClient(
     }
 
     private fun parseOptions(array: JSONArray): List<AdvancedAdminOption> =
-        (0 until array.length()).map { parse(array.getJSONObject(it)) }
+        (0 until array.length()).mapNotNull { index ->
+            val raw = array.optJSONObject(index) ?: return@mapNotNull null
+            val id = raw.optString("id").ifBlank {
+                raw.optString("__name").substringAfterLast('/').takeIf { it != raw.optString("__name") }.orEmpty()
+            }
+            if (id.isBlank()) return@mapNotNull null
+            raw.put("id", id)
+            if (raw.optString("label").isBlank()) raw.put("label", id.removePrefix("capability_").split(Regex("[-_]+"))
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } })
+            if (raw.optString("section").isBlank()) {
+                val section = when {
+                    id.startsWith("capability_") -> "capabilities"
+                    id.contains("provider") -> "providers"
+                    id.contains("pricing") -> "pricing"
+                    id.contains("credit") || id.contains("trial") -> "credits"
+                    id.contains("plan") || id.contains("subscription") -> "plans"
+                    id.contains("security") || id.contains("passkey") || id.contains("biometric") -> "security"
+                    id.contains("incident") || id.contains("kill") || id.contains("testing") -> "emergency"
+                    else -> "system"
+                }
+                raw.put("section", section)
+            }
+            parse(raw)
+        }
 
     private fun parse(o: JSONObject): AdvancedAdminOption {
         val c = o.optJSONObject("config") ?: JSONObject()
