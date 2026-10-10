@@ -64,17 +64,17 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         error = null
         val cachedCatalog = context.getSharedPreferences("bq_product_catalog", Context.MODE_PRIVATE)
             .getString("catalog", null)
-        val hasCachedCatalog = !cachedCatalog.isNullOrBlank()
-        if (hasCachedCatalog) {
-            runCatching {
-                val cached = JSONObject(cachedCatalog!!)
-                plans = parsePlans(cached)
-                catalog = parseCatalog(cached)
-                features = parseFeatures(cached)
-                bindings = parseBindings(cached)
-                contactOptions = parseContactOptions(cached)
-                offline = true
-            }.onFailure { offline = false }
+        val cachedSnapshot = cachedCatalog?.takeIf { it.isNotBlank() }?.let {
+            runCatching { JSONObject(it) }.getOrNull()
+        }
+        val hasCachedCatalog = cachedSnapshot != null && parsePlans(cachedSnapshot).isNotEmpty()
+        if (cachedSnapshot != null) {
+            plans = parsePlans(cachedSnapshot)
+            catalog = parseCatalog(cachedSnapshot)
+            features = parseFeatures(cachedSnapshot)
+            bindings = parseBindings(cachedSnapshot)
+            contactOptions = parseContactOptions(cachedSnapshot)
+            offline = hasCachedCatalog
         } else {
             offline = false
         }
