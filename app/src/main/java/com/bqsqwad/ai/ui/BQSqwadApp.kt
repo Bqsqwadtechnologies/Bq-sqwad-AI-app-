@@ -1352,7 +1352,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             try {
                 val reply = if (imageParts.isNotEmpty()) {
                     val image = imageParts.first()
-                    ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType)
+                    ChatApiClient().analyzeCameraFrame(actualPrompt, image.imageBase64!!, image.mimeType, activeCapability, activeSystem)
                 } else {
                     ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
