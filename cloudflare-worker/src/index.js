@@ -622,18 +622,26 @@ async function vision(request, user, body) {
     const system = requestedSystem
       ? BQ_APP_KNOWLEDGE + "\n\n" + requestedSystem
       : BQ_APP_KNOWLEDGE;
-    const response = await callOpenAI(globalThis.__bqEnv, {
-      model: control.modelId || DEFAULT_MODELS.openai,
-      message,
-      system,
-      images
-    });
-    if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));
-    const result = await response.json();
-    const text = outputText(result).trim();
-    if (!text) throw new Error("The AI service returned an empty response.");
-    await commitCredits(user.uid, reservation.reservationId, "openai");
-    return json({ text, providerId: "openai", modelId: control.modelId || DEFAULT_MODELS.openai, creditsCharged: reservation.amount });
+    // Image understanding is supported by OpenAI and Gemini. If a capability
+    // is configured for a non-vision provider (for example search), use the
+    // default OpenAI vision model while still enforcing that capability's gate
+    // and credit cost.
+    const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
+    const primaryModelId = primaryProviderId === control.providerId
+      ? (control.modelId || (primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : DEFAULT_MODELS.openai))
+      : DEFAULT_MODELS.openai;
+    const fallbackProviderIds = (control.config?.fallbackProviderIds || [])
+      .filter(providerId => ["openai", "gemini"].includes(providerId) && providerId !== primaryProviderId);
+    const result = await runProvider(globalThis.__bqEnv, {
+      primaryProviderId,
+      primaryModelId,
+      fallbackProviderIds,
+      fallbackModels: control.config?.fallbackModels || {}
+    }, { message, system, images });
+    const responseText = String(result.text || "").trim();
+    if (!responseText) throw new Error("The AI service returned an empty response.");
+    await commitCredits(user.uid, reservation.reservationId, result.providerId);
+    return json({ text: responseText, providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount });
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
     throw error;
