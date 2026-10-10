@@ -65,7 +65,13 @@ class AdminSecurityClient(
             }
             val status = connection.responseCode
             val raw = (if (status in 200..299) connection.inputStream else connection.errorStream).bufferedReader().use { it.readText() }
-            if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Admin security request failed"))
+            if (status !in 200..299) {
+                val serverError = runCatching { JSONObject(raw).optString("error") }.getOrDefault("Admin security request failed")
+                val friendly = if (serverError == "admin_session_required") {
+                    "The admin unlock session has expired. Unlock Admin Security and try again."
+                } else serverError
+                throw IllegalStateException(friendly)
+            }
             runCatching { JSONObject(raw) }.getOrDefault(JSONObject())
         }
 }
