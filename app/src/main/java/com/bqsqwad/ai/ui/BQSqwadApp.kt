@@ -2588,9 +2588,14 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
                     Text(feature.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "Connected capability: " + feature.capability,
+                        "Requested capability: " + feature.capability,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "Availability depends on server configuration, account access and any required external connection. A feature listing alone does not mean an external service is connected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         "This feature uses the shared BQ Sqwad AI runtime, central credit controls and server-side availability. It is part of the native app feature registry.",
