@@ -171,7 +171,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
             }
             item {
                 Text("Admin passkeys", style = MaterialTheme.typography.titleLarge)
-                Text("Create or disconnect passkeys for this admin account. A passkey uses the device credential provider and can be used without the password + authenticator flow.")
+                Text("Manage passkeys for account sign-in. Passkeys do not replace the separate 30-minute Admin Control Center unlock session; use the admin password/authenticator or enrolled biometric to unlock sensitive admin actions.")
                 Button(
                     enabled = !busy,
                     onClick = {
