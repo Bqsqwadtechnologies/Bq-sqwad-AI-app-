@@ -648,31 +648,53 @@ async function stream(request, user, body) {
 
 
 async function permanentlyDeleteAccount(uid) {
-  const cols = ["chatHistory","businessTrainingAssets","aiFeedback","contactSalesRequests","creditReservations","creditLedger","playPurchases","passkeys","passkeyChallenges","socialAccounts","organizationProductionEvents","aiJobs","aiWorkflows","aiAgents","aiEvaluations","aiPlugins","aiActivity","organizationScheduledTasks","organizationWalletLedger","organizationLiveSessions","organizationProductionLiveSessions","learningSessions","companionMessages","companionCheckins","companionProfiles","companionSettings","truthGuardChecks","truthGuardSettings","businessAdvancedAiJobs","businessIntegrationConfigs"];
+  // Delete Auth first: if the service account lacks firebaseauth.users.delete,
+  // the scheduled job fails before any user data is removed. Retries are safe.
+  await deleteFirebaseAuthUser(uid);
+  const cols = [
+    "chatHistory", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
+    "creditReservations", "creditLedger", "creditTransactions", "creditBalances",
+    "billingReceipts", "payments", "playPurchases", "passkeys", "passkeyChallenges",
+    "socialAccounts", "notificationTokens", "organizationProductionEvents", "aiJobs",
+    "aiWorkflows", "aiAgents", "aiEvaluations", "aiPlugins", "aiActivity",
+    "organizationScheduledTasks", "organizationWalletLedger", "organizationLiveSessions",
+    "organizationProductionLiveSessions", "organizationWorkspaces", "learningSessions",
+    "companionMessages", "companionCheckins", "companionProfiles", "companionSettings",
+    "truthGuardChecks", "truthGuardSettings", "businessAdvancedAiJobs",
+    "businessIntegrationConfigs", "businessWorkspaces"
+  ];
   const serviceAccountJson = globalThis.__bqEnv?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) throw new Error("BQ_FIREBASE_SERVICE_ACCOUNT_JSON is not configured");
   const project = JSON.parse(serviceAccountJson).project_id;
+  const fields = ["uid", "ownerUid", "userId", "accountUid"];
   for (const col of cols) {
-    let guard = 0;
-    while (guard++ < 20) {
-      const rows = await firestoreQuery(col, {
-        filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }],
-        limit: 100
-      });
-      if (!rows.length) break;
-      for (const row of rows) {
-        const name = String(row.__name || "");
-        if (name) await firestoreDelete(name.replace("projects/" + project + "/databases/(default)/documents/", ""));
+    for (const field of fields) {
+      let guard = 0;
+      while (guard++ < 20) {
+        const rows = await firestoreQuery(col, {
+          filters: [{ field: { fieldPath: field }, op: "EQUAL", value: { stringValue: uid } }],
+          limit: 100
+        });
+        if (!rows.length) break;
+        for (const row of rows) {
+          const name = String(row.__name || "");
+          if (name) await firestoreDelete(name.replace("projects/" + project + "/databases/(default)/documents/", ""));
+        }
+        if (rows.length < 100) break;
       }
-      if (rows.length < 100) break;
+      const remaining = await firestoreQuery(col, {
+        filters: [{ field: { fieldPath: field }, op: "EQUAL", value: { stringValue: uid } }],
+        limit: 1
+      });
+      if (remaining.length) throw new Error("Account data cleanup incomplete for " + col);
     }
   }
   for (const [col, id] of [
-    ["userConsents", uid], ["userMemory", uid], ["organizationWorkspaces", uid],
-    ["organizationProduction", uid], ["organizationWallets", uid], ["organizationEntitlements", uid],
+    ["users", uid], ["creditBalances", uid], ["userConsents", uid], ["userMemory", uid],
+    ["organizationWorkspaces", uid], ["organizationProduction", uid],
+    ["organizationWallets", uid], ["organizationEntitlements", uid],
     ["organizationTestSessions", uid], ["entitlements", uid], ["userFeatureSettings", uid]
   ]) await firestoreDelete(col + "/" + id);
-  await deleteFirebaseAuthUser(uid);
 }
 
 export default {
@@ -682,21 +704,37 @@ export default {
     const now = Date.now();
     const pending = await firestoreQuery("userAccountStatus", {
       filters: [{ field: { fieldPath: "status" }, op: "EQUAL", value: { stringValue: "pending_deletion" } }],
+      orderBy: { field: "scheduledDeletionAt", direction: "ASCENDING" },
       limit: 100
     });
     for (const account of pending) {
       const uid = String(account.uid || String(account.__name || "").split("/").pop() || "");
       if (!uid) continue;
-      const latest = await firestoreGet("userAccountStatus/" + uid);
+      const statusPath = "userAccountStatus/" + uid;
+      const latest = await firestoreGet(statusPath);
       const deadline = Date.parse(String(latest?.scheduledDeletionAt || ""));
       if (latest?.status !== "pending_deletion" || !Number.isFinite(deadline) || deadline > now) continue;
       try {
-        await firestoreSet("userAccountStatus/" + uid, { status: "deleting", deletionStartedAt: new Date(), updatedAt: new Date() }, true);
+        // Compare-and-set against the document update time so cancellation cannot
+        // race with the scheduler and be overwritten by a stale deletion job.
+        const { __name: ignoredName, __updateTime: updateTime, ...latestData } = latest;
+        if (!updateTime) throw new Error("deletion_status_update_time_missing");
+        await firestoreCommit([{
+          path: statusPath,
+          data: { ...latestData, status: "deleting", deletionStartedAt: new Date(), updatedAt: new Date() },
+          updateTime
+        }]);
         await permanentlyDeleteAccount(uid);
-        await firestoreSet("userAccountStatus/" + uid, { status: "deleted", deletedAt: new Date(), updatedAt: new Date() }, true);
+        await firestoreSet(statusPath, { uid, status: "deleted", deletedAt: new Date(), updatedAt: new Date() }, true);
       } catch (error) {
-        await firestoreSet("userAccountStatus/" + uid, {
+        const current = await firestoreGet(statusPath);
+        // A successful cancellation wins over a stale scheduler attempt.
+        if (current?.status !== "pending_deletion" && current?.status !== "deleting") continue;
+        await firestoreSet(statusPath, {
+          uid,
           status: "pending_deletion",
+          scheduledDeletionAt: current.scheduledDeletionAt || latest.scheduledDeletionAt,
+          requestedAt: current.requestedAt || latest.requestedAt,
           lastDeletionAttemptAt: new Date(),
           lastDeletionError: String(error?.message || "deletion_failed").slice(0, 180),
           updatedAt: new Date()
