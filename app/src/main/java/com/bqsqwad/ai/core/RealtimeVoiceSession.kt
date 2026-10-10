@@ -31,6 +31,7 @@ class RealtimeVoiceSession(
     private var player: AudioTrack? = null
     private var audioJob: Job? = null
     private val running = AtomicBoolean(false)
+    private val audioCaptureStarted = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
     private val inputTranscript = StringBuilder()
     private val outputTranscript = StringBuilder()
@@ -40,14 +41,12 @@ class RealtimeVoiceSession(
         val request = Request.Builder()
             .url("wss://api.openai.com/v1/realtime?model=${java.net.URLEncoder.encode(model, "UTF-8")}")
             .addHeader("Authorization", "Bearer $clientSecret")
-            .addHeader("OpenAI-Beta", "realtime=v1")
             .build()
         socket = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 try {
                     sendSessionUpdate(webSocket)
-                    startAudioCapture()
-                    onState("connected")
+                    onState("configuring")
                 } catch (failure: Throwable) {
                     webSocket.close(1011, "Audio initialization failed")
                     onError(failure.message ?: "BQ Sqwad AI could not start the live audio session.")
@@ -72,14 +71,13 @@ class RealtimeVoiceSession(
     }
 
     private fun sendSessionUpdate(ws: WebSocket) {
+        // The server-issued client secret already fixes the GA model, voice and audio output.
+        // GA session.update cannot change the model/voice; only send mutable session settings.
         ws.send(JSONObject().apply {
             put("type", "session.update")
             put("session", JSONObject().apply {
                 put("type", "realtime")
-                put("model", model)
-                put("voice", voice)
                 put("instructions", "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. Do not ask the user to read or type text. Respond with voice audio only.")
-                put("output_modalities", org.json.JSONArray().put("audio"))
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
@@ -90,7 +88,6 @@ class RealtimeVoiceSession(
                             put("create_response", true)
                         })
                     })
-                    put("output", JSONObject().put("format", JSONObject().put("type", "audio/pcm")))
                 })
             })
         }.toString())
@@ -121,7 +118,17 @@ class RealtimeVoiceSession(
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
-            "session.created", "session.updated" -> onState("connected")
+            "session.created" -> onState("configuring")
+            "session.updated" -> {
+                if (audioCaptureStarted.compareAndSet(false, true)) {
+                    runCatching { startAudioCapture() }
+                        .onFailure {
+                            audioCaptureStarted.set(false)
+                            onError(it.message ?: "Microphone audio could not start.")
+                        }
+                }
+                onState("listening")
+            }
             "input_audio_buffer.speech_started" -> {
                 // Barge-in: immediately stop local playback and cancel the active response.
                 player?.pause()
@@ -237,6 +244,7 @@ class RealtimeVoiceSession(
 
     private fun stopInternal() {
         running.set(false)
+        audioCaptureStarted.set(false)
         audioJob?.cancel()
         audioJob = null
         onAudioLevel(0f)
