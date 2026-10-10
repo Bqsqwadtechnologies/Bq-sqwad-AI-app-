@@ -602,8 +602,11 @@ async function vision(request, user, body) {
   const message = String(body.message || "Describe what is visible in the attached image(s).").slice(0, 4000);
   const rawImages = Array.isArray(body.images)
     ? body.images
-    : [{ imageBase64: body.imageBase64, mimeType: body.mimeType }];
-  if (rawImages.length < 1 || rawImages.length > 4) throw new Error("image_count_invalid");
+    : (body.imageBase64 ? [{ imageBase64: body.imageBase64, mimeType: body.mimeType }] : []);
+  const rawFiles = Array.isArray(body.files) ? body.files : [];
+  if (rawImages.length > 4 || rawFiles.length > 4 || rawImages.length + rawFiles.length < 1) {
+    throw new Error("attachment_count_invalid");
+  }
   const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
   const images = rawImages.map(item => {
     const requestedMime = String(item?.mimeType || "image/jpeg").slice(0, 80).toLowerCase();
@@ -612,9 +615,18 @@ async function vision(request, user, body) {
       mimeType: requestedMime === "image/jpg" ? "image/jpeg" : requestedMime
     };
   });
+  const files = rawFiles.map(item => ({
+    name: String(item?.name || "document.pdf").replace(/[\\/]/g, "_").slice(0, 180),
+    mimeType: String(item?.mimeType || "application/pdf").slice(0, 80).toLowerCase(),
+    fileBase64: String(item?.fileBase64 || "")
+  }));
   if (images.some(image => !image.imageBase64)) throw new Error("image_required");
   if (images.some(image => !supportedImageTypes.has(image.mimeType))) throw new Error("image_type_invalid");
-  if (images.reduce((total, image) => total + image.imageBase64.length, 0) > 8000000) throw new Error("image_too_large");
+  if (files.some(file => !file.fileBase64)) throw new Error("file_required");
+  if (files.some(file => file.mimeType !== "application/pdf")) throw new Error("file_type_invalid");
+  const encodedSize = images.reduce((total, image) => total + image.imageBase64.length, 0)
+    + files.reduce((total, file) => total + file.fileBase64.length, 0);
+  if (encodedSize > 8000000) throw new Error("attachment_payload_too_large");
   // Keep live camera on its own capability by default, while allowing the
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
@@ -641,7 +653,7 @@ async function vision(request, user, body) {
       primaryModelId,
       fallbackProviderIds,
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message, system, images });
+    }, { message, system, images, files });
     const responseText = String(result.text || "").trim();
     if (!responseText) throw new Error("The AI service returned an empty response.");
     await commitCredits(user.uid, reservation.reservationId, result.providerId);
