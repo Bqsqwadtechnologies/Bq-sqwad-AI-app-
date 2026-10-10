@@ -47,7 +47,7 @@ Current source routes Personal Intelligence to PersonalIntelligenceWorkspace, Li
 Evidence: `docs/architecture/MAIN-FEATURES-END-TO-END-AUDIT.md`; `docs/architecture/ADVANCED-AI-CAPABILITY-CATALOG.md`.
 
 ### Phase 8 — Business and Organization AI
-Business workspace, knowledge, leads/inbox, training asset upload/finalization, analytics, and organization production metadata have source paths. Existing audit states named external channels are not proof of authenticated adapters, and Organization Studio destinations do not establish an encoder/output pipeline. Repair should distinguish saved configuration from connected/authorized accounts; show accurate status, permission boundaries, health/error state, and avoid claiming actual streaming until capture, encoding, transport, destination auth, reconnect, and compliance are implemented.
+Business workspace, knowledge, leads/inbox, training asset upload/finalization, analytics, and organization production metadata have source paths. Source inspection found a YouTube-specific path that obtains an OAuth-linked account, creates a live broadcast/stream, retrieves the RTMP ingestion endpoint, and starts the native camera streaming foreground service using StreamPack. This path is not device/platform verified. Other destination records still do not prove equivalent integrations, and scene/overlay, health/reconnect, and non-YouTube transport coverage need separate evidence. Repair should distinguish saved configuration from connected/authorized accounts and show accurate connection, permission, health, and error state.
 
 Evidence: `docs/architecture/MAIN-FEATURES-END-TO-END-AUDIT.md`; `cloudflare-worker/src/index.js`.
 
