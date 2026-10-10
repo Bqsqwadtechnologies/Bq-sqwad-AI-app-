@@ -2286,6 +2286,34 @@ private fun FeatureHub(
             contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            scheduledDeletionAt?.let { deadline ->
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Account deletion scheduled", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text("Your account is scheduled for deletion on $deadline. Sign back in before this date to cancel deletion.", color = MaterialTheme.colorScheme.onErrorContainer)
+                            Button(
+                                enabled = !cancellingDeletion,
+                                onClick = {
+                                    cancellingDeletion = true
+                                    scope.launch {
+                                        runCatching { AccountDeletionClient().cancelDeletion() }
+                                            .onSuccess {
+                                                scheduledDeletionAt = null
+                                                deletionNotice = "Account deletion cancelled. Your account remains active."
+                                            }
+                                            .onFailure { deletionNotice = it.message ?: "Could not cancel scheduled deletion." }
+                                        cancellingDeletion = false
+                                    }
+                                }
+                            ) { Text(if (cancellingDeletion) "Cancelling…" else "Cancel account deletion") }
+                        }
+                    }
+                }
+            }
+            deletionNotice?.let { notice ->
+                item { Text(notice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
+            }
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -3627,6 +3655,9 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var showDeleteAccount by remember { mutableStateOf(false) }
     var deletingAccount by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
+    var scheduledDeletionAt by remember { mutableStateOf<String?>(null) }
+    var cancellingDeletion by remember { mutableStateOf(false) }
+    var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun putBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
@@ -3650,6 +3681,8 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             val a = api.entitlements().optJSONArray("items") ?: JSONArray()
             List(a.length()) { i -> a.getJSONObject(i) }
         }.getOrDefault(emptyList())
+        runCatching { AccountDeletionClient().deletionStatus() }
+            .onSuccess { status -> scheduledDeletionAt = status.optString("scheduledDeletionAt").takeIf { status.optBoolean("pending") && it.isNotBlank() && it != "null" } }
         loadingAccount = false
     }
 
@@ -3905,7 +3938,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             title = { Text("Delete account and data?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This permanently removes your account and associated app data. This action cannot be undone.")
+                    Text("Your account and associated app data will be scheduled for deletion after a 30-day grace period. You can cancel by signing back in before the scheduled date.")
                     Text("Some records may be retained when required by applicable financial, tax, fraud-prevention or security obligations.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
@@ -3915,11 +3948,17 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                     deletingAccount = true
                     scope.launch {
                         runCatching { AccountDeletionClient().deleteAccount() }
-                            .onSuccess { FirebaseAuth.getInstance().signOut(); showDeleteAccount = false; onBack() }
+                            .onSuccess { result ->
+                                val deadline = result.optString("scheduledDeletionAt").ifBlank { "in 30 days" }
+                                android.widget.Toast.makeText(context, "Account deletion scheduled for $deadline. Sign back in before then to cancel.", android.widget.Toast.LENGTH_LONG).show()
+                                FirebaseAuth.getInstance().signOut()
+                                showDeleteAccount = false
+                                onBack()
+                            }
                             .onFailure { deleteError = it.message ?: "Account deletion failed." }
                         deletingAccount = false
                     }
-                }) { Text(if (deletingAccount) "Deleting…" else "Delete") }
+                }) { Text(if (deletingAccount) "Scheduling…" else "Schedule deletion") }
             },
             dismissButton = { TextButton(enabled = !deletingAccount, onClick = { showDeleteAccount = false }) { Text("Cancel") } }
         )
