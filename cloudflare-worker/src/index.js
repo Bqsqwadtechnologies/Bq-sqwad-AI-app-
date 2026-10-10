@@ -1,4 +1,4 @@
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
@@ -647,7 +647,59 @@ async function stream(request, user, body) {
 }
 
 
+async function permanentlyDeleteAccount(uid) {
+  const cols = ["chatHistory","businessTrainingAssets","aiFeedback","contactSalesRequests","creditReservations","creditLedger","playPurchases","passkeys","passkeyChallenges","socialAccounts","organizationProductionEvents","aiJobs","aiWorkflows","aiAgents","aiEvaluations","aiPlugins","aiActivity","organizationScheduledTasks","organizationWalletLedger","organizationLiveSessions","organizationProductionLiveSessions","learningSessions","companionMessages","companionCheckins","companionProfiles","companionSettings","truthGuardChecks","truthGuardSettings","businessAdvancedAiJobs","businessIntegrationConfigs"];
+  const project = JSON.parse(env("BQ_FIREBASE_SERVICE_ACCOUNT_JSON")).project_id;
+  for (const col of cols) {
+    let guard = 0;
+    while (guard++ < 20) {
+      const rows = await firestoreQuery(col, {
+        filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }],
+        limit: 100
+      });
+      if (!rows.length) break;
+      for (const row of rows) {
+        const name = String(row.__name || "");
+        if (name) await firestoreDelete(name.replace("projects/" + project + "/databases/(default)/documents/", ""));
+      }
+      if (rows.length < 100) break;
+    }
+  }
+  for (const [col, id] of [
+    ["userConsents", uid], ["userMemory", uid], ["organizationWorkspaces", uid],
+    ["organizationProduction", uid], ["organizationWallets", uid], ["organizationEntitlements", uid],
+    ["organizationTestSessions", uid], ["entitlements", uid], ["userFeatureSettings", uid]
+  ]) await firestoreDelete(col + "/" + id);
+  await deleteFirebaseAuthUser(uid);
+}
+
 export default {
+  async scheduled(controller, env) {
+    configureFirebaseEnv(env);
+    globalThis.__bqEnv = env;
+    const now = Date.now();
+    const pending = await firestoreQuery("userAccountStatus", {
+      filters: [{ field: { fieldPath: "status" }, op: "EQUAL", value: { stringValue: "pending_deletion" } }],
+      limit: 100
+    });
+    for (const account of pending) {
+      const uid = String(account.uid || String(account.__name || "").split("/").pop() || "");
+      const deadline = Date.parse(String(account.scheduledDeletionAt || ""));
+      if (!uid || !Number.isFinite(deadline) || deadline > now) continue;
+      try {
+        await firestoreSet("userAccountStatus/" + uid, { status: "deleting", deletionStartedAt: new Date(), updatedAt: new Date() }, true);
+        await permanentlyDeleteAccount(uid);
+        await firestoreSet("userAccountStatus/" + uid, { status: "deleted", deletedAt: new Date(), updatedAt: new Date() }, true);
+      } catch (error) {
+        await firestoreSet("userAccountStatus/" + uid, {
+          status: "pending_deletion",
+          lastDeletionAttemptAt: new Date(),
+          lastDeletionError: String(error?.message || "deletion_failed").slice(0, 180),
+          updatedAt: new Date()
+        }, true);
+      }
+    }
+  },
   async fetch(request, env) {
     configureFirebaseEnv(env);
     globalThis.__bqEnv = env;
@@ -1070,7 +1122,41 @@ export default {
         await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:existing,updatedAt:new Date()},true);
         return json({ok:true,deleted:true,assetId});
       }
-      if (url.pathname === "/account" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),cols=["chatHistory","businessTrainingAssets","aiFeedback","contactSalesRequests","creditReservations","creditLedger","playPurchases","passkeys","passkeyChallenges","socialAccounts","organizationProductionEvents","aiJobs","aiWorkflows","aiAgents","aiEvaluations","aiPlugins","aiActivity","organizationScheduledTasks","organizationWalletLedger","organizationLiveSessions","organizationProductionLiveSessions","learningSessions","companionMessages","companionCheckins","companionProfiles","companionSettings","truthGuardChecks","truthGuardSettings","businessAdvancedAiJobs","businessIntegrationConfigs"];for(const col of cols){let guard=0;while(guard++<20){const rows=await firestoreQuery(col,{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:100});if(!rows.length)break;for(const row of rows){const name=String(row.__name||"");if(name)await firestoreDelete(name.replace("projects/"+JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id+"/databases/(default)/documents/",""));}if(rows.length<100)break;}}for(const [col,id] of [["userConsents",u.uid],["userMemory",u.uid],["organizationWorkspaces",u.uid],["organizationProduction",u.uid],["organizationWallets",u.uid],["organizationEntitlements",u.uid],["organizationTestSessions",u.uid],["entitlements",u.uid],["userFeatureSettings",u.uid]])await firestoreDelete(col+"/"+id);const key=env.FIREBASE_WEB_API_KEY||"AIzaSyBcbFDXG6IsKatj8DjpCOQjJJ4DHv536eo";const authz=request.headers.get("authorization")||"";const rr=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key="+encodeURIComponent(key),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idToken:authz.slice(7)})});if(!rr.ok)return json({error:"account_data_deleted_auth_delete_failed"},502);return json({ok:true,deleted:true,retainedRecords:"Only records required by applicable financial, tax, fraud-prevention or security obligations may remain in minimized or anonymized form."}); }
+      if (url.pathname === "/account" && request.method === "DELETE") {
+        return json({ error: "immediate_account_deletion_disabled", message: "Account deletion now has a 30-day cancellation period. Use POST /account/schedule-deletion." }, 405);
+      }
+      if (url.pathname === "/account/schedule-deletion" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        const existing = await firestoreGet("userAccountStatus/" + u.uid);
+        if (existing?.status === "pending_deletion" && Date.parse(String(existing.scheduledDeletionAt || "")) > Date.now()) {
+          return json({ ok: true, alreadyScheduled: true, scheduledDeletionAt: existing.scheduledDeletionAt });
+        }
+        const requestedAt = new Date();
+        const scheduledDeletionAt = new Date(requestedAt.getTime() + 30 * 86400000);
+        await firestoreSet("userAccountStatus/" + u.uid, {
+          uid: u.uid,
+          status: "pending_deletion",
+          requestedAt,
+          scheduledDeletionAt,
+          updatedAt: requestedAt
+        }, true);
+        return json({ ok: true, status: "pending_deletion", requestedAt: requestedAt.toISOString(), scheduledDeletionAt: scheduledDeletionAt.toISOString(), cancellationAvailable: true });
+      }
+      if (url.pathname === "/account/cancel-deletion" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        const existing = await firestoreGet("userAccountStatus/" + u.uid);
+        const deadline = Date.parse(String(existing?.scheduledDeletionAt || ""));
+        if (existing?.status !== "pending_deletion" || !Number.isFinite(deadline) || deadline <= Date.now()) {
+          return json({ ok: false, error: "no_cancellable_deletion" }, 409);
+        }
+        await firestoreSet("userAccountStatus/" + u.uid, {
+          uid: u.uid,
+          status: "active",
+          cancellationRequestedAt: new Date(),
+          updatedAt: new Date()
+        }, true);
+        return json({ ok: true, status: "active", cancelled: true });
+      }
       if (url.pathname === "/public/app-config" && request.method === "GET") { const x=await firestoreGet("publicAppConfig/app"),d=x||{}; const ids=["CHAT","VIDEO","SEARCH","TRUTH_GUARD","FRONTIER_LAB","CAMERA","VOICE","PERSONAL","LIFE","COMPANION","LEARNING","BUSINESS","ORGANIZATION_STUDIO","DATA_ANALYSIS","ADMIN"]; return json({authBackgroundVideoUrl:d.authBackgroundVideoUrl||null,authBackgroundVideoEnabled:d.authBackgroundVideoEnabled===true,workspaceOrder:Array.isArray(d.workspaceOrder)?d.workspaceOrder.filter(x=>ids.includes(String(x))):ids,workspaceEnabled:d.workspaceEnabled&&typeof d.workspaceEnabled==="object"?d.workspaceEnabled:Object.fromEntries(ids.map(x=>[x,true])),themeMode:["system","light","dark"].includes(String(d.themeMode||""))?String(d.themeMode):"system"}); }
       if (url.pathname === "/plans" && request.method === "GET") { return json({plans:await firestoreQuery("plans",{filters:[{field:{fieldPath:"active"},op:"EQUAL",value:{booleanValue:true}}],limit:100})}); }
       if (url.pathname === "/credits" && request.method === "GET") { const u=await verifyFirebaseUser(request),p=await firestoreGet("users/"+u.uid),l=await firestoreGet("creditBalances/"+u.uid),exp=p?.subExpiresAt?Date.parse(String(p.subExpiresAt)):NaN,sub=Number.isFinite(exp)&&exp>Date.now()?Math.max(0,Number(p?.subCredits||0)):0,perm=Math.max(0,Number(p?.credits||0));return json({available:perm+sub,permanent:perm,subscription:sub,reserved:Math.max(0,Number(l?.reserved||0)),updatedAt:p?.updatedAt||l?.updatedAt||null,source:"firebase_users"}); }
