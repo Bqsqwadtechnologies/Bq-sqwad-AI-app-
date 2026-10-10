@@ -272,3 +272,44 @@ export function validateCommercialCatalog(catalog = COMMERCIAL_CATALOG) {
 }
 
 validateCommercialCatalog();
+
+
+/**
+ * Canonical Google Play mappings used only when an admin has not supplied a
+ * mapping for the same plan/base-plan pair. Product IDs and base-plan IDs are
+ * copied from the canonical plan catalog; no IDs are synthesized.
+ */
+export function canonicalPlayMappings() {
+  const rows = Object.values(COMMERCIAL_CATALOG.sections || {}).flat();
+  return rows.filter(plan =>
+    plan && typeof plan === "object" &&
+    plan.active !== false &&
+    plan.paymentChannel === "play" &&
+    plan.playEligible === true &&
+    plan.productId &&
+    (plan.productType === "subs" || plan.productType === "inapp")
+  ).flatMap(plan => {
+    const basePlans = plan.productType === "subs"
+      ? (Array.isArray(plan.basePlans) ? plan.basePlans.map(String).filter(Boolean) : [])
+      : [null];
+    const entitlements = Array.isArray(plan.entitlements) ? plan.entitlements : [];
+    const creditGrant = entitlements.reduce((total, value) => {
+      const match = String(value).match(/^credit:(\\d+)$/);
+      return total + (match ? Number(match[1]) : 0);
+    }, 0);
+    return basePlans.map(basePlanId => ({
+      planId: String(plan.id),
+      productId: String(plan.productId),
+      basePlanId,
+      productType: String(plan.productType),
+      enabled: true,
+      consumable: plan.productType === "inapp" && creditGrant > 0,
+      billingPeriod: String(basePlanId || "one_time"),
+      priceUsd: plan.price?.[basePlanId || ""] == null ? null : Number(plan.price[basePlanId || ""]),
+      trialOfferId: plan.trialEligible ? (plan.offerId || null) : null,
+      trialDays: plan.trialEligible ? Number(plan.trialDays || 0) : 0,
+      creditGrant,
+      organizationWalletTopup: false
+    }));
+  });
+}
