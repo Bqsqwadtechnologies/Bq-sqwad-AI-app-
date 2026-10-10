@@ -16,7 +16,7 @@ data class AdminSecurityStatus(
 )
 
 class AdminSecurityClient(
-    private val baseUrl: String = "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev"
+    private val baseUrl: String = ApiConfig.baseUrl
 ) {
     suspend fun status(): AdminSecurityStatus {
         val o = request("GET", "/admin/security/status", null)
