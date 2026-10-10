@@ -451,10 +451,15 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
+    val displayPrices = if (plan.playEligible && supportedPeriods.isNotEmpty()) {
+        plan.price.entries.filter { it.key in supportedPeriods }
+    } else {
+        plan.price.entries
+    }
     val priceText = when {
         isContactSales -> "Contact Sales"
         isFreePlan -> "Free"
-        else -> plan.price.entries.joinToString(" • ") { (period, value) ->
+        else -> displayPrices.joinToString(" • ") { (period, value) ->
             val numeric = value.toDoubleOrNull()
             val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
             period.replaceFirstChar { it.uppercase() } + ": " + shown
