@@ -719,6 +719,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val email = firebaseUser?.email.orEmpty()
     val adminNotificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
+    LaunchedEffect(sharedText) {
+        if (!sharedText.isNullOrBlank()) workspace = null
+    }
     var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
@@ -1012,7 +1015,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onLearnMore = { featureInfo = Workspace.CHAT },
                 onPrivacy = { featurePrivacy = Workspace.CHAT },
                 restoredChat = restoredChat,
-                onRestoredChatConsumed = { restoredChat = null }
+                onRestoredChatConsumed = { restoredChat = null },
+                sharedText = sharedText,
+                onSharedTextConsumed = onSharedTextConsumed
             )
         }
     }
@@ -1200,7 +1205,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
