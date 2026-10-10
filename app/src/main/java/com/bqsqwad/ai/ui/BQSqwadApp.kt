@@ -2927,16 +2927,23 @@ fun CameraWorkspace() {
     val livePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (cameraOk && micOk && liveTermsAccepted) {
+        if (cameraOk && liveTermsAccepted) {
+            // Keep the camera preview independent from microphone permission and AI connectivity.
             previewEnabled = true
-            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
-            active = true
+            if (micOk) {
+                context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                    .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
+                active = true
+                streamError = null
+            } else {
+                active = false
+                streamError = "Camera preview is active. Allow microphone access to start AI voice conversation."
+            }
         } else {
-            streamError = "Camera and microphone permission are required for the live AI session."
+            streamError = "Camera permission is required to show the live preview."
         }
     }
 
