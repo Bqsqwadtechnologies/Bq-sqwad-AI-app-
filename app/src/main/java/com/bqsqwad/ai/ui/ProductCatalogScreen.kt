@@ -616,7 +616,8 @@ private fun formatEntitlementDate(value:String):String {
 }
 
 private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
-    val a=body.optJSONArray("publicContactSales")?:JSONArray()
+    val root=catalogPayload(body)
+    val a=root.optJSONArray("publicContactSales")?:root.optJSONObject("catalog")?.optJSONArray("publicContactSales")?:JSONArray()
     return List(a.length()){i->
         val x=a.getJSONObject(i)
         val f=x.optJSONArray("features")?:JSONArray()
@@ -626,9 +627,18 @@ private fun parseContactOptions(body:JSONObject):List<PublicContactOption>{
     }.filter{it.name.isNotBlank()}
 }
 
+private fun catalogPayload(body: JSONObject): JSONObject {
+    val wrapped = body.optJSONObject("data") ?: body.optJSONObject("result")
+    return if (wrapped != null && (
+        wrapped.has("plans") || wrapped.has("catalog") || wrapped.has("sections") ||
+            wrapped.has("products") || wrapped.has("features") || wrapped.has("bindings")
+    )) wrapped else body
+}
+
 private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
-    val a=body.optJSONArray("products")?:JSONArray()
-    val visiblePlanIds = parsePlans(body).map { it.id }.toSet()
+    val root = catalogPayload(body)
+    val a=root.optJSONArray("products") ?: root.optJSONObject("catalog")?.optJSONArray("products") ?: JSONArray()
+    val visiblePlanIds = parsePlans(root).map { it.id }.toSet()
     return List(a.length()){i ->
         val p=a.getJSONObject(i)
         PlayCatalogEntry(
@@ -644,9 +654,11 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
 }
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{
-    // Accept the native endpoint and older cached/wrapped catalog envelopes.
-    val nested = body.optJSONObject("catalog")
-    val sections = body.optJSONObject("sections") ?: nested?.optJSONObject("sections")
+    // Accept the native endpoint and older cached/wrapped catalog envelopes,
+    // including API clients that wrap successful JSON responses in data/result.
+    val root = catalogPayload(body)
+    val nested = root.optJSONObject("catalog")
+    val sections = root.optJSONObject("sections") ?: nested?.optJSONObject("sections")
     val sectionPlans = JSONArray().apply {
         val keys = sections?.keys()
         while (keys != null && keys.hasNext()) {
@@ -656,7 +668,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             }
         }
     }
-    val a = body.optJSONArray("plans")
+    val a = root.optJSONArray("plans")
         ?: nested?.optJSONArray("plans")
         ?: sectionPlans
     return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(
@@ -709,10 +721,12 @@ private fun formatCredits(value: Double): String = if (value % 1.0 == 0.0) Strin
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
 
 private fun parseFeatures(body:JSONObject):List<CatalogFeature>{
-    val a=body.optJSONArray("features")?:JSONArray()
+    val root=catalogPayload(body)
+    val a=root.optJSONArray("features")?:root.optJSONObject("catalog")?.optJSONArray("features")?:JSONArray()
     return List(a.length()){i -> val x=a.getJSONObject(i); CatalogFeature(x.optString("id"),x.optString("name"),x.optString("description"),x.optString("group"),x.optBoolean("comingSoon",false))}.filter{it.id.isNotBlank()}
 }
 private fun parseBindings(body:JSONObject):List<FeatureBinding>{
-    val a=body.optJSONArray("bindings")?:JSONArray()
+    val root=catalogPayload(body)
+    val a=root.optJSONArray("bindings")?:root.optJSONObject("catalog")?.optJSONArray("bindings")?:JSONArray()
     return List(a.length()){i -> val x=a.getJSONObject(i); FeatureBinding(x.optString("planId"),x.optString("featureId"),x.optString("state","unavailable"),if(x.isNull("quota"))null else x.optString("quota"))}.filter{it.featureId.isNotBlank()}
 }
