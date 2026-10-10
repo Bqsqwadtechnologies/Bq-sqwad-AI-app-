@@ -1465,6 +1465,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val attachmentNames = selectedAttachments.joinToString(", ") { it.name }
         val displayText = if (attachmentNames.isBlank()) text else (text.ifBlank { "Please analyze these attachments." } + "\n📎 " + attachmentNames)
         val textParts = selectedAttachments.mapNotNull { a -> a.text?.let { "Attachment: " + a.name + "\n" + it } }
+        if (textParts.sumOf { it.length } > 240_000) {
+            error = "The combined text from these files is too large. Remove a file or choose smaller documents, then try again."
+            attachments = selectedAttachments
+            message = text
+            return
+        }
         val imageParts = selectedAttachments.filter { it.imageBase64 != null }
         val fileParts = selectedAttachments.filter { it.fileBase64 != null }
         if (imageParts.size > 4 || fileParts.size > 4) {
