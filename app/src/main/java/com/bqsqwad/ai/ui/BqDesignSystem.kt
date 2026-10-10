@@ -119,7 +119,7 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
             Image(
                 painter = painterResource(R.drawable.bq_sqwad_logo),
                 contentDescription = "BQ Sqwad AI logo",
-                modifier = Modifier.fillMaxWidth().clip(CircleShape),
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
         }
