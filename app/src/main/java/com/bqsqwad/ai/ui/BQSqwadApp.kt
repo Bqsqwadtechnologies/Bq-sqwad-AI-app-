@@ -97,13 +97,17 @@ private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String 
 }
 
 @Composable
-fun BQSqwadApp(modifier: Modifier = Modifier) = AuthGate(modifier)
+fun BQSqwadApp(
+    modifier: Modifier = Modifier,
+    sharedText: String? = null,
+    onSharedTextConsumed: () -> Unit = {}
+) = AuthGate(modifier, sharedText, onSharedTextConsumed)
 
 @Composable
-private fun AuthGate(modifier: Modifier) {
+private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
     // Guest browsing remains available, but protected actions open the real Firebase auth flow.
     // MainShell observes FirebaseAuth state so a successful sign-in immediately updates the UI.
-    MainShell(modifier)
+    MainShell(modifier, sharedText, onSharedTextConsumed)
 }
 
 @Composable
@@ -698,7 +702,7 @@ private fun GoogleLogoMark(size: Dp) {
 
 
 @Composable
-private fun MainShell(modifier: Modifier) {
+private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
     var firebaseUser by remember { mutableStateOf(auth.currentUser) }
@@ -1092,6 +1096,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val prefs = remember { context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
     var message by remember { mutableStateOf("") }
+    // Text shared from another Android app is placed into the composer for user review.
+    // It is never submitted automatically.
+    LaunchedEffect(sharedText) {
+        val incoming = sharedText?.trim().orEmpty()
+        if (incoming.isNotBlank()) {
+            workspace = null
+            message = "Please help me with this selected text:\n\n$incoming"
+            onSharedTextConsumed()
+        }
+    }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showAuth by remember { mutableStateOf(false) }
