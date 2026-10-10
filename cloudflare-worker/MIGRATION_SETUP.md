@@ -114,3 +114,13 @@ The B2 application key should be restricted to the dedicated training-assets buc
 The existing Firestore collection and metadata model are preserved. The storage provider changes from Firebase Storage to B2; Firebase Auth and Firestore remain the source of identity/metadata.
 
 Backblaze's current documentation confirms that B2's first 10 GB of storage is free, and its Native API supports temporary upload authorization and private-file download authorization. The free allowance is an account-level allowance, not 10 GB per workspace.
+
+
+## 2026-10-10 — Account deletion grace period
+
+- Normal clients can no longer invoke immediate account deletion through `DELETE /account`; the Worker returns HTTP 405.
+- `POST /account/schedule-deletion` records a 30-day pending-deletion deadline, and `POST /account/cancel-deletion` restores the account to active status before that deadline.
+- `GET /account/deletion-status` supports the Android cancellation notice.
+- A daily Cloudflare Cron Trigger at 03:00 UTC processes due records in `userAccountStatus` and reuses the shared permanent-deletion function.
+- The Worker service account must have the required Firebase Authentication user-delete permission in addition to its existing Firestore permissions. The cron handler retries failed deletion jobs by returning the record to `pending_deletion` and records a short failure reason.
+- The Android account deletion flow now schedules deletion and signs out only after the server confirms the schedule. The Settings screen shows the returned deadline and a cancel action when the user signs back in.
