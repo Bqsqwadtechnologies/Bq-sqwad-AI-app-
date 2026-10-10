@@ -7,7 +7,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
-import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, beginBiometricNative, verifyBiometricNative } from "./admin-security-native.js";
+import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
 import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, authenticationOptionsNative, verifyAuthenticationNative, removePasskeyNative } from "./passkeys-native.js";
@@ -649,7 +649,9 @@ async function stream(request, user, body) {
 
 async function permanentlyDeleteAccount(uid) {
   const cols = ["chatHistory","businessTrainingAssets","aiFeedback","contactSalesRequests","creditReservations","creditLedger","playPurchases","passkeys","passkeyChallenges","socialAccounts","organizationProductionEvents","aiJobs","aiWorkflows","aiAgents","aiEvaluations","aiPlugins","aiActivity","organizationScheduledTasks","organizationWalletLedger","organizationLiveSessions","organizationProductionLiveSessions","learningSessions","companionMessages","companionCheckins","companionProfiles","companionSettings","truthGuardChecks","truthGuardSettings","businessAdvancedAiJobs","businessIntegrationConfigs"];
-  const project = JSON.parse(env("BQ_FIREBASE_SERVICE_ACCOUNT_JSON")).project_id;
+  const serviceAccountJson = globalThis.__bqEnv?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) throw new Error("BQ_FIREBASE_SERVICE_ACCOUNT_JSON is not configured");
+  const project = JSON.parse(serviceAccountJson).project_id;
   for (const col of cols) {
     let guard = 0;
     while (guard++ < 20) {
@@ -709,8 +711,25 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
-      // All feature routes not implemented natively in this Worker are forwarded to the canonical Firebase backend below.
-      // Keep this catch-through behavior so Android always uses this stable API origin while legacy backend handlers remain available.
+      // The Worker is the sole active backend. Never proxy requests to retired Firebase Functions.
+      // Every admin route except the identity/session bootstrap endpoints requires a fresh,
+      // server-verified 30-minute step-up session.
+      const adminBootstrapRoutes = new Set([
+        "/admin/access",
+        "/admin/security/status",
+        "/admin/security/password",
+        "/admin/security/totp/start",
+        "/admin/security/totp/confirm",
+        "/admin/security/unlock",
+        "/admin/security/biometric",
+        "/admin/security/biometric/challenge",
+        "/admin/security/biometric/verify"
+      ]);
+      if (url.pathname.startsWith("/admin/") && !adminBootstrapRoutes.has(url.pathname)) {
+        const adminIdentity = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        await requireAdminSessionNative(adminIdentity.uid);
+      }
       const firebaseBackedPath =
         url.pathname === "/ai" ||
         url.pathname === "/ai/stream" ||
@@ -1535,7 +1554,7 @@ export default {
       throw Object.assign(new Error("route_not_migrated"), { httpStatus: 501 });
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token/.test(message) ? 401 : /required_consent_missing|Admin access required/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
+      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|Admin access required/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
       if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
       const safeError = status >= 500 ? "service_temporarily_unavailable" : message;
       return new Response(JSON.stringify({ error: safeError }), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
