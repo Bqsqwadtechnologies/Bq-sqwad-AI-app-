@@ -206,7 +206,8 @@ class ChatApiClient(
         imageBase64: String,
         mimeType: String = "image/jpeg",
         capability: String = "live_camera",
-        system: String? = null
+        system: String? = null,
+        additionalImages: List<Pair<String, String>> = emptyList()
     ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
         val connection = (URL("$baseUrl/ai/vision").openConnection() as HttpURLConnection).apply {
@@ -221,8 +222,11 @@ class ChatApiClient(
         connection.outputStream.use {
             it.write(JSONObject().apply {
                 put("message", message)
-                put("imageBase64", imageBase64)
-                put("mimeType", mimeType)
+                put("images", JSONArray().apply {
+                    (listOf(mimeType to imageBase64) + additionalImages).take(4).forEach { (type, encoded) ->
+                        put(JSONObject().put("mimeType", type).put("imageBase64", encoded))
+                    }
+                })
                 put("capability", capability)
                 if (!system.isNullOrBlank()) put("system", system)
             }.toString().toByteArray())
