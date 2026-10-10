@@ -28,10 +28,12 @@ internal sealed interface MdBlock {
     data class Numbered(val text: String) : MdBlock
     data class NumberedList(val items: List<String>) : MdBlock
     data class Quote(val text: String) : MdBlock
+    data class Image(val alt: String, val url: String) : MdBlock
     data object Divider : MdBlock
     data class Para(val text: String) : MdBlock
 }
 
+private val MARKDOWN_IMAGE = Regex("""^!\\[([^\\]]*)]\\((https?://[^)\\s]+)\\)\\s*$""", RegexOption.IGNORE_CASE)
 private val ORDERED_PREFIX = Regex("""^\s*\d+[.)]\s+""")
 
 internal fun parseBlocks(src: String): List<MdBlock> {
@@ -42,6 +44,10 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         val line = lines[i]
         val trimmed = line.trimStart()
         when {
+            MARKDOWN_IMAGE.matchEntire(trimmed) != null -> {
+                val match = MARKDOWN_IMAGE.matchEntire(trimmed)!!
+                out += MdBlock.Image(match.groupValues[1], match.groupValues[2])
+            }
             trimmed.startsWith("```") -> {
                 val lang = trimmed.removePrefix("```").trim()
                 val buf = StringBuilder()
@@ -158,6 +164,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Mat
                         }
                     }
                 }
+                is MdBlock.Image -> ChatRemoteImage(block.url, block.alt.ifBlank { "Image" })
                 is MdBlock.Quote -> Surface(
                     shape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
