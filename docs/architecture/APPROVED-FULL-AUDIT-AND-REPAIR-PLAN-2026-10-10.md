@@ -221,3 +221,11 @@ This is a source-level findings and repair plan. It does not certify the current
 - Commit [e239454](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/e2394547b182a1e988f5521d1cac436ecf41714f) adds user-facing recovery messages for oversized/unsupported image requests. Commit [77e0f82](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/77e0f82799ed3c7aedc3552e063c33b749bc1d8b) moves local image decoding off the Compose UI thread.
 - Commit [80293f0](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/80293f0c7fa3650a30993ad1378ee42266ddc5e2) adds an Android unit test for parsing standalone Markdown image links. Commit [4470e4c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/4470e4c332f3e926b1fe63bf9f8889cefab9254d) adds Worker provider tests for multi-image OpenAI and Gemini request payloads.
 - Verification performed: re-fetched the Android UI, history client, Markdown renderer, Worker route, and provider source after changes. The new tests are committed but have not been executed; no build/workflow/device/deployed-backend test has been run.
+
+
+### 2026-10-10 — Generated image response contract correction
+
+- Root cause found: the Worker image-generation handler returns `imageBase64`, while the Android `GenerationApiClient` previously read only `imageUrl`. As a result, the Main Chat image-generation path could receive a successful server response but have no usable image URL to render.
+- Commits [8d719f2](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/8d719f2636f78b7b3d66888e21f19ef1a19e74f0) and [36cf926](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/36cf926cd9ac5bb30288dcdc8e740115000985fa) update the Android response model to read generated base64 image data and reject an empty image response.
+- Commit [6918f4e](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/6918f4eca5e77f2ef0244dbb9ccd68a878857a14) displays returned image bytes directly in the Main Chat assistant bubble and saves only the generated-image attachment metadata in history, not the raw image bytes.
+- Verification performed: fetched the Worker generator and Android client/UI source, confirmed the response contract and rendering path are now aligned. No build or real image-generation request has been run; end-to-end confirmation is still pending.
