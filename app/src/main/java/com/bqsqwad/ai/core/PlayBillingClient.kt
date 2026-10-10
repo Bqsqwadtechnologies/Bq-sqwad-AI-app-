@@ -119,10 +119,17 @@ class PlayBillingClient(
                 val offersForBasePlan = product.subscriptionOfferDetails?.filter { detail ->
                     preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
                 }.orEmpty()
-                val offer = offersForBasePlan.firstOrNull { detail ->
-                    !preferredOfferId.isNullOrBlank() && detail.offerId == preferredOfferId
-                } ?: offersForBasePlan.firstOrNull()
-                offer?.offerToken
+                // Never silently fall back to a different subscription offer when the
+                // BQ catalog selected a specific offer (for example, a trial offer).
+                // The wrong token can launch checkout with terms different from the
+                // plan the customer selected. Fail closed until the configured offer
+                // is actually available from Google Play.
+                val offer = if (!preferredOfferId.isNullOrBlank()) {
+                    offersForBasePlan.firstOrNull { detail -> detail.offerId == preferredOfferId }
+                } else {
+                    offersForBasePlan.firstOrNull()
+                }
+                offer?.offerToken ?: return null
             }
             ProductType.INAPP -> product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
             else -> null
