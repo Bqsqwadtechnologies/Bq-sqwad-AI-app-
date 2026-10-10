@@ -11,7 +11,8 @@ data class PreparedChatAttachment(
     val name: String,
     val mimeType: String,
     val text: String? = null,
-    val imageBase64: String? = null
+    val imageBase64: String? = null,
+    val fileBase64: String? = null
 )
 
 object ChatAttachmentReader {
@@ -40,6 +41,8 @@ object ChatAttachmentReader {
         } ?: error("Could not open '" + name + "'.")
         return when {
             mime.startsWith("image/") -> PreparedChatAttachment(name, mime, imageBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
+            mime == "application/pdf" || name.substringAfterLast('.', "").equals("pdf", ignoreCase = true) ->
+                PreparedChatAttachment(name, "application/pdf", fileBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
             mime in TEXT_MIMES || name.substringAfterLast('.', "").lowercase() in setOf("txt", "md", "csv", "json", "xml", "html", "js", "kt", "kts", "java", "py", "css") -> {
                 val text = bytes.toString(StandardCharsets.UTF_8)
                 require(text.length <= MAX_TEXT_CHARS) {
