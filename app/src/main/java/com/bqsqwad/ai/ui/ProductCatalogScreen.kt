@@ -83,8 +83,23 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             try {
                 val api=WorkspaceApiClient()
                 val live=api.nativeCatalog()
-                offline = false
-                plans=parsePlans(live); catalog=parseCatalog(live); features=parseFeatures(live); bindings=parseBindings(live); contactOptions=parseContactOptions(live); entitlement=runCatching{api.entitlement()}.getOrNull()
+                val livePlans = parsePlans(live)
+                if (livePlans.isEmpty() && hasCachedCatalog) {
+                    // A transient/partial backend response must not erase the last valid
+                    // BQ catalog or replace it with an empty screen.
+                    offline = true
+                    status = "The live catalog returned no plans. Showing the last synced BQ Sqwad AI catalog."
+                } else {
+                    offline = false
+                    plans = livePlans
+                    catalog = parseCatalog(live)
+                    features = parseFeatures(live)
+                    bindings = parseBindings(live)
+                    contactOptions = parseContactOptions(live)
+                    context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
+                        .putString("catalog",live.toString()).apply()
+                }
+                entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 credits=runCatching{api.credits()}.getOrNull()
                 playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
@@ -96,8 +111,6 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
                         ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by the admin team." }
                 }.getOrNull()
-                context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
-                    .putString("catalog",live.toString()).apply()
             } catch(t:Throwable) {
                 if (hasCachedCatalog) {
                     offline = true
@@ -631,7 +644,21 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
 }
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{
-    val a=body.optJSONArray("plans")?:JSONArray()
+    // Accept the native endpoint and older cached/wrapped catalog envelopes.
+    val nested = body.optJSONObject("catalog")
+    val sections = body.optJSONObject("sections") ?: nested?.optJSONObject("sections")
+    val sectionPlans = JSONArray().apply {
+        val keys = sections?.keys()
+        while (keys != null && keys.hasNext()) {
+            val section = sections.optJSONArray(keys.next()) ?: continue
+            for (index in 0 until section.length()) {
+                section.optJSONObject(index)?.let { put(it) }
+            }
+        }
+    }
+    val a = body.optJSONArray("plans")
+        ?: nested?.optJSONArray("plans")
+        ?: sectionPlans
     return List(a.length()){i -> val p=a.getJSONObject(i); val f=p.optJSONArray("features")?:JSONArray();val l=p.optJSONObject("limits")?:JSONObject();val limits=mutableMapOf<String,String>();l.keys().forEach{key->limits[key]=l.optString(key)};LivePlan(
             p.optString("id"),
             p.optString("name"),
