@@ -80,8 +80,9 @@ Implemented source paths include workspace loading, business assistant, business
 
 ## Phase 9 — Organization Studio / Production
 Implemented source paths include organization profile/settings, shared knowledge, members, channels, production sources, scenes, destinations, production state/health/events, and AI Director configuration.
-- Current limitation: destination registration stores platform metadata and explicitly leaves authentication disconnected; it is not yet a complete encoder/output pipeline.
-- Status: PARTIAL — orchestration data layer exists; real broadcast output is not end-to-end verified.
+- Current source includes a YouTube-specific path: OAuth-linked account selection, creation of a YouTube live broadcast/stream, use of the returned RTMP ingestion endpoint and stream name, and start of the native camera streaming foreground service. `OrganizationLiveStreamer` delegates camera/H.264/AAC streaming to StreamPack. This is more than destination metadata, but source presence is not proof the complete device-to-YouTube flow succeeds.
+- Other production destinations and scene/overlay orchestration must not be treated as working broadcasts merely because records exist. Generic destination authentication, scene composition, reconnect/health and non-YouTube transports remain to be verified or completed.
+- Status: PARTIAL — a YouTube RTMP broadcast pipeline exists in source; real-device/platform verification and broader production features remain outstanding.
 
 ## Phase 10 — Device Intelligence
 - Android uses an allowlist for device actions.
@@ -103,13 +104,13 @@ Required checks:
 - Status: SOURCE CONTROLS PRESENT; real-device lifecycle matrix still required.
 
 ## Phase 12 — Social Streaming
-The repository has production destination records for YouTube, Facebook, TikTok, Instagram, RTMP, SRT-style destinations, but those records are configuration metadata, not proof of a working encoder or platform-authenticated broadcast.
+The repository has production destination records for YouTube, Facebook, TikTok, Instagram, RTMP, and SRT-style destinations. A YouTube-specific OAuth/create-live/RTMP camera stream path exists in source via `youtube-native.js`, `OrganizationStudio.kt`, `LiveMediaForegroundService.kt`, and `OrganizationLiveStreamer.kt`. The other destination records are not proof of equivalent platform-authenticated broadcast support.
 
 A complete implementation requires camera/screen/audio capture, hardware encoding, scene/overlay composition, network transport, destination authentication, stream health monitoring, start/stop state, reconnect handling, and platform API/SDK compliance.
 
 For YouTube specifically, Android provides an official Mobile Live intent that hands the user into YouTube's own live setup flow. That is different from BQ Sqwad AI directly encoding and controlling a custom broadcast. Platform eligibility rules must remain enforced and must never be bypassed.
 
-- Status: NOT END-TO-END VERIFIED.
+- Status: YOUTUBE PATH IMPLEMENTED IN SOURCE BUT NOT DEVICE-VERIFIED; OTHER DESTINATIONS NOT END-TO-END VERIFIED.
 
 ## Phase 13 — Final Device Verification Matrix
 ### Camera
