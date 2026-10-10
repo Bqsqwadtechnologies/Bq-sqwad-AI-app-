@@ -37,6 +37,9 @@ class RealtimeVoiceSession(
     // Realtime accepts one active response at a time. Keep only the newest visual frame
     // while speech is being answered, then submit it when the current response finishes.
     private val responseInProgress = AtomicBoolean(false)
+    // Ignore any late audio deltas from a response after the user interrupts it.
+    // The next response.created event re-enables playback for the new AI turn.
+    private val suppressAudioUntilResponse = AtomicBoolean(false)
     private val pendingVisualFrame = AtomicReference<ByteArray?>(null)
     private val inputTranscript = StringBuilder()
     private val outputTranscript = StringBuilder()
@@ -143,7 +146,10 @@ class RealtimeVoiceSession(
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
             "session.created" -> onState("configuring")
-            "response.created" -> responseInProgress.set(true)
+            "response.created" -> {
+                suppressAudioUntilResponse.set(false)
+                responseInProgress.set(true)
+            }
             "session.updated" -> {
                 if (audioCaptureStarted.compareAndSet(false, true)) {
                     val capture = runCatching { startAudioCapture() }
@@ -157,9 +163,11 @@ class RealtimeVoiceSession(
             }
             "input_audio_buffer.speech_started" -> {
                 // Barge-in: immediately stop local playback and cancel the active response.
-                player?.pause()
-                player?.flush()
+                suppressAudioUntilResponse.set(true)
+                runCatching { player?.pause() }
+                runCatching { player?.flush() }
                 playing.set(false)
+                // Stop the current AI turn; server VAD will start a fresh turn after the user finishes.
                 ws.send(JSONObject().put("type", "response.cancel").toString())
                 onState("listening")
             }
@@ -190,6 +198,9 @@ class RealtimeVoiceSession(
             }
             // Accept both current GA and legacy Realtime audio-delta event names.
             "response.output_audio.delta", "response.audio.delta" -> {
+                // Cancellation can race with already queued audio events. Never let those
+                // stale chunks restart speech while the user is taking their turn.
+                if (suppressAudioUntilResponse.get()) return
                 val encoded = event.optString("delta")
                 if (encoded.isNotBlank()) {
                     val bytes = Base64.decode(encoded, Base64.DEFAULT)
