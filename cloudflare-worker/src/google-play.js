@@ -1,4 +1,4 @@
-import { canonicalPlayMappings } from "./plan-catalog-native.js";
+import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "./plan-catalog-native.js";
 const PACKAGE_NAME = "com.bqsqwad.ai";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const PLAY_BASE = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/" + PACKAGE_NAME;
@@ -63,12 +63,18 @@ async function playApi(env, path, method = "GET", body) {
 }
 
 export async function playCatalog(firestore, context) {
-  const config = await firestore.get("playCatalog/config");
+  const [config, planConfig] = await Promise.all([
+    firestore.get("playCatalog/config"),
+    firestore.get("planCatalog/config")
+  ]);
   const configuredProducts = Array.isArray(config?.products) ? config.products : [];
   const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
+  const storedCatalog = planConfig?.catalog;
+  const hasStoredPlans = Object.values(storedCatalog?.sections || {}).some(rows => Array.isArray(rows) && rows.length > 0);
+  const planMappings = canonicalPlayMappings(hasStoredPlans ? storedCatalog : COMMERCIAL_CATALOG);
   const mergedProducts = [
     ...configuredProducts,
-    ...canonicalPlayMappings().filter(p => !configuredPlanKeys.has(String(p.planId || "") + "|" + String(p.basePlanId || "")))
+    ...planMappings.filter(p => !configuredPlanKeys.has(String(p.planId || "") + "|" + String(p.basePlanId || "")))
   ];
   const organizationContext = String(context || "").trim().toLowerCase() === "organization";
   const products = mergedProducts
@@ -95,18 +101,22 @@ export async function verifyPlayPurchase(env, firestore, input) {
     }
   }
 
-  const catalog = await firestore.get("playCatalog/config");
+  const [catalog, planCatalog] = await Promise.all([
+    firestore.get("playCatalog/config"),
+    firestore.get("planCatalog/config")
+  ]);
   const configuredProducts = Array.isArray(catalog?.products) ? catalog.products : [];
   const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
+  const storedCatalog = planCatalog?.catalog;
+  const hasStoredPlans = Object.values(storedCatalog?.sections || {}).some(rows => Array.isArray(rows) && rows.length > 0);
+  const planMappings = canonicalPlayMappings(hasStoredPlans ? storedCatalog : COMMERCIAL_CATALOG);
   const products = [
     ...configuredProducts,
-    ...canonicalPlayMappings().filter(p => !configuredPlanKeys.has(String(p.planId || "") + "|" + String(p.basePlanId || "")))
+    ...planMappings.filter(p => !configuredPlanKeys.has(String(p.planId || "") + "|" + String(p.basePlanId || "")))
   ];
   const mappings = products.filter(p => String(p.productId || "") === String(productId) && p.enabled !== false);
   if (!mappings.length) throw new Error("play_product_not_configured");
   const mapping = mappings.find(p => !requestedBasePlanId || String(p.basePlanId || "") === String(requestedBasePlanId)) || mappings[0];
-
-  const planCatalog = await firestore.get("planCatalog/config");
   if (planCatalog) {
     const sections = planCatalog.catalog?.sections || {};
     const plans = Object.values(sections).flat().filter(Boolean);
