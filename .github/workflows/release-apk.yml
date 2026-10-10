@@ -43,7 +43,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.5.0"
-      - run: gradle --no-daemon :app:assembleRelease
+      - run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v7
