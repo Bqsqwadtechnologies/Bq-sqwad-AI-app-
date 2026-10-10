@@ -204,7 +204,9 @@ class ChatApiClient(
     suspend fun analyzeCameraFrame(
         message: String,
         imageBase64: String,
-        mimeType: String = "image/jpeg"
+        mimeType: String = "image/jpeg",
+        capability: String = "live_camera",
+        system: String? = null
     ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
         val connection = (URL("$baseUrl/ai/vision").openConnection() as HttpURLConnection).apply {
@@ -221,6 +223,8 @@ class ChatApiClient(
                 put("message", message)
                 put("imageBase64", imageBase64)
                 put("mimeType", mimeType)
+                put("capability", capability)
+                if (!system.isNullOrBlank()) put("system", system)
             }.toString().toByteArray())
         }
         val status = connection.responseCode
