@@ -36,7 +36,7 @@ async function googleAccessToken() {
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claim = b64url(JSON.stringify({
     iss: account.client_email,
-    scope: "https://www.googleapis.com/auth/datastore",
+    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit",
     aud: TOKEN_URL,
     iat: now,
     exp: now + 3600
@@ -67,6 +67,25 @@ async function googleAccessToken() {
   if (!response.ok || !body.access_token) throw new Error("Firebase service access token unavailable");
   accessTokenCache = { token: body.access_token, exp: now + Number(body.expires_in || 3600) };
   return body.access_token;
+}
+
+export async function deleteFirebaseAuthUser(uid) {
+  const token = await googleAccessToken();
+  const response = await fetch(
+    "https://identitytoolkit.googleapis.com/v1/projects/" + encodeURIComponent(projectId()) + "/accounts:delete",
+    {
+      method: "POST",
+      headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+      body: JSON.stringify({ localId: String(uid || "") })
+    }
+  );
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(body.error?.message || "Firebase Auth account deletion failed");
+    if (/USER_NOT_FOUND|user not found/i.test(message)) return { ok: true, alreadyDeleted: true };
+    throw new Error(message);
+  }
+  return { ok: true };
 }
 
 export async function verifyFirebaseUser(request) {
