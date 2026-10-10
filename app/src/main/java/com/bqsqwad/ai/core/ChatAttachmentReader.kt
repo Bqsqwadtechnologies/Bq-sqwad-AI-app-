@@ -73,7 +73,7 @@ object ChatAttachmentReader {
     }
 
 
-    private fun extractOfficeText(bytes: ByteArray, extension: String): String {
+    internal fun extractOfficeText(bytes: ByteArray, extension: String): String {
         val entries = linkedMapOf<String, String>()
         var expandedBytes = 0
         fun relevant(path: String): Boolean = when (extension) {
