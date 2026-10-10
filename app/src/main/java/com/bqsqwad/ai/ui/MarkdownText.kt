@@ -149,7 +149,7 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Mat
                         }
                     }
                 }
-                is MdBlock.Numbered -> Text("1. " + inline(block.text), color = color)
+                is MdBlock.Numbered -> Row(verticalAlignment = Alignment.Top) { Text("1.  ", color = color); Text(inline(block.text), color = color) }
                 is MdBlock.NumberedList -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     block.items.forEachIndexed { index, item ->
                         Row(verticalAlignment = Alignment.Top) {
