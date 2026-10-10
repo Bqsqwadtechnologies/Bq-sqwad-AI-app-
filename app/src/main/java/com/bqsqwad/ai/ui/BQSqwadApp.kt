@@ -1503,7 +1503,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     message = text
                     if (t !is kotlinx.coroutines.CancellationException) {
                         val detail = t.message.orEmpty().lowercase()
-                        if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
+                        if (detail.contains("image_too_large")) {
+                            error = "These images are too large to send together. Remove an image or choose smaller image files, then try again."
+                        } else if (detail.contains("image_type_invalid")) {
+                            error = "One selected image format is not supported. Choose a JPEG, PNG, or WebP image and try again."
+                        } else if (detail.contains("image_count_invalid")) {
+                            error = "Attach between 1 and 4 images per message."
+                        } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
                             creditsExhausted = true
                             creditNotice = "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
                             error = creditNotice
