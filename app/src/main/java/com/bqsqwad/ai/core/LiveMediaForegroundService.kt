@@ -157,7 +157,7 @@ class LiveMediaForegroundService : Service() {
                         model = model,
                         onState = { state ->
                             writeState(true, state)
-                            if (!state.equals("connecting", ignoreCase = true)) {
+                            if (state.lowercase() in setOf("connected", "listening", "speaking")) {
                                 voiceConnectionWatchdog?.cancel()
                                 voiceConnectionWatchdog = null
                             }
@@ -180,7 +180,7 @@ class LiveMediaForegroundService : Service() {
             val current = _uiState.value
             if (current.active &&
                 current.mode == MODE_VOICE &&
-                current.status.equals("connecting", ignoreCase = true)
+                current.status.lowercase() in setOf("connecting", "configuring")
             ) {
                 writeError("The live voice connection timed out. Check your connection and try again.")
                 stopSelf()
