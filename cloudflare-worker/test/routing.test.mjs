@@ -69,11 +69,13 @@ test("protected AI routes reject missing auth with 401", async () => {
   assert.equal(res.status, 401);
 });
 
-test("native BQ catalog route is registered and requires Firebase auth", async () => {
+test("native BQ catalog is browseable without sign-in and falls back to canonical plans", async () => {
   const res = await worker.fetch(new Request("https://x.dev/native/catalog"), {});
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.error, "Authentication required");
+  assert.ok(Array.isArray(body.plans) && body.plans.length > 0);
+  assert.ok(body.plans.some(plan => plan.id === "credit100"));
+  assert.ok(body.plans.some(plan => plan.id === "bizstarter"));
 });
 
 test("realtime voice and client issue reporting require Firebase auth", async () => {
