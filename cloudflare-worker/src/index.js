@@ -1125,6 +1125,13 @@ export default {
       if (url.pathname === "/account" && request.method === "DELETE") {
         return json({ error: "immediate_account_deletion_disabled", message: "Account deletion now has a 30-day cancellation period. Use POST /account/schedule-deletion." }, 405);
       }
+      if (url.pathname === "/account/deletion-status" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        const status = await firestoreGet("userAccountStatus/" + u.uid);
+        const deadline = Date.parse(String(status?.scheduledDeletionAt || ""));
+        const pending = status?.status === "pending_deletion" && Number.isFinite(deadline) && deadline > Date.now();
+        return json({ status: pending ? "pending_deletion" : String(status?.status || "active"), pending, scheduledDeletionAt: pending ? status.scheduledDeletionAt : null });
+      }
       if (url.pathname === "/account/schedule-deletion" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         const existing = await firestoreGet("userAccountStatus/" + u.uid);
