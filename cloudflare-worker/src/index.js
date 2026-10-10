@@ -599,10 +599,18 @@ async function ai(request, user, body) {
 async function vision(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
-  const message = String(body.message || "Describe what is visible in this camera frame.").slice(0, 4000);
-  const imageBase64 = String(body.imageBase64 || "");
-  if (!imageBase64) throw new Error("image_required");
-  if (imageBase64.length > 8000000) throw new Error("image_too_large");
+  const message = String(body.message || "Describe what is visible in the attached image(s).").slice(0, 4000);
+  const rawImages = Array.isArray(body.images)
+    ? body.images
+    : [{ imageBase64: body.imageBase64, mimeType: body.mimeType }];
+  if (rawImages.length < 1 || rawImages.length > 4) throw new Error("image_count_invalid");
+  const images = rawImages.map(item => ({
+    imageBase64: String(item?.imageBase64 || ""),
+    mimeType: String(item?.mimeType || "image/jpeg").slice(0, 80)
+  }));
+  if (images.some(image => !image.imageBase64)) throw new Error("image_required");
+  if (images.some(image => !image.mimeType.toLowerCase().startsWith("image/"))) throw new Error("image_type_invalid");
+  if (images.reduce((total, image) => total + image.imageBase64.length, 0) > 8000000) throw new Error("image_too_large");
   // Keep live camera on its own capability by default, while allowing the
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
@@ -618,8 +626,7 @@ async function vision(request, user, body) {
       model: control.modelId || DEFAULT_MODELS.openai,
       message,
       system,
-      imageBase64,
-      mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
+      images
     });
     if (!response.ok) throw new Error("provider_http_" + response.status + ":" + (await response.text()).slice(0, 700));
     const result = await response.json();
