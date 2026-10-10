@@ -439,8 +439,13 @@ private fun LivePlanCard(
     } else {
         plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
     }
-    var selectedPeriod by remember(plan.id) {
-        mutableStateOf(supportedPeriods.firstOrNull { it == "monthly" } ?: supportedPeriods.firstOrNull { it == "yearly" } ?: supportedPeriods.firstOrNull().orEmpty())
+    var selectedPeriod by remember(plan.id) { mutableStateOf("") }
+    LaunchedEffect(plan.id, supportedPeriods) {
+        if (selectedPeriod !in supportedPeriods) {
+            selectedPeriod = supportedPeriods.firstOrNull { it == "monthly" }
+                ?: supportedPeriods.firstOrNull { it == "yearly" }
+                ?: supportedPeriods.firstOrNull().orEmpty()
+        }
     }
     val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
