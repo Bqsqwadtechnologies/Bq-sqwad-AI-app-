@@ -232,3 +232,13 @@ This is a source-level findings and repair plan. It does not certify the current
 
 
 - Commits [24341a6](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/24341a6585c3a68460faaf317a45146be1089f38) and [d1dcf23](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/d1dcf23d6d317b421a931eae7947fba8b35a60d4) isolate the generated-image response parser and add regression coverage for the Worker `imageBase64` response contract, including empty-response rejection. Tests remain unexecuted pending the authorized verification phase.
+
+
+### 2026-10-10 — PDF attachments in Main Chat
+
+- Commit [8ed0289](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/8ed0289b980245623f8561b21bdf3f5d843a83d2): the attachment reader now accepts PDF files up to the existing 5 MiB per-file limit and encodes them for a provider-native document request. Text-based formats continue to be read as text, and images remain image attachments.
+- Commit [837d7a2](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/837d7a2375d54f01490d263475211c0d719b4d32): the Android multimodal client can send images, PDFs, or both through the authenticated vision/attachment route.
+- Commit [b3d1a8d](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/b3d1a8d8b9d205b69a0812527cc952982724a633) adds OpenAI `input_file` and Gemini inline document parts. Commit [062ed9d](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/062ed9d91dc72b43b684a6881004a47c137bb933) validates PDF type, filename, per-kind count and combined encoded payload size on the Worker. Commit [f0037b2](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/f0037b2ecdcfc9358ffd22a9c1b1be043bcfb89a) connects PDF attachments from the Main Chat picker through the provider request while showing the selected file in the chat bubble.
+- Commit [37a68a2](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/37a68a2334c79ed15dd3ab233d49a5377784dd0a) expands the provider payload tests to include PDF input, and [14c8623](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/14c8623cc003e492facc79db44931536c84dc11c) tightens Android request typing for an optional image.
+- Scope boundary: PDF is sent to a provider that accepts PDF/inline document input; the app does not perform local PDF text extraction. Office formats such as DOCX/XLSX/PPTX remain unsupported by the current attachment reader and must not be described as complete. The 8,000,000-character combined encoded payload cap still applies.
+- Verification performed: source files and provider payload tests were fetched after changes; tests/build/runtime requests have not been run.
