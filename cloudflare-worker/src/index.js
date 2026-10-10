@@ -768,25 +768,8 @@ export default {
         if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         await requireAdminSessionNative(adminIdentity.uid);
       }
-      const firebaseBackedPath =
-        url.pathname === "/ai" ||
-        url.pathname === "/ai/stream" ||
-        url.pathname === "/ai/vision" ||
-        url.pathname === "/web-search" ||
-        url.pathname === "/consent" ||
-        url.pathname === "/consent/training" ||
-        url.pathname === "/play/catalog" ||
-        url.pathname === "/play/verify" ||
-        url.pathname === "/social/oauth/start" ||
-        url.pathname === "/social/oauth/callback" ||
-        url.pathname === "/social/accounts" ||
-        url.pathname.startsWith("/social/accounts/") ||
-        url.pathname === "/native/catalog" ||
-        url.pathname === "/entitlements" ||
-        url.pathname === "/entitlement" ||
-        url.pathname === "/admin/access" ||
-        url.pathname === "/admin/test-mode";
-      if (firebaseBackedPath && !request.headers.get("Authorization") && ["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"].includes(url.pathname)) {
+      const protectedPaths = new Set(["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"]);
+      if (protectedPaths.has(url.pathname) && !request.headers.get("Authorization")) {
         return json({ error: "auth_required" }, 401);
       }
 
