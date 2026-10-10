@@ -722,6 +722,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
+    var restoredChat by remember { mutableStateOf<Pair<String, List<HistoryMessage>>?>(null) }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
@@ -969,7 +970,13 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenBranding = { brandingSettings = true },
                 onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
-            history -> HistoryScreen { history = false }
+            history -> HistoryScreen(
+                onBack = { history = false },
+                onContinue = { item, savedMessages ->
+                    restoredChat = item.id to savedMessages
+                    history = false
+                }
+            )
             workspace != null -> {
                 if (workspace == Workspace.ADMIN) {
                     if (adminAuthorized) {
@@ -999,7 +1006,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 openHistory = { history = true },
                 openPlugins = { featureHub = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
-                onPrivacy = { featurePrivacy = Workspace.CHAT }
+                onPrivacy = { featurePrivacy = Workspace.CHAT },
+                restoredChat = restoredChat,
+                onRestoredChatConsumed = { restoredChat = null }
             )
         }
     }
@@ -1092,7 +1101,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -1126,6 +1135,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+
+    LaunchedEffect(restoredChat?.first) {
+        val saved = restoredChat ?: return@LaunchedEffect
+        historyId = saved.first
+        messages.clear()
+        messages.addAll(saved.second.map { item ->
+            ChatMessage(mine = item.mine, text = item.text, id = item.id, prompt = item.prompt)
+        })
+        attachments = emptyList()
+        selectedAdvanced = null
+        privateChat = false
+        error = null
+        statusText = "Saved conversation loaded."
+        onRestoredChatConsumed()
+    }
 
     fun applyCreditSnapshot(snapshot: JSONObject) {
         if (snapshot.optBoolean("adminUnlimited")) {
