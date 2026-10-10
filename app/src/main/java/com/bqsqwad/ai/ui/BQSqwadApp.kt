@@ -2927,8 +2927,11 @@ fun CameraWorkspace() {
     val livePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        granted = cameraOk
         if (cameraOk && liveTermsAccepted) {
-            // Keep the camera preview independent from microphone permission and AI connectivity.
+            // Reflect the runtime permission before composing NativeCameraPreview.
+            // Otherwise the initial false state can keep the preview branch hidden even
+            // after Android has granted camera access.
             previewEnabled = true
             if (micOk) {
                 context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
