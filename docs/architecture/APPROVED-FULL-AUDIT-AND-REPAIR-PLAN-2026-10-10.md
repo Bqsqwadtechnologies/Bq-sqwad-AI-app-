@@ -256,3 +256,5 @@ This is a source-level findings and repair plan. It does not certify the current
 
 - Commit [f7dbc9c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/f7dbc9c2a82c89b75bdeac9c78abbb9a96958af8) closes the screen-capture handler thread when Android revokes MediaProjection access, rather than only cleaning up the virtual display and reader.
 - Verification performed: source lifecycle path inspected after the edit. Device tests for grant, deny, revoke, stop, and restart remain pending.
+
+- Commits [6c6de6c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/6c6de6cf0b257f72a966a0c6b56237fb68b2d439) and [9b3cdbf](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/9b3cdbfc05832a47835dca195382867fb2e0526b) make the generated-image response parser platform-independent and avoid relying on Android's mocked JSON implementation in local unit tests.
