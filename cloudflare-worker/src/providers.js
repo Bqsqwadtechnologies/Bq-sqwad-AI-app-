@@ -66,9 +66,19 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   });
 }
 
-export async function callGemini(env, { model, message, system }) {
+export async function callGemini(env, { model, message, system, images = [], imageBase64, mimeType = "image/jpeg" }) {
   const modelId = model || DEFAULT_MODELS.gemini;
-  const request = { contents: [{ role: "user", parts: [{ text: String(message || "") }] }] };
+  const imageInputs = Array.isArray(images) && images.length
+    ? images
+    : (imageBase64 ? [{ imageBase64, mimeType }] : []);
+  const parts = [{ text: String(message || (imageInputs.length ? "Describe what is visible in the attached image(s)." : "")) }];
+  imageInputs.forEach(image => {
+    parts.push({ inlineData: {
+      mimeType: String(image.mimeType || "image/jpeg"),
+      data: String(image.imageBase64 || "")
+    }});
+  });
+  const request = { contents: [{ role: "user", parts }] };
   if (system) request.systemInstruction = { parts: [{ text: system }] };
   const result = await jsonFetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
