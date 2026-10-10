@@ -147,8 +147,8 @@ object ChatAttachmentReader {
 
     private fun xmlToText(xml: String): String {
         val plain = xml
-            .replace(Regex("""<(?:w:tab|a:br)\b[^>]*/>"""), "\\t")
-            .replace(Regex("""</(?:w:p|a:p|w:tr|a:tr|si|row)\s*>"""), "\\n")
+            .replace(Regex("""<(?:w:tab|a:br)\b[^>]*/>"""), "\t")
+            .replace(Regex("""</(?:w:p|a:p|w:tr|a:tr|si|row)\s*>"""), "\n")
             .replace(Regex("""<[^>]+>"""), " ")
         val entities = plain
             .replace("&amp;", "&")
@@ -157,8 +157,8 @@ object ChatAttachmentReader {
             .replace("&quot;", "\"")
             .replace("&apos;", "'")
         return entities.replace(Regex("""[ \t]+"""), " ")
-            .replace(Regex(""" *\n *"""), "\\n")
-            .replace(Regex("""\n{3,}"""), "\\n\\n")
+            .replace(Regex(""" *\n *"""), "\n")
+            .replace(Regex("""\n{3,}"""), "\n\n")
             .trim()
     }
 }
