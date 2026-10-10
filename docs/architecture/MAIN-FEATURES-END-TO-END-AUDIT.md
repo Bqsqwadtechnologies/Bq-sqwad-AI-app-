@@ -13,9 +13,10 @@ Static source inspection is not treated as proof of runtime success.
 - Android main chat → Firebase ID token → /ai or /ai/stream → provider gateway → response → UI.
 - Streaming is implemented with SSE parsing, incremental UI updates, and a stop/cancellation control.
 - Server capability authorization and credit reservation are present.
-- Gap: the attachment button currently only selects files and displays a placeholder; it does not attach file content to the AI request.
-- Gap: a dedicated end-to-end history load/save/delete flow is not exposed by the current main-chat UI/API path inspected in this audit.
-- Status: PARTIAL — not end-to-end verified.
+- Current source reads multiple attachments (up to 5 MB each) and sends extracted text in the prompt; one image can be sent through `/ai/vision`. More than one image is explicitly rejected. The reader supports images and text-like files only; PDF and Office document text extraction is not implemented, and text is capped at 120,000 characters per attachment.
+- Current source saves successful non-private chat sessions through `HistoryApiClient`; `HistoryScreen` lists saved chats, opens messages, and deletes records. End-to-end persistence, ownership enforcement, and reopen-continuation still require backend/device verification.
+- Remaining gap: file format coverage, atomic handling of multi-file read failures, and end-to-end device verification.
+- Status: PARTIAL — core attachment/history paths exist in source; not end-to-end verified.
 
 ## Phase 2 — Authentication, Consent, Account Gate
 - Firebase email/password and Google sign-in are wired.
@@ -63,14 +64,12 @@ Implemented during this audit:
 - Status: FUNCTIONAL STT/TTS LOOP IN SOURCE; this is not yet a low-latency full-duplex realtime audio transport. Real-device verification required.
 
 ## Phase 6 — Personal Intelligence / Life Matters / Learning
-- These workspaces currently route the entered request through a generic AiTaskWorkspace.
-- They have UI entry points but do not yet contain the full dedicated product workflows described by their names.
-- Status: PARTIAL. These are not honestly end-to-end verified as complete feature products.
+- Current source has dedicated `PersonalIntelligenceWorkspace`, `LifeMattersWorkspace`, and `CompleteLearningStudioWorkspace` composables rather than routing all three through a generic task workspace. Learning loads plan/catalog and progress data and submits learning sessions; Personal/Life have domain-specific prompts and API routes.
+- Remaining gap: verify all visible controls, progress/history persistence, server entitlement consistency, and real-device workflows. Do not mark complete based on UI presence alone.
+- Status: DEDICATED SOURCE FLOWS PRESENT; runtime/backend verification required.
 
 ## Phase 7 — AI Companion
-- Companion UI supports personality selection, conversation, daily check-in, and memory enable/disable.
-- Memory is fetched and updated through backend APIs.
-- AI responses use the companion capability.
+- Companion UI supports personality/mode selection, conversation, check-in and memory controls; plan gates are present in the workspace source. Memory and settings are backed by Worker routes, but user-controlled persistence, access enforcement, and plan gates require runtime verification.
 - Status: IMPLEMENTED IN SOURCE; runtime persistence and capability tests required.
 
 ## Phase 8 — Business AI
