@@ -345,7 +345,7 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
     })).filter(pair => !eligiblePeriods || eligiblePeriods.has(pair.billingPeriod) || eligiblePeriods.has(String(pair.basePlanId || "")));
     const entitlements = Array.isArray(plan.entitlements) ? plan.entitlements : [];
     const creditGrant = entitlements.reduce((total, value) => {
-      const match = String(value).match(/^credit:(\\d+)$/);
+      const match = String(value).match(/^credit:(\d+)$/);
       return total + (match ? Number(match[1]) : 0);
     }, 0);
     return pairs
