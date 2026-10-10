@@ -54,7 +54,12 @@ test("routing never returns ReferenceError for feature paths", async () => {
   }
 });
 
-test("account deletion cannot be performed immediately", async () => {\n  const res = await worker.fetch(new Request("https://x.dev/account", { method: "DELETE" }), {});\n  assert.equal(res.status, 405);\n});\n\ntest("protected AI routes reject missing auth with 401", async () => {
+test("account deletion cannot be performed immediately", async () => {
+  const res = await worker.fetch(new Request("https://x.dev/account", { method: "DELETE" }), {});
+  assert.equal(res.status, 405);
+});
+
+test("protected AI routes reject missing auth with 401", async () => {
   const res = await worker.fetch(new Request("https://x.dev/ai", {
     method: "POST",
     body: "{}"
