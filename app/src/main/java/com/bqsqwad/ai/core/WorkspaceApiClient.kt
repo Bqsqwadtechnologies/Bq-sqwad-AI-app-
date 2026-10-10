@@ -66,6 +66,8 @@ class WorkspaceApiClient {
             val friendly = when {
                 status >= 500 || serverError == "route_not_migrated" ->
                     "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
+                serverError == "admin_session_required" ->
+                    "The admin unlock session has expired. Open Admin Security and unlock again."
                 status == 401 || serverError == "auth_required" ->
                     "Please sign in again to continue."
                 status == 402 || serverError.contains("insufficient credits") ->
