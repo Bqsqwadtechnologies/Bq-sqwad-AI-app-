@@ -21,6 +21,9 @@
         <intent>
             <action android:name="com.google.android.youtube.intent.action.CREATE_LIVE_STREAM" />
         </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
     </queries>
     <application
         android:name=".BqApplication"
