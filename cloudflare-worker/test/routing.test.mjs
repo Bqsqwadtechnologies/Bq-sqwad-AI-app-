@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { isPublicCatalogPlan } from "../src/index.js";
+import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "../src/plan-catalog-native.js";
+import { playCatalog } from "../src/google-play.js";
 
 globalThis.fetch = async () => new Response('{"ok":true}', { status: 200 });
 
@@ -95,4 +97,30 @@ test("unmigrated routes return a safe branded service error", async () => {
 test("CORS preflight returns 204", async () => {
   const res = await worker.fetch(new Request("https://x.dev/ai", { method: "OPTIONS" }), {});
   assert.equal(res.status, 204);
+});
+
+
+test("Worker fallback catalog exposes the canonical BQ Sqwad AI plans and shared credit packs", () => {
+  const sections = COMMERCIAL_CATALOG.sections || {};
+  const plans = Object.values(sections).flat();
+  assert.ok(plans.length > 0, "fallback catalog should not be empty");
+  const ids = new Set(plans.map(plan => plan.id));
+  for (const id of ["credit100", "credit250", "credit500", "credit1000", "bizstarter", "companionfree", "explorer"]) {
+    assert.ok(ids.has(id), "fallback catalog is missing " + id);
+  }
+  for (const plan of plans) {
+    assert.match(String(plan.id || ""), /^[a-z0-9-]+$/);
+  }
+});
+
+test("Google Play catalog and verification share canonical fallback mappings", async () => {
+  const mappings = canonicalPlayMappings();
+  assert.ok(mappings.length > 0, "canonical Play mappings should not be empty");
+  assert.ok(mappings.some(item => item.planId === "credit100" && item.creditGrant === 100));
+  const result = await playCatalog({ get: async () => null });
+  assert.ok(result.products.length > 0);
+  assert.ok(result.products.some(item => item.planId === "credit100" && item.productId === "credit100"));
+  for (const item of result.products) {
+    assert.match(item.productId, /^[a-z0-9-]+$/);
+  }
 });
