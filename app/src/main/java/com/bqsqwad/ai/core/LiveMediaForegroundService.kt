@@ -72,6 +72,7 @@ class LiveMediaForegroundService : Service() {
     private var voice = "marin"
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
+    private var voiceConnectionWatchdog: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -154,7 +155,13 @@ class LiveMediaForegroundService : Service() {
                         context = this@LiveMediaForegroundService,
                         clientSecret = secret,
                         model = model,
-                        onState = { state -> writeState(true, state) },
+                        onState = { state ->
+                            writeState(true, state)
+                            if (!state.equals("connecting", ignoreCase = true)) {
+                                voiceConnectionWatchdog?.cancel()
+                                voiceConnectionWatchdog = null
+                            }
+                        },
                         onError = { error -> writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
                         onTranscript = { speaker, text -> appendLog("$speaker: $text") }
@@ -167,6 +174,18 @@ class LiveMediaForegroundService : Service() {
             }
         }
         writeState(true, "connecting")
+        voiceConnectionWatchdog?.cancel()
+        voiceConnectionWatchdog = serviceScope.launch {
+            delay(25_000L)
+            val current = _uiState.value
+            if (current.active &&
+                current.mode == MODE_VOICE &&
+                current.status.equals("connecting", ignoreCase = true)
+            ) {
+                writeError("The live voice connection timed out. Check your connection and try again.")
+                stopSelf()
+            }
+        }
     }
 
     private fun createNotificationChannel() {
@@ -488,8 +507,26 @@ class LiveMediaForegroundService : Service() {
         screenSession?.stop()
         screenSession = null
         serviceScope.cancel()
-        _uiState.value = LiveMediaUiState()
-        writeState(false, "")
+        voiceConnectionWatchdog?.cancel()
+        voiceConnectionWatchdog = null
+        val previousState = _uiState.value
+        val preserveError = previousState.status == "error" && previousState.answer.isNotBlank()
+        val finalAnswer = if (preserveError) previousState.answer else ""
+        val finalStatus = if (preserveError) "error" else "stopped"
+        val finalMode = mode.ifBlank { previousState.mode }
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putBoolean("active", false)
+            .putString("mode", finalMode)
+            .putString("answer", finalAnswer)
+            .apply()
+        _uiState.value = previousState.copy(
+            active = false,
+            mode = finalMode,
+            status = finalStatus,
+            answer = finalAnswer,
+            audioLevel = 0f,
+            onlineBroadcast = false
+        )
         stopForeground(STOP_FOREGROUND_REMOVE)
         instance = null
         super.onDestroy()
