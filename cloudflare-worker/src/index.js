@@ -24,8 +24,8 @@ async function requestKeyHash(value) {
   return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
 }
 
-function enforceRateLimit(uid) {
-  const limit = Math.max(1, Number(globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60));
+function enforceRateLimit(uid, limitOverride = null) {
+  const limit = Math.max(1, Number(limitOverride || globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60));
   const now = Date.now();
   const bucket = rateBuckets.get(uid);
   if (!bucket || now - bucket.startedAt >= 60000) {
@@ -1388,8 +1388,8 @@ export default {
       if (url.pathname === "/admin/security/status" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({...await securityStatusNative(),encryptionKeyConfigured:Boolean(env.BQ_SECRET_ENCRYPTION_KEY)}); }
       if (url.pathname === "/admin/security/password" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await configurePasswordNative(env,u.uid,String((await readBody(request)).password||""))); }
       if (url.pathname === "/admin/security/totp/start" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await beginTotpNative(env,u.uid)); }
-      if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }
-      if (url.pathname === "/admin/security/unlock" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await unlockAdminNative(env,u.uid,String(b.password||""),String(b.code||""))); }
+      if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit(u.uid,8);const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }
+      if (url.pathname === "/admin/security/unlock" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit(u.uid,8);const b=await readBody(request);return json(await unlockAdminNative(env,u.uid,String(b.password||""),String(b.code||""))); }
       if (url.pathname === "/admin/security/biometric" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await biometricStatusNative()); }
       if (url.pathname === "/admin/security/biometric/register" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await registerBiometricNative(u.uid,String(b.publicKeyBase64||""))); }
       if (url.pathname === "/admin/security/biometric/challenge" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await beginBiometricNative(u.uid)); }
