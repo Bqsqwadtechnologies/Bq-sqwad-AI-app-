@@ -3124,12 +3124,7 @@ fun CameraWorkspace() {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.bq_sqwad_logo),
-                        contentDescription = "BQ Sqwad AI",
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    BqLogo(64.dp)
                     Column(Modifier.weight(1f)) {
                         Text("Screen mode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("AI is listening and viewing your shared screen. Responses are voice-only.", style = MaterialTheme.typography.bodyMedium)
@@ -3265,12 +3260,7 @@ fun CameraWorkspace() {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.bq_sqwad_logo),
-                        contentDescription = "BQ Sqwad AI",
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                    BqLogo(64.dp)
                     Column(Modifier.weight(1f)) {
                         Text("AI Live Camera", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("AI sees the camera and responds by voice. No AI answer text is displayed.", style = MaterialTheme.typography.bodyMedium)
@@ -4153,23 +4143,6 @@ private fun WallpaperBackground(index: Int) {
 }
 
 @Composable private fun FloatingLogo(modifier: Modifier) {
-    Box(modifier.clip(CircleShape).background(Brush.radialGradient(listOf(Color(0xFF7EA7FF), Color(0xFF1749D1), Color(0xFF061A63), Color.Transparent)))) { LogoBubble(Modifier.fillMaxSize().padding(8.dp)) }
-}
-
-@Composable
-private fun LogoBubble(modifier: Modifier) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest
-    ) {
-        Image(
-            painter = painterResource(R.drawable.bq_sqwad_logo),
-            contentDescription = "BQ Sqwad AI logo",
-            modifier = Modifier.fillMaxSize().padding(6.dp).clip(CircleShape),
-            contentScale = ContentScale.Crop
-        )
-    }
+    // Use the single shared brand mark without a glowing or faded logo variant.
+    BqLogo(76.dp, modifier)
 }
