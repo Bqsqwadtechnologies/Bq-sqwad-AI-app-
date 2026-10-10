@@ -1,6 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
-import { COMMERCIAL_CATALOG } from "./plan-catalog-native.js";
+import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
@@ -470,9 +470,14 @@ async function nativeCatalog() {
   const publicPlans = basePlans.filter(isPublicCatalogPlan);
   const visiblePlanIds = new Set(publicPlans.map(p => p.id));
   const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
+  const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
+  const mergedProducts = [
+    ...configuredProducts,
+    ...canonicalPlayMappings().filter(p => !configuredPlanKeys.has(String(p.planId || "") + "|" + String(p.basePlanId || "")))
+  ];
   // Return only checkout mappings attached to visible BQ Sqwad AI plans. Raw Play
   // products remain private to purchase verification and are never a second catalog.
-  const products = configuredProducts.map(p => ({
+  const products = mergedProducts.map(p => ({
     planId: String(p.planId || ""),
     productId: String(p.productId || ""),
     basePlanId: p.basePlanId ? String(p.basePlanId) : null,
@@ -512,7 +517,7 @@ async function nativeCatalog() {
     quantityTiers: Array.isArray(x.quantityTiers) ? x.quantityTiers : []
   }));
   return {
-    version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || 1)),
+    version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || COMMERCIAL_CATALOG.version || 1)),
     plans: publicPlans,
     products,
     publicContactSales: publicPlans
