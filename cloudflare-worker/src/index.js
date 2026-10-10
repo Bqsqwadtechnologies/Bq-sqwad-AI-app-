@@ -666,7 +666,7 @@ async function permanentlyDeleteAccount(uid) {
   const serviceAccountJson = globalThis.__bqEnv?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) throw new Error("BQ_FIREBASE_SERVICE_ACCOUNT_JSON is not configured");
   const project = JSON.parse(serviceAccountJson).project_id;
-  const fields = ["uid", "ownerUid", "userId", "accountUid"];
+  const fields = ["uid", "ownerUid"];
   for (const col of cols) {
     for (const field of fields) {
       let guard = 0;
