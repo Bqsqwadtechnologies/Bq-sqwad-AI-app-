@@ -23,6 +23,7 @@ internal sealed interface MdBlock {
     data class Code(val lang: String, val code: String) : MdBlock
     data class Heading(val text: String) : MdBlock
     data class Bullet(val text: String) : MdBlock
+    data class BulletList(val items: List<String>) : MdBlock
     data class Para(val text: String) : MdBlock
 }
 
@@ -46,7 +47,24 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         }
         i++
     }
-    return out
+    val grouped = mutableListOf<MdBlock>()
+    var bulletItems = mutableListOf<String>()
+    fun flushBullets() {
+        if (bulletItems.isNotEmpty()) {
+            grouped += MdBlock.BulletList(bulletItems.toList())
+            bulletItems = mutableListOf()
+        }
+    }
+    out.forEach { block ->
+        if (block is MdBlock.Bullet) {
+            bulletItems += block.text
+        } else {
+            flushBullets()
+            grouped += block
+        }
+    }
+    flushBullets()
+    return grouped
 }
 
 private val INLINE = Regex("""(\\*\\*[^*]+\\*\\*|`[^`]+`)""")
@@ -72,6 +90,14 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Mat
                 is MdBlock.Code -> CodeBlock(block.code, block.lang)
                 is MdBlock.Heading -> Text(inline(block.text), style = MaterialTheme.typography.titleMedium, color = color)
                 is MdBlock.Bullet -> Row(verticalAlignment = Alignment.Top) { Text("•  ", color = color); Text(inline(block.text), color = color) }
+                is MdBlock.BulletList -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    block.items.forEach { item ->
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text("•  ", color = color)
+                            Text(inline(item), color = color)
+                        }
+                    }
+                }
                 is MdBlock.Para -> Text(inline(block.text), color = color)
             }
         }
