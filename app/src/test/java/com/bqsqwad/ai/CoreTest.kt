@@ -1,6 +1,10 @@
 package com.bqsqwad.ai
 
 import com.bqsqwad.ai.core.ApiConfig
+import com.bqsqwad.ai.core.ChatAttachmentReader
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import com.bqsqwad.ai.core.ApiError
 import com.bqsqwad.ai.core.apiErrorFrom
 import com.bqsqwad.ai.core.withRetry
@@ -34,6 +38,17 @@ class CoreTest {
         val image = blocks[0] as MdBlock.Image
         assertEquals("preview", image.alt)
         assertEquals("https://example.com/image.png", image.url)
+    }
+
+    @Test fun docxAttachmentExtractsDocumentText() {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry("word/document.xml"))
+            zip.write("<w:document><w:p><w:r><w:t>Hello BQ Sqwad AI</w:t></w:r></w:p></w:document>".toByteArray())
+            zip.closeEntry()
+        }
+        val text = ChatAttachmentReader.extractOfficeText(output.toByteArray(), "docx")
+        assertTrue(text.contains("Hello BQ Sqwad AI"))
     }
 
     @Test fun generatedImageParserAcceptsWorkerBase64Contract() {
