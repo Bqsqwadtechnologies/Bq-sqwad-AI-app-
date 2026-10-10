@@ -14,7 +14,7 @@ Static source inspection is not treated as proof of runtime success.
 - Streaming is implemented with SSE parsing, incremental UI updates, and a stop/cancellation control.
 - Server capability authorization and credit reservation are present.
 - Current source reads multiple attachments (up to 5 MB each) and sends extracted text in the prompt; one image can be sent through `/ai/vision`. More than one image is explicitly rejected. The reader supports images and text-like files only; PDF and Office document text extraction is not implemented, and text is capped at 120,000 characters per attachment.
-- Current source saves successful non-private chat sessions through `HistoryApiClient`; `HistoryScreen` lists saved chats, opens messages, and deletes records. End-to-end persistence, ownership enforcement, and reopen-continuation still require backend/device verification.
+- Current source saves successful non-private chat sessions through `HistoryApiClient`; `HistoryScreen` lists, previews, and deletes records. The approved audit implementation adds a `Continue in Chat` action that restores the selected saved messages and history ID into Main Chat, so later replies can append to that conversation. Backend ownership checks are present in Worker history routes; end-to-end persistence and device behavior still require runtime verification.
 - Remaining gap: file format coverage, atomic handling of multi-file read failures, and end-to-end device verification.
 - Status: PARTIAL — core attachment/history paths exist in source; not end-to-end verified.
 
