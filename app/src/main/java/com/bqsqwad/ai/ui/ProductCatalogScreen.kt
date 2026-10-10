@@ -139,7 +139,12 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(plans.isNotEmpty())Text("${plans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
-                if(plans.isEmpty()) item { ProductNotice("Plans temporarily unavailable","The BQ Sqwad AI team is working to restore the catalog. Please refresh shortly.") }
+                if(plans.isEmpty()) item {
+                    ProductNotice(
+                        "No plans configured yet",
+                        "The catalog request succeeded, but no active plans are configured on the server. An authorized administrator should open Admin > Plan Catalog, configure at least one real plan, save it, and refresh this screen. Google Play free-trial offers must also be configured in Play Console."
+                    )
+                }
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                 salesNotice?.let { notice -> item { ProductNotice("Sales update", notice) } }
                 item {
