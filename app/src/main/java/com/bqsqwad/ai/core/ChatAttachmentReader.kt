@@ -40,7 +40,12 @@ object ChatAttachmentReader {
             out.toByteArray()
         } ?: error("Could not open '" + name + "'.")
         return when {
-            mime.startsWith("image/") -> PreparedChatAttachment(name, mime, imageBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
+            mime.startsWith("image/") -> {
+                require(mime in setOf("image/jpeg", "image/jpg", "image/png", "image/webp")) {
+                    "Image '" + name + "' must be JPEG, PNG, or WebP. Convert it to a supported format and try again."
+                }
+                PreparedChatAttachment(name, if (mime == "image/jpg") "image/jpeg" else mime, imageBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
+            }
             mime == "application/pdf" || name.substringAfterLast('.', "").equals("pdf", ignoreCase = true) ->
                 PreparedChatAttachment(name, "application/pdf", fileBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
             mime in TEXT_MIMES || name.substringAfterLast('.', "").lowercase() in setOf("txt", "md", "csv", "json", "xml", "html", "js", "kt", "kts", "java", "py", "css") -> {
