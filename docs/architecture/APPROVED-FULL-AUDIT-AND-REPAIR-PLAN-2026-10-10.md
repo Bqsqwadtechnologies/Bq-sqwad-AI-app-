@@ -271,3 +271,13 @@ This is a source-level findings and repair plan. It does not certify the current
 - Commit [92c780a](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/92c780a5f8b259ba467c6a0451f809402f6a4e7a) adds regression tests for XLSX shared strings/cell values and PPTX slide text. Standalone Kotlin checks using sample ZIP/XML files passed for DOCX, XLSX and PPTX; this is not a substitute for running the repository's Android Gradle tests.
 
 - Commit [7f79e4b](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/7f79e4b35cd2c317536c7285efec86e03f5884f7) adds a combined 240,000-character cap for text extracted from multiple attachments before submission; failed size checks retain the selected files and prompt for retry.
+
+
+### Follow-up source verification — 2026-10-10
+
+- Re-fetched the current `main` versions of the Android chat UI, Markdown renderer, attachment reader, ChatApiClient, HistoryApiClient, Worker vision route, and provider adapters after the image/file work.
+- Confirmed the repository includes unit coverage for Markdown image links (`CoreTest.kt`) and Worker provider payload coverage for multiple images plus PDF attachments (`providers-images.test.mjs`).
+- Confirmed the Worker vision path validates bounded image/PDF attachment counts and total encoded payload size, passes image and PDF inputs to the provider router, and preserves attachment names/MIME types and HTTPS image URLs in chat-history metadata.
+- Confirmed the Android chat renders in-session image attachments as previews, other files as attachment cards, generated-image results as in-chat images, and standalone Markdown image links using the shared HTTPS renderer.
+- The current GitHub Actions workflows are manual-dispatch workflows. The available GitHub connection in this session supports repository reads and file commits but does not expose a workflow-dispatch action, so I could not launch the build/test workflow from here. The latest successful APK run predates these attachment changes and does not validate them.
+- **Still unverified:** Kotlin compilation, Android unit tests, Worker test execution on the latest commit, deployed Worker configuration/provider credentials, chat-history round-trip against live Firestore, billing correctness under real requests, and real-device camera/voice/screen-share behavior. Do not label the entire app complete until those checks and the remaining approved audit phases pass.
