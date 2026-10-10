@@ -420,14 +420,24 @@ export function isPublicCatalogPlan(x) {
 }
 
 async function nativeCatalog() {
+  // The canonical catalog is bundled with the Worker. A failure in an optional
+  // Firestore collection must not blank the customer-facing catalog.
+  const catalogWarnings = [];
+  const readOptional = async (label, read, fallback) => {
+    try { return await read(); }
+    catch {
+      catalogWarnings.push(label);
+      return fallback;
+    }
+  };
   const [plans, planCatalog, playCatalogConfig, features, bindings, addOns, businessPricing] = await Promise.all([
-    firestoreQuery("plans", { filters: [{ field: { fieldPath: "active" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }),
-    firestoreGet("planCatalog/config"),
-    firestoreGet("playCatalog/config"),
-    firestoreQuery("featureRegistry", { limit: 100 }),
-    firestoreQuery("planFeatureBindings", { limit: 100 }),
-    firestoreQuery("addOns", { filters: [{ field: { fieldPath: "enabled" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }),
-    firestoreGet("config/businessPricing")
+    readOptional("legacy_plans_unavailable", () => firestoreQuery("plans", { filters: [{ field: { fieldPath: "active" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }), []),
+    readOptional("admin_catalog_unavailable", () => firestoreGet("planCatalog/config"), null),
+    readOptional("play_mappings_unavailable", () => firestoreGet("playCatalog/config"), null),
+    readOptional("feature_registry_unavailable", () => firestoreQuery("featureRegistry", { limit: 100 }), []),
+    readOptional("feature_bindings_unavailable", () => firestoreQuery("planFeatureBindings", { limit: 100 }), []),
+    readOptional("addons_unavailable", () => firestoreQuery("addOns", { filters: [{ field: { fieldPath: "enabled" }, op: "EQUAL", value: { booleanValue: true } }], limit: 100 }), []),
+    readOptional("business_pricing_unavailable", () => firestoreGet("config/businessPricing"), null)
   ]);
   const safePlan = (id, data = {}) => ({
     id,
@@ -520,6 +530,7 @@ async function nativeCatalog() {
   }));
   return {
     version: Math.max(1, Number(planCatalog?.version || playCatalogConfig?.version || COMMERCIAL_CATALOG.version || 1)),
+    catalogStatus: { degraded: catalogWarnings.length > 0, warnings: catalogWarnings },
     plans: publicPlans,
     products,
     publicContactSales: publicPlans
