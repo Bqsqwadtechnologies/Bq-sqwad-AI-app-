@@ -59,7 +59,18 @@ fun AdminPlanCatalogScreen(onBack:()->Unit) {
     var expandedEditor by remember { mutableStateOf(false) }
 
     fun parseRows(c:JSONObject):List<AdminCatalogRow> {
-        val a=c.optJSONArray("plans") ?: JSONArray()
+        val a = c.optJSONArray("plans") ?: run {
+            val flattened = JSONArray()
+            val sections = c.optJSONObject("sections") ?: JSONObject()
+            val keys = sections.keys()
+            while (keys.hasNext()) {
+                val section = sections.optJSONArray(keys.next()) ?: continue
+                for (index in 0 until section.length()) {
+                    section.optJSONObject(index)?.let { flattened.put(it) }
+                }
+            }
+            flattened
+        }
         return List(a.length()) { i ->
             val p=a.getJSONObject(i)
             val price=p.optJSONObject("price") ?: JSONObject()
