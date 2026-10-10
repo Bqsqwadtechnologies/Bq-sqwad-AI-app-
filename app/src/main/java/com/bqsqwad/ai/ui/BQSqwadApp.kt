@@ -1134,8 +1134,10 @@ private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
 
 @Composable
 internal fun ChatRemoteImage(url: String, description: String = "Image") {
+    var loadFailed by remember(url) { mutableStateOf(false) }
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
-        value = withContext(Dispatchers.IO) {
+        loadFailed = false
+        val loaded = withContext(Dispatchers.IO) {
             runCatching {
                 if (!url.startsWith("https://", ignoreCase = true)) return@runCatching null
                 URL(url).openConnection().apply {
@@ -1146,6 +1148,8 @@ internal fun ChatRemoteImage(url: String, description: String = "Image") {
                 }
             }.getOrNull()
         }
+        value = loaded
+        loadFailed = loaded == null
     }
     if (bitmap != null) {
         Image(
@@ -1155,7 +1159,12 @@ internal fun ChatRemoteImage(url: String, description: String = "Image") {
             modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(12.dp))
         )
     } else {
-        Text("Loading generated image…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (loadFailed) "This image could not be loaded. The image link may have expired."
+            else "Loading image…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -1406,12 +1415,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         streamJob = null
                         if (!privateChat) {
                             runCatching {
-                                withContext(Dispatchers.IO) {
-                                    val snapshot = messages.map { m ->
-                                        HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
-                                    }
-                                    historyId = HistoryApiClient().save(historyId, promptText, snapshot)
+                                val snapshot = messages.map { m ->
+                                    HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
                                 }
+                                withContext(Dispatchers.IO) {
+                                    HistoryApiClient().save(historyId, promptText, snapshot)
+                                }
+                            }.onSuccess { savedId ->
+                                historyId = savedId
                             }.onFailure {
                                 error = "The image was generated, but this conversation could not be saved."
                             }
