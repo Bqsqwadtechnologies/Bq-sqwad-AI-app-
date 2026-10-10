@@ -12,7 +12,8 @@ import java.net.URL
 data class AdminSecurityStatus(
     val passwordConfigured: Boolean,
     val totpConfigured: Boolean,
-    val biometricConfigured: Boolean
+    val biometricConfigured: Boolean,
+    val encryptionKeyConfigured: Boolean
 )
 
 class AdminSecurityClient(
@@ -23,7 +24,8 @@ class AdminSecurityClient(
         return AdminSecurityStatus(
             passwordConfigured = o.optBoolean("passwordConfigured", false),
             totpConfigured = o.optBoolean("totpConfigured", false),
-            biometricConfigured = o.optBoolean("biometricConfigured", false)
+            biometricConfigured = o.optBoolean("biometricConfigured", false),
+            encryptionKeyConfigured = o.optBoolean("encryptionKeyConfigured", false)
         )
     }
 
