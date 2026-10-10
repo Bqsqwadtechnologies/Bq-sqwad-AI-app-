@@ -33,7 +33,7 @@ internal sealed interface MdBlock {
     data class Para(val text: String) : MdBlock
 }
 
-private val MARKDOWN_IMAGE = Regex("""^!\\[([^\\]]*)]\\((https?://[^)\\s]+)\\)\\s*$""", RegexOption.IGNORE_CASE)
+private val MARKDOWN_IMAGE = Regex("""^!\[([^\]]*)]\((https?://[^)\s]+)\)\s*$""", RegexOption.IGNORE_CASE)
 private val ORDERED_PREFIX = Regex("""^\s*\d+[.)]\s+""")
 
 internal fun parseBlocks(src: String): List<MdBlock> {
