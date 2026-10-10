@@ -718,6 +718,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(false) }
+    var brandingSettings by remember { mutableStateOf(false) }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -956,6 +957,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             featureSettings != null -> FeatureSettingsScreen(featureSettings!!) { featureSettings = null }
             advancedFeature != null -> AdvancedFeatureScreen(advancedFeature!!) { advancedFeature = null }
             plans -> ProductCatalogScreen { plans = false }
+            brandingSettings -> BrandingSettingsScreen { brandingSettings = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
             featureInfo != null -> FeatureInfoScreen(featureInfo!!) { featureInfo = null }
             featurePrivacy != null -> LegalCenterScreen(initialTopic = featurePrivacy!!) { featurePrivacy = null }
@@ -964,6 +966,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onBack = { settings = false },
                 onOpenAccountProtection = { accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
+                onOpenBranding = { brandingSettings = true },
                 onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
             history -> HistoryScreen { history = false }
@@ -3669,7 +3672,7 @@ private fun PlansSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -3850,6 +3853,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FeatureCard("Account protection", "Password, Google sign-in, passkeys and device protection.", onOpenAccountProtection)
+                    FeatureCard("Brand & App Logo", "Choose one logo for all shared BQ Sqwad AI logo placements, or restore the original.", onOpenBranding)
                     FeatureCard("Privacy & Legal Center", "Consent, privacy topics, Terms and data controls.", onOpenLegalCenter)
                     FeatureCard("Android permissions", "Review camera, microphone, notifications and other OS permissions.") {
                         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
