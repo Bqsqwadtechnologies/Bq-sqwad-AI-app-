@@ -2924,17 +2924,6 @@ fun CameraWorkspace() {
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
     val liveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        granted = it
-        if (it) {
-            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
-            active = true
-        }
-    }
     val livePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
