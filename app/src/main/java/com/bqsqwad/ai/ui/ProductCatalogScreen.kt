@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.ProductDetails
+import com.bqsqwad.ai.core.NativeFeatureRegistry
 import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
+    var showAllCapabilities by remember { mutableStateOf(true) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
     var bindings by remember { mutableStateOf(emptyList<FeatureBinding>()) }
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
@@ -419,6 +421,34 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     }
                 }
 
+                item {
+                    Text("BQ Sqwad AI Feature Directory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Browse registered core workspaces and advanced capabilities. A registered name does not by itself guarantee that its live service is configured or available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { showAllCapabilities = !showAllCapabilities }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (showAllCapabilities) "Hide feature directory" else "Show all AI features")
+                    }
+                }
+                if (showAllCapabilities) {
+                    item { Text("Core workspaces", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(NativeFeatureRegistry.core, key = { "core-" + it.id }) { feature ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(feature.title, fontWeight = FontWeight.SemiBold)
+                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    item { Text("Advanced capability registry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(NativeFeatureRegistry.advanced, key = { "advanced-" + it.id }) { feature ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(feature.title, fontWeight = FontWeight.SemiBold)
+                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Registered capability — live availability must be verified", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            }
+                        }
+                    }
+                }
                 // Google Play's product/base-plan projection is intentionally not rendered
                 // as a second catalog. It is an internal checkout mapping only. Users see
                 // the BQ Sqwad AI catalog above; Play details are queried only to resolve
