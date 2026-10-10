@@ -244,3 +244,9 @@ This is a source-level findings and repair plan. It does not certify the current
 - Verification performed: source files and provider payload tests were fetched after changes; tests/build/runtime requests have not been run.
 
 - Commits [8bca21e](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/8bca21edcbda74123e82e9b5d6409b9ccece3f43) and [155900d](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/155900d1e6ae34c0d43ede485f5a9384d049eb4c) restrict image MIME types to JPEG, PNG and WebP, and keep the user-facing error message aligned with the backend allowlist.
+
+
+### 2026-10-10 — Video content route matching
+
+- Commit [0fe3c2c](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/commit/0fe3c2c28e544284382588c87c522b35ba2c30ac) prevents the generic `/video/jobs/{id}` GET route from matching `/video/jobs/{id}/content` before the content handler can run.
+- Verification performed: source route ordering/conditions inspected after the edit. The authenticated video download and playback flow still needs client implementation and a provider/device test; this route fix alone does not make video playback complete.
