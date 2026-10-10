@@ -2287,34 +2287,6 @@ private fun FeatureHub(
             contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            scheduledDeletionAt?.let { deadline ->
-                item {
-                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Account deletion scheduled", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                            Text("Your account is scheduled for deletion on $deadline. Sign back in before this date to cancel deletion.", color = MaterialTheme.colorScheme.onErrorContainer)
-                            Button(
-                                enabled = !cancellingDeletion,
-                                onClick = {
-                                    cancellingDeletion = true
-                                    scope.launch {
-                                        runCatching { AccountDeletionClient().cancelDeletion() }
-                                            .onSuccess {
-                                                scheduledDeletionAt = null
-                                                deletionNotice = "Account deletion cancelled. Your account remains active."
-                                            }
-                                            .onFailure { deletionNotice = it.message ?: "Could not cancel scheduled deletion." }
-                                        cancellingDeletion = false
-                                    }
-                                }
-                            ) { Text(if (cancellingDeletion) "Cancelling…" else "Cancel account deletion") }
-                        }
-                    }
-                }
-            }
-            deletionNotice?.let { notice ->
-                item { Text(notice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
-            }
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -3712,6 +3684,34 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            scheduledDeletionAt?.let { deadline ->
+                item {
+                    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Account deletion scheduled", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text("Your account is scheduled for deletion on $deadline. Sign back in before this date to cancel deletion.", color = MaterialTheme.colorScheme.onErrorContainer)
+                            Button(
+                                enabled = !cancellingDeletion,
+                                onClick = {
+                                    cancellingDeletion = true
+                                    scope.launch {
+                                        runCatching { AccountDeletionClient().cancelDeletion() }
+                                            .onSuccess {
+                                                scheduledDeletionAt = null
+                                                deletionNotice = "Account deletion cancelled. Your account remains active."
+                                            }
+                                            .onFailure { deletionNotice = it.message ?: "Could not cancel scheduled deletion." }
+                                        cancellingDeletion = false
+                                    }
+                                }
+                            ) { Text(if (cancellingDeletion) "Cancelling…" else "Cancel account deletion") }
+                        }
+                    }
+                }
+            }
+            deletionNotice?.let { notice ->
+                item { Text(notice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
+            }
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
