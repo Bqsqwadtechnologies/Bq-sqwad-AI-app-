@@ -332,27 +332,40 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
     plan.productId &&
     (plan.productType === "subs" || plan.productType === "inapp")
   ).flatMap(plan => {
-    const basePlans = plan.productType === "subs"
+    const basePlanIds = plan.productType === "subs"
       ? (Array.isArray(plan.basePlans) && plan.basePlans.length ? plan.basePlans.map(String).filter(Boolean) : (Array.isArray(plan.billingPeriods) ? plan.billingPeriods.map(String).filter(Boolean) : []))
       : [null];
+    const billingPeriods = Array.isArray(plan.billingPeriods) ? plan.billingPeriods.map(String) : [];
+    const eligiblePeriods = Array.isArray(plan.playEligiblePeriods) && plan.playEligiblePeriods.length
+      ? new Set(plan.playEligiblePeriods.map(String))
+      : null;
+    const pairs = basePlanIds.map((basePlanId, index) => ({
+      basePlanId,
+      billingPeriod: plan.productType === "subs" ? (billingPeriods[index] || basePlanId) : "one_time"
+    })).filter(pair => !eligiblePeriods || eligiblePeriods.has(pair.billingPeriod) || eligiblePeriods.has(String(pair.basePlanId || "")));
     const entitlements = Array.isArray(plan.entitlements) ? plan.entitlements : [];
     const creditGrant = entitlements.reduce((total, value) => {
-      const match = String(value).match(/^credit:(\d+)$/);
+      const match = String(value).match(/^credit:(\\d+)$/);
       return total + (match ? Number(match[1]) : 0);
     }, 0);
-    return basePlans.map(basePlanId => ({
-      planId: String(plan.id),
-      productId: String(plan.productId),
-      basePlanId,
-      productType: String(plan.productType),
-      enabled: true,
-      consumable: plan.productType === "inapp" && creditGrant > 0,
-      billingPeriod: String(basePlanId || "one_time"),
-      priceUsd: plan.price?.[basePlanId || ""] == null ? null : Number(plan.price[basePlanId || ""]),
-      trialOfferId: plan.trialEligible ? (plan.offerId || null) : null,
-      trialDays: plan.trialEligible ? Number(plan.trialDays || 0) : 0,
-      creditGrant,
-      organizationWalletTopup: false
-    }));
+    return pairs
+      .filter(pair => plan.productType === "inapp" || (
+        plan.price?.[pair.billingPeriod] != null &&
+        Number.isFinite(Number(plan.price[pair.billingPeriod]))
+      ))
+      .map(pair => ({
+        planId: String(plan.id),
+        productId: String(plan.productId),
+        basePlanId: pair.basePlanId,
+        productType: String(plan.productType),
+        enabled: true,
+        consumable: plan.productType === "inapp" && creditGrant > 0,
+        billingPeriod: pair.billingPeriod,
+        priceUsd: plan.price?.[pair.billingPeriod] == null ? null : Number(plan.price[pair.billingPeriod]),
+        trialOfferId: plan.trialEligible ? (plan.offerId || null) : null,
+        trialDays: plan.trialEligible ? Number(plan.trialDays || 0) : 0,
+        creditGrant,
+        organizationWalletTopup: false
+      }));
   });
 }
