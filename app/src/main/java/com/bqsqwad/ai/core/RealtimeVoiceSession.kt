@@ -163,12 +163,16 @@ class RealtimeVoiceSession(
             }
             "input_audio_buffer.speech_started" -> {
                 // Barge-in: immediately stop local playback and cancel the active response.
-                suppressAudioUntilResponse.set(true)
-                runCatching { player?.pause() }
-                runCatching { player?.flush() }
-                playing.set(false)
-                // Stop the current AI turn; server VAD will start a fresh turn after the user finishes.
-                ws.send(JSONObject().put("type", "response.cancel").toString())
+                val interruptingAi = playing.get() || responseInProgress.get()
+                if (interruptingAi) {
+                    suppressAudioUntilResponse.set(true)
+                    runCatching { player?.pause() }
+                    runCatching { player?.flush() }
+                    playing.set(false)
+                    // Cancel only when a response is active; otherwise Realtime may emit
+                    // a spurious "no active response" error while the user is simply speaking.
+                    ws.send(JSONObject().put("type", "response.cancel").toString())
+                }
                 onState("listening")
             }
             "input_audio_buffer.speech_stopped" -> onState("thinking")
