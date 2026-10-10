@@ -13,17 +13,24 @@ export function providerSecretStatus(env) {
   const names = [
     "BQ_FIREBASE_SERVICE_ACCOUNT_JSON",
     "FIREBASE_WEB_API_KEY",
+    "SUPER_ADMIN_EMAIL",
+    "ALLOWED_ORIGINS",
+    "BQ_SECRET_ENCRYPTION_KEY",
     "OPENAI_API_KEY",
     "GEMINI_API_KEY",
     "TAVILY_API_KEY",
+    "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+    "YOUTUBE_CLIENT_ID",
     "YOUTUBE_CLIENT_SECRET",
     "YOUTUBE_API_KEY",
+    "TIKTOK_CLIENT_KEY",
+    "TIKTOK_CLIENT_SECRET",
+    "X_CLIENT_ID",
     "X_CLIENT_SECRET",
     "X_API_KEY",
     "X_API_SECRET",
     "META_APP_SECRET",
-    "BQ_SOCIAL_ENCRYPTION_KEY",
-    "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+    "BQ_SOCIAL_ENCRYPTION_KEY"
   ];
   return Object.fromEntries(names.map(name => [name, Boolean(env?.[name])]));
 }
