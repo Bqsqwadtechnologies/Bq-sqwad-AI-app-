@@ -44,11 +44,17 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", stream = false }) {
-  const input = imageBase64
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], stream = false }) {
+  const imageInputs = Array.isArray(images) && images.length
+    ? images
+    : (imageBase64 ? [{ imageBase64, mimeType }] : []);
+  const input = imageInputs.length
     ? [{ role: "user", content: [
-        { type: "input_text", text: String(message || "Describe what is visible in this image.") },
-        { type: "input_image", image_url: "data:" + mimeType + ";base64," + imageBase64 }
+        { type: "input_text", text: String(message || "Describe what is visible in the attached image(s).") },
+        ...imageInputs.map(image => ({
+          type: "input_image",
+          image_url: "data:" + String(image.mimeType || "image/jpeg") + ";base64," + String(image.imageBase64 || "")
+        }))
       ]}]
     : String(message || "");
   const body = { model: model || DEFAULT_MODELS.openai, input, stream };
