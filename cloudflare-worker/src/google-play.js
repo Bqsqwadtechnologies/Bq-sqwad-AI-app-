@@ -116,29 +116,43 @@ export async function verifyPlayPurchase(env, firestore, input) {
   ];
   const mappings = products.filter(p => String(p.productId || "") === String(productId) && p.enabled !== false);
   if (!mappings.length) throw new Error("play_product_not_configured");
-  const mapping = mappings.find(p => !requestedBasePlanId || String(p.basePlanId || "") === String(requestedBasePlanId)) || mappings[0];
-  if (planCatalog) {
-    const sections = planCatalog.catalog?.sections || {};
-    const plans = Object.values(sections).flat().filter(Boolean);
-    const plan = plans.find(p => String(p.id || "") === String(mapping.planId || ""));
-    if (plan?.active === false) throw new Error("play_plan_deactivated");
-  }
+  const initialMapping = mappings.find(p => requestedBasePlanId && String(p.basePlanId || "") === String(requestedBasePlanId)) || mappings[0];
 
   const purchaseId = await sha256Hex(purchaseToken);
   const existing = await firestore.get("playPurchases/" + purchaseId);
   if (existing?.uid && String(existing.uid) !== String(uid)) throw new Error("play_purchase_owned_by_another_account");
   if (existing?.verified === true) return { ok: true, alreadyProcessed: true, state: existing.state || "verified" };
 
-  const verified = mapping.productType === "subs"
+  // A single Play product may contain several tiers. Resolve the entitlement from
+  // Google's verified base-plan line item instead of choosing the first mapping.
+  const verified = initialMapping.productType === "subs"
     ? await playApi(env, "purchases/subscriptionsv2/tokens/" + encodeURIComponent(purchaseToken))
     : await playApi(env, "purchases/products/" + encodeURIComponent(productId) + "/tokens/" + encodeURIComponent(purchaseToken));
 
-  const subscriptionState = mapping.productType === "subs" ? String(verified.subscriptionState || "") : "";
-  const purchaseState = mapping.productType === "inapp" ? Number(verified.purchaseState ?? -1) : 0;
-  const lineItem = mapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
-  const verifiedBasePlanId = String(lineItem.offerDetails?.basePlanId || mapping.basePlanId || "");
+  const subscriptionState = initialMapping.productType === "subs" ? String(verified.subscriptionState || "") : "";
+  const purchaseState = initialMapping.productType === "inapp" ? Number(verified.purchaseState ?? -1) : 0;
+  const lineItem = initialMapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
+  const actualBasePlanId = String(lineItem.offerDetails?.basePlanId || "");
+  if (requestedBasePlanId && actualBasePlanId && String(requestedBasePlanId) !== actualBasePlanId) throw new Error("play_base_plan_mismatch");
+
+  let mapping = initialMapping;
+  if (initialMapping.productType === "subs") {
+    const resolvedBasePlanId = actualBasePlanId || String(requestedBasePlanId || "");
+    if (resolvedBasePlanId) {
+      const exact = mappings.find(p => String(p.basePlanId || "") === resolvedBasePlanId);
+      if (exact) mapping = exact;
+      else throw new Error("play_base_plan_mismatch");
+    } else if (new Set(mappings.map(p => String(p.planId || ""))).size > 1) {
+      throw new Error("play_base_plan_unresolved");
+    }
+  }
+
+  const storedPlans = Object.values(planCatalog?.catalog?.sections || {}).flat().filter(Boolean);
+  const configuredPlan = storedPlans.find(p => String(p.id || "") === String(mapping.planId || ""));
+  if (configuredPlan?.active === false) throw new Error("play_plan_deactivated");
+
+  const verifiedBasePlanId = actualBasePlanId || String(mapping.basePlanId || "");
   const verifiedOfferId = String(lineItem.offerDetails?.offerId || requestedOfferId || "");
-  if (requestedBasePlanId && verifiedBasePlanId && String(requestedBasePlanId) !== verifiedBasePlanId) throw new Error("play_base_plan_mismatch");
 
   const valid = mapping.productType === "subs"
     ? ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"].includes(subscriptionState)
