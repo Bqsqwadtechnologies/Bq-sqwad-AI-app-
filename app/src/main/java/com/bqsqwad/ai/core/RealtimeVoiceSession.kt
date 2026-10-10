@@ -192,11 +192,23 @@ class RealtimeVoiceSession(
     private fun startAudioCapture() {
         val min = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN, ENCODING)
         if (min <= 0) throw IllegalStateException("Microphone audio format is unavailable.")
-        recorder = AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
+        val communicationRecorder = runCatching {
+            AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
+        }.getOrNull()
+        recorder = if (communicationRecorder?.state == AudioRecord.STATE_INITIALIZED) {
+            communicationRecorder
+        } else {
+            communicationRecorder?.release()
+            // Some Android devices do not initialize VOICE_COMMUNICATION capture reliably.
+            // Fall back to the standard microphone source rather than ending the session.
+            runCatching {
+                AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
+            }.getOrNull()
+        }
         if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
             recorder?.release()
             recorder = null
-            throw IllegalStateException("Microphone audio could not be initialized on this device.")
+            throw IllegalStateException("Microphone audio could not be initialized. Check microphone permission and close other apps using the microphone.")
         }
         recorder?.startRecording()
         if (recorder?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
