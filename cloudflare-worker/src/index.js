@@ -612,7 +612,7 @@ async function nativeCatalog() {
     consumable: p.consumable === true,
     billingPeriod: p.billingPeriod ? String(p.billingPeriod) : null,
     priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
-  })).filter(p => p.productId && visiblePlanIds.has(p.planId) && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
+  })).filter(p => p.enabled && p.productId && visiblePlanIds.has(p.planId) && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
   const featureRows = features.map(x => ({
     id: String(x.__name || "").split("/").pop(),
     name: String(x.name || x.title || String(x.__name || "").split("/").pop()),
