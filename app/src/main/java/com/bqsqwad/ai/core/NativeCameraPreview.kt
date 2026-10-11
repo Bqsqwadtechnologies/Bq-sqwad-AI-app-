@@ -36,17 +36,18 @@ fun NativeCameraPreview(
     modifier: Modifier = Modifier,
     lensFacing: Int = CameraCharacteristics.LENS_FACING_BACK,
     captureEveryMs: Long = 1800L,
-    onFrame: (ByteArray) -> Unit = {}
+    onFrame: (ByteArray) -> Unit = {},
+    onError: (String) -> Unit = {}
 ) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
             LiveCameraTextureView(context).apply {
-                updateConfiguration(lensFacing, captureEveryMs, onFrame)
+                updateConfiguration(lensFacing, captureEveryMs, onFrame, onError)
             }
         },
         update = { view ->
-            view.updateConfiguration(lensFacing, captureEveryMs, onFrame)
+            view.updateConfiguration(lensFacing, captureEveryMs, onFrame, onError)
         }
     )
 }
@@ -57,6 +58,14 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     var intervalMs: Long = 1800L
         private set
     var frameListener: (ByteArray) -> Unit = {}
+    var errorListener: (String) -> Unit = {}
+    private var lastErrorMessage: String? = null
+
+    private fun reportCameraError(message: String) {
+        if (lastErrorMessage == message) return
+        lastErrorMessage = message
+        errorListener(message)
+    }
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val thread = HandlerThread("bq-live-camera").also { it.start() }
@@ -76,9 +85,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     fun updateConfiguration(
         newFacing: Int,
         newIntervalMs: Long,
-        listener: (ByteArray) -> Unit
+        listener: (ByteArray) -> Unit,
+        onError: (String) -> Unit
     ) {
         frameListener = listener
+        errorListener = onError
         intervalMs = newIntervalMs.coerceIn(1000L, 10000L)
         if (facing != newFacing) {
             facing = newFacing
@@ -108,7 +119,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 cameraManager.getCameraCharacteristics(value)
                     .get(CameraCharacteristics.LENS_FACING) == facing
             } ?: cameraManager.cameraIdList.firstOrNull()
-        }.getOrNull() ?: return
+        }.getOrNull()
+        if (id == null) {
+            reportCameraError("No usable camera is available. Close other apps using the camera and try again.")
+            return
+        }
 
         cameraId = id
         runCatching {
@@ -125,13 +140,17 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 override fun onDisconnected(device: CameraDevice) {
                     if (camera === device) camera = null
                     device.close()
+                    reportCameraError("The camera disconnected. Reopen AI Live Camera and try again.")
                 }
 
                 override fun onError(device: CameraDevice, error: Int) {
                     if (camera === device) camera = null
                     device.close()
+                    reportCameraError("Android could not open the camera (code $error). Close other camera apps and retry.")
                 }
             }, handler)
+        }.onFailure {
+            reportCameraError("Android could not open the camera. Check camera permission and close other camera apps.")
         }
     }
 
@@ -164,6 +183,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                             created.setRepeatingRequest(request, null, handler)
                         }.onFailure {
                             closeCamera()
+                            reportCameraError("The camera preview could not start. Close other camera apps and try again.")
                             return
                         }
                         scheduleFrame()
@@ -172,12 +192,14 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                     override fun onConfigureFailed(created: CameraCaptureSession) {
                         if (session === created) session = null
                         created.close()
+                        reportCameraError("The camera preview could not be configured. Try switching cameras or reopening AI Live Camera.")
                     }
                 },
                 handler
             )
         }.onFailure {
             closeCamera()
+            reportCameraError("The camera preview could not be created. Reopen AI Live Camera and try again.")
         }
     }
 
