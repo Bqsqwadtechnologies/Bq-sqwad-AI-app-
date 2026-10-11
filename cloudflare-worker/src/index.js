@@ -982,9 +982,15 @@ async function vision(request, user, body) {
     // default OpenAI vision model while still enforcing that capability's gate
     // and credit cost.
     const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
+    const configuredVisionModel = String(control.config?.visionModelId || control.visionModelId || "").trim();
+    const capabilityModel = String(control.modelId || "").trim();
+    // The live-camera realtime model is for WebSocket voice/video sessions, not
+    // the Responses API used by this single-frame vision endpoint.
+    const compatibleCapabilityModel = capabilityModel && !/^gpt-realtime(?:-|$)/i.test(capabilityModel);
+    const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-4.1-mini";
     const primaryModelId = primaryProviderId === control.providerId
-      ? (control.modelId || (primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : DEFAULT_MODELS.openai))
-      : DEFAULT_MODELS.openai;
+      ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
+      : defaultVisionModel;
     const fallbackProviderIds = (control.config?.fallbackProviderIds || [])
       .filter(providerId => ["openai", "gemini"].includes(providerId) && providerId !== primaryProviderId);
     const result = await runProvider(globalThis.__bqEnv, {
