@@ -593,6 +593,10 @@ class WorkspaceApiClient {
     })
 
 
+    suspend fun adminAiModels(): JSONObject = request("/admin/ai-models", "GET")
+    suspend fun saveAdminAiModel(model: JSONObject): JSONObject = request("/admin/ai-models", "POST", JSONObject().put("model", model))
+    suspend fun publishedAiModels(): JSONObject = publicRequest("/ai/models", "GET")
+
     suspend fun workspaceResearch(query:String, deepResearch:Boolean = false):SearchReply =
         search(query, deepResearch)
 }
