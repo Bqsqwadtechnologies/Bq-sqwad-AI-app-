@@ -2016,16 +2016,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 ) { Icon(Icons.Default.MoreVert, contentDescription = if (imageActionLoading) "Loading saved image" else "Image actions") }
                             }
                             IconButton(onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response")
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = { shareText(context, m.text) }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share response")
+                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud")
+                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = { message = m.prompt ?: m.text }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt")
+                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = {
                                 scope.launch {
@@ -2034,7 +2034,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.Flag, contentDescription = "Report response")
+                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = {
                                 scope.launch {
@@ -2043,10 +2043,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response")
+                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = { feedbackTarget = m }) {
-                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful")
+                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             if (m.prompt != null) {
                                 IconButton(onClick = {
@@ -2056,7 +2056,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         sendAuthenticatedMessage(text)
                                     }
                                 }) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response")
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
