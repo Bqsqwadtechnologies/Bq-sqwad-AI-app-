@@ -261,7 +261,10 @@ async function adminReadinessSelfTest(env, adminUser) {
         : !supportedForFeature || !providerSecret
           ? { status: "unsupported_provider", reachable: false }
           : await probeProvider(provider);
-      const model = String(config?.modelId || (feature === "image" ? "gpt-image-2" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
+      const configuredModel = String(config?.modelId || (feature === "image" ? "gpt-image-2" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
+      const model = feature === "vision" && configuredModel.startsWith("gpt-realtime")
+        ? "gpt-4.1-mini"
+        : configuredModel;
       const modelProbe = ["chat", "image", "vision"].includes(feature) && !disabled && supportedForFeature && env?.[providerSecret]
         ? await probeConfiguredModel(provider, model)
         : null;
