@@ -33,6 +33,7 @@ class RealtimeVoiceSession(
     private var audioJob: Job? = null
     private val running = AtomicBoolean(false)
     private val audioCaptureStarted = AtomicBoolean(false)
+    private val sessionConfigured = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
     // Realtime accepts one active response at a time. Keep only the newest visual frame
     // while speech is being answered, then submit it when the current response finishes.
@@ -116,7 +117,7 @@ class RealtimeVoiceSession(
     }
 
     private fun sendPendingVisualFrameIfIdle(ws: WebSocket) {
-        if (!running.get() || !responseInProgress.compareAndSet(false, true)) return
+        if (!running.get() || !sessionConfigured.get() || !responseInProgress.compareAndSet(false, true)) return
         val frame = pendingVisualFrame.getAndSet(null)
         if (frame == null) {
             responseInProgress.set(false)
@@ -151,6 +152,7 @@ class RealtimeVoiceSession(
                 responseInProgress.set(true)
             }
             "session.updated" -> {
+                sessionConfigured.set(true)
                 if (audioCaptureStarted.compareAndSet(false, true)) {
                     val capture = runCatching { startAudioCapture() }
                     if (capture.isFailure) {
@@ -160,6 +162,7 @@ class RealtimeVoiceSession(
                     }
                 }
                 onState("listening")
+                sendPendingVisualFrameIfIdle(ws)
             }
             "input_audio_buffer.speech_started" -> {
                 // Barge-in: immediately stop local playback and cancel the active response.
