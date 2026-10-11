@@ -22,6 +22,9 @@ function normalizeModel(raw, actorUid) {
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
+  const requiredProvider = ["image-generation", "video-generation", "live-voice"].includes(feature) ? "openai" : null;
+  if (requiredProvider && providerId !== requiredProvider) throw new Error("model_provider_incompatible_with_feature");
+
   if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(modelId)) throw new Error("provider_model_id_invalid");
   if (!FEATURE_CAPABILITIES[feature]) throw new Error("model_feature_unsupported");
   const allowedProviders = {
