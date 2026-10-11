@@ -3353,6 +3353,7 @@ fun CameraWorkspace() {
     var streamEndpoint by remember { mutableStateOf("") }
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
+    var tiktokHandoffNotice by remember { mutableStateOf<String?>(null) }
     var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
     var showLiveTerms by remember { mutableStateOf(false) }
     var selectedVoice by remember { mutableStateOf("marin") }
@@ -3401,9 +3402,12 @@ fun CameraWorkspace() {
             val id = manager.cameraIdList.firstOrNull { cameraId ->
                 val cc = manager.getCameraCharacteristics(cameraId)
                 cc.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) == lens
-            } ?: manager.cameraIdList.first()
+            } ?: manager.cameraIdList.firstOrNull() ?: error("No camera is available for the flashlight.")
             manager.setTorchMode(id, !flashlightOn)
             flashlightOn = !flashlightOn
+            streamError = null
+        }.onFailure {
+            streamError = "The flashlight could not be switched on this camera. Try the rear camera and check that another app is not using the light."
         }
     }
 
@@ -3688,6 +3692,37 @@ fun CameraWorkspace() {
                         Spacer(Modifier.width(8.dp))
                         Text("Open YouTube Live")
                     }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = active && !screenActive,
+                        onClick = {
+                            tiktokHandoffNotice = null
+                            val knownPackages = listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.zhiliaoapp.musically.go")
+                            val packageLaunch = knownPackages.firstNotNullOfOrNull { packageName ->
+                                runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull()
+                            }
+                            runCatching {
+                                if (packageLaunch != null) {
+                                    packageLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(packageLaunch)
+                                } else {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/")))
+                                }
+                            }.onSuccess {
+                                tiktokHandoffNotice = "TikTok is opening. BQ Sqwad AI's foreground voice session was not stopped. Start TikTok LIVE inside TikTok yourself; Android may give TikTok microphone/camera priority, so AI listening or camera analysis can pause."
+                            }.onFailure {
+                                tiktokHandoffNotice = "Could not open TikTok automatically. Open TikTok manually; keep the BQ Sqwad AI live-session notification running if you want to try background voice."
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Continue in TikTok")
+                    }
+                    tiktokHandoffNotice?.let {
+                        Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("TikTok starts its own LIVE session. BQ Sqwad AI does not control TikTok's Go LIVE button or inject an on-screen overlay; camera analysis pauses when TikTok owns the camera.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Stream online with AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. TikTok client credentials are used for TikTok account/API features; live broadcasting still requires a supported TikTok LIVE ingest endpoint and stream credential. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
@@ -3713,7 +3748,16 @@ fun CameraWorkspace() {
                             }) { Text("Stop") }
                         }
                     }
-                    streamError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    streamError?.let { message ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = {
+                                streamError = null
+                                if (!granted) permissionExplanation = true
+                                else if (!previewEnabled) startLiveCamera()
+                            }) { Text("Retry") }
+                        }
+                    }
                 }
             }
             Card(
