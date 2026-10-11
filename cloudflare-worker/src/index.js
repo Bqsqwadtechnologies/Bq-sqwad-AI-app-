@@ -74,6 +74,99 @@ function isSuperAdmin(user, env) {
   );
 }
 
+function diagnosticFeatureForRoute(route) {
+  const path = String(route || "/").split("?")[0];
+  if (path === "/ai" || path === "/ai/stream") return "chat";
+  if (path === "/ai/image") return "image";
+  if (path === "/ai/vision") return "vision";
+  if (path === "/realtime/session" || path === "/realtime/heartbeat") return "voice_session";
+  if (path === "/native/catalog" || path === "/play/catalog" || path === "/plans") return "catalog";
+  return "other";
+}
+
+function safeDiagnosticCode(errorCode) {
+  const value = String(errorCode || "").toLowerCase();
+  if (value.includes("openai http")) return "openai_provider_http_error";
+  if (value.includes("gemini") || value.includes("google ai")) return "gemini_provider_error";
+  if (value.includes("tavily")) return "search_provider_error";
+  if (value.includes("firestore") || value.includes("firebase")) return "data_store_error";
+  if (value.includes("not_configured") || value.includes("not configured")) return "provider_not_configured";
+  if (value.includes("timeout") || value.includes("timed out")) return "request_timeout";
+  if (value.includes("rate_limited")) return "rate_limited";
+  if (value.includes("capability_disabled") || value.includes("disabled")) return "capability_disabled";
+  if (value.includes("route_not_migrated")) return "route_not_migrated";
+  return "server_request_failed";
+}
+
+async function adminDiagnosticSnapshot() {
+  const features = ["chat", "image", "vision", "voice_session", "catalog"];
+  const records = await Promise.all(features.map(async feature => {
+    const rows = await firestoreQuery("adminDiagnostics", {
+      filters: [{ field: { fieldPath: "feature" }, op: "EQUAL", value: { stringValue: feature } }],
+      limit: 50
+    });
+    rows.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    return [feature, rows.slice(0, 50).map(x => ({
+      id: String(x.id || String(x.__name || "").split("/").pop()),
+      feature,
+      route: String(x.route || "/").slice(0, 120),
+      status: Number(x.status || 500),
+      code: String(x.code || "server_request_failed").slice(0, 80),
+      createdAt: x.createdAt || null
+    }))];
+  }));
+  return Object.fromEntries(records);
+}
+
+async function adminReadinessSelfTest(env) {
+  const check = async (feature, capabilityName, providerNames) => {
+    try {
+      const config = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
+      const disabled = config?.enabled === false || config?.killSwitch === true;
+      const provider = String(config?.providerId || "openai").toLowerCase();
+      const secretReady = providerNames.some(name => Boolean(env?.[name]));
+      const model = String(config?.modelId || "").slice(0, 80);
+      return {
+        feature,
+        status: disabled ? "disabled" : (secretReady ? "ready" : "missing_provider_key"),
+        capabilityEnabled: !disabled,
+        providerConfigured: secretReady,
+        provider: /^[a-z0-9_-]{1,40}$/.test(provider) ? provider : "configured_provider",
+        model: /^[a-zA-Z0-9._:-]{1,80}$/.test(model) ? model : ""
+      };
+    } catch {
+      return { feature, status: "check_failed", capabilityEnabled: false, providerConfigured: false };
+    }
+  };
+  const [chat, image, vision, voice, catalog] = await Promise.all([
+    check("chat", "chat", ["OPENAI_API_KEY", "GEMINI_API_KEY"]),
+    check("image", "image_generation", ["OPENAI_API_KEY"]),
+    check("vision", "live_camera", ["OPENAI_API_KEY", "GEMINI_API_KEY"]),
+    (async () => {
+      try {
+        const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
+        const enabled = config?.enabled !== false && config?.killSwitch !== true;
+        const providerConfigured = Boolean(env?.OPENAI_API_KEY);
+        return { feature: "voice_session", status: !enabled ? "disabled" : (providerConfigured ? "ready" : "missing_provider_key"), capabilityEnabled: enabled, providerConfigured };
+      } catch {
+        return { feature: "voice_session", status: env?.OPENAI_API_KEY ? "config_check_failed" : "missing_provider_key", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
+      }
+    })(),
+    (async () => {
+      try {
+        const data = await nativeCatalog();
+        const planCount = Array.isArray(data.plans) ? data.plans.length : 0;
+        const productCount = Array.isArray(data.products) ? data.products.length : 0;
+        const degraded = data.catalogStatus?.degraded === true;
+        return { feature: "catalog", status: degraded ? "degraded" : ((planCount + productCount) > 0 ? "ready" : "empty"), planCount, productCount, warnings: Array.isArray(data.catalogStatus?.warnings) ? data.catalogStatus.warnings.slice(0, 10) : [] };
+      } catch {
+        return { feature: "catalog", status: "check_failed", planCount: 0, productCount: 0, warnings: ["catalog_check_failed"] };
+      }
+    })()
+  ]);
+  return { checkedAt: new Date().toISOString(), mode: "readiness_only_no_paid_ai_calls", checks: [chat, image, vision, voice, catalog] };
+}
+
 async function notifyAdminOfIssue(env, route, status, errorCode) {
   try {
     const issueId = crypto.randomUUID();
@@ -85,6 +178,17 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
       state: "open",
       createdAt: new Date()
     });
+    const feature = diagnosticFeatureForRoute(route);
+    if (["chat", "image", "vision", "voice_session", "catalog"].includes(feature)) {
+      await firestoreCreate("adminDiagnostics/" + issueId, {
+        id: issueId,
+        feature,
+        route: String(route || "/").split("?")[0].slice(0, 120),
+        status: Number(status || 500),
+        code: safeDiagnosticCode(errorCode),
+        createdAt: new Date()
+      });
+    }
     const ownerRaw = String(env?.SUPER_ADMIN_EMAIL || "").trim();
     const owner = ownerRaw.toLowerCase();
     if (!owner || !env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON) return;
@@ -1113,6 +1217,18 @@ export default {
           { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt: new Date() }, exists: false }
         ]);
         return json({ ok: true, uid: targetUid, email, amount, available: nextPermanent + oldBalance.subscription });
+      }
+
+      if (url.pathname === "/admin/diagnostics" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        return json({ features: await adminDiagnosticSnapshot(), checkedAt: new Date().toISOString() });
+      }
+
+      if (url.pathname === "/admin/self-test" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        return json(await adminReadinessSelfTest(env));
       }
 
       if (url.pathname === "/admin/issues" && request.method === "GET") {
