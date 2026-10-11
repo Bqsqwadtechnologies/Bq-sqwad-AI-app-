@@ -594,6 +594,7 @@ class WorkspaceApiClient {
 
 
     suspend fun adminAiModels(): JSONObject = request("/admin/ai-models", "GET")
+    suspend fun validateAdminAiModel(model: JSONObject): JSONObject = request("/admin/ai-models/validate", "POST", JSONObject().put("model", model))
     suspend fun saveAdminAiModel(model: JSONObject): JSONObject = request("/admin/ai-models", "POST", JSONObject().put("model", model))
     suspend fun publishedAiModels(): JSONObject = publicRequest("/ai/models", "GET")
 
