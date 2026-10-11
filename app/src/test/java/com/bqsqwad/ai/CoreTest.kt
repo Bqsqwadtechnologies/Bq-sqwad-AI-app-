@@ -11,8 +11,10 @@ import com.bqsqwad.ai.core.withRetry
 import com.bqsqwad.ai.core.parseGeneratedImage
 import com.bqsqwad.ai.ui.MdBlock
 import com.bqsqwad.ai.ui.parseBlocks
+import com.bqsqwad.ai.ui.isImageGenerationRequest
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -112,5 +114,31 @@ class CoreTest {
         assertTrue(apiErrorFrom(401, "auth_required") is ApiError.AuthRequired)
         assertTrue(apiErrorFrom(429, "rate_limited") is ApiError.RateLimited)
         assertTrue(apiErrorFrom(503, "provider_unavailable") is ApiError.ProviderUnavailable)
+    }
+
+    @Test fun imageIntentRecognizesCommonCreationRequests() {
+        listOf(
+            "Can you generate an image of a lion?",
+            "Generate a logo for my business",
+            "Draw a lion",
+            "Create a poster for the event",
+            "Please design a wallpaper",
+            "Make me a banner",
+            "Show me a photo of a red sports car"
+        ).forEach { request ->
+            assertTrue("Expected image intent for: " + request, isImageGenerationRequest(request))
+        }
+    }
+
+    @Test fun imageIntentDoesNotCaptureQuestionsOrNegatedRequests() {
+        listOf(
+            "What is image generation?",
+            "How do I create a logo?",
+            "Can you explain how to make a poster?",
+            "Don't generate an image",
+            "Please do not create a logo"
+        ).forEach { request ->
+            assertFalse("Expected ordinary chat for: " + request, isImageGenerationRequest(request))
+        }
     }
 }
