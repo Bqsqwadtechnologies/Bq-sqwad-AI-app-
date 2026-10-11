@@ -3978,8 +3978,20 @@ fun CameraWorkspace() {
                             Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = {
                                 streamError = null
-                                if (!granted) permissionExplanation = true
-                                else if (!active || !previewEnabled) startLiveCamera()
+                                if (!granted) {
+                                    permissionExplanation = true
+                                } else if (streamEndpoint.trim().isNotBlank()) {
+                                    streamPermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+                                } else {
+                                    context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                    active = false
+                                    previewEnabled = false
+                                    fullScreenPreview = false
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(250)
+                                        startLiveCamera()
+                                    }
+                                }
                             }) { Text("Retry") }
                         }
                     }
