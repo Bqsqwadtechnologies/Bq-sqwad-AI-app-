@@ -89,7 +89,7 @@ class RealtimeVoiceSession(
             put("type", "session.update")
             put("session", JSONObject().apply {
                 put("type", "realtime")
-                put("instructions", "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. Do not ask the user to read or type text. Respond with voice audio only.")
+                put("instructions", "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context: answer the user's question or briefly describe meaningful visible details and changes. Do not invent details, repeatedly narrate an unchanged frame, or ask the user to read or type text. Respond with voice audio only.")
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
@@ -129,12 +129,13 @@ class RealtimeVoiceSession(
             put("item", JSONObject().apply {
                 put("type", "message")
                 put("role", "user")
-                put("content", org.json.JSONArray().put(
-                    JSONObject().apply {
+                put("content", org.json.JSONArray()
+                    .put(JSONObject().put("type", "input_text").put("text", "Analyze this latest live camera or screen frame. Use it as visual context for the user's ongoing conversation; mention important visible details or changes without repeating unchanged observations."))
+                    .put(JSONObject().apply {
                         put("type", "input_image")
                         put("image_url", "data:image/jpeg;base64," + encoded)
-                    }
-                ))
+                    })
+                )
             })
         }.toString())
         val responseSent = itemSent && ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
