@@ -5,6 +5,17 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && request.auth.token.admin == true;
     }
+
+    // Generated images are stored under the authenticated owner's UID. Reads and
+    // deletes require that owner; uploads accept only PNGs within the bounded size.
+    match /users/{uid}/generated-images/{imageName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType == 'image/png';
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
