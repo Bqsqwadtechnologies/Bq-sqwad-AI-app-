@@ -264,6 +264,7 @@ async function capability(uid, name) {
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
+    image_generation: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
     device_commands: { providerId: "gemini", modelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [] },
     web_search: { providerId: "tavily", modelId: null, fallbackProviderIds: [] },
     deep_research: { providerId: "tavily", modelId: null, fallbackProviderIds: [] }
@@ -1463,7 +1464,21 @@ export default {
         await assertSharedCreditsAvailable(u);
         return await getVideoContentNative(env, u, decodeURIComponent(url.pathname.slice("/video/jobs/".length, -8)));
       }
-      if (url.pathname === "/ai/image" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const control=await capability(u.uid,"image_generation"); return json(await generateImageNative(env,u,await readBody(request),(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
+      if (url.pathname === "/ai/image" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const control = await capability(u.uid, "image_generation");
+        const body = await readBody(request);
+        // The server owns model selection and pricing; never trust client-supplied cost/model.
+        body.model = control.modelId || "gpt-image-2";
+        body.creditCost = control.creditCost;
+        return json(await generateImageNative(
+          env, u, body,
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, id, provider) => commitCredits(uid, id, provider),
+          (uid, id) => reverseCredits(uid, id)
+        ));
+      }
       if (url.pathname === "/ai/video" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const control=await capability(u.uid,"video_generation"); const b=await readBody(request); b.creditCost=control.creditCost; b.model=b.model||control.modelId; return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
       if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
       if (url.pathname === "/social/oauth/callback" && request.method === "GET") { const state=String(url.searchParams.get("state")||""),code=String(url.searchParams.get("code")||""); if(!state||!code)return new Response("OAuth callback parameters required",{status:400}); const result=await socialCallback(env,state,code); return new Response("<!doctype html><html><body><h1>BQ Sqwad AI</h1><p>Account connected successfully. You can return to the app.</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}}); }
