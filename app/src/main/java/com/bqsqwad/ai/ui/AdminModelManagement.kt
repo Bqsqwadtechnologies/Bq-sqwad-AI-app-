@@ -38,6 +38,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var models by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
+    var validating by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var id by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
@@ -77,6 +78,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     Text("Feature: ${model.optString("feature")} · User charge: ${model.optInt("creditCost")} credits/request · Reference price: USD ${"%.4f".format(model.optDouble("priceUsd"))}")
                     if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
+                    Text(if (model.optJSONObject("validation")?.optBoolean("ok") == true) "Provider validation: passed" else "Provider validation: not recorded", style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
                             id = model.optString("id"); name = model.optString("name")
@@ -116,6 +118,25 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(isDefault, { isDefault = it }); Text("Use as the default model for this feature", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(published, { published = it }); Text("Publish in the user model catalogue", Modifier.padding(top = 12.dp)) }
+        OutlinedButton(
+            enabled = !saving && !validating && providerModelId.isNotBlank() && provider in setOf("openai", "gemini"),
+            onClick = {
+                val probe = JSONObject().apply {
+                    put("providerId", provider.trim())
+                    put("modelId", providerModelId.trim())
+                    put("feature", feature)
+                }
+                scope.launch {
+                    validating = true
+                    runCatching { api.validateAdminAiModel(probe) }
+                        .onSuccess { result ->
+                            message = "Provider validation passed: ${result.optString("providerModelName", providerModelId)}. Save will revalidate before publishing."
+                        }
+                        .onFailure { message = it.message ?: "Provider validation failed." }
+                    validating = false
+                }
+            }
+        ) { Text(if (validating) "Validating model…" else "Validate provider model") }
         Button(
             enabled = !saving && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
                 provider in setOf("openai", "gemini") && (creditCost.toIntOrNull() ?: -1) >= 1 &&
@@ -138,9 +159,9 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     saving = false
                 }
             }
-        ) { Text(if (saving) "Saving…" else "Save model and apply") }
+        ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
         OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
-        Text("Important: model IDs must be valid for the provider and feature. Voice/image/video APIs have different request formats; registering a model does not make an incompatible model work with those APIs. Verify each feature before enabling it.", style = MaterialTheme.typography.bodySmall)
+        Text("Model IDs are checked against the provider before saving. Feature compatibility is also checked, but provider model availability does not replace a real generation/session test. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
     }
 
