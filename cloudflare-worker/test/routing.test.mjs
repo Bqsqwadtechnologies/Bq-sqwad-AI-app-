@@ -45,7 +45,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"],
     ["POST", "/web-search"],
-    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["GET", "/admin/security/status"], ["POST", "/admin/security/password"], ["POST", "/admin/security/totp/start"], ["POST", "/admin/security/totp/confirm"], ["POST", "/admin/security/unlock"], ["GET", "/admin/security/biometric"], ["POST", "/admin/security/biometric/register"], ["POST", "/admin/security/biometric/challenge"], ["POST", "/admin/security/biometric/verify"], ["DELETE", "/admin/security/biometric"], ["POST", "/account/schedule-deletion"], ["POST", "/account/cancel-deletion"], ["GET", "/account/deletion-status"], ["DELETE", "/account"], ["POST", "/issues/report"], ["POST", "/realtime/session"], ["POST", "/realtime/heartbeat"], ["POST", "/business/plan-builder"], ["POST", "/business/advanced-ai"], ["POST", "/business/assistant"], ["GET", "/video/jobs/test/content"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/admin/self-test"], ["GET", "/admin/security/status"], ["POST", "/admin/security/password"], ["POST", "/admin/security/totp/start"], ["POST", "/admin/security/totp/confirm"], ["POST", "/admin/security/unlock"], ["GET", "/admin/security/biometric"], ["POST", "/admin/security/biometric/register"], ["POST", "/admin/security/biometric/challenge"], ["POST", "/admin/security/biometric/verify"], ["DELETE", "/admin/security/biometric"], ["POST", "/account/schedule-deletion"], ["POST", "/account/cancel-deletion"], ["GET", "/account/deletion-status"], ["DELETE", "/account"], ["POST", "/issues/report"], ["POST", "/realtime/session"], ["POST", "/realtime/heartbeat"], ["POST", "/business/plan-builder"], ["POST", "/business/advanced-ai"], ["POST", "/business/assistant"], ["GET", "/video/jobs/test/content"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
@@ -79,7 +79,7 @@ test("native BQ catalog is browseable without sign-in and falls back to canonica
 });
 
 test("realtime voice and client issue reporting require Firebase auth", async () => {
-  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"], ["/video/jobs/test/content", "GET"]]) {
+  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/admin/self-test", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"], ["/video/jobs/test/content", "GET"]]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
       body: "{}"
