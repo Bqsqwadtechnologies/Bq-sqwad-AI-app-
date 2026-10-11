@@ -1322,9 +1322,11 @@ export default {
        if (url.pathname === "/realtime/heartbeat" && request.method === "POST") {
          const user = await verifyFirebaseUser(request);
          await requireConsent(user.uid);
+         const heartbeatBody = await readBody(request);
+         const heartbeatMode = String(heartbeatBody.mode || "voice").toLowerCase();
          const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
          const pricing = config?.config || {};
-         if (config?.enabled === false) throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403 });
+         if (heartbeatMode === "voice" && config?.enabled === false) throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403 });
          const profile = await readCanonicalUserBalance(user.uid);
          const balance = canonicalUserBalance(profile);
          if (!balance || balance.total <= 0) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
