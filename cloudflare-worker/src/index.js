@@ -1328,7 +1328,12 @@ export default {
          const pricing = config?.config || {};
          if (heartbeatMode === "voice" && config?.enabled === false) throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403 });
          const capabilityName = heartbeatMode === "camera" || heartbeatMode === "screen" ? "live_camera" : "live_voice";
-         const control = await capability(user.uid, capabilityName);
+         let control = await capability(user.uid, capabilityName);
+         if (heartbeatBody.modelRegistryId) {
+           const expectedFeature = heartbeatMode === "camera" || heartbeatMode === "screen" ? "live-camera" : "live-voice";
+           const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, expectedFeature);
+           control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditsPerMinute: selected.creditsPerMinute };
+         }
          const profile = await readCanonicalUserBalance(user.uid);
          const balance = canonicalUserBalance(profile);
          if (!isSuperAdmin(user, env) && (!balance || balance.total <= 0)) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
