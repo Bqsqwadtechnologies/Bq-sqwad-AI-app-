@@ -3542,6 +3542,21 @@ fun CameraWorkspace() {
     var flashlightOn by remember { mutableStateOf(false) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
+    fun reportCameraDiagnostic(code: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { WorkspaceApiClient().reportIssue("/live-camera", code) }
+        }
+    }
+    fun cameraDiagnosticCode(message: String): String {
+        val lower = message.lowercase()
+        return when {
+            lower.contains("permission") -> "camera_permission_missing"
+            lower.contains("busy") || lower.contains("in use") -> "camera_busy"
+            lower.contains("no camera") || lower.contains("unavailable") -> "camera_unavailable"
+            lower.contains("timeout") -> "live_camera_timeout"
+            else -> "live_camera_runtime_error"
+        }
+    }
     val liveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
     val livePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -3839,9 +3854,7 @@ fun CameraWorkspace() {
                             },
                             onError = { message ->
                                 streamError = message
-                                scope.launch(Dispatchers.IO) {
-                                    runCatching { WorkspaceApiClient().reportIssue("/live-camera", "live_camera_runtime_error") }
-                                }
+                                reportCameraDiagnostic(cameraDiagnosticCode(message))
                             }
                         )
                     }
@@ -4038,9 +4051,7 @@ fun CameraWorkspace() {
                         },
                         onError = { message ->
                             streamError = message
-                            scope.launch(Dispatchers.IO) {
-                                runCatching { WorkspaceApiClient().reportIssue("/live-camera", "live_camera_runtime_error") }
-                            }
+                            reportCameraDiagnostic(cameraDiagnosticCode(message))
                             fullScreenPreview = false
                         }
                     )
