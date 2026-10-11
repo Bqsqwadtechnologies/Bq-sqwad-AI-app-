@@ -75,6 +75,8 @@ class LiveMediaForegroundService : Service() {
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
     private var voiceConnectionWatchdog: Job? = null
+    private var visualVoiceConnectionWatchdog: Job? = null
+    private val visualVoiceReady = AtomicBoolean(false)
 
     override fun onCreate() {
         super.onCreate()
@@ -199,6 +201,8 @@ class LiveMediaForegroundService : Service() {
 
     private suspend fun startVisualVoice() {
         if (visualVoice != null) return
+        visualVoiceReady.set(false)
+        visualVoiceConnectionWatchdog?.cancel()
         val sessionMode = when (mode) { MODE_CAMERA -> "camera"; MODE_SCREEN -> "screen"; else -> "voice" }
         val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode, mode = sessionMode, modelRegistryId = modelRegistryId)
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
@@ -209,7 +213,14 @@ class LiveMediaForegroundService : Service() {
                 context = this@LiveMediaForegroundService,
                 clientSecret = secret,
                 model = model,
-                onState = { state -> writeState(true, state) },
+                onState = { state ->
+                    writeState(true, state)
+                    if (state.lowercase() in setOf("connected", "listening", "speaking")) {
+                        visualVoiceReady.set(true)
+                        visualVoiceConnectionWatchdog?.cancel()
+                        visualVoiceConnectionWatchdog = null
+                    }
+                },
                 onError = { error -> writeError(error); stopSelf() },
                 onAudioLevel = { level -> updateAudioLevel(level) },
                 // Keep voice replies visible as well as audible so camera/screen sessions
@@ -221,6 +232,13 @@ class LiveMediaForegroundService : Service() {
                     }
                 }
             ).also { it.start() }
+            visualVoiceConnectionWatchdog = serviceScope.launch {
+                delay(25_000L)
+                if (visualVoice != null && !visualVoiceReady.get()) {
+                    writeError("The live camera AI connection timed out. Check your connection and try again.")
+                    stopSelf()
+                }
+            }
             startRealtimeBillingHeartbeat(sessionMode)
         }
     }
@@ -522,6 +540,8 @@ class LiveMediaForegroundService : Service() {
         serviceScope.cancel()
         voiceConnectionWatchdog?.cancel()
         voiceConnectionWatchdog = null
+        visualVoiceConnectionWatchdog?.cancel()
+        visualVoiceConnectionWatchdog = null
         val previousState = _uiState.value
         val preserveError = previousState.status == "error" && previousState.answer.isNotBlank()
         val finalAnswer = if (preserveError) previousState.answer else ""
