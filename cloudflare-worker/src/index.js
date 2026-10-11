@@ -8,7 +8,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
-import { listAiModels, saveAiModel, resolvePublishedModel } from "./model-registry-native.js";
+import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry } from "./model-registry-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -1656,6 +1656,7 @@ export default {
       if (url.pathname === "/admin/ai-models" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        await ensureCurrentModelRegistry({ openai: DEFAULT_MODELS.openai, gemini: DEFAULT_MODELS.gemini });
         return json(await listAiModels({ admin: true }));
       }
       if (url.pathname === "/admin/ai-models" && request.method === "POST") {
