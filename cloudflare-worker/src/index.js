@@ -310,10 +310,22 @@ async function adminReadinessSelfTest(env, adminUser) {
     (async () => {
       try {
         const data = await nativeCatalog();
-        const planCount = Array.isArray(data.plans) ? data.plans.length : 0;
+        const planRows = Array.isArray(data.plans) ? data.plans : [];
+        const planCount = planRows.length;
         const productCount = Array.isArray(data.products) ? data.products.length : 0;
         const degraded = data.catalogStatus?.degraded === true;
-        return { feature: "catalog", status: degraded ? "degraded" : ((planCount + productCount) > 0 ? "ready" : "empty"), planCount, productCount, warnings: Array.isArray(data.catalogStatus?.warnings) ? data.catalogStatus.warnings.slice(0, 10) : [] };
+        const emptyFeaturePlans = planRows
+          .filter(plan => !Array.isArray(plan.features) || plan.features.length === 0)
+          .map(plan => String(plan.id || plan.name || "unknown_plan").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80))
+          .filter(Boolean);
+        const warnings = [
+          ...(Array.isArray(data.catalogStatus?.warnings) ? data.catalogStatus.warnings : []),
+          ...emptyFeaturePlans.map(id => "plan_missing_feature_list:" + id)
+        ].slice(0, 20);
+        const status = degraded ? "degraded"
+          : (planCount + productCount) === 0 ? "empty"
+          : emptyFeaturePlans.length > 0 ? "ready_with_warnings" : "ready";
+        return { feature: "catalog", status, planCount, productCount, warnings };
       } catch {
         return { feature: "catalog", status: "check_failed", planCount: 0, productCount: 0, warnings: ["catalog_check_failed"] };
       }
