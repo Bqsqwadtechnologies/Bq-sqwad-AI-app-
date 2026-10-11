@@ -146,3 +146,25 @@ export async function resolvePublishedModel(id, feature) {
     priceUsd: Math.max(0, Number(model.priceUsd || 0))
   };
 }
+
+
+export async function resolvePublishedModel(modelId, expectedFeature) {
+  const id = String(modelId || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw Object.assign(new Error("model_id_invalid"), { httpStatus: 400 });
+  const model = await firestoreGet("aiModelRegistry/" + id);
+  if (!model || model.active !== true || model.published !== true) {
+    throw Object.assign(new Error("model_not_available"), { httpStatus: 404 });
+  }
+  if (String(model.feature || "") !== expectedFeature) {
+    throw Object.assign(new Error("model_feature_mismatch"), { httpStatus: 400 });
+  }
+  return {
+    id,
+    name: String(model.name || id),
+    providerId: String(model.providerId || ""),
+    modelId: String(model.modelId || ""),
+    feature: String(model.feature || ""),
+    creditCost: Math.max(0, Number(model.creditCost || 0)),
+    priceUsd: Math.max(0, Number(model.priceUsd || 0))
+  };
+}
