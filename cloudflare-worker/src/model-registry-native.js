@@ -26,10 +26,12 @@ function normalizeModel(raw, actorUid) {
   if (!FEATURE_CAPABILITIES[feature]) throw new Error("model_feature_unsupported");
   if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
+  if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   return {
     id, name, providerId, modelId, feature,
     description: String(raw?.description || "").trim().slice(0, 300),
     active: raw?.active === true,
+    isDefault: raw?.isDefault === true,
     published: raw?.published === true,
     creditCost, priceUsd,
     updatedBy: actorUid, updatedAt: new Date()
@@ -46,6 +48,7 @@ export async function listAiModels({ admin = false } = {}) {
     feature: String(x.feature || "text-chat"),
     description: String(x.description || ""),
     active: x.active === true,
+    isDefault: x.isDefault === true,
     published: x.published === true,
     creditCost: Math.max(0, Number(x.creditCost || 0)),
     priceUsd: Math.max(0, Number(x.priceUsd || 0)),
@@ -57,7 +60,7 @@ export async function listAiModels({ admin = false } = {}) {
 export async function saveAiModel(raw, actorUid) {
   const model = normalizeModel(raw, actorUid);
   const existing = await firestoreGet("aiModelRegistry/" + model.id);
-  if (existing?.active === true && model.active !== true) {
+  if (existing?.isDefault === true && model.active !== true) {
     const capabilityName = FEATURE_CAPABILITIES[model.feature];
     const activeCapability = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
     if (String(activeCapability?.selectedRegistryModelId || "") === model.id) {
@@ -65,7 +68,7 @@ export async function saveAiModel(raw, actorUid) {
     }
   }
   await firestoreSet("aiModelRegistry/" + model.id, model, true);
-  if (model.active) {
+  if (model.isDefault) {
     const capability = FEATURE_CAPABILITIES[model.feature];
     const previous = await firestoreGet("adminAdvancedOptions/capability_" + capability) || {};
     // Every feature uses the server-side capability resolver, so model switches
@@ -96,9 +99,9 @@ export async function saveAiModel(raw, actorUid) {
     }
     const others = await firestoreQuery("aiModelRegistry", { limit: 200 });
     for (const other of others) {
-      if (String(other.id || "") !== model.id && other.feature === model.feature && other.active === true) {
+      if (String(other.id || "") !== model.id && other.feature === model.feature && other.isDefault === true) {
         await firestoreSet("aiModelRegistry/" + String(other.id || String(other.__name || "").split("/").pop()), {
-          ...other, active: false, updatedBy: actorUid, updatedAt: new Date()
+          ...other, isDefault: false, updatedBy: actorUid, updatedAt: new Date()
         }, true);
       }
     }
