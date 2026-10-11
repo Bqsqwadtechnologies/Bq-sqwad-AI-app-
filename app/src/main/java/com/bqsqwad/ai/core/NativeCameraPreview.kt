@@ -136,6 +136,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                         device.close()
                         return
                     }
+                    lastErrorMessage = null
                     camera = device
                     createSession(device)
                 }
@@ -187,6 +188,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                             created.close()
                             return
                         }
+                        lastErrorMessage = null
                         session = created
                         runCatching {
                             val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
