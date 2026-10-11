@@ -24,6 +24,15 @@ function normalizeModel(raw, actorUid) {
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
   if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(modelId)) throw new Error("provider_model_id_invalid");
   if (!FEATURE_CAPABILITIES[feature]) throw new Error("model_feature_unsupported");
+  const allowedProviders = {
+    "text-chat": new Set(["openai", "gemini"]),
+    "live-camera": new Set(["openai", "gemini"]),
+    "image-generation": new Set(["openai"]),
+    "live-voice": new Set(["openai"]),
+    "device-commands": new Set(["gemini"]),
+    "video-generation": new Set(["openai"])
+  };
+  if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
   if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
