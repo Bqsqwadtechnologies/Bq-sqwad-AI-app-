@@ -1576,6 +1576,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (generated.imageBase64 != null && durableImageUrl == null) {
                             error = "Your image was created, but secure image storage is unavailable, so it may not appear when you reopen this chat."
                         }
+                        // Image generation is charged server-side; refresh the visible balance
+                        // after the request so the chat never keeps showing a stale credit count.
+                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                            .onSuccess { applyCreditSnapshot(it) }
                         if (!privateChat) {
                             runCatching {
                                 val snapshot = messages.map { m ->
@@ -1598,6 +1602,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         busy = false
                         statusText = "Request failed. You can try again."
                         streamJob = null
+                        // A failed generation can reverse its reservation; refresh the
+                        // server balance to reflect that reversal immediately.
+                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                            .onSuccess { applyCreditSnapshot(it) }
                     }
                 }
             }
