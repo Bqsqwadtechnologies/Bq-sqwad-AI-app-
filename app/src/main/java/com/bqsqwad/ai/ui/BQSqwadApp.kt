@@ -3548,6 +3548,9 @@ fun CameraWorkspace() {
                                     lastAnalysisAt = now
                                     LiveMediaForegroundService.submitVisualFrame(bytes)
                                 }
+                            },
+                            onError = { message ->
+                                streamError = message
                             }
                         )
                     }
