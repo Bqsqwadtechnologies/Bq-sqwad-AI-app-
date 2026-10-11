@@ -118,7 +118,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             enabled = !saving && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
                 provider in setOf("openai", "gemini") && (creditCost.toIntOrNull() ?: -1) >= 0 &&
                 (priceUsd.toDoubleOrNull() ?: -1.0) >= 0 &&
-                (creditsPerMinute.isBlank() || (creditsPerMinute.toIntOrNull() ?: -1) >= 0),
+                (creditsPerMinute.isBlank() || (creditsPerMinute.toIntOrNull() ?: -1) >= 0) &&
+                (!isDefault || (active && published)),
             onClick = {
                 val payload = JSONObject().apply {
                     put("id", id.trim()); put("name", name.trim()); put("providerId", provider.trim())
