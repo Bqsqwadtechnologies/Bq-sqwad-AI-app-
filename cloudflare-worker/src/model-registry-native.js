@@ -205,8 +205,8 @@ export async function validateAiModel(env, raw) {
   } else {
     const key = String(env?.GEMINI_API_KEY || "");
     if (!key) throw Object.assign(new Error("gemini_provider_not_configured"), { httpStatus: 503 });
-    url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + "?key=" + encodeURIComponent(key);
-    headers = {};
+    url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId);
+    headers = { "x-goog-api-key": key };
   }
   const response = await fetch(url, { method: "GET", headers });
   const body = await response.json().catch(() => ({}));
