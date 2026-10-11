@@ -1269,6 +1269,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
+    var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedTextModelId by remember { mutableStateOf("") }
+    var selectedImageModelId by remember { mutableStateOf("") }
+
     var privateChat by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
     var creditNotice by remember { mutableStateOf<String?>(null) }
@@ -1284,12 +1288,24 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var imageEditPrompt by remember { mutableStateOf("") }
     var showImageResize by remember { mutableStateOf(false) }
     var selectedImageSize by remember { mutableStateOf("1024x1024") }
+    var textModelMenuOpen by remember { mutableStateOf(false) }
+    var imageModelMenuOpen by remember { mutableStateOf(false) }
+
 
     LaunchedEffect(busy, statusText) {
         if (busy && statusText == "Generating image…") {
             imageProgress = 0
             while (imageProgress < 95) { delay(500); imageProgress = (imageProgress + 1).coerceAtMost(95) }
         } else if (statusText == "Ready") imageProgress = 100
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array ->
+                publishedAiModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                if (selectedTextModelId.isBlank()) selectedTextModelId = publishedAiModels.firstOrNull { it.optString("feature") == "text-chat" && it.optBoolean("isDefault") }?.optString("id").orEmpty()
+                if (selectedImageModelId.isBlank()) selectedImageModelId = publishedAiModels.firstOrNull { it.optString("feature") == "image-generation" && it.optBoolean("isDefault") }?.optString("id").orEmpty()
+            }
     }
 
     LaunchedEffect(restoredChat?.first) {
@@ -1477,7 +1493,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             error = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
-                    val generated = GenerationApiClient().generateImage(promptText)
+                    val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() })
                     scope.launch(Dispatchers.Main) {
                         messages[aiIndex] = messages[aiIndex].copy(
                             text = "Image generated.",
@@ -1557,7 +1573,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, onDelta = { delta ->
+                    ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, modelRegistryId = selectedTextModelId.takeIf { activeCapability == "chat" && it.isNotBlank() }, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
@@ -1677,6 +1693,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         onClick = { menuOpen = true }
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (publishedAiModels.any { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }) {
+                            DropdownMenuItem(text = { Text("Text model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedTextModelId }?.optString("name") ?: "Default")) }, onClick = { menuOpen = false; textModelMenuOpen = true })
+                        }
+                        if (publishedAiModels.any { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }) {
+                            DropdownMenuItem(text = { Text("Image model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedImageModelId }?.optString("name") ?: "Default")) }, onClick = { menuOpen = false; imageModelMenuOpen = true })
+                        }
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
                         DropdownMenuItem(text = { Text("Plans & Credits") }, onClick = { menuOpen = false; openPlans() })
@@ -1691,6 +1713,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     contentDescription = "Settings",
                     onClick = openSettings
                 )
+            }
+            DropdownMenu(expanded = textModelMenuOpen, onDismissRequest = { textModelMenuOpen = false }) {
+                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedTextModelId = ""; textModelMenuOpen = false })
+                publishedAiModels.filter { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
+                    DropdownMenuItem(text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
+                }
+            }
+            DropdownMenu(expanded = imageModelMenuOpen, onDismissRequest = { imageModelMenuOpen = false }) {
+                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedImageModelId = ""; imageModelMenuOpen = false })
+                publishedAiModels.filter { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
+                    DropdownMenuItem(text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
+                }
             }
             creditNotice?.let { notice ->
                 Surface(
@@ -2158,7 +2192,7 @@ val composerShape = RoundedCornerShape(26.dp)
                 confirmButton = { Button(enabled = imageEditPrompt.isNotBlank() && !busy, onClick = {
                     val image = selectedImageBase64.orEmpty(); val prompt = imageEditPrompt.trim(); val targetId = selectedImageMessageId; showImageEdit = false; busy = true; statusText = "Editing image…"
                     scope.launch {
-                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize) }
+                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }
                             .onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image edited.", attachments = listOf(ChatMessageAttachment("Edited image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImagePrompt = prompt; error = "Image edit completed." }
                             .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
                         busy = false; statusText = "Ready"
@@ -2172,7 +2206,7 @@ val composerShape = RoundedCornerShape(26.dp)
                 text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Choose an output size. This creates a new version using the original prompt."); listOf("1024x1024" to "Square · 1024 × 1024", "1536x1024" to "Landscape · 1536 × 1024", "1024x1536" to "Portrait · 1024 × 1536").forEach { option -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selectedImageSize == option.first, onClick = { selectedImageSize = option.first }); Text(option.second) } } } },
                 confirmButton = { Button(enabled = !busy, onClick = {
                     val prompt = selectedImagePrompt.ifBlank { "Create an image" }; val targetId = selectedImageMessageId; showImageResize = false; busy = true; statusText = "Generating image…"
-                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
+                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
                 }) { Text("Create new size") } },
                 dismissButton = { TextButton(onClick = { showImageResize = false }) { Text("Cancel") } }
             )
