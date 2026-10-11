@@ -3659,12 +3659,19 @@ fun CameraWorkspace() {
             val id = manager.cameraIdList.firstOrNull { cameraId ->
                 val cc = manager.getCameraCharacteristics(cameraId)
                 cc.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) == lens
-            } ?: manager.cameraIdList.firstOrNull() ?: error("No camera is available for the flashlight.")
-            manager.setTorchMode(id, !flashlightOn)
+            } ?: error("No camera is available for the flashlight.")
+            val hasFlash = manager.getCameraCharacteristics(id)
+                .get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            if (!hasFlash) error("This camera does not have a flashlight. Switch to the rear camera.")
+            // Normal preview toggles torch in the active Camera2 capture session.
+            // During RTMP streaming the broadcaster owns Camera2, so use system torch.
+            if (streamOnline) manager.setTorchMode(id, !flashlightOn)
             flashlightOn = !flashlightOn
             streamError = null
         }.onFailure {
-            streamError = "The flashlight could not be switched on this camera. Try the rear camera and check that another app is not using the light."
+            streamError = it.message?.takeIf { message ->
+                message.contains("does not have a flashlight") || message.contains("No camera")
+            } ?: "The flashlight could not be switched on. Try the rear camera and check that another app is not using the light."
         }
     }
 
@@ -3963,6 +3970,7 @@ fun CameraWorkspace() {
                             modifier = Modifier.fillMaxSize(),
                             lensFacing = lens,
                             captureEveryMs = 1800L,
+                            torchEnabled = flashlightOn,
                             onFrame = { bytes ->
                                 val now = System.currentTimeMillis()
                                 if (active && now - lastAnalysisAt >= 1600L) {
@@ -4194,6 +4202,7 @@ fun CameraWorkspace() {
                         modifier = Modifier.fillMaxSize(),
                         lensFacing = lens,
                         captureEveryMs = 1800L,
+                        torchEnabled = flashlightOn,
                         onFrame = { bytes ->
                             val now = System.currentTimeMillis()
                             if (active && now - lastAnalysisAt >= 1600L) {
