@@ -1708,12 +1708,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                     busy = false
                     streamJob = null
-                    if (t !is kotlinx.coroutines.CancellationException) {
-                        // A rejected request or reversed credit reservation must not leave
-                        // the balance badge stale after an unsuccessful chat turn.
-                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                            .onSuccess { applyCreditSnapshot(it) }
-                    }
+                    // Stopped or failed turns can still finish or reverse server-side;
+                    // resync the canonical balance instead of leaving a stale credit badge.
+                    runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                        .onSuccess { applyCreditSnapshot(it) }
                 }
             }
         }
