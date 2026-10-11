@@ -3929,10 +3929,45 @@ fun CameraWorkspace() {
                         }
                     )
                 }
-                TextButton(
-                    onClick = { fullScreenPreview = false },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                ) { Text("Close preview", color = Color.White) }
+                Row(
+                    modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
+                        TextButton(onClick = toggleFlashlight) {
+                            Icon(Icons.Default.FlashlightOn, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (flashlightOn) "Flashlight on" else "Flashlight", color = Color.White)
+                        }
+                    }
+                    Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
+                        TextButton(onClick = {
+                            lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK)
+                                android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT
+                            else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+                            flashlightOn = false
+                        }) {
+                            Icon(Icons.Default.Cameraswitch, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Switch camera", color = Color.White)
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
+                        TextButton(onClick = { fullScreenPreview = false }) { Text("Close", color = Color.White) }
+                    }
+                }
+                val visibleAnswer = liveAnswer.ifBlank { liveUiState.status.takeIf { it.isNotBlank() && it != "stopped" }.orEmpty() }
+                if (visibleAnswer.isNotBlank()) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                        color = Color.Black.copy(alpha = 0.62f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(visibleAnswer.take(500), modifier = Modifier.padding(12.dp), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         }
     }
