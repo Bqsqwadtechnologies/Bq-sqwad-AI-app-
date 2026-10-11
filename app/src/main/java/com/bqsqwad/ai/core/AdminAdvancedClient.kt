@@ -151,6 +151,14 @@ class AdminAdvancedClient(
             put("days", days)
         })
 
+    suspend fun dailyFreeCredits(): JSONObject = request("GET", "/admin/daily-free-credits", null)
+
+    suspend fun setDailyFreeCredits(enabled: Boolean, credits: Int): JSONObject =
+        request("POST", "/admin/daily-free-credits", JSONObject().apply {
+            put("enabled", enabled)
+            put("credits", credits)
+        })
+
     suspend fun testMode(): Boolean =
         request("GET", "/admin/test-mode", null).optBoolean("enabled", false)
 
