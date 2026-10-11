@@ -208,7 +208,16 @@ export async function validateAiModel(env, raw) {
     url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId);
     headers = { "x-goog-api-key": key };
   }
-  const response = await fetch(url, { method: "GET", headers });
+  let response;
+  try {
+    response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(8000) });
+  } catch (error) {
+    const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+    throw Object.assign(
+      new Error(timedOut ? "provider_model_validation_timeout" : "provider_model_validation_network_error"),
+      { httpStatus: 503 }
+    );
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const reason = String(body?.error?.message || "provider_model_validation_failed").slice(0, 220);
