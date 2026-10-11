@@ -103,6 +103,7 @@ async function adminDiagnosticSnapshot() {
   const records = await Promise.all(features.map(async feature => {
     const rows = await firestoreQuery("adminDiagnostics", {
       filters: [{ field: { fieldPath: "feature" }, op: "EQUAL", value: { stringValue: feature } }],
+      orderBy: { field: "createdAt", direction: "DESCENDING" },
       limit: 50
     });
     rows.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
