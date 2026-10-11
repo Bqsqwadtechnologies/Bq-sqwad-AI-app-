@@ -102,7 +102,14 @@ import org.json.JSONObject
 private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
-    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|not_configured|client_secret_missing|realtime_session_failed|firebase|firestore|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
+    val lower = message.lowercase()
+    if (lower.contains("insufficient credits") || lower.contains("credit_balance")) {
+        return "You've run out of BQ Sqwad AI credits. Open Plans & Credits to continue."
+    }
+    if (lower.contains("capability_disabled")) {
+        return "This BQ Sqwad AI feature is currently turned off. Try another feature or contact support."
+    }
+    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|provider_not_configured|not_configured|client_secret_missing|realtime_session_failed|image_generation_|image_edit_|firebase|firestore|storage/|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
     return if (technical.containsMatchIn(message)) {
         "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
     } else message.take(240)
@@ -1521,6 +1528,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     scope.launch(Dispatchers.Main) {
                         messages[aiIndex] = messages[aiIndex].copy(
                             text = "Image generated.",
+                            prompt = promptText,
                             attachments = generated.imageBase64?.let {
                                 listOf(ChatMessageAttachment("Generated image.png", "image/png", it))
                             } ?: emptyList(),
@@ -3694,7 +3702,8 @@ fun CameraWorkspace() {
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = active && !screenActive,
+                        enabled = liveServiceMode == LiveMediaForegroundService.MODE_CAMERA &&
+                            liveUiState.status.lowercase() in setOf("connected", "listening", "speaking") && !screenActive,
                         onClick = {
                             tiktokHandoffNotice = null
                             val knownPackages = listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.zhiliaoapp.musically.go")
@@ -3754,7 +3763,7 @@ fun CameraWorkspace() {
                             TextButton(onClick = {
                                 streamError = null
                                 if (!granted) permissionExplanation = true
-                                else if (!previewEnabled) startLiveCamera()
+                                else if (!active || !previewEnabled) startLiveCamera()
                             }) { Text("Retry") }
                         }
                     }
@@ -3838,12 +3847,21 @@ fun CameraWorkspace() {
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
-            title = { Text("Camera access") },
-            text = { Text("BQ Sqwad AI needs camera access only while you use Live Camera. A visible Android live-session indicator stays on while the camera is active.") },
+            title = { Text("Camera and microphone access") },
+            text = { Text("BQ Sqwad AI needs camera access for the live preview and microphone access for live voice replies. If Android has permanently denied a permission, open app settings and enable Camera and Microphone. A visible Android foreground-session notification remains while the AI session is active.") },
             confirmButton = {
-                TextButton(onClick = { permissionExplanation = false; startLiveCamera() }) { Text("Continue") }
+                TextButton(onClick = { permissionExplanation = false; startLiveCamera() }) { Text("Grant permissions") }
             },
-            dismissButton = { TextButton(onClick = { permissionExplanation = false }) { Text("Not now") } }
+            dismissButton = {
+                TextButton(onClick = {
+                    permissionExplanation = false
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+                    }.onFailure {
+                        streamError = "Open Android Settings, choose Apps, then BQ Sqwad AI, and allow Camera and Microphone."
+                    }
+                }) { Text("Open settings") }
+            }
         )
     }
 }
