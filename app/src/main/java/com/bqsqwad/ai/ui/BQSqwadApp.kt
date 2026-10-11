@@ -1988,7 +1988,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(14.dp)
                                 )
                                 .horizontalScroll(rememberScrollState())
