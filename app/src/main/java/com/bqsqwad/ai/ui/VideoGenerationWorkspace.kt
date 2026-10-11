@@ -11,6 +11,9 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
 import com.bqsqwad.ai.core.GenerationApiClient
+import com.bqsqwad.ai.core.WorkspaceApiClient
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -27,6 +30,18 @@ fun VideoGenerationWorkspace() {
     var contentUrl by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var publishedVideoModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedVideoModelId by remember { mutableStateOf("") }
+    var videoModelExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array ->
+                publishedVideoModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                    .filter { it.optString("feature") == "video-generation" && it.optBoolean("active") && it.optBoolean("published") }
+                if (selectedVideoModelId.isNotBlank() && publishedVideoModels.none { it.optString("id") == selectedVideoModelId }) selectedVideoModelId = ""
+            }
+    }
 
     LaunchedEffect(jobId) {
         val id = jobId ?: return@LaunchedEffect
@@ -59,6 +74,32 @@ fun VideoGenerationWorkspace() {
             )
         }
         item {
+            val selectedName = publishedVideoModels.firstOrNull { it.optString("id") == selectedVideoModelId }?.optString("name")
+                ?: publishedVideoModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
+                ?: "Server default"
+            Box {
+                OutlinedButton(onClick = {
+                    videoModelExpanded = true
+                    scope.launch {
+                        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+                            .onSuccess { array ->
+                                publishedVideoModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                                    .filter { it.optString("feature") == "video-generation" && it.optBoolean("active") && it.optBoolean("published") }
+                            }
+                    }
+                }) { Text("AI model: " + selectedName.take(20)) }
+                DropdownMenu(expanded = videoModelExpanded, onDismissRequest = { videoModelExpanded = false }) {
+                    DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVideoModelId = ""; videoModelExpanded = false })
+                    publishedVideoModels.forEach { model ->
+                        DropdownMenuItem(
+                            text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/job" + if (model.optBoolean("isDefault")) " · Default" else "") },
+                            onClick = { selectedVideoModelId = model.optString("id"); videoModelExpanded = false }
+                        )
+                    }
+                }
+            }
+        }
+        item {
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it; error = null },
@@ -81,7 +122,7 @@ fun VideoGenerationWorkspace() {
                     error = null
                     contentUrl = null
                     scope.launch {
-                        runCatching { GenerationApiClient().createVideo(prompt, seconds, size) }
+                        runCatching { GenerationApiClient().createVideo(prompt, seconds, size, selectedVideoModelId.takeIf { it.isNotBlank() }) }
                             .onSuccess {
                                 jobId = it.jobId
                                 status = it.status
