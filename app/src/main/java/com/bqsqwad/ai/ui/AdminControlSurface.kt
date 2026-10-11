@@ -67,6 +67,9 @@ fun AdminControlCenter() {
     var trialCredits by remember { mutableStateOf("5") }
     var trialDays by remember { mutableStateOf("5") }
     var trialSaving by remember { mutableStateOf(false) }
+    var dailyFreeCreditsEnabled by remember { mutableStateOf(true) }
+    var dailyFreeCredits by remember { mutableStateOf("5") }
+    var dailyFreeCreditsSaving by remember { mutableStateOf(false) }
     var showGrantCredits by remember { mutableStateOf(false) }
     var grantEmail by remember { mutableStateOf("") }
     var grantAmount by remember { mutableStateOf("100") }
@@ -90,6 +93,10 @@ fun AdminControlCenter() {
             trialEnabled = it.optBoolean("enabled", false)
             trialCredits = it.optInt("credits", 5).toString()
             trialDays = it.optInt("days", 5).toString()
+        }
+        runCatching { client.dailyFreeCredits() }.onSuccess {
+            dailyFreeCreditsEnabled = it.optBoolean("enabled", true)
+            dailyFreeCredits = it.optInt("credits", 5).toString()
         }
         runCatching { WorkspaceApiClient().credits() }.onSuccess { adminCredits = it }
         runCatching { WorkspaceApiClient().adminIssues() }.onSuccess { body ->
@@ -415,6 +422,45 @@ fun AdminControlCenter() {
                         }
                     }
                 ) { Text(if (trialSaving) "Saving trial…" else "Save free-credit trial") }
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Daily free credits", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Give each eligible user this many free credits once per UTC day. The server grants them once per day and spends daily credits before trial, subscription or purchased credits. Changing this setting affects future daily grants; credits already issued today are not duplicated.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Enable daily free credits")
+                    Switch(
+                        checked = dailyFreeCreditsEnabled,
+                        enabled = !dailyFreeCreditsSaving,
+                        onCheckedChange = { dailyFreeCreditsEnabled = it }
+                    )
+                }
+                OutlinedTextField(
+                    value = dailyFreeCredits,
+                    onValueChange = { dailyFreeCredits = it.filter(Char::isDigit).take(6) },
+                    label = { Text("Credits per day (0–100000)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !dailyFreeCreditsSaving
+                )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !dailyFreeCreditsSaving && (dailyFreeCredits.toIntOrNull() ?: -1) in 0..100000,
+                    onClick = {
+                        dailyFreeCreditsSaving = true
+                        scope.launch {
+                            runCatching { client.setDailyFreeCredits(dailyFreeCreditsEnabled, dailyFreeCredits.toInt()) }
+                                .onSuccess { error = null }
+                                .onFailure { error = it.message ?: "Could not save daily free credits." }
+                            dailyFreeCreditsSaving = false
+                        }
+                    }
+                ) { Text(if (dailyFreeCreditsSaving) "Saving daily credits…" else "Save daily free credits") }
             }
         }
         OutlinedButton(onClick = { showGrantCredits = true }, modifier = Modifier.fillMaxWidth()) { Text("Grant Free Credits to User") }
