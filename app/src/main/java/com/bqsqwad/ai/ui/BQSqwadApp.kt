@@ -1303,8 +1303,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
             .onSuccess { array ->
                 publishedAiModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                if (selectedTextModelId.isBlank()) selectedTextModelId = publishedAiModels.firstOrNull { it.optString("feature") == "text-chat" && it.optBoolean("isDefault") }?.optString("id").orEmpty()
-                if (selectedImageModelId.isBlank()) selectedImageModelId = publishedAiModels.firstOrNull { it.optString("feature") == "image-generation" && it.optBoolean("isDefault") }?.optString("id").orEmpty()
             }
     }
 
@@ -1694,10 +1692,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         if (publishedAiModels.any { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }) {
-                            DropdownMenuItem(text = { Text("Text model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedTextModelId }?.optString("name") ?: "Default")) }, onClick = { menuOpen = false; textModelMenuOpen = true })
+                            DropdownMenuItem(text = { Text("Text model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedTextModelId }?.optString("name") ?: publishedAiModels.firstOrNull { it.optString("feature") == "text-chat" && it.optBoolean("isDefault") }?.optString("name") ?: "Server default")) }, onClick = { menuOpen = false; textModelMenuOpen = true })
                         }
                         if (publishedAiModels.any { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }) {
-                            DropdownMenuItem(text = { Text("Image model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedImageModelId }?.optString("name") ?: "Default")) }, onClick = { menuOpen = false; imageModelMenuOpen = true })
+                            DropdownMenuItem(text = { Text("Image model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedImageModelId }?.optString("name") ?: publishedAiModels.firstOrNull { it.optString("feature") == "image-generation" && it.optBoolean("isDefault") }?.optString("name") ?: "Server default")) }, onClick = { menuOpen = false; imageModelMenuOpen = true })
                         }
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
