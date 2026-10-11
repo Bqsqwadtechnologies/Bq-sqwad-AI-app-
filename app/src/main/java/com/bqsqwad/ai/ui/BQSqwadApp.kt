@@ -1715,13 +1715,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             DropdownMenu(expanded = textModelMenuOpen, onDismissRequest = { textModelMenuOpen = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedTextModelId = ""; textModelMenuOpen = false })
                 publishedAiModels.filter { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
+                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request · $" + "%.4f".format(model.optDouble("priceUsd")) + " reference" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
                 }
             }
             DropdownMenu(expanded = imageModelMenuOpen, onDismissRequest = { imageModelMenuOpen = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedImageModelId = ""; imageModelMenuOpen = false })
                 publishedAiModels.filter { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
+                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request · $" + "%.4f".format(model.optDouble("priceUsd")) + " reference" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
                 }
             }
             creditNotice?.let { notice ->
