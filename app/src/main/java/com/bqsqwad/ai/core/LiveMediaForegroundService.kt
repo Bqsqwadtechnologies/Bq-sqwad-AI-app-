@@ -484,14 +484,26 @@ class LiveMediaForegroundService : Service() {
             technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
             else -> raw.take(180).ifBlank { "BQ Sqwad AI could not start this session. Please try again." }
         }
-        if (technicalProblem && !creditProblem && !permissionProblem) {
+        if (!creditProblem && (mode == MODE_CAMERA || mode == MODE_SCREEN || technicalProblem || permissionProblem)) {
             val issueRoute = when (mode) {
                 MODE_CAMERA -> "/live-camera"
                 MODE_SCREEN -> "/screen-share"
                 else -> "/live-voice"
             }
+            val diagnosticCode = when {
+                permissionProblem && mode == MODE_CAMERA -> "camera_permission_missing"
+                permissionProblem && mode == MODE_SCREEN -> "screen_capture_permission_missing"
+                permissionProblem -> "microphone_permission_missing"
+                lower.contains("busy") || lower.contains("in use") -> "camera_busy"
+                lower.contains("no camera") || lower.contains("camera unavailable") -> "camera_unavailable"
+                lower.contains("timeout") -> if (mode == MODE_CAMERA) "live_camera_timeout" else "live_session_timeout"
+                lower.contains("provider") || lower.contains("configured") -> "provider_not_configured"
+                mode == MODE_CAMERA -> "live_camera_runtime_error"
+                mode == MODE_SCREEN -> "screen_share_runtime_error"
+                else -> "live_voice_runtime_error"
+            }
             serviceScope.launch {
-                runCatching { WorkspaceApiClient().reportIssue(issueRoute, "live_session_failed") }
+                runCatching { WorkspaceApiClient().reportIssue(issueRoute, diagnosticCode) }
             }
         }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
