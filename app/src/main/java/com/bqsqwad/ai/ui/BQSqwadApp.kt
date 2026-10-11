@@ -2345,6 +2345,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                     }.onSuccess { savedId -> historyId = savedId }
                                         .onFailure { error = "The image was regenerated, but this conversation could not be saved." }
                                 }.onFailure { error = safeUserFacingIssue(it, "BQ Sqwad AI could not regenerate the image. Please try again.") }
+                                runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                                    .onSuccess { applyCreditSnapshot(it) }
                                 busy = false
                                 statusText = "Ready"
                             }
@@ -2388,6 +2390,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                             }
                             .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
+                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                            .onSuccess { applyCreditSnapshot(it) }
                         busy = false; statusText = "Ready"
                     }
                 }) { Text("Apply edit") } },
@@ -2428,6 +2432,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                             }
                             .onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }
+                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                            .onSuccess { applyCreditSnapshot(it) }
                         busy = false
                         statusText = "Ready"
                     }
