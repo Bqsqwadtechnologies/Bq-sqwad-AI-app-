@@ -325,7 +325,7 @@ fun AdminControlCenter() {
                 }
                 diagnosticsSnapshot?.let { snapshot ->
                     val features = snapshot.optJSONObject("features")
-                    listOf("chat", "image", "vision", "voice_session", "catalog").forEach { feature ->
+                    listOf("chat", "image", "vision", "live_camera", "screen_share", "voice_session", "catalog").forEach { feature ->
                         val rows = features?.optJSONArray(feature)
                         Text(
                             feature.replace('_', ' ') + " • " + (rows?.length() ?: 0) + " recorded failure(s)",
