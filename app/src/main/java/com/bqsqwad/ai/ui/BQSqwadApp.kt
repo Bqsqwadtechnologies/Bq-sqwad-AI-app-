@@ -3536,7 +3536,6 @@ fun CameraWorkspace() {
     var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
     var showLiveTerms by remember { mutableStateOf(false) }
     var pendingLiveAction by remember { mutableStateOf("camera") }
-    var pendingScreenPermission by remember { mutableStateOf(false) }
     var selectedVoice by remember { mutableStateOf("marin") }
     var publishedCameraModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedCameraModelId by remember { mutableStateOf("") }
@@ -3687,7 +3686,6 @@ fun CameraWorkspace() {
     }
 
     val screenMicPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { grantedMic ->
-        pendingScreenPermission = false
         if (grantedMic || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             screenLauncher.launch(
                 context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
@@ -3707,7 +3705,6 @@ fun CameraWorkspace() {
                     .createScreenCaptureIntent()
             )
         } else {
-            pendingScreenPermission = true
             screenMicPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -3815,6 +3812,9 @@ fun CameraWorkspace() {
                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
                     }
                 }, enabled = active) { Text("Flip") }
+            }
+            if (!screenActive && screenAnswer.isNotBlank()) {
+                Text(screenAnswer, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
