@@ -8,7 +8,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
-import { listAiModels, saveAiModel } from "./model-registry-native.js";
+import { listAiModels, saveAiModel, resolvePublishedModel } from "./model-registry-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -495,7 +495,11 @@ async function assertSharedCreditsAvailable(user) {
 }
 
 async function withSharedCreditCharge(user, capabilityName, action) {
-  const control = await capability(user.uid, capabilityName);
+  let control = await capability(user.uid, capabilityName);
+  if (body.modelRegistryId && capabilityName === "chat") {
+    const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
+    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+  }
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const result = await action(control);
@@ -681,7 +685,11 @@ async function ai(request, user, body) {
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
-  const control = await capability(user.uid, capabilityName);
+  let control = await capability(user.uid, capabilityName);
+  if (body.modelRegistryId && capabilityName === "chat") {
+    const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
+    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+  }
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
@@ -738,7 +746,11 @@ async function vision(request, user, body) {
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
   const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
-  const control = await capability(user.uid, capabilityName);
+  let control = await capability(user.uid, capabilityName);
+  if (body.modelRegistryId && capabilityName === "live_camera") {
+    const selected = await resolvePublishedModel(body.modelRegistryId, "live-camera");
+    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+  }
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const requestedSystem = String(body.system || "").slice(0, 12000).trim();
@@ -1472,9 +1484,13 @@ export default {
       if (url.pathname === "/ai/image" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
-        const control = await capability(u.uid, "image_generation");
+        let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
-        // The server owns model selection and pricing; never trust client-supplied cost/model.
+        if (body.modelRegistryId) {
+          const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
+          control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+        }
+        // Model and credit cost are resolved from trusted server-side configuration.
         body.model = control.modelId || "gpt-image-2";
         body.creditCost = control.creditCost;
         return json(await generateImageNative(
@@ -1487,9 +1503,13 @@ export default {
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
-        const control = await capability(u.uid, "image_generation");
+        let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
-        // Model and credit price are controlled by the server, not by the app client.
+        if (body.modelRegistryId) {
+          const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
+          control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+        }
+        // Model and credit cost are resolved from trusted server-side configuration.
         body.model = control.modelId || "gpt-image-2";
         body.creditCost = control.creditCost;
         return json(await editImageNative(
