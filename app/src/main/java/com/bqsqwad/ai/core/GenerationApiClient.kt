@@ -66,6 +66,12 @@ class GenerationApiClient {
         return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
     }
 
+    suspend fun editImage(prompt: String, imageBase64: String, size: String = "1024x1024", quality: String = "auto"): GeneratedImage {
+        val body = request("/ai/image/edit", payload = JSONObject().apply {
+            put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("size", size); put("quality", quality)
+        })
+        return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
+    }
     suspend fun createVideo(prompt: String, seconds: String = "8", size: String = "1280x720"): VideoJob {
         val body = request("/video/generate", payload = JSONObject().apply {
             put("prompt", prompt.take(12000)); put("seconds", seconds); put("size", size)
