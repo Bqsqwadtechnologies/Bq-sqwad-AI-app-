@@ -1972,13 +1972,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine) Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 4.dp)
+                                .padding(top = 3.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                                    shape = RoundedCornerShape(16.dp)
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(14.dp)
                                 )
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                                .padding(horizontal = 2.dp, vertical = 0.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
@@ -2018,16 +2018,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 ) { Icon(Icons.Default.MoreVert, contentDescription = if (imageActionLoading) "Loading saved image" else "Image actions") }
                             }
                             IconButton(onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { shareText(context, m.text) }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { message = m.prompt ?: m.text }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = {
                                 scope.launch {
@@ -2036,7 +2036,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = {
                                 scope.launch {
@@ -2045,10 +2045,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { feedbackTarget = m }) {
-                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (m.prompt != null) {
                                 IconButton(onClick = {
@@ -2058,7 +2058,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         sendAuthenticatedMessage(text)
                                     }
                                 }) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurface)
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
