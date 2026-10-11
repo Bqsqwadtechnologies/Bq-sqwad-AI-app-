@@ -62,6 +62,7 @@ fun AdminControlCenter() {
     var showAppEditor by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
+    var testModeAvailable by remember { mutableStateOf(false) }
     var testModeSaving by remember { mutableStateOf(false) }
     var trialEnabled by remember { mutableStateOf(false) }
     var trialCredits by remember { mutableStateOf("5") }
@@ -88,7 +89,9 @@ fun AdminControlCenter() {
             .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
         loading = false
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
-        runCatching { client.testMode() }.onSuccess { testMode = it }
+        runCatching { client.testMode() }
+            .onSuccess { testMode = it; testModeAvailable = true }
+            .onFailure { testModeAvailable = false }
         runCatching { client.creditTrial() }.onSuccess {
             trialEnabled = it.optBoolean("enabled", false)
             trialCredits = it.optInt("credits", 5).toString()
@@ -365,11 +368,11 @@ fun AdminControlCenter() {
                 }
             }
         }
-        Card(Modifier.fillMaxWidth()) {
+        if (testModeAvailable) Card(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Admin Test Mode", fontWeight = FontWeight.Bold)
-                    Text("Server-controlled QA access. When OFF, admin navigation follows normal entitlement rules.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Super-admin Test Mode", fontWeight = FontWeight.Bold)
+                    Text("Root super-admin only. Temporarily bypasses workspace plan gates for QA; capability kill switches, consent, provider configuration and server safety checks remain enforced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(
                     checked = testMode,
