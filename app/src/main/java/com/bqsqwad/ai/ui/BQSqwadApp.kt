@@ -3598,6 +3598,7 @@ fun CameraWorkspace() {
     fun cameraDiagnosticCode(message: String): String {
         val lower = message.lowercase()
         return when {
+            lower.contains("flashlight") || lower.contains("torch") -> "flashlight_unavailable"
             lower.contains("permission") -> "camera_permission_missing"
             lower.contains("busy") || lower.contains("in use") -> "camera_busy"
             lower.contains("no camera") || lower.contains("unavailable") || lower.contains("not available") -> "camera_unavailable"
