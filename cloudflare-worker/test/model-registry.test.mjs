@@ -83,3 +83,19 @@ test("model validation rejects unknown provider model IDs", async () => {
     /model does not exist/
   );
 });
+
+test("provider model validation returns a bounded service error when the provider request times out", async () => {
+  globalThis.fetch = async () => {
+    const error = new Error("request timed out");
+    error.name = "TimeoutError";
+    throw error;
+  };
+  await assert.rejects(
+    validateAiModel(
+      { OPENAI_API_KEY: "server-test-key" },
+      { providerId: "openai", modelId: "gpt-test-model", feature: "text-chat" }
+    ),
+    error => error.httpStatus === 503 && /provider_model_validation_timeout/.test(error.message)
+  );
+});
+
