@@ -94,6 +94,11 @@ function safeDiagnosticCode(errorCode) {
   if (value.includes("camera_unavailable")) return "camera_unavailable";
   if (value.includes("microphone_permission_missing")) return "microphone_permission_missing";
   if (value.includes("screen_capture_permission_missing")) return "screen_capture_permission_missing";
+  if (value.includes("live_camera_timeout")) return "live_camera_timeout";
+  if (value.includes("live_camera_runtime_error")) return "live_camera_runtime_error";
+  if (value.includes("screen_share_runtime_error")) return "screen_share_runtime_error";
+  if (value.includes("live_voice_runtime_error")) return "live_voice_runtime_error";
+  if (value.includes("live_session_timeout")) return "live_session_timeout";
   if (value.includes("insufficient_credits") || value.includes("credit_balance")) return "insufficient_credits";
   if (value.includes("provider_not_configured")) return "provider_not_configured";
   if (value.includes("openai http")) return "openai_provider_http_error";
