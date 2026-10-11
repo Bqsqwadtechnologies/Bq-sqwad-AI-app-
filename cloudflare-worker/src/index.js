@@ -126,11 +126,21 @@ async function adminReadinessSelfTest(env) {
       const config = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
       const disabled = config?.enabled === false || config?.killSwitch === true;
       const provider = String(config?.providerId || "openai").toLowerCase();
-      const secretReady = providerNames.some(name => Boolean(env?.[name]));
+      // A key for a different provider does not make the selected provider ready.
+      const providerSecret = provider === "openai" ? "OPENAI_API_KEY"
+        : provider === "gemini" ? "GEMINI_API_KEY" : null;
+      const secretReady = Boolean(providerSecret && env?.[providerSecret]);
+      const supportedForFeature = feature === "chat"
+        ? ["openai", "gemini"].includes(provider)
+        : ["image", "vision"].includes(feature)
+          ? provider === "openai"
+          : false;
       const model = String(config?.modelId || "").slice(0, 80);
       return {
         feature,
-        status: disabled ? "disabled" : (secretReady ? "ready" : "missing_provider_key"),
+        status: disabled ? "disabled"
+          : !supportedForFeature ? "unsupported_provider_configuration"
+          : secretReady ? "configured_not_runtime_tested" : "missing_provider_key",
         capabilityEnabled: !disabled,
         providerConfigured: secretReady,
         provider: /^[a-z0-9_-]{1,40}$/.test(provider) ? provider : "configured_provider",
@@ -149,7 +159,7 @@ async function adminReadinessSelfTest(env) {
         const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
         const enabled = config?.enabled !== false && config?.killSwitch !== true;
         const providerConfigured = Boolean(env?.OPENAI_API_KEY);
-        return { feature: "voice_session", status: !enabled ? "disabled" : (providerConfigured ? "ready" : "missing_provider_key"), capabilityEnabled: enabled, providerConfigured };
+        return { feature: "voice_session", status: !enabled ? "disabled" : (providerConfigured ? "configured_not_runtime_tested" : "missing_provider_key"), capabilityEnabled: enabled, providerConfigured };
       } catch {
         return { feature: "voice_session", status: env?.OPENAI_API_KEY ? "config_check_failed" : "missing_provider_key", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
       }
