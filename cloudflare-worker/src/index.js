@@ -1297,6 +1297,49 @@ export default {
       }
 
 
+      // Android reads these entitlement routes during access checks and catalog refresh.
+      // Keep the response contract aligned with the retired Functions implementation.
+      if (url.pathname === "/entitlement" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const entitlement = await firestoreGet("entitlements/" + user.uid);
+        return json(entitlement ? { exists: true, ...entitlement } : { exists: false });
+      }
+
+      if (url.pathname === "/entitlements" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const [primary, playRows] = await Promise.all([
+          firestoreGet("entitlements/" + user.uid),
+          firestoreQuery("playEntitlements", {
+            filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+            limit: 100
+          })
+        ]);
+        const rows = new Map();
+        if (primary) {
+          const key = String(primary.productId || primary.planId || "primary");
+          rows.set(key, { ...primary, id: key });
+        }
+        for (const row of playRows) {
+          const key = String(row.productId || row.planId || String(row.__name || "").split("/").pop());
+          rows.set(key, { ...row, id: key });
+        }
+        return json({
+          items: Array.from(rows.values()).map(row => ({
+            id: String(row.id || ""),
+            planId: String(row.planId || ""),
+            productId: String(row.productId || ""),
+            product: String(row.product || row.productId || ""),
+            basePlanId: row.basePlanId ? String(row.basePlanId) : null,
+            state: String(row.state || ""),
+            renewalState: String(row.renewalState || ""),
+            source: String(row.source || ""),
+            startDate: row.startDate || null,
+            endDate: row.endDate || null,
+            updatedAt: row.updatedAt || null
+          }))
+        });
+      }
+
       if (url.pathname === "/history" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
