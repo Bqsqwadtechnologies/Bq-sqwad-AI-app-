@@ -1093,10 +1093,10 @@ private fun isImageGenerationRequest(text: String): Boolean {
 
     val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build)\\b|\\bshow me\\b")
     val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?)\\b")
-    val directRequest = Regex("^(please |can you |could you |would you |please help me |help me )")
     val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|show me)\\b")
-    return action.containsMatchIn(q) && asset.containsMatchIn(q) &&
-        (directRequest.containsMatchIn(q) || actionAtStart.containsMatchIn(q) || action.containsMatchIn(q))
+    val drawObjectRequest = Regex("\\b(draw|illustrate|paint)\\s+(me\\s+)?(a|an|the)\\s+[a-z0-9-]+\\b")
+    return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
+        (actionAtStart.containsMatchIn(q) && drawObjectRequest.containsMatchIn(q))
 }
 
 private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null)
