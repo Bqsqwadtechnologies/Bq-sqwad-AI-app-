@@ -79,7 +79,7 @@ test("native BQ catalog is browseable without sign-in and falls back to canonica
 });
 
 test("realtime voice and client issue reporting require Firebase auth", async () => {
-  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/admin/self-test", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"], ["/video/jobs/test/content", "GET"]]) {
+  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/admin/self-test", "POST"], ["/admin/daily-free-credits", "GET"], ["/admin/daily-free-credits", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"], ["/video/jobs/test/content", "GET"]]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
       body: "{}"
