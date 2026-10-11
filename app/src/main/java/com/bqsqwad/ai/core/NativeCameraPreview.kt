@@ -13,6 +13,7 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.view.Surface
 import android.view.TextureView
 import androidx.compose.runtime.Composable
@@ -60,11 +61,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     var frameListener: (ByteArray) -> Unit = {}
     var errorListener: (String) -> Unit = {}
     private var lastErrorMessage: String? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun reportCameraError(message: String) {
         if (lastErrorMessage == message) return
         lastErrorMessage = message
-        errorListener(message)
+        mainHandler.post { if (!closed.get()) errorListener(message) }
     }
 
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
