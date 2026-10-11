@@ -4181,8 +4181,18 @@ fun CameraWorkspace() {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
-                            if (!granted) permissionExplanation = true
-                            else startLiveCamera()
+                            if (!granted) {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                            Uri.fromParts("package", context.packageName, null)
+                                        )
+                                    )
+                                }.onFailure {
+                                    permissionExplanation = true
+                                }
+                            } else startLiveCamera()
                         }
                     ) { Text(if (!granted) "Open settings" else "Retry camera") }
                 }
