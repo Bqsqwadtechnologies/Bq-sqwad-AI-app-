@@ -3663,6 +3663,10 @@ fun CameraWorkspace() {
             screenAnswer = "Screen sharing was cancelled. Nothing was captured."
             return@rememberLauncherForActivityResult
         }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            screenAnswer = "Allow microphone access before starting AI screen conversation."
+            return@rememberLauncherForActivityResult
+        }
         runCatching {
             val metrics = context.resources.displayMetrics
             context.startForegroundService(
