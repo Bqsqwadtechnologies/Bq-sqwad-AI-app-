@@ -189,7 +189,9 @@ async function adminReadinessSelfTest(env) {
       try {
         const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
         const enabled = config?.enabled !== false && config?.killSwitch !== true;
-        const providerStatus = await probeProvider("openai");
+        const providerStatus = enabled
+          ? await probeProvider("openai")
+          : { status: "not_checked_disabled", reachable: false };
         const status = !enabled ? "disabled" : !env?.OPENAI_API_KEY ? "missing_provider_key" : providerStatus.status === "reachable" ? "provider_reachable_not_model_tested" : providerStatus.status;
         return { feature: "voice_session", status, capabilityEnabled: enabled, providerConfigured: Boolean(env?.OPENAI_API_KEY), providerStatus: providerStatus.status };
       } catch {
