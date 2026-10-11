@@ -376,56 +376,120 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         }
                     }
                     item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
-                    val moduleOrder = listOf("business","learning","truthguard","life-mathis","companion","learning-capability","frontier","data-analysis","organization","credits")
                     val grouped = plans.groupBy { it.module }
-                    moduleOrder.filter { grouped.containsKey(it) }.forEach { module ->
-                        item(key="module:"+module) {
-                            val title = when (module) {
-                                "business" -> "Business AI"
-                                "life-mathis" -> "Life Mathis"
-                                "truthguard" -> "TruthGuard AI"
-                                "learning" -> "Learning Studio"
-                                "companion" -> "AI Companion"
-                                "organization" -> "Organization AI / Studio"
-                                else -> module.replace('-', ' ').replaceFirstChar { it.uppercase() }
-                            }
-                            Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                Text(title, style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
-                                Text(if (module == "life-mathis") "Life Mathis plans, monthly/yearly pricing and included guidance features." else "Plans, pricing and features for this workspace.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    val businessMain = plans.filter { it.module == "business" && !it.contactSales }.sortedBy { it.sortOrder }
+                    val businessAddOns = plans.filter { it.module == "business-addon" }.sortedBy { it.sortOrder }
+                    val businessContact = plans.filter { it.module == "business" && it.contactSales }.sortedBy { it.sortOrder }
+                    if (businessMain.isNotEmpty() || businessAddOns.isNotEmpty() || businessContact.isNotEmpty()) {
+                        item(key = "module:business") {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Business plans, team capacity, assistants, training, storage and connected channels.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        grouped.getValue(module).forEach { plan ->
-                            item(key="plan:"+plan.id) {
-                                LivePlanCard(
-                                    plan=plan,
-                                    playEntries=catalog.filter { it.planId == plan.id && it.enabled },
-                                    playProducts=playProducts,
-                                    billing=billing,
-                                    onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus={ status=it }
-                                )
+                        businessMain.forEach { plan ->
+                            item(key = "plan:" + plan.id) {
+                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus = { status = it })
                             }
                         }
-                    }
-                    plans.filter { it.module !in moduleOrder }.groupBy { it.module }.forEach { (module, modulePlans) ->
-                        item(key="module:"+module) {
-                            Text(module.replace('-', ' ').replaceFirstChar { it.uppercase() }, style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
+                        if (businessAddOns.isNotEmpty()) {
+                            item(key = "subheading:business-addons") {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("Business add-ons", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text("Optional capacity and feature extensions for eligible Business AI plans.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            businessAddOns.forEach { plan ->
+                                item(key = "plan:" + plan.id) {
+                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                        onStatus = { status = it })
+                                }
+                            }
                         }
-                        modulePlans.forEach { plan ->
-                            item(key="plan:"+plan.id) {
-                                LivePlanCard(
-                                    plan=plan,
-                                    playEntries=catalog.filter { it.planId == plan.id && it.enabled },
-                                    playProducts=playProducts,
-                                    billing=billing,
-                                    onContact={ contactPlan=ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus={ status=it }
-                                )
+                        businessContact.forEach { plan ->
+                            item(key = "plan:" + plan.id) {
+                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus = { status = it })
                             }
                         }
                     }
-                }
 
+                    val learningMain = plans.filter { it.module == "learning" || it.module == "learning-capability" }.sortedBy { it.sortOrder }
+                    val learningExamAddOns = plans.filter { it.module == "learning-exam-addon" }.sortedBy { it.sortOrder }
+                    if (learningMain.isNotEmpty() || learningExamAddOns.isNotEmpty()) {
+                        item(key = "module:learning") {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Learning Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Study tools, learning plans and exam preparation options.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        learningMain.forEach { plan ->
+                            item(key = "plan:" + plan.id) {
+                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus = { status = it })
+                            }
+                        }
+                        if (learningExamAddOns.isNotEmpty()) {
+                            item(key = "subheading:learning-exams") {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("Exam add-ons", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text("Additional exam-focused options for Learning Studio.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            learningExamAddOns.forEach { plan ->
+                                item(key = "plan:" + plan.id) {
+                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                        onStatus = { status = it })
+                                }
+                            }
+                        }
+                    }
+
+                    val moduleOrder = listOf("organization", "truthguard", "life-mathis", "companion", "frontier", "data-analysis", "credits")
+                    val moduleTitles = mapOf(
+                        "organization" to "Organization AI / Studio",
+                        "truthguard" to "TruthGuard AI",
+                        "life-mathis" to "Life Mathis",
+                        "companion" to "AI Companion",
+                        "frontier" to "Frontier Lab",
+                        "data-analysis" to "Data Analysis",
+                        "credits" to "Credits & Top-ups"
+                    )
+                    moduleOrder.filter { grouped.containsKey(it) }.forEach { module ->
+                        item(key = "module:" + module) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(moduleTitles[module] ?: "Additional plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                Text("Plans, pricing, availability and included features for this workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        grouped.getValue(module).sortedBy { it.sortOrder }.forEach { plan ->
+                            item(key = "plan:" + plan.id) {
+                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                    onStatus = { status = it })
+                            }
+                        }
+                    }
+                    plans.filter { it.module !in setOf("business", "business-addon", "learning", "learning-capability", "learning-exam-addon") && it.module !in moduleOrder }
+                        .groupBy { it.module }.forEach { (_, modulePlans) ->
+                            item(key = "module:additional:" + modulePlans.first().id) {
+                                Text("Additional plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            }
+                            modulePlans.sortedBy { it.sortOrder }.forEach { plan ->
+                                item(key = "plan:" + plan.id) {
+                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
+                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                        onStatus = { status = it })
+                                }
+                            }
+                        }
+                }
                 item {
                     Text("BQ Sqwad AI Feature Directory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("Browse registered core workspaces and advanced capabilities. A registered name does not by itself guarantee that its live service is configured or available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -605,6 +669,12 @@ private fun LivePlanCard(
             if (plan.features.isNotEmpty()) {
                 Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
                 plan.features.forEach { Text("• " + it, style=MaterialTheme.typography.bodySmall) }
+            } else {
+                Text(
+                    "Feature details are not configured for this item yet. Confirm availability with BQ Sqwad AI support before purchasing.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
             if (plan.limits.isNotEmpty()) {
                 Text("Plan capacity", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
@@ -637,7 +707,7 @@ private fun LivePlanCard(
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
-                            plan.playEligible -> "Continue with Google Play"
+                            plan.playEligible -> "Continue with Google Pay"
                             else -> "Not available in-app"
                         }
                     )
