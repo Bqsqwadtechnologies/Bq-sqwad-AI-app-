@@ -3759,16 +3759,14 @@ fun CameraWorkspace() {
                                     Uri.Builder().scheme("android-app").appendPath(context.packageName).build()
                                 )
                                 .putExtra(Intent.EXTRA_SUBJECT, "BQ Sqwad AI Live")
-                            val supported = context.packageManager.queryIntentActivities(
-                                youtubeIntent,
-                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
-                            ).isNotEmpty()
-                            if (supported) {
+                            runCatching {
+                                // Launch directly rather than relying on package visibility queries.
                                 // Keep the foreground AI voice session running during app handoff.
-                                // Android may still give the microphone to YouTube while it is live.
                                 context.startActivity(youtubeIntent)
-                            } else {
-                                streamError = "YouTube Mobile Live is not available on this device."
+                            }.onSuccess {
+                                streamError = null
+                            }.onFailure {
+                                streamError = "YouTube Mobile Live could not be opened. Install or open the official YouTube app and try again."
                             }
                         }
                     ) {
