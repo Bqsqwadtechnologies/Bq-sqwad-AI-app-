@@ -282,7 +282,7 @@ fun AdminControlCenter() {
                     ) { Text(if (diagnosticsBusy) "Checking…" else "Run self-test") }
                 }
                 Text(
-                    "Self-test checks configuration and catalog readiness only; it does not send prompts or generate paid AI output.",
+                    "Self-test checks capability configuration, provider API reachability and catalog readiness; it does not send prompts or generate paid AI output.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
