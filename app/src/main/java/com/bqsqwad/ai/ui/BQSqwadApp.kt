@@ -4096,7 +4096,15 @@ fun CameraWorkspace() {
 
     if (fullScreenPreview && fullScreenPreviewReady && granted && previewEnabled) {
         androidx.compose.ui.window.Dialog(
-            onDismissRequest = { fullScreenPreview = false; fullScreenPreviewReady = false },
+            onDismissRequest = {
+                // Keep the inline preview unmounted until the dialog's Camera2
+                // device has had time to close.
+                fullScreenPreviewReady = false
+                scope.launch {
+                    kotlinx.coroutines.delay(250)
+                    fullScreenPreview = false
+                }
+            },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -4121,7 +4129,11 @@ fun CameraWorkspace() {
                         onError = { message ->
                             streamError = message
                             reportCameraDiagnostic(cameraDiagnosticCode(message))
-                            fullScreenPreview = false
+                            fullScreenPreviewReady = false
+                            scope.launch {
+                                kotlinx.coroutines.delay(250)
+                                fullScreenPreview = false
+                            }
                         }
                     )
                 }
@@ -4151,7 +4163,13 @@ fun CameraWorkspace() {
                     }
                     Spacer(Modifier.weight(1f))
                     Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
-                        TextButton(onClick = { fullScreenPreview = false; fullScreenPreviewReady = false }) { Text("Close", color = Color.White) }
+                        TextButton(onClick = {
+                            fullScreenPreviewReady = false
+                            scope.launch {
+                                kotlinx.coroutines.delay(250)
+                                fullScreenPreview = false
+                            }
+                        }) { Text("Close", color = Color.White) }
                     }
                 }
                 val visibleAnswer = liveAnswer.ifBlank { liveUiState.status.takeIf { it.isNotBlank() && it != "stopped" }.orEmpty() }
