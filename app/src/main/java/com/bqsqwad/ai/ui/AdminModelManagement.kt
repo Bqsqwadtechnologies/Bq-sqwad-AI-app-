@@ -47,6 +47,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var description by remember { mutableStateOf("") }
     var creditCost by remember { mutableStateOf("1") }
     var priceUsd by remember { mutableStateOf("0.01") }
+    var creditsPerMinute by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(true) }
     var isDefault by remember { mutableStateOf(false) }
     var published by remember { mutableStateOf(true) }
@@ -109,19 +110,22 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(creditCost, { creditCost = it }, label = { Text("Credits charged per request") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Reference price in USD per request (actual user charge is credits)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(creditsPerMinute, { creditsPerMinute = it }, label = { Text("Credits per live minute (blank = global live-session rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(isDefault, { isDefault = it }); Text("Use as the default model for this feature", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(published, { published = it }); Text("Publish in the user model catalogue", Modifier.padding(top = 12.dp)) }
         Button(
             enabled = !saving && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
                 provider in setOf("openai", "gemini") && (creditCost.toIntOrNull() ?: -1) >= 0 &&
-                (priceUsd.toDoubleOrNull() ?: -1.0) >= 0,
+                (priceUsd.toDoubleOrNull() ?: -1.0) >= 0 &&
+                (creditsPerMinute.isBlank() || (creditsPerMinute.toIntOrNull() ?: -1) >= 0),
             onClick = {
                 val payload = JSONObject().apply {
                     put("id", id.trim()); put("name", name.trim()); put("providerId", provider.trim())
                     put("modelId", providerModelId.trim()); put("feature", feature)
                     put("description", description.trim()); put("creditCost", creditCost.toInt())
-                    put("priceUsd", priceUsd.toDouble()); put("active", active); put("isDefault", isDefault); put("published", published)
+                    put("priceUsd", priceUsd.toDouble()); if (creditsPerMinute.isNotBlank()) put("creditsPerMinute", creditsPerMinute.toInt()) else put("creditsPerMinute", JSONObject.NULL)
+                    put("active", active); put("isDefault", isDefault); put("published", published)
                 }
                 scope.launch {
                     saving = true
@@ -132,7 +136,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("Important: model IDs must be valid for the provider and feature. Voice/image/video APIs have different request formats; registering a model does not make an incompatible model work with those APIs. Verify each feature before enabling it.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
     }
@@ -149,6 +153,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                         put("providerId", selected.optString("providerId")); put("modelId", selected.optString("modelId"))
                         put("feature", selected.optString("feature")); put("description", selected.optString("description"))
                         put("creditCost", selected.optInt("creditCost")); put("priceUsd", selected.optDouble("priceUsd"))
+                        if (!selected.isNull("creditsPerMinute")) put("creditsPerMinute", selected.optInt("creditsPerMinute")) else put("creditsPerMinute", JSONObject.NULL)
                         put("published", selected.optBoolean("published")); put("isDefault", false); put("active", false)
                     }
                     confirmDisable = null
