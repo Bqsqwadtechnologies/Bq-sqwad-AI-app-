@@ -3382,14 +3382,20 @@ fun CameraWorkspace() {
             // after Android has granted camera access.
             previewEnabled = true
             if (micOk) {
-                context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                    .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
-                active = true
-                streamError = null
+                runCatching {
+                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                        .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                        .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                }.onSuccess {
+                    active = true
+                    streamError = null
+                }.onFailure {
+                    active = false
+                    streamError = "Android could not start the live camera service. Keep BQ Sqwad AI open, check Camera and Microphone permissions, then retry."
+                }
             } else {
                 active = false
                 streamError = "Camera preview is active. Allow microphone access to start AI voice conversation."
@@ -3423,16 +3429,22 @@ fun CameraWorkspace() {
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (cameraOk && micOk && streamEndpoint.trim().isNotBlank()) {
-            previewEnabled = true
-            context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
-                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+            runCatching {
+                context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                    .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                    .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
+                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
-            streamOnline = true
-            streamError = null
+            }.onSuccess {
+                previewEnabled = true
+                streamOnline = true
+                streamError = null
+            }.onFailure {
+                streamOnline = false
+                streamError = "Android could not start the custom live stream. Check Camera and Microphone permissions and retry."
+            }
         } else {
             streamError = "Camera and microphone permission are required for online streaming."
         }
