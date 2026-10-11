@@ -3487,21 +3487,26 @@ fun CameraWorkspace() {
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (cameraOk && micOk && streamEndpoint.trim().isNotBlank()) {
-            runCatching {
-                context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                    .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                    .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
-                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
-            }.onSuccess {
-                previewEnabled = true
-                streamOnline = true
-                streamError = null
-            }.onFailure {
-                streamOnline = false
-                streamError = "Android could not start the custom live stream. Check Camera and Microphone permissions and retry."
+            // Remove the Compose camera preview before the foreground RTMP streamer
+            // opens Camera2; otherwise both owners can race for the same device.
+            previewEnabled = true
+            fullScreenPreview = false
+            streamOnline = true
+            streamError = null
+            scope.launch {
+                androidx.compose.runtime.withFrameNanos { }
+                runCatching {
+                    context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                        .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                        .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                        .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
+                        .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                }.onFailure {
+                    streamOnline = false
+                    streamError = "Android could not start the custom live stream. Check Camera and Microphone permissions and retry."
+                }
             }
         } else {
             streamError = "Camera and microphone permission are required for online streaming."
