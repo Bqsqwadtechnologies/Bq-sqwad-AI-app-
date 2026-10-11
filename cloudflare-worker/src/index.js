@@ -158,7 +158,11 @@ async function adminReadinessSelfTest(env) {
         : ["image", "vision"].includes(feature)
           ? provider === "openai"
           : false;
-      const providerStatus = providerSecret ? await probeProvider(provider) : { status: "unsupported_provider", reachable: false };
+      const providerStatus = disabled
+        ? { status: "not_checked_disabled", reachable: false }
+        : !supportedForFeature || !providerSecret
+          ? { status: "unsupported_provider", reachable: false }
+          : await probeProvider(provider);
       const model = String(config?.modelId || "").slice(0, 80);
       const status = disabled ? "disabled"
         : !supportedForFeature ? "unsupported_provider_configuration"
