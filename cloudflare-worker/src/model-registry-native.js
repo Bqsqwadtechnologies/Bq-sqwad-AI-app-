@@ -78,13 +78,19 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       definition.modelId
     );
     let providerId = String(capability.providerId || definition.providerId).toLowerCase();
-    if (["live-camera", "live-voice"].includes(definition.feature)) {
-      if (providerId !== "openai") providerId = "openai";
-      if (!modelId.startsWith("gpt-realtime")) modelId = definition.modelId;
+    if (definition.feature === "text-chat") {
+      if (!["openai", "gemini"].includes(providerId)) providerId = "openai";
+      if (!modelId) modelId = providerId === "gemini" ? (defaultModels.gemini || "gemini-2.5-flash") : (defaultModels.openai || "gpt-5.6-luna");
+      if (providerId === "gemini" && !modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
     }
-    if (definition.feature === "image-generation" && (!modelId.startsWith("gpt-image"))) modelId = definition.modelId;
-    if (definition.feature === "video-generation" && (!modelId.startsWith("sora"))) modelId = definition.modelId;
-    if (definition.feature === "device-commands") providerId = "gemini";
+    if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
+    if (["live-camera", "live-voice"].includes(definition.feature) && !modelId.startsWith("gpt-realtime")) modelId = definition.modelId;
+    if (definition.feature === "image-generation" && !modelId.startsWith("gpt-image")) modelId = definition.modelId;
+    if (definition.feature === "video-generation" && !modelId.startsWith("sora")) modelId = definition.modelId;
+    if (definition.feature === "device-commands") {
+      providerId = "gemini";
+      if (!modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
+    }
 
     const matching = featureRows.find(row => row.modelId === modelId && row.providerId === providerId);
     const id = String(matching?.id || String(matching?.__name || "").split("/").pop() || definition.id);
