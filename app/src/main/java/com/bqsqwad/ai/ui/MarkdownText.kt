@@ -133,7 +133,7 @@ private fun inline(s: String): AnnotatedString = buildAnnotatedString {
 @Composable
 fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface) {
     val blocks = remember(text) { parseBlocks(text) }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Code -> CodeBlock(block.code, block.lang)
