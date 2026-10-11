@@ -108,7 +108,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         }
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(creditCost, { creditCost = it }, label = { Text("Credits charged per request") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Display price in USD per request (informational)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Reference price in USD per request (actual user charge is credits)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(isDefault, { isDefault = it }); Text("Use as the default model for this feature", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(published, { published = it }); Text("Publish in the user model catalogue", Modifier.padding(top = 12.dp)) }
