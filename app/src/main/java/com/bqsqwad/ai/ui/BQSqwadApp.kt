@@ -3674,6 +3674,12 @@ fun CameraWorkspace() {
             screenAnswer = "Allow microphone access before starting AI screen conversation."
             return@rememberLauncherForActivityResult
         }
+        // Release any idle camera preview before the screen-share service starts.
+        // The screen session does not need to own the camera.
+        previewEnabled = false
+        fullScreenPreview = false
+        fullScreenPreviewReady = false
+        active = false
         runCatching {
             val metrics = context.resources.displayMetrics
             context.startForegroundService(
