@@ -4070,7 +4070,7 @@ fun CameraWorkspace() {
         AlertDialog(
             onDismissRequest = { showLiveTerms = false },
             title = { Text("Before you start Live Camera") },
-            text = { Text("By continuing, you agree that BQ Sqwad AI may use your camera, microphone, or shared screen only for the Live Camera session. Screen sharing can capture information visible on your device, so avoid displaying private or confidential information. You are responsible for content you choose to stream or share. You can stop the session at any time. Live Camera usage may consume BQ Sqwad credits according to the displayed rate.") },
+            text = { Text("Before starting, please review this privacy notice. If you continue, BQ Sqwad AI will access only the camera, microphone, or screen-sharing capability needed for the feature you start. Live audio or selected camera/screen frames may be sent securely to BQ Sqwad AI's server and its configured AI provider to generate replies. Do not share passwords, payment details, private messages, confidential work, or other people's personal information unless you have permission. Tell anyone who may be recorded or shown that AI analysis is active and obtain their consent where required. Opening TikTok or another app does not give BQ Sqwad AI permission to control that app or bypass its privacy controls. Android may stop or limit camera/microphone access when another app uses it. You can stop the AI session at any time using the in-app control or persistent notification. Usage may consume the credits shown in the app. Continue only if you understand and agree.") },
             confirmButton = {
                 TextButton(onClick = {
                     liveTermsAccepted = true
