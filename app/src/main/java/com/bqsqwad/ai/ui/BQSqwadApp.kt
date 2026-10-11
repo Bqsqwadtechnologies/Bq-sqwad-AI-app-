@@ -1950,9 +1950,26 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine && m.text == "Generating image…") {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                                 BqGeneratingIndicator()
-                                Text("Creating your image…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                                LinearProgressIndicator(modifier = Modifier.width(220.dp))
-                                Text("Progress is an estimate while the image service works.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        "Creating your image…",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Text(
+                                    "This can take a moment. You can keep this chat open while it finishes.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         } else {
                             Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) {
@@ -1986,17 +2003,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                     shape = RoundedCornerShape(14.dp)
                                 )
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 2.dp, vertical = 0.dp),
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(0.dp)
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            BqLogo(22.dp)
+                            BqLogo(20.dp)
                             if (m.attachments.any { !it.imageBase64.isNullOrBlank() } || !m.imageUrl.isNullOrBlank()) {
                                 IconButton(
+                                    modifier = Modifier.size(36.dp),
                                     enabled = !imageActionLoading,
                                     onClick = {
                                         val image = m.attachments.firstOrNull { !it.imageBase64.isNullOrBlank() }
@@ -2029,48 +2047,48 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     }
                                 ) { Icon(Icons.Default.MoreVert, contentDescription = if (imageActionLoading) "Loading saved image" else "Image actions") }
                             }
-                            IconButton(onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(modifier = Modifier.size(36.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = { shareText(context, m.text) }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(modifier = Modifier.size(36.dp), onClick = { shareText(context, m.text) }) {
+                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(modifier = Modifier.size(36.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = { message = m.prompt ?: m.text }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(modifier = Modifier.size(36.dp), onClick = { message = m.prompt ?: m.text }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = {
+                            IconButton(modifier = Modifier.size(36.dp), onClick = {
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
                                         .onSuccess { error = "Report submitted for review." }
                                         .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = {
+                            IconButton(modifier = Modifier.size(36.dp), onClick = {
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
                                         .onSuccess { error = "Thanks for the feedback." }
                                         .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
                                 }
                             }) {
-                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = { feedbackTarget = m }) {
-                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(modifier = Modifier.size(36.dp), onClick = { feedbackTarget = m }) {
+                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             if (m.prompt != null) {
-                                IconButton(onClick = {
+                                IconButton(modifier = Modifier.size(36.dp), onClick = {
                                     message = m.prompt
                                     val text = m.prompt
                                     if (FirebaseAuth.getInstance().currentUser != null && !busy) {
                                         sendAuthenticatedMessage(text)
                                     }
                                 }) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
