@@ -85,7 +85,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       if (providerId === "gemini" && !modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
     }
     if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
-    if (["live-camera", "live-voice"].includes(definition.feature) && !modelId.startsWith("gpt-realtime")) modelId = definition.modelId;
+    if (["live-camera", "live-voice"].includes(definition.feature) && !/^(?:gpt-realtime|gpt-4o-realtime)/i.test(modelId)) modelId = definition.modelId;
     if (definition.feature === "image-generation" && !modelId.startsWith("gpt-image")) modelId = definition.modelId;
     if (definition.feature === "video-generation" && !modelId.startsWith("sora")) modelId = definition.modelId;
     if (definition.feature === "device-commands") {
