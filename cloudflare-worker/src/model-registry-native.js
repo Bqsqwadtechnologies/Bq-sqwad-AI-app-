@@ -29,7 +29,7 @@ function normalizeModel(raw, actorUid) {
   if (!FEATURE_CAPABILITIES[feature]) throw new Error("model_feature_unsupported");
   const allowedProviders = {
     "text-chat": new Set(["openai", "gemini"]),
-    "live-camera": new Set(["openai", "gemini"]),
+    "live-camera": new Set(["openai"]),
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
     "device-commands": new Set(["gemini"]),
