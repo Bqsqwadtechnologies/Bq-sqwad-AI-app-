@@ -373,7 +373,7 @@ fun OrganizationStudioWorkspace() {
                                 else result?.debugMessage?.ifBlank { "Google Play checkout could not start." } ?: "Google Play billing is not ready."
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Deposit ${"%.2f".format(java.util.Locale.US, amount)}") }
+                        ) { Text("Continue with Google Pay · Deposit ${"%.2f".format(java.util.Locale.US, amount)}") }
                     }
                     Text("The secure server verifies the Google Play purchase before adding the balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
