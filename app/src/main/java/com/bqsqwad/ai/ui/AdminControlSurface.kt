@@ -302,10 +302,11 @@ fun AdminControlCenter() {
                             val check = checks.optJSONObject(index) ?: org.json.JSONObject()
                             val details = when (check.optString("feature")) {
                                 "catalog" -> " • plans " + check.optInt("planCount", 0) + " • products " + check.optInt("productCount", 0)
-                                else -> buildString {
+                                "image" -> buildString {
                                     if (check.optString("model").isNotBlank()) append(" • ").append(check.optString("model"))
-                                    if (check.optString("modelStatus").isNotBlank()) append(" • model ").append(check.optString("modelStatus").replace('_', ' '))
+                                    if (check.optString("modelStatus").isNotBlank()) append(" • ").append(check.optString("modelStatus").replace('_', ' '))
                                 }
+                                else -> if (check.optString("model").isNotBlank()) " • " + check.optString("model") else ""
                             }
                             Text(
                                 check.optString("feature", "feature").replace('_', ' ') + ": " +
