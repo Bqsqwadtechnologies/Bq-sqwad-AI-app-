@@ -3713,6 +3713,9 @@ fun CameraWorkspace() {
                             },
                             onError = { message ->
                                 streamError = message
+                                scope.launch(Dispatchers.IO) {
+                                    runCatching { WorkspaceApiClient().reportIssue("/live-camera", "live_camera_runtime_error") }
+                                }
                             }
                         )
                     }
