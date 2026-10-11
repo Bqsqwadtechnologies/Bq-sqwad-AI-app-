@@ -1,10 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { isPublicCatalogPlan } from "../src/index.js";
+import worker, { isPublicCatalogPlan, isRootSuperAdmin } from "../src/index.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "../src/plan-catalog-native.js";
 import { playCatalog } from "../src/google-play.js";
 
 globalThis.fetch = async () => new Response('{"ok":true}', { status: 200 });
+
+test("admin test-mode bypass is restricted to verified root super-admins", () => {
+  const env = { SUPER_ADMIN_EMAIL: "owner@example.com" };
+  assert.equal(isRootSuperAdmin({ uid: "owner", email: "owner@example.com", emailVerified: true }, env), true);
+  assert.equal(isRootSuperAdmin({ uid: "owner", email: "owner@example.com", emailVerified: false }, env), false);
+  assert.equal(isRootSuperAdmin({ uid: "delegated", email: "admin@example.com", emailVerified: true, customAttributes: { admin: true, role: "admin" } }, env), false);
+  assert.equal(isRootSuperAdmin({ uid: "root", email: "admin@example.com", customAttributes: { role: "super_admin" } }, env), true);
+});
 
 test("public catalog exposes shared credit packs and hides feature-specific credit plans", () => {
   for (const id of ["credit100", "credit250", "credit500", "credit1000"]) {
