@@ -360,11 +360,16 @@ function canonicalUserBalance(profile) {
   const permanent = Math.max(0, Number(profile.credits || 0));
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
   const trial = trialLive ? Math.max(0, Number(profile.trialCredits || 0)) : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyDate = String(profile.dailyFreeCreditsDate || "");
+  const daily = dailyDate === today ? Math.max(0, Number(profile.dailyFreeCredits || 0)) : 0;
   return {
     permanent,
     subscription,
     trial,
-    total: permanent + subscription + trial,
+    daily,
+    dailyDate,
+    total: permanent + subscription + trial + daily,
     subscriptionExpiresAt: subscriptionLive ? expiresAt : null,
     trialExpiresAt: trialLive ? trialExpiresAt : null,
     plan: String(profile.subscriptionPlan || "free")
@@ -391,6 +396,27 @@ async function applyConfiguredCreditTrial(uid) {
   }
 }
 
+async function applyConfiguredDailyFreeCredits(uid) {
+  const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
+  const enabled = config == null ? true : config.enabled === true;
+  const credits = Math.max(0, Math.min(100000, Number(config?.credits ?? 5)));
+  if (!enabled || credits <= 0) return;
+  const profile = await firestoreGet("users/" + uid);
+  if (!profile) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (String(profile.dailyFreeCreditsDate || "") === today) return;
+  const now = new Date();
+  const grantId = uid + "_" + today;
+  try {
+    await firestoreCommit([
+      { path: "users/" + uid, data: { dailyFreeCredits: credits, dailyFreeCreditsDate: today, dailyFreeCreditsGrantedAt: now, updatedAt: now }, updateTime: profile.__updateTime },
+      { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false }
+    ]);
+  } catch {
+    // Concurrent requests can race for the same daily grant; only one may succeed.
+  }
+}
+
 async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
@@ -399,10 +425,13 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
   let charge = Math.max(0, Number(amount || 0));
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   await applyConfiguredCreditTrial(uid);
+  await applyConfiguredDailyFreeCredits(uid);
   if (!charge) {
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
+  // Chat is never free because an old capability record is missing a price.
+  if (String(capabilityName || "") === "chat" && charge < 1) charge = 1;
   if (!charge) {
     const profile = await readCanonicalUserBalance(uid);
     if (!profile) throw new Error("Account not found.");
@@ -422,8 +451,10 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
     // The website's users/{uid} document is the shared credit authority.
     // Reserve the exact bucket(s) here so website and app cannot both spend
     // the same credits. The reservation is reversed if the AI call fails.
-    const fromTrial = Math.min(balance.trial, charge);
-    const afterTrial = charge - fromTrial;
+    const fromDaily = Math.min(balance.daily, charge);
+    const afterDaily = charge - fromDaily;
+    const fromTrial = Math.min(balance.trial, afterDaily);
+    const afterTrial = afterDaily - fromTrial;
     const fromSubscription = Math.min(balance.subscription, afterTrial);
     const fromPermanent = afterTrial - fromSubscription;
     try {
@@ -434,6 +465,8 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
             credits: balance.permanent - fromPermanent,
             subCredits: Math.max(0, balance.subscription - fromSubscription),
             trialCredits: Math.max(0, balance.trial - fromTrial),
+            dailyFreeCredits: Math.max(0, balance.daily - fromDaily),
+            dailyFreeCreditsDate: balance.dailyDate,
             updatedAt: new Date()
           },
           updateTime: profile.__updateTime
@@ -444,6 +477,8 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
             uid,
             capability: capabilityName,
             amount: charge,
+            fromDaily,
+            dailyFreeCreditsDate: balance.dailyDate,
             fromTrial,
             fromSubscription,
             fromPermanent,
@@ -521,6 +556,10 @@ async function reverseCredits(uid, reservationId) {
             credits: Number(profile.credits || 0) + Number(reservation.fromPermanent || 0),
             subCredits: Number(profile.subCredits || 0) + Number(reservation.fromSubscription || 0),
             trialCredits: Number(profile.trialCredits || 0) + Number(reservation.fromTrial || 0),
+            dailyFreeCredits: String(profile.dailyFreeCreditsDate || "") === new Date().toISOString().slice(0, 10)
+              && String(reservation.dailyFreeCreditsDate || "") === new Date().toISOString().slice(0, 10)
+              ? Number(profile.dailyFreeCredits || 0) + Number(reservation.fromDaily || 0)
+              : Number(profile.dailyFreeCredits || 0),
             updatedAt: new Date()
           },
           updateTime: profile.__updateTime
@@ -546,6 +585,7 @@ async function reverseCredits(uid, reservationId) {
 async function assertSharedCreditsAvailable(user) {
   if (isSuperAdmin(user, globalThis.__bqEnv)) return;
   await applyConfiguredCreditTrial(user.uid);
+  await applyConfiguredDailyFreeCredits(user.uid);
   const profile = await readCanonicalUserBalance(user.uid);
   if (!profile) throw new Error("Account not found.");
   const balance = canonicalUserBalance(profile);
@@ -1090,6 +1130,7 @@ export default {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
         await applyConfiguredCreditTrial(user.uid);
+        await applyConfiguredDailyFreeCredits(user.uid);
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
         const profile = await readCanonicalUserBalance(user.uid);
@@ -1101,6 +1142,8 @@ export default {
           permanent: balance.permanent,
           subscription: balance.subscription,
           trial: balance.trial,
+          dailyFreeCredits: balance.daily,
+          dailyFreeCreditsDate: balance.dailyDate,
           plan: balance.plan,
           subscriptionExpiresAt: balance.subscriptionExpiresAt,
           trialExpiresAt: balance.trialExpiresAt,
@@ -1766,6 +1809,25 @@ export default {
       if (url.pathname === "/admin/social-integrations" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("socialIntegrations/global",{enabled:b.enabled!==false,testMode:b.testMode!==false,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true}); }
       if (url.pathname === "/admin/notifications/broadcast" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),title=String(b.title||"").trim().slice(0,120),body=String(b.body||"").trim().slice(0,1200);if(!title||!body)throw new Error("notification_title_and_body_required");const rows=await firestoreQuery("notificationTokens",{filters:[{field:{fieldPath:"enabled"},op:"EQUAL",value:{booleanValue:true}}],limit:100});const tokens=rows.map(x=>String(x.token||"")).filter(Boolean),project=JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id,result=await broadcast(env,project,tokens,title,body,b.data&&typeof b.data==="object"?Object.fromEntries(Object.entries(b.data).slice(0,20).map(([k,v])=>[String(k).slice(0,40),String(v).slice(0,500)])):{}),id=crypto.randomUUID();await firestoreCreate("adminBroadcasts/"+id,{id,title,body,data:b.data||{},...result,createdBy:u.uid,createdAt:new Date()});return json({ok:true,broadcastId:id,...result}); }
       if (url.pathname === "/admin/access" && request.method === "GET") { const u=await verifyFirebaseUser(request); return isSuperAdmin(u,env)?json({allowed:true}):json({allowed:false,error:"Admin access required"},403); }
+      if (url.pathname === "/admin/daily-free-credits" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
+        const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
+        return json({ enabled: config == null ? true : config.enabled === true, credits: Math.max(0, Math.min(100000, Number(config?.credits ?? 5))), resetTimeZone: "UTC" });
+      }
+      if (url.pathname === "/admin/daily-free-credits" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
+        const body = await readBody(request);
+        const credits = Number(body.credits);
+        if (!Number.isInteger(credits) || credits < 0 || credits > 100000) {
+          return json({ error: "daily_free_credits_must_be_an_integer_between_0_and_100000" }, 400);
+        }
+        const config = { id: "daily_free_credits_config", enabled: body.enabled === true, credits, updatedBy: user.uid, updatedAt: new Date(), resetTimeZone: "UTC" };
+        await firestoreSet("adminAdvancedOptions/daily_free_credits_config", config, true);
+        return json({ ok: true, enabled: config.enabled, credits, resetTimeZone: "UTC" });
+      }
+
       if (url.pathname === "/admin/credit-trial" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
