@@ -148,7 +148,18 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 override fun onError(device: CameraDevice, error: Int) {
                     if (camera === device) camera = null
                     device.close()
-                    reportCameraError("Android could not open the camera (code $error). Close other camera apps and retry.")
+                    val message = when (error) {
+                        CameraDevice.StateCallback.ERROR_CAMERA_IN_USE,
+                        CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE ->
+                            "The camera is in use by another app. Close that app and retry."
+                        CameraDevice.StateCallback.ERROR_CAMERA_DISABLED ->
+                            "Camera access is disabled by Android or device policy. Check device settings."
+                        CameraDevice.StateCallback.ERROR_CAMERA_SERVICE ->
+                            "Android's camera service is temporarily unavailable. Close other camera apps and retry."
+                        else ->
+                            "The camera is temporarily unavailable. Close other camera apps and retry."
+                    }
+                    reportCameraError(message)
                 }
             }, handler)
         }.onFailure {
