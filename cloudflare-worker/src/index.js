@@ -146,6 +146,23 @@ async function adminReadinessSelfTest(env) {
     providerProbeCache.set(provider, probe);
     return probe;
   };
+  const probeOpenAiModel = async (model) => {
+    if (!env?.OPENAI_API_KEY) return { status: "missing_key", available: false };
+    if (!/^[a-zA-Z0-9._:-]{1,80}$/.test(model)) return { status: "invalid_model_id", available: false };
+    try {
+      const response = await fetch("https://api.openai.com/v1/models/" + encodeURIComponent(model), {
+        method: "GET",
+        headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY) },
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.ok) return { status: "model_available", available: true };
+      if (response.status === 401 || response.status === 403) return { status: "model_access_denied", available: false };
+      if (response.status === 404) return { status: "model_unavailable", available: false };
+      return { status: "model_check_failed", available: false };
+    } catch (error) {
+      return { status: error?.name === "TimeoutError" ? "model_check_timeout" : "model_check_network_error", available: false };
+    }
+  };
   const check = async (feature, capabilityName) => {
     try {
       const config = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
@@ -163,17 +180,22 @@ async function adminReadinessSelfTest(env) {
         : !supportedForFeature || !providerSecret
           ? { status: "unsupported_provider", reachable: false }
           : await probeProvider(provider);
-      const model = String(config?.modelId || "").slice(0, 80);
+      const model = String(config?.modelId || (feature === "image" ? "gpt-image-2" : "")).slice(0, 80);
+      const imageModelStatus = feature === "image" && !disabled && provider === "openai" && env?.OPENAI_API_KEY
+        ? await probeOpenAiModel(model)
+        : null;
       const status = disabled ? "disabled"
         : !supportedForFeature ? "unsupported_provider_configuration"
         : !providerSecret ? "unsupported_provider"
         : !env?.[providerSecret] ? "missing_provider_key"
-        : providerStatus.status === "reachable" ? "provider_reachable_not_model_tested"
-        : providerStatus.status;
+        : providerStatus.status !== "reachable" ? providerStatus.status
+        : feature === "image" ? (imageModelStatus?.status || "model_check_failed")
+        : "provider_reachable_not_model_tested";
       return {
         feature, status, capabilityEnabled: !disabled,
         providerConfigured: Boolean(providerSecret && env?.[providerSecret]),
         providerStatus: providerStatus.status,
+        modelStatus: imageModelStatus?.status || null,
         provider: /^[a-z0-9_-]{1,40}$/.test(provider) ? provider : "configured_provider",
         model: /^[a-zA-Z0-9._:-]{1,80}$/.test(model) ? model : ""
       };
