@@ -138,7 +138,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             }
         ) { Text(if (validating) "Validating model…" else "Validate provider model") }
         Button(
-            enabled = !saving && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
+            enabled = !saving && !validating && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
                 provider in setOf("openai", "gemini") && (creditCost.toIntOrNull() ?: -1) >= 1 &&
                 (priceUsd.toDoubleOrNull() ?: -1.0) >= 0 &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toIntOrNull() ?: -1) >= 0) &&
