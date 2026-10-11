@@ -3875,7 +3875,23 @@ fun CameraWorkspace() {
             }
             if (analyzing) LinearProgressIndicator(Modifier.fillMaxWidth())
         } else {
-            SurfaceCard("Camera status", "Camera preview is stopped. Start the live session after granting permission.")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SurfaceCard(
+                    "Camera status",
+                    if (!granted) "Camera permission is not available. Allow Camera and Microphone to start AI Live Camera."
+                    else "Camera preview is stopped. Start or retry the live session."
+                )
+                streamError?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            if (!granted) permissionExplanation = true
+                            else startLiveCamera()
+                        }
+                    ) { Text(if (!granted) "Open settings" else "Retry camera") }
+                }
+            }
         }
     }
     DeviceIntelligencePanel("AI Live Camera")
