@@ -37,7 +37,7 @@ function normalizeModel(raw, actorUid) {
     "video-generation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
-  if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
+  if (!Number.isFinite(creditCost) || creditCost < 1 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
   if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000 || !Number.isInteger(creditsPerMinute))) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
@@ -161,7 +161,7 @@ export async function listAiModels({ admin = false } = {}) {
     active: x.active === true,
     isDefault: x.isDefault === true,
     published: x.published === true,
-    creditCost: Math.max(0, Number(x.creditCost || 0)),
+    creditCost: Math.max(1, Number(x.creditCost || 1)),
     priceUsd: Math.max(0, Number(x.priceUsd || 0)),
     creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
     updatedAt: x.updatedAt || null
@@ -249,7 +249,7 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     providerId: String(model.providerId || ""),
     modelId: String(model.modelId || ""),
     feature: String(model.feature || ""),
-    creditCost: Math.max(0, Number(model.creditCost || 0)),
+    creditCost: Math.max(1, Number(model.creditCost || 1)),
     priceUsd: Math.max(0, Number(model.priceUsd || 0)),
     creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0))
   };
