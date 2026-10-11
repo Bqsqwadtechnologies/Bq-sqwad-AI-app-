@@ -13,12 +13,14 @@ fun NativeCameraPreview(
     modifier: Modifier = Modifier,
     lensFacing: Int = android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK,
     captureEveryMs: Long = 1800L,
-    onFrame: (ByteArray) -> Unit = {}
+    onFrame: (ByteArray) -> Unit = {},
+    onError: (String) -> Unit = {}
 ) {
     CoreNativeCameraPreview(
         modifier = modifier,
         lensFacing = lensFacing,
         captureEveryMs = captureEveryMs,
-        onFrame = onFrame
+        onFrame = onFrame,
+        onError = onError
     )
 }
