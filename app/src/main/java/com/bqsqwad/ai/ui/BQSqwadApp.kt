@@ -3487,7 +3487,7 @@ fun CameraWorkspace() {
                 DropdownMenu(expanded = cameraModelExpanded, onDismissRequest = { cameraModelExpanded = false }) {
                     DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedCameraModelId = ""; cameraModelExpanded = false })
                     publishedCameraModels.forEach { model ->
-                        val perMinute = if (model.isNull("creditsPerMinute")) "server rate" else "${model.optInt("creditsPerMinute")} credits/min"
+                        val perMinute = if (model.isNull("creditsPerMinute")) "server rate (default 1/min)" else "${model.optInt("creditsPerMinute")} credits/min"
                         DropdownMenuItem(
                             text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
                             onClick = { selectedCameraModelId = model.optString("id"); cameraModelExpanded = false }
@@ -3920,7 +3920,7 @@ fun VoiceWorkspace() {
             DropdownMenu(expanded = voiceModelExpanded, onDismissRequest = { voiceModelExpanded = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVoiceModelId = ""; voiceModelExpanded = false })
                 publishedVoiceModels.forEach { model ->
-                    val perMinute = if (model.isNull("creditsPerMinute")) "server rate" else "${model.optInt("creditsPerMinute")} credits/min"
+                    val perMinute = if (model.isNull("creditsPerMinute")) "server rate (default 1/min)" else "${model.optInt("creditsPerMinute")} credits/min"
                     DropdownMenuItem(
                         text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
                         onClick = { selectedVoiceModelId = model.optString("id"); voiceModelExpanded = false }
