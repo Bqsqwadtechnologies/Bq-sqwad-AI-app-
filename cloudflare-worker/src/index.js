@@ -120,7 +120,8 @@ async function adminDiagnosticSnapshot() {
   return Object.fromEntries(records);
 }
 
-async function adminReadinessSelfTest(env) {
+async function adminReadinessSelfTest(env, adminUser) {
+  globalThis.__bqSelfTestUid = adminUser?.uid || "admin-self-test";
   const providerProbeCache = new Map();
   const probeProvider = (provider) => {
     if (providerProbeCache.has(provider)) return providerProbeCache.get(provider);
@@ -161,6 +162,50 @@ async function adminReadinessSelfTest(env) {
       return { status: "model_check_failed", available: false };
     } catch (error) {
       return { status: error?.name === "TimeoutError" ? "model_check_timeout" : "model_check_network_error", available: false };
+    }
+  };
+  const probeRealtimeSessionCreation = async (uid) => {
+    try {
+      const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
+      if (config?.enabled === false || config?.killSwitch === true) return { status: "disabled", model: String(config?.modelId || "") };
+      if (!env?.OPENAI_API_KEY) return { status: "missing_provider_key", model: String(config?.modelId || "") };
+      const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_live_voice");
+      const model = String(config?.modelId || capabilityConfig?.modelId || "gpt-realtime-2.1").slice(0, 80);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(uid || "admin-self-test")));
+      const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+      const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + String(env.OPENAI_API_KEY),
+          "Content-Type": "application/json",
+          "OpenAI-Safety-Identifier": safetyIdentifier
+        },
+        body: JSON.stringify({
+          session: {
+            type: "realtime", model, voice: "marin", output_modalities: ["audio"],
+            audio: {
+              input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+              output: { format: { type: "audio/pcm", rate: 24000 } }
+            }
+          }
+        }),
+        signal: AbortSignal.timeout(7000)
+      });
+      const raw = await response.text();
+      let body = {};
+      try { body = raw ? JSON.parse(raw) : {}; } catch {}
+      if (!response.ok) {
+        return {
+          status: response.status === 401 || response.status === 403 ? "authentication_failed"
+            : response.status === 404 ? "model_or_endpoint_unavailable" : "session_creation_failed",
+          model
+        };
+      }
+      const secret = body?.value || body?.client_secret?.value;
+      // Deliberately discard the short-lived client secret. Never return or log it.
+      return { status: secret ? "session_created_secret_discarded" : "session_response_missing_secret", model };
+    } catch (error) {
+      return { status: error?.name === "TimeoutError" ? "session_creation_timeout" : "session_creation_failed" };
     }
   };
   const check = async (feature, capabilityName) => {
@@ -211,13 +256,19 @@ async function adminReadinessSelfTest(env) {
       try {
         const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
         const enabled = config?.enabled !== false && config?.killSwitch !== true;
-        const providerStatus = enabled
-          ? await probeProvider("openai")
-          : { status: "not_checked_disabled", reachable: false };
-        const status = !enabled ? "disabled" : !env?.OPENAI_API_KEY ? "missing_provider_key" : providerStatus.status === "reachable" ? "provider_reachable_not_model_tested" : providerStatus.status;
-        return { feature: "voice_session", status, capabilityEnabled: enabled, providerConfigured: Boolean(env?.OPENAI_API_KEY), providerStatus: providerStatus.status };
+        if (!enabled) return { feature: "voice_session", status: "disabled", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
+        const providerStatus = env?.OPENAI_API_KEY
+          ? await probeRealtimeSessionCreation(globalThis.__bqSelfTestUid)
+          : { status: "missing_provider_key" };
+        return {
+          feature: "voice_session",
+          status: providerStatus.status,
+          capabilityEnabled: true,
+          providerConfigured: Boolean(env?.OPENAI_API_KEY),
+          model: /^[a-zA-Z0-9._:-]{1,80}$/.test(String(providerStatus.model || "")) ? String(providerStatus.model) : ""
+        };
       } catch {
-        return { feature: "voice_session", status: "config_check_failed", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY), providerStatus: "check_failed" };
+        return { feature: "voice_session", status: "config_check_failed", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
       }
     })(),
     (async () => {
@@ -1374,7 +1425,7 @@ export default {
       if (url.pathname === "/admin/self-test" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        return json(await adminReadinessSelfTest(env));
+        return json(await adminReadinessSelfTest(env, user));
       }
 
       if (url.pathname === "/admin/issues" && request.method === "GET") {
