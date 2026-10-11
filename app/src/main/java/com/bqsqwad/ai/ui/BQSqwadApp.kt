@@ -2118,6 +2118,65 @@ val composerShape = RoundedCornerShape(26.dp)
                 }
             }
         }
+        if (showImageViewer && selectedImageBase64 != null) {
+            val encodedImage = selectedImageBase64.orEmpty()
+            val fullImage by produceState<ImageBitmap?>(initialValue = null, key1 = encodedImage) {
+                value = withContext(Dispatchers.IO) { runCatching { val bytes = decodeImageBytes(encodedImage); BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull() }
+            }
+            Dialog(onDismissRequest = { showImageViewer = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            BqLogo(38.dp)
+                            Column(Modifier.weight(1f)) { Text("BQ Sqwad AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("Generated image", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            IconButton(onClick = { showImageViewer = false }) { Icon(Icons.Default.Close, contentDescription = "Close full-screen image") }
+                        }
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (fullImage != null) Image(bitmap = fullImage!!, contentDescription = "Generated image full screen", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) else CircularProgressIndicator() }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { saveGeneratedImage(context, encodedImage) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." } }) { Icon(Icons.Default.Download, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Save") }
+                            OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = it.message ?: "Could not share image." } }) { Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Share") }
+                            Button(modifier = Modifier.weight(1f), onClick = { showImageViewer = false; showImageActions = true }) { Icon(Icons.Default.MoreVert, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("More") }
+                        }
+                    }
+                }
+            }
+        }
+        if (showImageActions && selectedImageBase64 != null) {
+            AlertDialog(onDismissRequest = { showImageActions = false }, title = { Text("Image options") }, text = { Text("Open full screen, save or share this image, edit it with instructions, or create another output size.") },
+                confirmButton = { TextButton(onClick = { showImageActions = false; showImageViewer = true }) { Text("Full screen") } },
+                dismissButton = { Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TextButton(onClick = { runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." }; showImageActions = false }) { Text("Save") }
+                    TextButton(onClick = { runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }.onFailure { error = it.message ?: "Could not share image." }; showImageActions = false }) { Text("Share") }
+                    TextButton(onClick = { imageEditPrompt = ""; showImageActions = false; showImageEdit = true }) { Text("Edit") }
+                    TextButton(onClick = { showImageActions = false; showImageResize = true }) { Text("Resize") }
+                } }
+            )
+        }
+        if (showImageEdit) {
+            AlertDialog(onDismissRequest = { showImageEdit = false }, title = { Text("Edit image with AI") },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Describe what should change in the current image."); OutlinedTextField(value = imageEditPrompt, onValueChange = { imageEditPrompt = it }, label = { Text("Describe the edit") }, minLines = 3, maxLines = 5, modifier = Modifier.fillMaxWidth()) } },
+                confirmButton = { Button(enabled = imageEditPrompt.isNotBlank() && !busy, onClick = {
+                    val image = selectedImageBase64.orEmpty(); val prompt = imageEditPrompt.trim(); val targetId = selectedImageMessageId; showImageEdit = false; busy = true; statusText = "Editing image…"
+                    scope.launch {
+                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize) }
+                            .onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image edited.", attachments = listOf(ChatMessageAttachment("Edited image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImagePrompt = prompt; error = "Image edit completed." }
+                            .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
+                        busy = false; statusText = "Ready"
+                    }
+                }) { Text("Apply edit") } },
+                dismissButton = { TextButton(onClick = { showImageEdit = false }) { Text("Cancel") } }
+            )
+        }
+        if (showImageResize) {
+            AlertDialog(onDismissRequest = { showImageResize = false }, title = { Text("Image size") },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Choose an output size. This creates a new version using the original prompt."); listOf("1024x1024" to "Square · 1024 × 1024", "1536x1024" to "Landscape · 1536 × 1024", "1024x1536" to "Portrait · 1024 × 1536").forEach { option -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selectedImageSize == option.first, onClick = { selectedImageSize = option.first }); Text(option.second) } } } },
+                confirmButton = { Button(enabled = !busy, onClick = {
+                    val prompt = selectedImagePrompt.ifBlank { "Create an image" }; val targetId = selectedImageMessageId; showImageResize = false; busy = true; statusText = "Generating image…"
+                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
+                }) { Text("Create new size") } },
+                dismissButton = { TextButton(onClick = { showImageResize = false }) { Text("Cancel") } }
+            )
+        }
         feedbackTarget?.let { target ->
             AlertDialog(
                 onDismissRequest = { feedbackTarget = null },
