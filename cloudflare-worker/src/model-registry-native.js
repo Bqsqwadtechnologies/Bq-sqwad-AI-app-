@@ -118,3 +118,22 @@ export async function saveAiModel(raw, actorUid) {
   });
   return { ok: true, model };
 }
+
+export async function resolvePublishedModel(id, feature) {
+  const modelId = String(id || "").trim();
+  if (!modelId) return null;
+  if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(modelId)) throw new Error("model_id_invalid");
+  const model = await firestoreGet("aiModelRegistry/" + modelId);
+  if (!model || model.active !== true || model.published !== true || model.feature !== feature) {
+    throw new Error("selected_model_unavailable");
+  }
+  return {
+    id: modelId,
+    name: String(model.name || ""),
+    providerId: String(model.providerId || ""),
+    modelId: String(model.modelId || ""),
+    feature,
+    creditCost: Math.max(0, Number(model.creditCost || 0)),
+    priceUsd: Math.max(0, Number(model.priceUsd || 0))
+  };
+}
