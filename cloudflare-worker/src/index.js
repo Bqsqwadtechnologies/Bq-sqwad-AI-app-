@@ -163,6 +163,26 @@ async function adminReadinessSelfTest(env, adminUser) {
       return { status: error?.name === "TimeoutError" ? "model_check_timeout" : "model_check_network_error", available: false };
     }
   };
+  const probeConfiguredModel = async (provider, model) => {
+    if (provider === "openai") return probeOpenAiModel(model);
+    if (provider !== "gemini") return { status: "unsupported_provider", available: false };
+    if (!env?.GEMINI_API_KEY) return { status: "missing_key", available: false };
+    const cleanModel = String(model || "").replace(/^models\//, "");
+    if (!/^[a-zA-Z0-9._:-]{1,80}$/.test(cleanModel)) return { status: "invalid_model_id", available: false };
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(cleanModel), {
+        method: "GET",
+        headers: { "x-goog-api-key": String(env.GEMINI_API_KEY) },
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.ok) return { status: "model_available", available: true };
+      if (response.status === 401 || response.status === 403) return { status: "model_access_denied", available: false };
+      if (response.status === 404) return { status: "model_unavailable", available: false };
+      return { status: "model_check_failed", available: false };
+    } catch (error) {
+      return { status: error?.name === "TimeoutError" ? "model_check_timeout" : "model_check_network_error", available: false };
+    }
+  };
   const probeRealtimeSessionCreation = async (uid) => {
     try {
       const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
@@ -224,22 +244,22 @@ async function adminReadinessSelfTest(env, adminUser) {
         : !supportedForFeature || !providerSecret
           ? { status: "unsupported_provider", reachable: false }
           : await probeProvider(provider);
-      const model = String(config?.modelId || (feature === "image" ? "gpt-image-2" : "")).slice(0, 80);
-      const imageModelStatus = feature === "image" && !disabled && provider === "openai" && env?.OPENAI_API_KEY
-        ? await probeOpenAiModel(model)
+      const model = String(config?.modelId || (feature === "image" ? "gpt-image-2" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
+      const modelProbe = ["chat", "image", "vision"].includes(feature) && !disabled && supportedForFeature && env?.[providerSecret]
+        ? await probeConfiguredModel(provider, model)
         : null;
       const status = disabled ? "disabled"
         : !supportedForFeature ? "unsupported_provider_configuration"
         : !providerSecret ? "unsupported_provider"
         : !env?.[providerSecret] ? "missing_provider_key"
         : providerStatus.status !== "reachable" ? providerStatus.status
-        : feature === "image" ? (imageModelStatus?.status || "model_check_failed")
+        : modelProbe ? modelProbe.status
         : "provider_reachable_not_model_tested";
       return {
         feature, status, capabilityEnabled: !disabled,
         providerConfigured: Boolean(providerSecret && env?.[providerSecret]),
         providerStatus: providerStatus.status,
-        modelStatus: imageModelStatus?.status || null,
+        modelStatus: modelProbe?.status || null,
         provider: /^[a-z0-9_-]{1,40}$/.test(provider) ? provider : "configured_provider",
         model: /^[a-zA-Z0-9._:-]{1,80}$/.test(model) ? model : ""
       };
