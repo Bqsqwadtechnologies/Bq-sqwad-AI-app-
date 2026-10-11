@@ -345,7 +345,7 @@ async function adminReadinessSelfTest(env, adminUser) {
   } catch {
     systemChecks.push({ feature: "firestore", status: "check_failed" });
   }
-  return { checkedAt: new Date().toISOString(), mode: "readiness_no_paid_ai_calls", checks: [...systemChecks, chat, image, vision, voice, catalog] };
+  return { checkedAt: new Date().toISOString(), mode: "readiness_no_audio_or_generated_output", checks: [...systemChecks, chat, image, vision, voice, catalog] };
 }
 
 async function notifyAdminOfIssue(env, route, status, errorCode) {
