@@ -204,7 +204,18 @@ async function adminReadinessSelfTest(env) {
       }
     })()
   ]);
-  return { checkedAt: new Date().toISOString(), mode: "readiness_no_paid_ai_calls", checks: [chat, image, vision, voice, catalog] };
+  const systemChecks = [
+    { feature: "backend", status: "responding" },
+    // This result can only be returned after the route's Firebase-token and super-admin checks pass.
+    { feature: "admin_auth", status: "authenticated_super_admin" }
+  ];
+  try {
+    await firestoreQuery("adminAdvancedOptions", { limit: 1 });
+    systemChecks.push({ feature: "firestore", status: "reachable" });
+  } catch {
+    systemChecks.push({ feature: "firestore", status: "check_failed" });
+  }
+  return { checkedAt: new Date().toISOString(), mode: "readiness_no_paid_ai_calls", checks: [...systemChecks, chat, image, vision, voice, catalog] };
 }
 
 async function notifyAdminOfIssue(env, route, status, errorCode) {
