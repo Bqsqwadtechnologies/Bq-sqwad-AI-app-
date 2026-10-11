@@ -18,7 +18,7 @@ data class DeviceCommandResult(
 class DeviceIntelligenceClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
 
-    suspend fun interpret(message: String): DeviceCommandResult = withContext(Dispatchers.IO) {
+    suspend fun interpret(message: String, modelRegistryId: String? = null): DeviceCommandResult = withContext(Dispatchers.IO) {
         val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val connection = (URL("$baseUrl/device-command").openConnection() as HttpURLConnection).apply {
@@ -31,7 +31,7 @@ class DeviceIntelligenceClient {
             setRequestProperty("Content-Type", "application/json")
         }
         connection.outputStream.use {
-            it.write(JSONObject().put("message", message.trim().take(4000)).toString().toByteArray())
+            it.write(JSONObject().apply { put("message", message.trim().take(4000)); modelRegistryId?.trim()?.takeIf { value -> value.isNotEmpty() }?.let { value -> put("modelRegistryId", value) } }.toString().toByteArray())
         }
         val status = connection.responseCode
         val stream = if (status in 200..299) connection.inputStream else connection.errorStream
