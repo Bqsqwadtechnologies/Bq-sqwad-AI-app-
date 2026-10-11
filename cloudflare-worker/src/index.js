@@ -121,47 +121,73 @@ async function adminDiagnosticSnapshot() {
 }
 
 async function adminReadinessSelfTest(env) {
-  const check = async (feature, capabilityName, providerNames) => {
+  const providerProbeCache = new Map();
+  const probeProvider = (provider) => {
+    if (providerProbeCache.has(provider)) return providerProbeCache.get(provider);
+    const probe = (async () => {
+      const key = provider === "openai" ? env?.OPENAI_API_KEY : provider === "gemini" ? env?.GEMINI_API_KEY : null;
+      if (!key) return { status: "missing_key", reachable: false };
+      try {
+        const url = provider === "openai"
+          ? "https://api.openai.com/v1/models"
+          : "https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(String(key)) + "&pageSize=1";
+        const headers = provider === "openai" ? { Authorization: "Bearer " + String(key) } : {};
+        const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(5000) });
+        return {
+          status: response.ok ? "reachable" : (response.status === 401 || response.status === 403 ? "authentication_failed" : "provider_error"),
+          reachable: response.ok
+        };
+      } catch (error) {
+        return { status: error?.name === "TimeoutError" ? "timeout" : "network_error", reachable: false };
+      }
+    })();
+    providerProbeCache.set(provider, probe);
+    return probe;
+  };
+  const check = async (feature, capabilityName) => {
     try {
       const config = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
       const disabled = config?.enabled === false || config?.killSwitch === true;
       const provider = String(config?.providerId || "openai").toLowerCase();
-      // A key for a different provider does not make the selected provider ready.
       const providerSecret = provider === "openai" ? "OPENAI_API_KEY"
         : provider === "gemini" ? "GEMINI_API_KEY" : null;
-      const secretReady = Boolean(providerSecret && env?.[providerSecret]);
       const supportedForFeature = feature === "chat"
         ? ["openai", "gemini"].includes(provider)
         : ["image", "vision"].includes(feature)
           ? provider === "openai"
           : false;
+      const providerStatus = providerSecret ? await probeProvider(provider) : { status: "unsupported_provider", reachable: false };
       const model = String(config?.modelId || "").slice(0, 80);
+      const status = disabled ? "disabled"
+        : !supportedForFeature ? "unsupported_provider_configuration"
+        : !providerSecret ? "unsupported_provider"
+        : !env?.[providerSecret] ? "missing_provider_key"
+        : providerStatus.status === "reachable" ? "provider_reachable_not_model_tested"
+        : providerStatus.status;
       return {
-        feature,
-        status: disabled ? "disabled"
-          : !supportedForFeature ? "unsupported_provider_configuration"
-          : secretReady ? "configured_not_runtime_tested" : "missing_provider_key",
-        capabilityEnabled: !disabled,
-        providerConfigured: secretReady,
+        feature, status, capabilityEnabled: !disabled,
+        providerConfigured: Boolean(providerSecret && env?.[providerSecret]),
+        providerStatus: providerStatus.status,
         provider: /^[a-z0-9_-]{1,40}$/.test(provider) ? provider : "configured_provider",
         model: /^[a-zA-Z0-9._:-]{1,80}$/.test(model) ? model : ""
       };
     } catch {
-      return { feature, status: "check_failed", capabilityEnabled: false, providerConfigured: false };
+      return { feature, status: "check_failed", capabilityEnabled: false, providerConfigured: false, providerStatus: "check_failed" };
     }
   };
   const [chat, image, vision, voice, catalog] = await Promise.all([
-    check("chat", "chat", ["OPENAI_API_KEY", "GEMINI_API_KEY"]),
-    check("image", "image_generation", ["OPENAI_API_KEY"]),
-    check("vision", "live_camera", ["OPENAI_API_KEY", "GEMINI_API_KEY"]),
+    check("chat", "chat"),
+    check("image", "image_generation"),
+    check("vision", "live_camera"),
     (async () => {
       try {
         const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
         const enabled = config?.enabled !== false && config?.killSwitch !== true;
-        const providerConfigured = Boolean(env?.OPENAI_API_KEY);
-        return { feature: "voice_session", status: !enabled ? "disabled" : (providerConfigured ? "configured_not_runtime_tested" : "missing_provider_key"), capabilityEnabled: enabled, providerConfigured };
+        const providerStatus = await probeProvider("openai");
+        const status = !enabled ? "disabled" : !env?.OPENAI_API_KEY ? "missing_provider_key" : providerStatus.status === "reachable" ? "provider_reachable_not_model_tested" : providerStatus.status;
+        return { feature: "voice_session", status, capabilityEnabled: enabled, providerConfigured: Boolean(env?.OPENAI_API_KEY), providerStatus: providerStatus.status };
       } catch {
-        return { feature: "voice_session", status: env?.OPENAI_API_KEY ? "config_check_failed" : "missing_provider_key", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
+        return { feature: "voice_session", status: "config_check_failed", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY), providerStatus: "check_failed" };
       }
     })(),
     (async () => {
@@ -176,7 +202,7 @@ async function adminReadinessSelfTest(env) {
       }
     })()
   ]);
-  return { checkedAt: new Date().toISOString(), mode: "readiness_only_no_paid_ai_calls", checks: [chat, image, vision, voice, catalog] };
+  return { checkedAt: new Date().toISOString(), mode: "readiness_no_paid_ai_calls", checks: [chat, image, vision, voice, catalog] };
 }
 
 async function notifyAdminOfIssue(env, route, status, errorCode) {
