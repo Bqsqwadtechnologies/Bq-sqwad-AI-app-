@@ -3527,6 +3527,8 @@ private fun SearchWorkspace() {
     }
 }
 
+private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
+
 @Composable
 fun CameraWorkspace() {
     val context = LocalContext.current
@@ -3554,7 +3556,13 @@ fun CameraWorkspace() {
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
     var tiktokHandoffNotice by remember { mutableStateOf<String?>(null) }
-    var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
+    var liveTermsAccepted by remember {
+        val consentPrefs = context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE)
+        mutableStateOf(
+            consentPrefs.getBoolean("accepted", false) &&
+                consentPrefs.getString("policyVersion", "") == LIVE_MEDIA_CONSENT_VERSION
+        )
+    }
     var showLiveTerms by remember { mutableStateOf(false) }
     var pendingLiveAction by remember { mutableStateOf("camera") }
     var selectedVoice by remember { mutableStateOf("marin") }
@@ -4238,12 +4246,15 @@ fun CameraWorkspace() {
     if (showLiveTerms) {
         AlertDialog(
             onDismissRequest = { showLiveTerms = false },
-            title = { Text("Before you start Live Camera") },
+            title = { Text(if (pendingLiveAction == "screen") "Before you share your screen" else "Before you start Live Camera") },
             text = { Text("Before starting, please review this privacy notice. If you continue, BQ Sqwad AI will access only the camera, microphone, or screen-sharing capability needed for the feature you start. Live audio or selected camera/screen frames may be sent securely to BQ Sqwad AI's server and its configured AI provider to generate replies. Do not share passwords, payment details, private messages, confidential work, or other people's personal information unless you have permission. Tell anyone who may be recorded or shown that AI analysis is active and obtain their consent where required. Opening TikTok or another app does not give BQ Sqwad AI permission to control that app or bypass its privacy controls. Android may stop or limit camera/microphone access when another app uses it. You can stop the AI session at any time using the in-app control or persistent notification. Usage may consume the credits shown in the app. Continue only if you understand and agree.") },
             confirmButton = {
                 TextButton(onClick = {
                     liveTermsAccepted = true
-                    context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).edit().putBoolean("accepted", true).apply()
+                    context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).edit()
+                        .putBoolean("accepted", true)
+                        .putString("policyVersion", LIVE_MEDIA_CONSENT_VERSION)
+                        .apply()
                     showLiveTerms = false
                     if (pendingLiveAction == "screen") {
                         pendingLiveAction = "camera"
