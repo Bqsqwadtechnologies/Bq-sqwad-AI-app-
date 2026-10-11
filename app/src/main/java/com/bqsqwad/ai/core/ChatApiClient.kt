@@ -29,7 +29,8 @@ class ChatApiClient(
     suspend fun sendMessage(
         message: String,
         capability: String = "chat",
-        system: String? = null
+        system: String? = null,
+        modelRegistryId: String? = null
     ): ChatReply =
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
@@ -49,6 +50,7 @@ class ChatApiClient(
                     put("capability", capability)
                     put("message", message)
                     if (!system.isNullOrBlank()) put("system", system)
+                    if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
                 }.toString().toByteArray())
             }
             val status = connection.responseCode
@@ -89,7 +91,8 @@ class ChatApiClient(
         message: String,
         capability: String = "chat",
         onDelta: (String) -> Unit,
-        system: String? = null
+        system: String? = null,
+        modelRegistryId: String? = null
     ): ChatReply = withTimeout(120000) {
         withContext(Dispatchers.IO) {
             val token = authToken()
@@ -113,6 +116,7 @@ class ChatApiClient(
                         put("capability", capability)
                         put("message", message)
                         if (!system.isNullOrBlank()) put("system", system)
+                        if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
                     }.toString().toByteArray())
                 }
 
