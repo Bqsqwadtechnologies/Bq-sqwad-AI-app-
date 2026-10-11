@@ -1389,7 +1389,12 @@ export default {
          if (!isSuperAdmin(user, env) && (!balance || balance.total <= 0)) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
          const rate = Math.max(0, Number(control.creditsPerMinute == null ? (pricing.creditsPerMinute == null ? 1 : pricing.creditsPerMinute) : control.creditsPerMinute));
          const charge = await chargeCredits(user.uid, rate, "live_session_minute", user);
-         if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "openai_realtime_minute");
+         try {
+           if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "openai_realtime_minute");
+         } catch (error) {
+           if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
+           throw error;
+         }
          const updatedProfile = await readCanonicalUserBalance(user.uid);
          const updatedBalance = canonicalUserBalance(updatedProfile);
          return json({
