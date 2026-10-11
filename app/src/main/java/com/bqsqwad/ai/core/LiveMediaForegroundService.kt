@@ -127,9 +127,14 @@ class LiveMediaForegroundService : Service() {
             .build()
 
         val type = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mode == MODE_CAMERA -> android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mode == MODE_SCREEN -> android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mode == MODE_CAMERA ->
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && mode == MODE_SCREEN ->
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             else -> 0
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, type) else startForeground(NOTIFICATION_ID, notification)
