@@ -573,6 +573,30 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
+    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true
+    val purchaseBlockReason = when {
+        isFreePlan || isContactSales || canPurchase -> null
+        plan.paymentChannel == "website" -> "This plan is only purchasable through the website, not inside this Android app."
+        !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
+        selectedEntry == null -> "No active Google Play product and billing period are mapped to this plan, so checkout is unavailable."
+        selectedProduct == null -> "Google Play did not return the mapped product for this device or account. Refresh the catalog before purchasing."
+        billing?.isReady() != true -> "Google Play Billing is still connecting. Refresh the catalog and try again."
+        else -> "This plan cannot be purchased in the app right now."
+    }
+    val moduleLabel = when (plan.module) {
+        "business" -> "Business AI"
+        "business-addon" -> "Business add-on"
+        "learning" , "learning-capability" -> "Learning Studio"
+        "learning-exam-addon" -> "Learning Studio exam add-on"
+        "truthguard" -> "TruthGuard AI"
+        "life-mathis" -> "Life Mathis"
+        "companion" -> "AI Companion"
+        "organization" -> "Organization AI / Studio"
+        "frontier" -> "Frontier Lab"
+        "data-analysis" -> "Data Analysis"
+        "credits" -> "Credits & Top-ups"
+        else -> "BQ Sqwad AI"
+    }
     val storePriceText = selectedEntry?.let { entry ->
         when (entry.productType) {
             ProductType.SUBS -> selectedProduct?.subscriptionOfferDetails
@@ -651,7 +675,7 @@ private fun LivePlanCard(
             Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(plan.name.ifBlank{"Plan"}, style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
-                    Text(plan.module.ifBlank{"General"}, style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(moduleLabel, style=MaterialTheme.typography.labelMedium, color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if(plan.popular) BqStatusBadge("POPULAR")
             }
@@ -689,25 +713,35 @@ private fun LivePlanCard(
             if (isFreePlan) {
                 Text("Included at no cost. No purchase is required.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             } else {
+                purchaseBlockReason?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 Button(
                     onClick = {
                         when {
                             isContactSales -> onContact()
-                            plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true -> {
-                                val result=billing.launchPurchase(selectedProduct.productId, selectedEntry.basePlanId)
-                                onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
+                            canPurchase -> {
+                                val result = billing!!.launchPurchase(selectedProduct!!.productId, selectedEntry!!.basePlanId)
+                                onStatus(
+                                    if (result?.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
+                                        "Purchase started for " + plan.id + "/" + (selectedEntry!!.basePlanId ?: selectedPeriod) + ". Access unlocks only after server verification."
+                                    else result?.debugMessage?.ifBlank { "Purchase could not be started." } ?: "Purchase could not be started."
+                                )
                             }
-                            plan.paymentChannel == "website" -> onStatus("This plan is not available for in-app purchase. Choose a Google Play-eligible plan or Contact Sales.")
-                            else -> onStatus("This plan is not currently purchasable on this device.")
+                            else -> onStatus(purchaseBlockReason ?: "This plan is not currently purchasable on this device.")
                         }
                     },
-                    enabled = isContactSales || (plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true),
-                    modifier=Modifier.fillMaxWidth()
+                    enabled = isContactSales || canPurchase,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
-                            plan.playEligible -> "Continue with Google Pay"
+                            canPurchase -> "Continue with Google Pay"
+                            plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
+                            plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
+                            plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
+                            plan.paymentChannel == "website" -> "Website purchase only"
                             else -> "Not available in-app"
                         }
                     )
