@@ -265,11 +265,28 @@ class RealtimeVoiceSession(
         audioJob = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             val buffer = ByteArray(min.coerceAtLeast(2048))
             while (isActive && running.get()) {
-                val count = recorder?.read(buffer, 0, buffer.size) ?: -1
-                if (count > 0) {
-                    onAudioLevel(pcmRms(buffer, count))
-                    val payload = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
-                    socket?.send(JSONObject().put("type", "input_audio_buffer.append").put("audio", payload).toString())
+                val activeRecorder = recorder ?: break
+                val count = activeRecorder.read(buffer, 0, buffer.size)
+                when {
+                    count > 0 -> {
+                        onAudioLevel(pcmRms(buffer, count))
+                        val payload = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
+                        val sent = socket?.send(
+                            JSONObject().put("type", "input_audio_buffer.append").put("audio", payload).toString()
+                        ) == true
+                        if (!sent && running.get()) {
+                            onError("The live audio connection was interrupted. Reconnect and try again.")
+                            break
+                        }
+                    }
+                    count < 0 -> {
+                        if (running.get()) {
+                            onAudioLevel(0f)
+                            onError("Microphone capture was interrupted. Check microphone permission and close other apps using the microphone, then reconnect.")
+                        }
+                        break
+                    }
+                    else -> delay(8L)
                 }
             }
         }
