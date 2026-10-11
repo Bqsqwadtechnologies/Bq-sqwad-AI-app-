@@ -187,8 +187,8 @@ export async function validateAiModel(env, raw) {
     throw Object.assign(new Error("provider_not_supported_for_feature"), { httpStatus: 400 });
   }
   const prefixRules = {
-    "live-camera": /^gpt-realtime/i,
-    "live-voice": /^gpt-realtime/i,
+    "live-camera": /^(?:gpt-realtime|gpt-4o-realtime)/i,
+    "live-voice": /^(?:gpt-realtime|gpt-4o-realtime)/i,
     "image-generation": /^gpt-image/i,
     "video-generation": /^sora/i,
     "device-commands": /^gemini/i
