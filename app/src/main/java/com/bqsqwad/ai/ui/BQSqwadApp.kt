@@ -3337,6 +3337,9 @@ fun CameraWorkspace() {
     var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
     var showLiveTerms by remember { mutableStateOf(false) }
     var selectedVoice by remember { mutableStateOf("marin") }
+    var publishedCameraModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedCameraModelId by remember { mutableStateOf("") }
+    var cameraModelExpanded by remember { mutableStateOf(false) }
     var flashlightOn by remember { mutableStateOf(false) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
@@ -3355,7 +3358,8 @@ fun CameraWorkspace() {
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                     .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                     .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
+                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
                 active = true
                 streamError = null
             } else {
@@ -3394,7 +3398,8 @@ fun CameraWorkspace() {
                 .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                 .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                 .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
-                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
+                .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
             streamOnline = true
             streamError = null
         } else {
@@ -3419,6 +3424,7 @@ fun CameraWorkspace() {
                     .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() })
             )
             screenActive = true
             screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames through the foreground service."
@@ -3431,6 +3437,16 @@ fun CameraWorkspace() {
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
     val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array ->
+                publishedCameraModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                    .filter { it.optString("feature") == "live-camera" && it.optBoolean("active") && it.optBoolean("published") }
+                if (selectedCameraModelId.isNotBlank() && publishedCameraModels.none { it.optString("id") == selectedCameraModelId }) {
+                    selectedCameraModelId = ""
+                }
+            }
+    }
     LaunchedEffect(liveUiState.log.size) {
         if (liveUiState.log.isNotEmpty()) cameraLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
     }
@@ -3452,6 +3468,33 @@ fun CameraWorkspace() {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
+            Box {
+                OutlinedButton(onClick = {
+                    cameraModelExpanded = true
+                    scope.launch {
+                        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+                            .onSuccess { array ->
+                                publishedCameraModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                                    .filter { it.optString("feature") == "live-camera" && it.optBoolean("active") && it.optBoolean("published") }
+                            }
+                    }
+                }) {
+                    val selectedName = publishedCameraModels.firstOrNull { it.optString("id") == selectedCameraModelId }?.optString("name")
+                        ?: publishedCameraModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
+                        ?: "Server default"
+                    Text("AI model: $selectedName")
+                }
+                DropdownMenu(expanded = cameraModelExpanded, onDismissRequest = { cameraModelExpanded = false }) {
+                    DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedCameraModelId = ""; cameraModelExpanded = false })
+                    publishedCameraModels.forEach { model ->
+                        val perMinute = if (model.isNull("creditsPerMinute")) "server rate" else "${model.optInt("creditsPerMinute")} credits/min"
+                        DropdownMenuItem(
+                            text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
+                            onClick = { selectedCameraModelId = model.optString("id"); cameraModelExpanded = false }
+                        )
+                    }
+                }
+            }
             var voiceExpanded by remember { mutableStateOf(false) }
             Box {
                 OutlinedButton(onClick = { voiceExpanded = true }) {
@@ -3491,7 +3534,8 @@ fun CameraWorkspace() {
                             .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
                             .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                             .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                            .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice))
+                            .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
                     }
                 }, enabled = active) { Text("Flip") }
             }
