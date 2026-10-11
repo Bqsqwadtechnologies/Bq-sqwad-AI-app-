@@ -3835,7 +3835,7 @@ fun CameraWorkspace() {
                             }
                         }
                     }
-                }, enabled = active) { Text("Flip") }
+                }, enabled = active || previewEnabled) { Text("Flip") }
             }
             if (!screenActive && screenAnswer.isNotBlank()) {
                 Text(screenAnswer, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
