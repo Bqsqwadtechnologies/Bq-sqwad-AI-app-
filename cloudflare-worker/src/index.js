@@ -251,9 +251,9 @@ async function adminReadinessSelfTest(env, adminUser) {
       const provider = String(config?.providerId || "openai").toLowerCase();
       const providerSecret = provider === "openai" ? "OPENAI_API_KEY"
         : provider === "gemini" ? "GEMINI_API_KEY" : null;
-      const supportedForFeature = feature === "chat"
+      const supportedForFeature = feature === "chat" || feature === "vision"
         ? ["openai", "gemini"].includes(provider)
-        : ["image", "vision"].includes(feature)
+        : feature === "image"
           ? provider === "openai"
           : false;
       const providerStatus = disabled
