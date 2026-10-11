@@ -73,6 +73,10 @@ fun AdminControlCenter() {
     var grantSaving by remember { mutableStateOf(false) }
     var adminCredits by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var adminIssueRows by remember { mutableStateOf<List<String>>(emptyList()) }
+    var diagnosticsSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var selfTestSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var diagnosticsBusy by remember { mutableStateOf(false) }
+    var diagnosticsError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -95,6 +99,9 @@ fun AdminControlCenter() {
                     item.optString("route", "/") + " • " + item.optString("code", "backend_unavailable")
             }
         }
+        runCatching { WorkspaceApiClient().adminDiagnostics() }
+            .onSuccess { diagnosticsSnapshot = it }
+            .onFailure { diagnosticsError = it.message ?: "Diagnostics could not be loaded." }
     }
 
     val sections = listOf(
@@ -232,6 +239,102 @@ fun AdminControlCenter() {
             }
         }
         OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Admin Diagnostics & Self-test", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Last 50 server-side failures per feature. Only route, status, sanitized error code and time are stored—never prompts, message content, tokens or secrets.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !diagnosticsBusy,
+                        onClick = {
+                            diagnosticsBusy = true
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().adminDiagnostics() }
+                                    .onSuccess { diagnosticsSnapshot = it; diagnosticsError = null }
+                                    .onFailure { diagnosticsError = it.message ?: "Diagnostics could not be loaded." }
+                                diagnosticsBusy = false
+                            }
+                        }
+                    ) { Text(if (diagnosticsBusy) "Refreshing…" else "Refresh failures") }
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        enabled = !diagnosticsBusy,
+                        onClick = {
+                            diagnosticsBusy = true
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().adminReadinessSelfTest() }
+                                    .onSuccess { selfTestSnapshot = it; diagnosticsError = null }
+                                    .onFailure { diagnosticsError = it.message ?: "Self-test could not run." }
+                                diagnosticsBusy = false
+                            }
+                        }
+                    ) { Text(if (diagnosticsBusy) "Checking…" else "Run self-test") }
+                }
+                Text(
+                    "Self-test checks configuration and catalog readiness only; it does not send prompts or generate paid AI output.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                diagnosticsError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                selfTestSnapshot?.let { result ->
+                    Text("Readiness results • " + result.optString("checkedAt", ""), fontWeight = FontWeight.SemiBold)
+                    val checks = result.optJSONArray("checks")
+                    if (checks != null) {
+                        for (index in 0 until checks.length()) {
+                            val check = checks.optJSONObject(index) ?: org.json.JSONObject()
+                            val details = when (check.optString("feature")) {
+                                "catalog" -> " • plans " + check.optInt("planCount", 0) + " • products " + check.optInt("productCount", 0)
+                                else -> if (check.optString("model").isNotBlank()) " • " + check.optString("model") else ""
+                            }
+                            Text(
+                                check.optString("feature", "feature").replace('_', ' ') + ": " +
+                                    check.optString("status", "unknown") + details,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val warnings = check.optJSONArray("warnings")
+                            if (warnings != null && warnings.length() > 0) {
+                                Text(
+                                    "Warnings: " + List(warnings.length()) { warnings.optString(it) }.joinToString(", "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+                diagnosticsSnapshot?.let { snapshot ->
+                    val features = snapshot.optJSONObject("features")
+                    listOf("chat", "image", "vision", "voice_session", "catalog").forEach { feature ->
+                        val rows = features?.optJSONArray(feature)
+                        Text(
+                            feature.replace('_', ' ') + " • " + (rows?.length() ?: 0) + " recorded failure(s)",
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (rows == null || rows.length() == 0) {
+                            Text("No recorded server-side failures.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            for (index in 0 until rows.length()) {
+                                val item = rows.optJSONObject(index) ?: org.json.JSONObject()
+                                Text(
+                                    "HTTP " + item.optInt("status", 500) + " • " + item.optString("route", "/") +
+                                        " • " + item.optString("code", "server_request_failed") +
+                                        (item.optString("createdAt").takeIf { it.isNotBlank() }?.let { " • " + it } ?: ""),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (adminIssueRows.isNotEmpty()) {
             Card(
                 Modifier.fillMaxWidth(),
