@@ -3492,9 +3492,10 @@ fun CameraWorkspace() {
         val cameraOk = grants[Manifest.permission.CAMERA] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val micOk = grants[Manifest.permission.RECORD_AUDIO] == true || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (cameraOk && micOk && streamEndpoint.trim().isNotBlank()) {
-            // Remove the Compose camera preview before the foreground RTMP streamer
-            // opens Camera2; otherwise both owners can race for the same device.
-            previewEnabled = true
+            // The StreamPack RTMP broadcaster owns Camera2 while streaming.
+            // Do not keep the separate Compose Camera2 preview open at the same time.
+            // A shared StreamPack preview surface is needed to show preview during broadcast.
+            previewEnabled = false
             fullScreenPreview = false
             streamOnline = true
             streamError = null
