@@ -73,7 +73,7 @@ function isSuperAdmin(user, env) {
   );
 }
 
-function isRootSuperAdmin(user, env) {
+export function isRootSuperAdmin(user, env) {
   const claims = user?.customAttributes || {};
   const email = String(user?.email || "").toLowerCase();
   const owner = String(env?.SUPER_ADMIN_EMAIL || "").toLowerCase();
