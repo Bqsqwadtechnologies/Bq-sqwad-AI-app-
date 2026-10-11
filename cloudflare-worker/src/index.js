@@ -1327,10 +1327,12 @@ export default {
          const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
          const pricing = config?.config || {};
          if (heartbeatMode === "voice" && config?.enabled === false) throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403 });
+         const capabilityName = heartbeatMode === "camera" || heartbeatMode === "screen" ? "live_camera" : "live_voice";
+         const control = await capability(user.uid, capabilityName);
          const profile = await readCanonicalUserBalance(user.uid);
          const balance = canonicalUserBalance(profile);
-         if (!balance || balance.total <= 0) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
-         const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
+         if (!isSuperAdmin(user, env) && (!balance || balance.total <= 0)) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
+         const rate = Math.max(0, Number(control.creditsPerMinute == null ? (pricing.creditsPerMinute || 0) : control.creditsPerMinute));
          const charge = await chargeCredits(user.uid, rate, "live_session_minute", user);
          if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "openai_realtime_minute");
          const updatedProfile = await readCanonicalUserBalance(user.uid);
