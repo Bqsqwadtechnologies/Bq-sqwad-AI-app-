@@ -1278,7 +1278,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
-    var imageProgress by remember { mutableIntStateOf(0) }
     var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
     var selectedImagePrompt by remember { mutableStateOf("") }
     var selectedImageMessageId by remember { mutableStateOf<String?>(null) }
@@ -1304,13 +1303,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     it.optString("feature") == "image-generation" &&
                     it.optBoolean("active") && it.optBoolean("published")
             }) selectedImageModelId = ""
-    }
-
-    LaunchedEffect(busy, statusText) {
-        if (busy && statusText == "Generating image…") {
-            imageProgress = 0
-            while (imageProgress < 95) { delay(500); imageProgress = (imageProgress + 1).coerceAtMost(95) }
-        } else if (statusText == "Ready") imageProgress = 100
     }
 
     LaunchedEffect(Unit) {
@@ -1877,8 +1869,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine && m.text == "Generating image…") {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
                                 BqGeneratingIndicator()
-                                Text("Creating your image · " + imageProgress.coerceAtMost(95) + "%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                                LinearProgressIndicator(progress = { imageProgress.coerceAtMost(95) / 100f }, modifier = Modifier.width(220.dp))
+                                Text("Creating your image…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                LinearProgressIndicator(modifier = Modifier.width(220.dp))
                                 Text("Progress is an estimate while the image service works.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else {
