@@ -4,15 +4,19 @@ package com.bqsqwad.ai.ui
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.ContentValues
 import android.graphics.BitmapFactory
 import java.net.URL
 import android.net.Uri
 import android.util.Base64
 import android.provider.Settings
+import android.provider.MediaStore
 import android.speech.RecognizerIntent
 import android.speech.RecognitionListener
 import android.speech.SpeechRecognizer
 import android.os.Bundle
+import android.os.Build
+import android.os.Environment
 import android.speech.tts.TextToSpeech
 import android.widget.VideoView
 import java.util.UUID
@@ -62,6 +66,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -1104,8 +1109,35 @@ private data class ChatMessage(
 )
 
 
+private fun decodeImageBytes(imageBase64: String): ByteArray = Base64.decode(imageBase64, Base64.DEFAULT)
+
+private fun saveGeneratedImage(context: Context, imageBase64: String): Uri {
+    val bytes = decodeImageBytes(imageBase64)
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "BQ-Sqwad-AI-" + System.currentTimeMillis() + ".png")
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/BQ Sqwad AI")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+    }
+    val resolver = context.contentResolver
+    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error("Could not create an image file on this device.")
+    try {
+        resolver.openOutputStream(uri, "w")?.use { it.write(bytes) } ?: error("Could not write the generated image.")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
+        return uri
+    } catch (t: Throwable) { resolver.delete(uri, null, null); throw t }
+}
+
+private fun shareGeneratedImage(context: Context, imageBase64: String) {
+    val uri = saveGeneratedImage(context, imageBase64)
+    val intent = Intent(Intent.ACTION_SEND).apply { type = "image/png"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+    context.startActivity(Intent.createChooser(intent, "Share image"))
+}
+
 @Composable
-private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
+private fun ChatAttachmentPreview(attachment: ChatMessageAttachment, onImageClick: (() -> Unit)? = null) {
     var decoding by remember(attachment.imageBase64) { mutableStateOf(attachment.imageBase64 != null) }
     val image by produceState<ImageBitmap?>(initialValue = null, key1 = attachment.imageBase64) {
         val encoded = attachment.imageBase64
@@ -1123,7 +1155,7 @@ private fun ChatAttachmentPreview(attachment: ChatMessageAttachment) {
                 bitmap = image!!,
                 contentDescription = attachment.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp))
+                modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp)).then(if (onImageClick != null) Modifier.clickable(onClick = onImageClick) else Modifier)
             )
             Text(attachment.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -1242,6 +1274,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+    var imageProgress by remember { mutableIntStateOf(0) }
+    var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
+    var selectedImagePrompt by remember { mutableStateOf("") }
+    var selectedImageMessageId by remember { mutableStateOf<String?>(null) }
+    var showImageActions by remember { mutableStateOf(false) }
+    var showImageViewer by remember { mutableStateOf(false) }
+    var showImageEdit by remember { mutableStateOf(false) }
+    var imageEditPrompt by remember { mutableStateOf("") }
+    var showImageResize by remember { mutableStateOf(false) }
+    var selectedImageSize by remember { mutableStateOf("1024x1024") }
+
+    LaunchedEffect(busy, statusText) {
+        if (busy && statusText == "Generating image…") {
+            imageProgress = 0
+            while (imageProgress < 95) { delay(500); imageProgress = (imageProgress + 1).coerceAtMost(95) }
+        } else if (statusText == "Ready") imageProgress = 100
+    }
 
     LaunchedEffect(restoredChat?.first) {
         val saved = restoredChat ?: return@LaunchedEffect
@@ -1782,7 +1831,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start
                         ) {
                         if (!m.mine && m.text == "Generating image…") {
-                            BqGeneratingIndicator(modifier = Modifier.padding(vertical = 4.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                                BqGeneratingIndicator()
+                                Text("Creating your image · " + imageProgress.coerceAtMost(95) + "%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                LinearProgressIndicator(progress = { imageProgress.coerceAtMost(95) / 100f }, modifier = Modifier.width(220.dp))
+                                Text("Progress is an estimate while the image service works.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         } else {
                             Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) {
                                 SelectionContainer {
@@ -1794,7 +1848,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                                 MarkdownText(m.text)
                                             }
                                         }
-                                        m.attachments.forEach { attachment -> ChatAttachmentPreview(attachment) }
+                                        m.attachments.forEach { attachment ->
+                                            ChatAttachmentPreview(attachment) {
+                                                if (!attachment.imageBase64.isNullOrBlank()) {
+                                                    selectedImageBase64 = attachment.imageBase64
+                                                    selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
+                                                    selectedImageMessageId = m.id
+                                                    showImageViewer = true
+                                                }
+                                            }
+                                        }
                                         m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
                                     }
                                 }
@@ -1808,6 +1871,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             BqLogo(22.dp)
+                            if (m.attachments.any { !it.imageBase64.isNullOrBlank() }) {
+                                IconButton(onClick = {
+                                    val image = m.attachments.firstOrNull { !it.imageBase64.isNullOrBlank() } ?: return@IconButton
+                                    selectedImageBase64 = image.imageBase64
+                                    selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
+                                    selectedImageMessageId = m.id
+                                    showImageActions = true
+                                }) { Icon(Icons.Default.MoreVert, contentDescription = "Image actions") }
+                            }
                             IconButton(onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy response")
                             }
