@@ -508,6 +508,15 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
+    val storePriceText = selectedEntry?.let { entry ->
+        when (entry.productType) {
+            ProductType.SUBS -> selectedProduct?.subscriptionOfferDetails
+                ?.firstOrNull { offer -> entry.basePlanId.isNullOrBlank() || offer.basePlanId == entry.basePlanId }
+                ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
+            ProductType.INAPP -> selectedProduct?.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
+            else -> null
+        }
+    }
     val displayPrices = if (plan.playEligible && supportedPeriods.isNotEmpty()) {
         plan.price.entries.filter { it.key in supportedPeriods }
     } else {
@@ -516,6 +525,9 @@ private fun LivePlanCard(
     val priceText = when {
         isContactSales -> "Contact Sales"
         isFreePlan -> "Free"
+        plan.playEligible && !storePriceText.isNullOrBlank() && selectedEntry?.productType == ProductType.SUBS ->
+            (selectedPeriod.replaceFirstChar { it.uppercase() } + ": " + storePriceText)
+        plan.playEligible && !storePriceText.isNullOrBlank() -> storePriceText
         else -> displayPrices.joinToString(" • ") { (period, value) ->
             val numeric = value.toDoubleOrNull()
             val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
