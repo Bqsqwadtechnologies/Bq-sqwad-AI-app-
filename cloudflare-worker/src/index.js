@@ -985,11 +985,12 @@ async function vision(request, user, body) {
     // default OpenAI vision model while still enforcing that capability's gate
     // and credit cost.
     const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
-    const configuredVisionModel = String(control.config?.visionModelId || control.visionModelId || "").trim();
+    const configuredVisionModelRaw = String(control.config?.visionModelId || control.visionModelId || "").trim();
+    const configuredVisionModel = configuredVisionModelRaw.startsWith("gpt-realtime") ? "" : configuredVisionModelRaw;
     const capabilityModel = String(control.modelId || "").trim();
     // The live-camera realtime model is for WebSocket voice/video sessions, not
     // the Responses API used by this single-frame vision endpoint.
-    const compatibleCapabilityModel = capabilityModel && !/^gpt-realtime(?:-|$)/i.test(capabilityModel);
+    const compatibleCapabilityModel = capabilityModel && !capabilityModel.startsWith("gpt-realtime");
     const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-4.1-mini";
     const primaryModelId = primaryProviderId === control.providerId
       ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
