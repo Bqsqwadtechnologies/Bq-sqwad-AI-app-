@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.ProductDetails
+import com.android.billingclient.api.BillingClient.ProductType
 import com.bqsqwad.ai.core.NativeFeatureRegistry
 import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
