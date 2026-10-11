@@ -7,7 +7,7 @@ import { listOrganizationScheduledTasks, createOrganizationScheduledTask, update
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
-import { generateImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
+import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -1473,6 +1473,21 @@ export default {
         body.model = control.modelId || "gpt-image-2";
         body.creditCost = control.creditCost;
         return json(await generateImageNative(
+          env, u, body,
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, id, provider) => commitCredits(uid, id, provider),
+          (uid, id) => reverseCredits(uid, id)
+        ));
+      }
+      if (url.pathname === "/ai/image/edit" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const control = await capability(u.uid, "image_generation");
+        const body = await readBody(request);
+        // Model and credit price are controlled by the server, not by the app client.
+        body.model = control.modelId || "gpt-image-2";
+        body.creditCost = control.creditCost;
+        return json(await editImageNative(
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
