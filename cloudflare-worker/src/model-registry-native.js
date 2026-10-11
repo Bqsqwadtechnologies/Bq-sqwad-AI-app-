@@ -77,6 +77,16 @@ export async function saveAiModel(raw, actorUid) {
       updatedAt: new Date(),
       version: Number(previous.version || 0) + 1
     }, true);
+    if (model.feature === "live-voice") {
+      const voicePricing = await firestoreGet("adminAdvancedOptions/live_voice_pricing") || {};
+      await firestoreSet("adminAdvancedOptions/live_voice_pricing", {
+        ...voicePricing,
+        modelId: model.modelId,
+        updatedBy: actorUid,
+        updatedAt: new Date(),
+        version: Number(voicePricing.version || 0) + 1
+      }, true);
+    }
     const others = await firestoreQuery("aiModelRegistry", { limit: 200 });
     for (const other of others) {
       if (String(other.id || "") !== model.id && other.feature === model.feature && other.active === true) {
