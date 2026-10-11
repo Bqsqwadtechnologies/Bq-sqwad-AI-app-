@@ -78,6 +78,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     private var cameraId: String? = null
     private var previewSurface: Surface? = null
     private var frameTaskPosted = false
+    private var consecutiveFrameFailures = 0
     private val closed = AtomicBoolean(false)
 
     init {
@@ -231,9 +232,16 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             }.getOrNull()
 
             if (bitmap != null) {
+                consecutiveFrameFailures = 0
+                lastErrorMessage = null
                 val bytes = bitmapToJpeg(bitmap)
                 bitmap.recycle()
                 if (bytes != null && !closed.get()) frameListener(bytes)
+            } else {
+                consecutiveFrameFailures += 1
+                if (consecutiveFrameFailures >= 3) {
+                    reportCameraError("The camera preview is open, but BQ Sqwad AI cannot read camera frames. Close other camera apps and retry.")
+                }
             }
             scheduleFrame()
         }, intervalMs.coerceIn(1000L, 10000L))
