@@ -550,6 +550,24 @@ fun ProductCatalogScreen(onBack:()->Unit) {
 }
 
 @Composable
+private fun humanizePlanLimit(key: String): String {
+    val known = mapOf(
+        "aiMessagesPerMonth" to "AI messages per month",
+        "storageGb" to "Storage (GB)",
+        "storageTb" to "Storage (TB)",
+        "teamMembers" to "Team members",
+        "socialChannels" to "Social channels",
+        "trainingUploads" to "Training uploads",
+        "assistants" to "Assistants",
+        "everything" to "Included capacity",
+        "conversationsPerMonth" to "Conversations per month"
+    )
+    return known[key] ?: key
+        .replace(Regex("([a-z0-9])([A-Z])")) { match -> match.groupValues[1] + " " + match.groupValues[2] }
+        .replace('_', ' ')
+        .replaceFirstChar { it.uppercase() }
+}
+
 private fun LivePlanCard(
     plan: LivePlan,
     playEntries: List<PlayCatalogEntry>,
@@ -708,7 +726,7 @@ private fun LivePlanCard(
                 Text("Plan capacity", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
                 plan.limits.forEach { (key, value) ->
                     Text(
-                        key.replace('_', ' ').replaceFirstChar { it.uppercase() } + ": " + value,
+                        humanizePlanLimit(key) + ": " + value,
                         style=MaterialTheme.typography.bodySmall,
                         color=MaterialTheme.colorScheme.onSurfaceVariant
                     )
