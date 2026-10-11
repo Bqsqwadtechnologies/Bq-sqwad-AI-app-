@@ -37,6 +37,7 @@ fun NativeCameraPreview(
     modifier: Modifier = Modifier,
     lensFacing: Int = CameraCharacteristics.LENS_FACING_BACK,
     captureEveryMs: Long = 1800L,
+    torchEnabled: Boolean = false,
     onFrame: (ByteArray) -> Unit = {},
     onError: (String) -> Unit = {}
 ) {
@@ -44,11 +45,11 @@ fun NativeCameraPreview(
         modifier = modifier,
         factory = { context ->
             LiveCameraTextureView(context).apply {
-                updateConfiguration(lensFacing, captureEveryMs, onFrame, onError)
+                updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
             }
         },
         update = { view ->
-            view.updateConfiguration(lensFacing, captureEveryMs, onFrame, onError)
+            view.updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
         }
     )
 }
@@ -57,6 +58,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     var facing: Int = CameraCharacteristics.LENS_FACING_BACK
         private set
     var intervalMs: Long = 1800L
+        private set
+    var torchEnabled: Boolean = false
         private set
     var frameListener: (ByteArray) -> Unit = {}
     var errorListener: (String) -> Unit = {}
@@ -88,12 +91,15 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     fun updateConfiguration(
         newFacing: Int,
         newIntervalMs: Long,
+        newTorchEnabled: Boolean,
         listener: (ByteArray) -> Unit,
         onError: (String) -> Unit
     ) {
         frameListener = listener
         errorListener = onError
         intervalMs = newIntervalMs.coerceIn(1000L, 10000L)
+        val torchChanged = torchEnabled != newTorchEnabled
+        torchEnabled = newTorchEnabled
         if (facing != newFacing) {
             facing = newFacing
             handler.post {
@@ -103,7 +109,35 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 }
             }
         } else {
+            if (torchChanged) handler.post { if (!closed.get()) updateTorchMode() }
             startIfReady()
+        }
+    }
+
+    private fun updateTorchMode() {
+        val device = camera ?: return
+        val activeSession = session ?: return
+        val surface = previewSurface ?: return
+        val available = runCatching {
+            cameraId?.let { id ->
+                cameraManager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            } == true
+        }.getOrDefault(false)
+        if (torchEnabled && !available) {
+            reportCameraError("The selected camera does not have a usable flashlight. Switch to the rear camera.")
+            return
+        }
+        runCatching {
+            val request = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                addTarget(surface)
+                set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                set(CaptureRequest.FLASH_MODE, if (torchEnabled) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF)
+            }.build()
+            activeSession.setRepeatingRequest(request, null, handler)
+        }.onFailure {
+            reportCameraError("The flashlight could not be changed on this camera. Try the rear camera.")
         }
     }
 
@@ -196,6 +230,16 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                                 addTarget(surface)
                                 set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
                                 set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                                val flashAvailable = runCatching {
+                                    cameraId?.let { id ->
+                                        cameraManager.getCameraCharacteristics(id)
+                                            .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                                    } == true
+                                }.getOrDefault(false)
+                                set(
+                                    CaptureRequest.FLASH_MODE,
+                                    if (torchEnabled && flashAvailable) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF
+                                )
                             }.build()
                             created.setRepeatingRequest(request, null, handler)
                         }.onFailure {
