@@ -2232,7 +2232,32 @@ val composerShape = RoundedCornerShape(26.dp)
                     val image = selectedImageBase64.orEmpty(); val prompt = imageEditPrompt.trim(); val targetId = selectedImageMessageId; showImageEdit = false; busy = true; statusText = "Editing image…"
                     scope.launch {
                         runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }, mimeType = selectedImageMimeType) }
-                            .onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image edited.", attachments = listOf(ChatMessageAttachment("Edited image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImageMimeType = "image/png"; selectedImagePrompt = prompt; error = "Image edit completed." }
+                            .onSuccess { generated ->
+                                val durableImageUrl = generated.imageBase64?.let {
+                                    runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
+                                } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                val idx = messages.indexOfFirst { it.id == targetId }
+                                if (idx >= 0) messages[idx] = messages[idx].copy(
+                                    text = "Image edited.", prompt = prompt,
+                                    attachments = generated.imageBase64?.let { listOf(ChatMessageAttachment("Edited image.png", "image/png", it)) } ?: emptyList(),
+                                    imageUrl = durableImageUrl
+                                )
+                                selectedImageBase64 = generated.imageBase64
+                                selectedImageMimeType = "image/png"
+                                selectedImagePrompt = prompt
+                                error = if (generated.imageBase64 != null && durableImageUrl == null)
+                                    "Image edit completed, but secure image storage is unavailable; it may not appear when you reopen this chat."
+                                else "Image edit completed."
+                                if (!privateChat) {
+                                    runCatching {
+                                        val snapshot = messages.map { m ->
+                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                        }
+                                        withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
+                                    }.onSuccess { savedId -> historyId = savedId }
+                                        .onFailure { error = "Image edit completed, but this conversation could not be saved." }
+                                }
+                            }
                             .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
                         busy = false; statusText = "Ready"
                     }
@@ -2245,7 +2270,38 @@ val composerShape = RoundedCornerShape(26.dp)
                 text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Choose an output size. This creates a new version using the original prompt."); listOf("1024x1024" to "Square · 1024 × 1024", "1536x1024" to "Landscape · 1536 × 1024", "1024x1536" to "Portrait · 1024 × 1536").forEach { option -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selectedImageSize == option.first, onClick = { selectedImageSize = option.first }); Text(option.second) } } } },
                 confirmButton = { Button(enabled = !busy, onClick = {
                     val prompt = selectedImagePrompt.ifBlank { "Create an image" }; val targetId = selectedImageMessageId; showImageResize = false; busy = true; statusText = "Generating image…"
-                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImageMimeType = "image/png"; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
+                    scope.launch {
+                        runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }
+                            .onSuccess { generated ->
+                                val durableImageUrl = generated.imageBase64?.let {
+                                    runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
+                                } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                val idx = messages.indexOfFirst { it.id == targetId }
+                                if (idx >= 0) messages[idx] = messages[idx].copy(
+                                    text = "Image resized.", prompt = prompt,
+                                    attachments = generated.imageBase64?.let { listOf(ChatMessageAttachment("Resized image.png", "image/png", it)) } ?: emptyList(),
+                                    imageUrl = durableImageUrl
+                                )
+                                selectedImageBase64 = generated.imageBase64
+                                selectedImageMimeType = "image/png"
+                                selectedImagePrompt = prompt
+                                error = if (generated.imageBase64 != null && durableImageUrl == null)
+                                    "New image size generated, but secure image storage is unavailable; it may not appear when you reopen this chat."
+                                else "New image size generated."
+                                if (!privateChat) {
+                                    runCatching {
+                                        val snapshot = messages.map { m ->
+                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                        }
+                                        withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
+                                    }.onSuccess { savedId -> historyId = savedId }
+                                        .onFailure { error = "New image size generated, but this conversation could not be saved." }
+                                }
+                            }
+                            .onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }
+                        busy = false
+                        statusText = "Ready"
+                    }
                 }) { Text("Create new size") } },
                 dismissButton = { TextButton(onClick = { showImageResize = false }) { Text("Cancel") } }
             )
