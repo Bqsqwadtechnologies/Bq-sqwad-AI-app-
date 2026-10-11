@@ -74,7 +74,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(model.optString("name"), style = MaterialTheme.typography.titleMedium)
                     Text("${model.optString("providerId")} / ${model.optString("modelId")}", style = MaterialTheme.typography.bodySmall)
-                    Text("Feature: ${model.optString("feature")} · Credits/request: ${model.optInt("creditCost")} · Display price: USD ${"%.4f".format(model.optDouble("priceUsd"))}")
+                    Text("Feature: ${model.optString("feature")} · User charge: ${model.optInt("creditCost")} credits/request · Reference price: USD ${"%.4f".format(model.optDouble("priceUsd"))}")
+                    if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
@@ -83,6 +84,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             feature = model.optString("feature", "text-chat"); description = model.optString("description")
                             creditCost = model.optInt("creditCost").toString()
                             priceUsd = model.optDouble("priceUsd").toString()
+                            creditsPerMinute = if (model.isNull("creditsPerMinute")) "" else model.optInt("creditsPerMinute").toString()
                             active = model.optBoolean("active"); isDefault = model.optBoolean("isDefault"); published = model.optBoolean("published")
                             message = "Editing ${model.optString("name")}."
                         }) { Text("Edit") }
