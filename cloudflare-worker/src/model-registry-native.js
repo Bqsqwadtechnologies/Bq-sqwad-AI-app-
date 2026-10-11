@@ -169,6 +169,59 @@ export async function listAiModels({ admin = false } = {}) {
   return { models: models.filter(x => admin || (x.active && x.published)).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
 }
 
+export async function validateAiModel(env, raw) {
+  const providerId = String(raw?.providerId || "").trim().toLowerCase();
+  const modelId = String(raw?.modelId || "").trim();
+  const feature = String(raw?.feature || "text-chat").trim().toLowerCase();
+  const allowedProviders = {
+    "text-chat": new Set(["openai", "gemini"]),
+    "live-camera": new Set(["openai"]),
+    "image-generation": new Set(["openai"]),
+    "live-voice": new Set(["openai"]),
+    "device-commands": new Set(["gemini"]),
+    "video-generation": new Set(["openai"])
+  };
+  if (!FEATURE_CAPABILITIES[feature] || !allowedProviders[feature]?.has(providerId)) {
+    throw Object.assign(new Error("provider_not_supported_for_feature"), { httpStatus: 400 });
+  }
+  const prefixRules = {
+    "live-camera": /^gpt-realtime/i,
+    "live-voice": /^gpt-realtime/i,
+    "image-generation": /^gpt-image/i,
+    "video-generation": /^sora/i,
+    "device-commands": /^gemini/i
+  };
+  if (prefixRules[feature] && !prefixRules[feature].test(modelId)) {
+    throw Object.assign(new Error("model_id_does_not_match_feature"), { httpStatus: 400 });
+  }
+  let url, headers;
+  if (providerId === "openai") {
+    const key = String(env?.OPENAI_API_KEY || "");
+    if (!key) throw Object.assign(new Error("openai_provider_not_configured"), { httpStatus: 503 });
+    url = "https://api.openai.com/v1/models/" + encodeURIComponent(modelId);
+    headers = { Authorization: "Bearer " + key };
+  } else {
+    const key = String(env?.GEMINI_API_KEY || "");
+    if (!key) throw Object.assign(new Error("gemini_provider_not_configured"), { httpStatus: 503 });
+    url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + "?key=" + encodeURIComponent(key);
+    headers = {};
+  }
+  const response = await fetch(url, { method: "GET", headers });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const reason = String(body?.error?.message || "provider_model_validation_failed").slice(0, 220);
+    throw Object.assign(new Error(reason), { httpStatus: response.status === 401 || response.status === 403 ? 502 : 400 });
+  }
+  return {
+    ok: true,
+    providerId,
+    modelId,
+    feature,
+    providerModelName: String(body.displayName || body.name || body.id || modelId),
+    validatedAt: new Date().toISOString()
+  };
+}
+
 export async function saveAiModel(raw, actorUid) {
   const model = normalizeModel(raw, actorUid);
   const existing = await firestoreGet("aiModelRegistry/" + model.id);
