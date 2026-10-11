@@ -39,6 +39,7 @@ function normalizeModel(raw, actorUid) {
   if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
+  if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
   return {
     id, name, providerId, modelId, feature,
     description: String(raw?.description || "").trim().slice(0, 300),
@@ -72,11 +73,11 @@ export async function listAiModels({ admin = false } = {}) {
 export async function saveAiModel(raw, actorUid) {
   const model = normalizeModel(raw, actorUid);
   const existing = await firestoreGet("aiModelRegistry/" + model.id);
-  if (existing?.isDefault === true && model.active !== true) {
+  if (existing?.isDefault === true && model.isDefault !== true) {
     const capabilityName = FEATURE_CAPABILITIES[model.feature];
     const activeCapability = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
     if (String(activeCapability?.selectedRegistryModelId || "") === model.id) {
-      throw new Error("select_replacement_model_before_deactivating_active_default");
+      throw new Error("select_replacement_model_before_changing_active_default");
     }
   }
   await firestoreSet("aiModelRegistry/" + model.id, model, true);
