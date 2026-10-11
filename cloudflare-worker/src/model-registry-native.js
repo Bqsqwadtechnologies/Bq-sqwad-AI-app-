@@ -49,6 +49,7 @@ function normalizeModel(raw, actorUid) {
     isDefault: raw?.isDefault === true,
     published: raw?.published === true,
     creditCost, priceUsd, creditsPerMinute,
+    validation: raw?.validation && raw.validation.ok === true ? { ok: true, providerModelName: String(raw.validation.providerModelName || modelId).slice(0, 160), validatedAt: String(raw.validation.validatedAt || new Date().toISOString()) } : null,
     updatedBy: actorUid, updatedAt: new Date()
   };
 }
@@ -164,6 +165,7 @@ export async function listAiModels({ admin = false } = {}) {
     creditCost: Math.max(1, Number(x.creditCost || 1)),
     priceUsd: Math.max(0, Number(x.priceUsd || 0)),
     creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
+    validation: x.validation?.ok === true ? { ok: true, providerModelName: String(x.validation.providerModelName || x.modelId || ""), validatedAt: x.validation.validatedAt || null } : null,
     updatedAt: x.updatedAt || null
   }));
   return { models: models.filter(x => admin || (x.active && x.published)).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
