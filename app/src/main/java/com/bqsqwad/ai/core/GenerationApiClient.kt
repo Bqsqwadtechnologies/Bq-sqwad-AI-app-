@@ -67,9 +67,9 @@ class GenerationApiClient {
         return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
     }
 
-    suspend fun editImage(prompt: String, imageBase64: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null): GeneratedImage {
+    suspend fun editImage(prompt: String, imageBase64: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null, mimeType: String = "image/png"): GeneratedImage {
         val body = request("/ai/image/edit", payload = JSONObject().apply {
-            put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("size", size); put("quality", quality)
+            put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("mimeType", mimeType); put("size", size); put("quality", quality)
             if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
         })
         return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
