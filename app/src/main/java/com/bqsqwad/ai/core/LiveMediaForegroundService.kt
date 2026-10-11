@@ -35,6 +35,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_RIGHTS_ID = "rights_id"
         const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
         const val EXTRA_VOICE = "voice"
+        const val EXTRA_MODEL_REGISTRY_ID = "model_registry_id"
         const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
         const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
         const val EXTRA_ORGANIZATION_MODE = "organization_mode"
@@ -70,6 +71,7 @@ class LiveMediaForegroundService : Service() {
     private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
+    private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
     private var voiceConnectionWatchdog: Job? = null
@@ -95,6 +97,7 @@ class LiveMediaForegroundService : Service() {
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
         voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
+        modelRegistryId = intent?.getStringExtra(EXTRA_MODEL_REGISTRY_ID)?.trim()?.takeIf { it.isNotBlank() } ?: modelRegistryId
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
         organizationMode = intent?.getBooleanExtra(EXTRA_ORGANIZATION_MODE, organizationMode) ?: organizationMode
@@ -197,7 +200,7 @@ class LiveMediaForegroundService : Service() {
     private suspend fun startVisualVoice() {
         if (visualVoice != null) return
         val sessionMode = when (mode) { MODE_CAMERA -> "camera"; MODE_SCREEN -> "screen"; else -> "voice" }
-        val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode, mode = sessionMode)
+        val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode, mode = sessionMode, modelRegistryId = modelRegistryId)
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
         val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
@@ -228,7 +231,7 @@ class LiveMediaForegroundService : Service() {
             while (isActive && (realtimeVoice != null || visualVoice != null)) {
                 delay(60_000L)
                 if (!isActive || (realtimeVoice == null && visualVoice == null)) break
-                runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode) }
+                runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
                     .onSuccess { result ->
                         if (!result.optBoolean("ok", false)) {
                             writeError("You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue.")
