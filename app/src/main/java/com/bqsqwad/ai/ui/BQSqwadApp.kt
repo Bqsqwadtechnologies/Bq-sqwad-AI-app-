@@ -1993,7 +1993,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                                 }
                                             }
                                         }
-                                        m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
+                                        // Prefer the in-memory image during this session; use the durable URL
+                                        // only when restoring history or when no inline image bytes exist.
+                                        if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
+                                            m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
+                                        }
                                     }
                                 }
                             }
