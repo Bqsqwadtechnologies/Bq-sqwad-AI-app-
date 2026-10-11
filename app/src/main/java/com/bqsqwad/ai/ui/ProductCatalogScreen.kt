@@ -610,29 +610,22 @@ private fun LivePlanCard(
                     onClick = {
                         when {
                             isContactSales -> onContact()
-                            plan.paymentChannel == "website" -> {
-                                onStatus("Opening BQ Sqwad AI website checkout.")
-                                runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com")))
-                                }.onFailure {
-                                    onStatus("Could not open the BQ Sqwad AI website.")
-                                }
-                            }
                             plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true -> {
                                 val result=billing.launchPurchase(selectedProduct.productId, selectedEntry.basePlanId)
                                 onStatus(if(result?.responseCode==com.android.billingclient.api.BillingClient.BillingResponseCode.OK) "Purchase started for "+plan.id+"/"+(selectedEntry.basePlanId ?: selectedPeriod)+". Access unlocks only after server verification." else result?.debugMessage?.ifBlank{"Purchase could not be started."} ?: "Purchase could not be started.")
                             }
+                            plan.paymentChannel == "website" -> onStatus("This plan is not available for in-app purchase. Choose a Google Play-eligible plan or Contact Sales.")
                             else -> onStatus("This plan is not currently purchasable on this device.")
                         }
                     },
+                    enabled = isContactSales || (plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true),
                     modifier=Modifier.fillMaxWidth()
                 ) {
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
-                            plan.paymentChannel=="website" -> "Continue on BQ Sqwad AI website"
                             plan.playEligible -> "Continue with Google Play"
-                            else -> "Unavailable"
+                            else -> "Not available in-app"
                         }
                     )
                 }
