@@ -203,6 +203,9 @@ async function adminReadinessSelfTest(env, adminUser) {
       if (config?.enabled === false || config?.killSwitch === true) return { status: "disabled", model: String(config?.modelId || "") };
       if (!env?.OPENAI_API_KEY) return { status: "missing_provider_key", model: String(config?.modelId || "") };
       const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_live_voice");
+      if (capabilityConfig?.enabled === false || capabilityConfig?.killSwitch === true) {
+        return { status: "disabled", model: String(config?.modelId || capabilityConfig?.modelId || "") };
+      }
       const model = String(config?.modelId || capabilityConfig?.modelId || "gpt-realtime-2.1").slice(0, 80);
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(uid || "admin-self-test")));
       const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
