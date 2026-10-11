@@ -97,7 +97,7 @@ class LiveMediaForegroundService : Service() {
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
         voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
-        modelRegistryId = intent?.getStringExtra(EXTRA_MODEL_REGISTRY_ID)?.trim()?.takeIf { it.isNotBlank() } ?: modelRegistryId
+        modelRegistryId = intent?.getStringExtra(EXTRA_MODEL_REGISTRY_ID)?.trim()?.takeIf { it.isNotBlank() }
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
         organizationMode = intent?.getBooleanExtra(EXTRA_ORGANIZATION_MODE, organizationMode) ?: organizationMode
@@ -149,7 +149,7 @@ class LiveMediaForegroundService : Service() {
         }
         serviceScope.launch {
             try {
-                val config = WorkspaceApiClient().realtimeSession(voice)
+                val config = WorkspaceApiClient().realtimeSession(voice, mode = "voice", modelRegistryId = modelRegistryId)
                 val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException(config.optString("error", "Realtime voice session could not be created."))
                 val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
