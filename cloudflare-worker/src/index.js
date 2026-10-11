@@ -100,6 +100,7 @@ function diagnosticFeatureForRoute(route) {
 
 function safeDiagnosticCode(errorCode) {
   const value = String(errorCode || "").toLowerCase();
+  if (value.includes("flashlight_unavailable")) return "flashlight_unavailable";
   if (value.includes("camera_permission_missing")) return "camera_permission_missing";
   if (value.includes("camera_busy")) return "camera_busy";
   if (value.includes("camera_unavailable")) return "camera_unavailable";
