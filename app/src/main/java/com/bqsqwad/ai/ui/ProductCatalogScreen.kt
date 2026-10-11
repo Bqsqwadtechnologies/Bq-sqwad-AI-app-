@@ -377,9 +377,13 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     }
                     item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
                     val grouped = plans.groupBy { it.module }
-                    val businessMain = plans.filter { it.module == "business" && !it.contactSales }.sortedBy { it.sortOrder }
+                    val businessMain = plans.filter {
+                        it.module == "business" && !it.contactSales && !it.name.contains("enterprise", ignoreCase = true)
+                    }.sortedBy { it.sortOrder }
                     val businessAddOns = plans.filter { it.module == "business-addon" }.sortedBy { it.sortOrder }
-                    val businessContact = plans.filter { it.module == "business" && it.contactSales }.sortedBy { it.sortOrder }
+                    val businessContact = plans.filter {
+                        it.module == "business" && (it.contactSales || it.name.contains("enterprise", ignoreCase = true))
+                    }.sortedBy { it.sortOrder }
                     if (businessMain.isNotEmpty() || businessAddOns.isNotEmpty() || businessContact.isNotEmpty()) {
                         item(key = "module:business") {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
