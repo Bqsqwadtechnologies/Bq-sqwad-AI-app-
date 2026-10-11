@@ -1762,6 +1762,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
+                // Keep the established image-generation animation untouched. For ordinary
+                // chat requests, show a compact circular progress indicator in the header.
+                if (busy && !statusText.contains("image", ignoreCase = true)) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Text(
                     statusText,
                     style = MaterialTheme.typography.labelSmall,
