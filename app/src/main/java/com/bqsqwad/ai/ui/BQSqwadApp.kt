@@ -1077,16 +1077,20 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
 }
 
 private fun isImageGenerationRequest(text: String): Boolean {
-    val q = text.trim().lowercase()
+    val q = text.trim().lowercase().replace(Regex("\\s+"), " ")
     if (q.isBlank()) return false
-    val explicit = listOf(
-        "generate image", "generate an image", "generate a picture",
-        "create image", "create an image", "create a picture",
-        "make image", "make an image", "make a picture",
-        "draw an image", "draw a picture", "draw me an image",
-        "show me an image of", "show me a picture of"
+    val explicitStarts = listOf(
+        "generate image", "generate an image", "generate a image", "generate me an image",
+        "generate a picture", "generate me a picture", "create image", "create an image",
+        "create a image", "create me an image", "create a picture", "create me a picture",
+        "make image", "make an image", "make me an image", "make a picture", "make me a picture",
+        "draw an image", "draw a picture", "draw me an image", "draw me a picture",
+        "illustrate ", "paint ", "show me an image of", "show me a picture of",
+        "make artwork", "create artwork", "generate artwork", "design an illustration"
     )
-    return explicit.any(q::startsWith)
+    if (explicitStarts.any(q::startsWith)) return true
+    return Regex("^(please )?(generate|create|draw|illustrate|paint|design) (me )?(an? )?(image|picture|illustration|artwork|portrait|logo|poster|wallpaper|scene|character)\\b")
+        .containsMatchIn(q)
 }
 
 private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null)
