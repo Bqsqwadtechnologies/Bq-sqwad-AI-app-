@@ -266,7 +266,7 @@ async function capability(uid, name) {
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
     image_generation: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
-    live_camera: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
+    live_camera: { providerId: "openai", modelId: "gpt-realtime-2.1", fallbackProviderIds: [] },
     live_voice: { providerId: "openai", modelId: "gpt-realtime-2.1", fallbackProviderIds: [] },
     video_generation: { providerId: "openai", modelId: "sora-2", fallbackProviderIds: [] },
     device_commands: { providerId: "gemini", modelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [] },
