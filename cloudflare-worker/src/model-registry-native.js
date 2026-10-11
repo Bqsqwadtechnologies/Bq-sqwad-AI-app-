@@ -19,6 +19,7 @@ function normalizeModel(raw, actorUid) {
   const feature = String(raw?.feature || "text-chat").trim().toLowerCase();
   const creditCost = Number(raw?.creditCost);
   const priceUsd = Number(raw?.priceUsd ?? 0);
+  const creditsPerMinute = raw?.creditsPerMinute == null || raw?.creditsPerMinute === "" ? null : Number(raw.creditsPerMinute);
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
@@ -38,6 +39,7 @@ function normalizeModel(raw, actorUid) {
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
   if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
+  if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000 || !Number.isInteger(creditsPerMinute))) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
   return {
@@ -46,7 +48,7 @@ function normalizeModel(raw, actorUid) {
     active: raw?.active === true,
     isDefault: raw?.isDefault === true,
     published: raw?.published === true,
-    creditCost, priceUsd,
+    creditCost, priceUsd, creditsPerMinute,
     updatedBy: actorUid, updatedAt: new Date()
   };
 }
@@ -65,6 +67,7 @@ export async function listAiModels({ admin = false } = {}) {
     published: x.published === true,
     creditCost: Math.max(0, Number(x.creditCost || 0)),
     priceUsd: Math.max(0, Number(x.priceUsd || 0)),
+    creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
     updatedAt: x.updatedAt || null
   }));
   return { models: models.filter(x => admin || (x.active && x.published)).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
@@ -94,6 +97,7 @@ export async function saveAiModel(raw, actorUid) {
       modelId: model.modelId,
       creditCost: model.creditCost,
       priceUsd: model.priceUsd,
+      creditsPerMinute: model.creditsPerMinute,
       selectedRegistryModelId: model.id,
       selectedRegistryModelName: model.name,
       updatedBy: actorUid,
@@ -150,6 +154,7 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     modelId: String(model.modelId || ""),
     feature: String(model.feature || ""),
     creditCost: Math.max(0, Number(model.creditCost || 0)),
-    priceUsd: Math.max(0, Number(model.priceUsd || 0))
+    priceUsd: Math.max(0, Number(model.priceUsd || 0)),
+    creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0))
   };
 }
