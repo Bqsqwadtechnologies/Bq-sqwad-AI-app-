@@ -8,6 +8,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
+import { listAiModels, saveAiModel } from "./model-registry-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -987,6 +988,10 @@ export default {
         return json(await playCatalog(firestore, url.searchParams.get("context")));
       }
 
+      if (url.pathname === "/ai/models" && request.method === "GET") {
+        return json(await listAiModels({ admin: false }));
+      }
+
       // Public plan/features catalogue: browsing must work before sign-in.
       // Purchase verification, entitlements and checkout remain authenticated below.
       if (url.pathname === "/native/catalog" && request.method === "GET") {
@@ -1612,6 +1617,18 @@ export default {
       if (url.pathname === "/admin/config" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreGet("adminAdvancedOptions/config"); return json(x||{}); }
       if (url.pathname === "/admin/controls" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreQuery("adminAdvancedOptions",{limit:100}); return json({items:x}); }
       if (url.pathname === "/admin/advanced-options" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); return json({options:await firestoreQuery("adminAdvancedOptions",{limit:200})}); }
+      if (url.pathname === "/admin/ai-models" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        return json(await listAiModels({ admin: true }));
+      }
+      if (url.pathname === "/admin/ai-models" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const b = await readBody(request);
+        if (!b.model || typeof b.model !== "object" || Array.isArray(b.model)) return json({ error: "model_object_required" }, 400);
+        return json(await saveAiModel(b.model, u.uid));
+      }
       if (url.pathname === "/admin/advanced-option" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const b=await readBody(request),id=String(b.id||"").trim();if(!id)return json({error:"option_id_required"},400);await firestoreSet("adminAdvancedOptions/"+id,{...b,id,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,option:{...b,id}}); }
       if (url.pathname === "/admin/control" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const b=await readBody(request),id=String(b.controlId||b.id||"").trim();if(!id)return json({error:"control_id_required"},400);await firestoreSet("adminAdvancedOptions/"+id,{...b,id,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,option:{...b,id}}); }
       if (url.pathname === "/admin/plan" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const b=await readBody(request),id=String(b.id||"").trim();if(!/^[a-z0-9-]{1,80}$/.test(id))return json({error:"invalid_plan_id"},400);const plan={name:String(b.name||"").trim().slice(0,120),active:b.active!==false,amountMinor:Math.max(0,Number(b.amountMinor||0)),currency:"USD",billingPeriod:String(b.billingPeriod||"monthly").slice(0,30),features:Array.isArray(b.features)?b.features.map(String).slice(0,50):[],limits:b.limits&&typeof b.limits==="object"?b.limits:{},updatedBy:u.uid,updatedAt:new Date()};await firestoreSet("plans/"+id,plan,true);if(String(b.module||"").toLowerCase()==="business"||id.startsWith("biz")||id==="businessenterprise")await firestoreSet("businessPlanStatus/"+id,{planId:id,active:plan.active,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,plan:{id,...plan}}); }
