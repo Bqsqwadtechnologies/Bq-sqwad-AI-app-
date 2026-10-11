@@ -112,8 +112,8 @@ class WorkspaceApiClient {
 
     suspend fun clearMemory():JSONObject = request("/memory","DELETE")
 
-    suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice"):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); if (organization) put("organization", true) })
-    suspend fun realtimeHeartbeat(mode: String = "voice"): JSONObject = request("/realtime/heartbeat", payload=JSONObject().put("mode", mode))
+    suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice", modelRegistryId: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }; if (organization) put("organization", true) })
+    suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
 
     suspend fun plans():JSONObject = request("/plans","GET")
 
