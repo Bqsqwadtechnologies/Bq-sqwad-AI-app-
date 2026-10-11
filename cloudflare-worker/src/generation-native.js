@@ -6,6 +6,8 @@ export async function editImageNative(env,user,b,charge,commit,reverse){
   const encoded=String(b.imageBase64||"").trim();
   if(!prompt)throw new Error("image_edit_prompt_required");
   if(!encoded)throw new Error("image_edit_input_required");
+  // Bound decoded-image memory use before allocating the binary buffer.
+  if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
   const reservation=await charge(user.uid,Number(b.creditCost||0),"image_generation",user);
   try {
     const binary=atob(encoded);
