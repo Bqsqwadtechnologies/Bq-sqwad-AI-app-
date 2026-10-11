@@ -103,7 +103,7 @@ private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String 
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
     val lower = message.lowercase()
-    if (lower.contains("insufficient credits") || lower.contains("credit_balance")) {
+    if (lower.contains("insufficient credits") || lower.contains("insufficient_credits") || lower.contains("credit_balance")) {
         return "You've run out of BQ Sqwad AI credits. Open Plans & Credits to continue."
     }
     if (lower.contains("capability_disabled")) {
