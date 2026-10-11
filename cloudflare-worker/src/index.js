@@ -80,13 +80,22 @@ function diagnosticFeatureForRoute(route) {
   if (path === "/ai" || path === "/ai/stream") return "chat";
   if (path === "/ai/image") return "image";
   if (path === "/ai/vision") return "vision";
-  if (path === "/realtime/session" || path === "/realtime/heartbeat") return "voice_session";
+  if (path === "/live-camera") return "live_camera";
+  if (path === "/screen-share") return "screen_share";
+  if (path === "/live-voice" || path === "/realtime/session" || path === "/realtime/heartbeat") return "voice_session";
   if (path === "/native/catalog" || path === "/play/catalog" || path === "/plans") return "catalog";
   return "other";
 }
 
 function safeDiagnosticCode(errorCode) {
   const value = String(errorCode || "").toLowerCase();
+  if (value.includes("camera_permission_missing")) return "camera_permission_missing";
+  if (value.includes("camera_busy")) return "camera_busy";
+  if (value.includes("camera_unavailable")) return "camera_unavailable";
+  if (value.includes("microphone_permission_missing")) return "microphone_permission_missing";
+  if (value.includes("screen_capture_permission_missing")) return "screen_capture_permission_missing";
+  if (value.includes("insufficient_credits") || value.includes("credit_balance")) return "insufficient_credits";
+  if (value.includes("provider_not_configured")) return "provider_not_configured";
   if (value.includes("openai http")) return "openai_provider_http_error";
   if (value.includes("gemini") || value.includes("google ai")) return "gemini_provider_error";
   if (value.includes("tavily")) return "search_provider_error";
@@ -100,7 +109,7 @@ function safeDiagnosticCode(errorCode) {
 }
 
 async function adminDiagnosticSnapshot() {
-  const features = ["chat", "image", "vision", "voice_session", "catalog"];
+  const features = ["chat", "image", "vision", "live_camera", "screen_share", "voice_session", "catalog"];
   const records = await Promise.all(features.map(async feature => {
     const rows = await firestoreQuery("adminDiagnostics", {
       filters: [{ field: { fieldPath: "feature" }, op: "EQUAL", value: { stringValue: feature } }],
@@ -328,7 +337,7 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
       createdAt: new Date()
     });
     const feature = diagnosticFeatureForRoute(route);
-    if (["chat", "image", "vision", "voice_session", "catalog"].includes(feature)) {
+    if (["chat", "image", "vision", "live_camera", "screen_share", "voice_session", "catalog"].includes(feature)) {
       await firestoreCreate("adminDiagnostics/" + issueId, {
         id: issueId,
         feature,
