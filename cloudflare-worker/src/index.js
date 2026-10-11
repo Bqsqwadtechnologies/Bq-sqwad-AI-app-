@@ -121,7 +121,6 @@ async function adminDiagnosticSnapshot() {
 }
 
 async function adminReadinessSelfTest(env, adminUser) {
-  globalThis.__bqSelfTestUid = adminUser?.uid || "admin-self-test";
   const providerProbeCache = new Map();
   const probeProvider = (provider) => {
     if (providerProbeCache.has(provider)) return providerProbeCache.get(provider);
@@ -258,7 +257,7 @@ async function adminReadinessSelfTest(env, adminUser) {
         const enabled = config?.enabled !== false && config?.killSwitch !== true;
         if (!enabled) return { feature: "voice_session", status: "disabled", capabilityEnabled: false, providerConfigured: Boolean(env?.OPENAI_API_KEY) };
         const providerStatus = env?.OPENAI_API_KEY
-          ? await probeRealtimeSessionCreation(globalThis.__bqSelfTestUid)
+          ? await probeRealtimeSessionCreation(adminUser?.uid || "admin-self-test")
           : { status: "missing_provider_key" };
         return {
           feature: "voice_session",
