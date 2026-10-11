@@ -1090,7 +1090,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
 }
 
-private fun isImageGenerationRequest(text: String): Boolean {
+internal fun isImageGenerationRequest(text: String): Boolean {
     val q = text.trim().lowercase().replace(Regex("\\s+"), " ")
     if (q.isBlank()) return false
 
