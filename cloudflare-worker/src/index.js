@@ -8,7 +8,7 @@ import { getProduction, updateProductionConfig, upsertSource, removeSource, upse
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
-import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry } from "./model-registry-native.js";
+import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel } from "./model-registry-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -1659,12 +1659,19 @@ export default {
         await ensureCurrentModelRegistry({ openai: DEFAULT_MODELS.openai, gemini: DEFAULT_MODELS.gemini });
         return json(await listAiModels({ admin: true }));
       }
+      if (url.pathname === "/admin/ai-models/validate" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const b = await readBody(request);
+        return json(await validateAiModel(env, b.model && typeof b.model === "object" ? b.model : b));
+      }
       if (url.pathname === "/admin/ai-models" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const b = await readBody(request);
         if (!b.model || typeof b.model !== "object" || Array.isArray(b.model)) return json({ error: "model_object_required" }, 400);
-        return json(await saveAiModel(b.model, u.uid));
+        const validation = await validateAiModel(env, b.model);
+        return json(await saveAiModel({ ...b.model, validation }, u.uid));
       }
       if (url.pathname === "/admin/advanced-option" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const b=await readBody(request),id=String(b.id||"").trim();if(!id)return json({error:"option_id_required"},400);await firestoreSet("adminAdvancedOptions/"+id,{...b,id,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,option:{...b,id}}); }
       if (url.pathname === "/admin/control" && request.method === "POST") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const b=await readBody(request),id=String(b.controlId||b.id||"").trim();if(!id)return json({error:"control_id_required"},400);await firestoreSet("adminAdvancedOptions/"+id,{...b,id,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,option:{...b,id}}); }
