@@ -3936,7 +3936,7 @@ fun CameraWorkspace() {
                 ) {
                     Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
                         TextButton(onClick = toggleFlashlight) {
-                            Icon(Icons.Default.FlashlightOn, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.FlashOn, contentDescription = null, tint = Color.White)
                             Spacer(Modifier.width(4.dp))
                             Text(if (flashlightOn) "Flashlight on" else "Flashlight", color = Color.White)
                         }
@@ -3948,7 +3948,7 @@ fun CameraWorkspace() {
                             else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                             flashlightOn = false
                         }) {
-                            Icon(Icons.Default.Cameraswitch, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White)
                             Spacer(Modifier.width(4.dp))
                             Text("Switch camera", color = Color.White)
                         }
