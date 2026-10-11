@@ -3811,12 +3811,22 @@ fun CameraWorkspace() {
                     lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                     if (active) {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
-                        context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
-                            .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
-                            .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
-                            .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
-                            .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                        active = false
+                        scope.launch {
+                            // Give Android time to release the previous AudioRecord/session
+                            // before starting a fresh front/back-camera voice session.
+                            kotlinx.coroutines.delay(250)
+                            runCatching {
+                                context.startForegroundService(Intent(context, LiveMediaForegroundService::class.java)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_CAMERA)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                            }.onFailure {
+                                streamError = "The camera switched, but the AI microphone session could not restart. Tap Retry to reconnect."
+                            }
+                        }
                     }
                 }, enabled = active) { Text("Flip") }
             }
