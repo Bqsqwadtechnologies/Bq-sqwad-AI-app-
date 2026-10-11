@@ -149,3 +149,14 @@ Backblaze's current documentation confirms that B2's first 10 GB of storage is f
 - Screen capture dimensions are downscaled proportionally to preserve portrait/landscape aspect ratio, and the foreground service releases the screen capture session on shutdown.
 - Android MediaProjection still requires the user's explicit system consent; the app does not and must not capture another person's screen without that person's consent.
 - Validation status: these latest commits have not yet been run through the manual `validate-main.yml` and release APK workflows. Do not mark runtime behavior as verified until both automated checks and on-device permission/preview/voice/catalog tests pass.
+
+
+## 2026-10-11 — Image, daily credits, catalog and live-camera follow-up
+- Expanded main-chat image intent detection for direct requests embedded in sentences while excluding informational and negated image questions.
+- Generated, edited and resized images now attempt Firebase Storage persistence and save a durable HTTPS URL in non-private conversation history. Owner-only PNG Storage rules were added; those rules still need deployment to Firebase before persistence can be verified.
+- Added admin-configurable daily free credits (default enabled: 5 per UTC day), atomic daily grants, usage-ledger entries, and daily-credit-first spending/reversal. Main chat has a server-side minimum one-credit charge when its configured cost is missing or zero.
+- Business AI and Learning Studio add-ons are grouped under their sections; Enterprise/Contact Sales plans render last. Catalog cards explain unavailable checkout, use readable capacity labels, and flag missing feature lists in the admin self-test.
+- Customer-facing checkout buttons use Google Pay; the actual in-app payment path remains Google Play Billing.
+- Live camera now reports sanitized camera/permission failures to admin diagnostics, exposes retry/settings paths, and has full-screen flashlight/camera-switch/status controls. Mobile-app handoff leaves the foreground voice service running, but Android may prioritize the streaming app's microphone/camera. An always-visible overlay over another app is not implemented because the Android manifest/permission configuration remains unchanged.
+- Admin self-test checks configured chat/image/vision model access, attempts realtime session creation without sending audio or prompts (and discards the short-lived secret), checks catalog readiness, and flags plans with empty feature lists.
+- Validation status: source changes are on main; Worker tests, Android compilation, Firebase Storage rules deployment, Worker deployment, and physical-device behavior have not been run or verified in this session. Source wiring is not runtime PASS.
