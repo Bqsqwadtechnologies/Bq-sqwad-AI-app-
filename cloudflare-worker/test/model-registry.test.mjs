@@ -20,10 +20,12 @@ test("OpenAI model validation verifies the provider model ID with the server-sid
   assert.equal(calledHeaders.Authorization, "Bearer server-test-key");
 });
 
-test("Gemini model validation verifies a registered Gemini model", async () => {
+test("Gemini model validation verifies a registered model without placing its key in the URL", async () => {
   let calledUrl = "";
-  globalThis.fetch = async url => {
+  let calledHeaders = {};
+  globalThis.fetch = async (url, init) => {
     calledUrl = String(url);
+    calledHeaders = init.headers;
     return new Response(JSON.stringify({ name: "models/gemini-test-model", displayName: "Gemini Test Model" }), { status: 200 });
   };
   const result = await validateAiModel(
@@ -32,7 +34,9 @@ test("Gemini model validation verifies a registered Gemini model", async () => {
   );
   assert.equal(result.ok, true);
   assert.equal(result.providerModelName, "Gemini Test Model");
-  assert.match(calledUrl, /\/v1beta\/models\/gemini-test-model\?key=gemini-server-test-key$/);
+  assert.match(calledUrl, /\/v1beta\/models\/gemini-test-model$/);
+  assert.equal(calledHeaders["x-goog-api-key"], "gemini-server-test-key");
+  assert.equal(new URL(calledUrl).search, "");
 });
 
 test("model validation rejects a provider incompatible with the feature before calling a provider", async () => {
