@@ -3989,11 +3989,48 @@ fun DeviceIntelligencePanel(featureName: String) {
     var command by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var publishedDeviceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedDeviceModelId by remember { mutableStateOf("") }
+    var deviceModelExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array ->
+                publishedDeviceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                    .filter { it.optString("feature") == "device-commands" && it.optBoolean("active") && it.optBoolean("published") }
+                if (selectedDeviceModelId.isNotBlank() && publishedDeviceModels.none { it.optString("id") == selectedDeviceModelId }) selectedDeviceModelId = ""
+            }
+    }
 
     SurfaceCard(
         "Device Intelligence",
         "Use $featureName to control supported Android device actions. Main Chat does not expose this control panel."
     )
+
+    Box {
+        val selectedName = publishedDeviceModels.firstOrNull { it.optString("id") == selectedDeviceModelId }?.optString("name")
+            ?: publishedDeviceModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
+            ?: "Server default"
+        OutlinedButton(onClick = {
+            deviceModelExpanded = true
+            scope.launch {
+                runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+                    .onSuccess { array ->
+                        publishedDeviceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                            .filter { it.optString("feature") == "device-commands" && it.optBoolean("active") && it.optBoolean("published") }
+                    }
+            }
+        }) { Text("AI model: " + selectedName.take(20)) }
+        DropdownMenu(expanded = deviceModelExpanded, onDismissRequest = { deviceModelExpanded = false }) {
+            DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedDeviceModelId = ""; deviceModelExpanded = false })
+            publishedDeviceModels.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") },
+                    onClick = { selectedDeviceModelId = model.optString("id"); deviceModelExpanded = false }
+                )
+            }
+        }
+    }
     OutlinedTextField(
         value = command,
         onValueChange = { command = it; status = null },
@@ -4010,7 +4047,7 @@ fun DeviceIntelligencePanel(featureName: String) {
             status = null
             scope.launch(Dispatchers.IO) {
                 runCatching {
-                    DeviceIntelligenceClient().interpret(requested)
+                    DeviceIntelligenceClient().interpret(requested, selectedDeviceModelId.takeIf { it.isNotBlank() })
                 }.onSuccess { result ->
                     val executor = DeviceCommandExecutor(context)
                     val failures = result.actions.mapNotNull { action ->
