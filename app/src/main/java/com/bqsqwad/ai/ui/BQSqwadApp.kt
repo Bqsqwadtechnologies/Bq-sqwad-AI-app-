@@ -3689,7 +3689,8 @@ fun CameraWorkspace() {
                                 android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
                             ).isNotEmpty()
                             if (supported) {
-                                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                // Keep the foreground AI voice session running during app handoff.
+                                // Android may still give the microphone to YouTube while it is live.
                                 context.startActivity(youtubeIntent)
                             } else {
                                 streamError = "YouTube Mobile Live is not available on this device."
@@ -3733,12 +3734,12 @@ fun CameraWorkspace() {
                     }
                     Text("TikTok starts its own LIVE session. BQ Sqwad AI does not control TikTok's Go LIVE button or inject an on-screen overlay; camera analysis pauses when TikTok owns the camera.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Stream online with AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Broadcast this camera session to one RTMP/RTMPS destination at a time. TikTok client credentials are used for TikTok account/API features; live broadcasting still requires a supported TikTok LIVE ingest endpoint and stream credential. The stream endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text("This optional advanced mode sends video directly to a custom RTMP/RTMPS endpoint. For TikTok or YouTube mobile-app LIVE, use the app handoff buttons instead; the AI voice session stays in its foreground service, but Android may give the microphone/camera to the streaming app. The endpoint is kept in memory and is never written to the app database.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(
                         value = streamEndpoint,
                         onValueChange = { streamEndpoint = it; streamError = null },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("YouTube / TikTok LIVE ingest / custom RTMP endpoint") },
+                        label = { Text("Custom RTMP/RTMPS endpoint (advanced)") },
                         singleLine = true,
                         enabled = !streamOnline
                     )
@@ -3816,6 +3817,10 @@ fun CameraWorkspace() {
                                 lastAnalysisAt = now
                                 LiveMediaForegroundService.submitVisualFrame(bytes)
                             }
+                        },
+                        onError = { message ->
+                            streamError = message
+                            fullScreenPreview = false
                         }
                     )
                 }
