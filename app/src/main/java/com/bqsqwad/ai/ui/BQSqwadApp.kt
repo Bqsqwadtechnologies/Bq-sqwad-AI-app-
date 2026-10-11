@@ -1291,6 +1291,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var textModelMenuOpen by remember { mutableStateOf(false) }
     var imageModelMenuOpen by remember { mutableStateOf(false) }
 
+    fun applyPublishedAiModels(array: JSONArray) {
+        val latest = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+        publishedAiModels = latest
+        if (selectedTextModelId.isNotBlank() && latest.none {
+                it.optString("id") == selectedTextModelId &&
+                    it.optString("feature") == "text-chat" &&
+                    it.optBoolean("active") && it.optBoolean("published")
+            }) selectedTextModelId = ""
+        if (selectedImageModelId.isNotBlank() && latest.none {
+                it.optString("id") == selectedImageModelId &&
+                    it.optString("feature") == "image-generation" &&
+                    it.optBoolean("active") && it.optBoolean("published")
+            }) selectedImageModelId = ""
+    }
 
     LaunchedEffect(busy, statusText) {
         if (busy && statusText == "Generating image…") {
@@ -1301,9 +1315,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     LaunchedEffect(Unit) {
         runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array ->
-                publishedAiModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-            }
+            .onSuccess { array -> applyPublishedAiModels(array) }
     }
 
     LaunchedEffect(restoredChat?.first) {
@@ -1688,7 +1700,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqHeaderIconButton(
                         icon = Icons.Default.MoreVert,
                         contentDescription = "More chat options",
-                        onClick = { menuOpen = true; scope.launch { runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }.onSuccess { array -> publishedAiModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) } } } }
+                        onClick = { menuOpen = true; scope.launch { runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }.onSuccess { array -> applyPublishedAiModels(array) } } } }
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         if (publishedAiModels.any { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }) {
