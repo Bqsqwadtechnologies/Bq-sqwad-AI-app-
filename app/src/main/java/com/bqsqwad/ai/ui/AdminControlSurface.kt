@@ -299,7 +299,7 @@ fun AdminControlCenter() {
                             }
                             Text(
                                 check.optString("feature", "feature").replace('_', ' ') + ": " +
-                                    check.optString("status", "unknown") + details,
+                                    check.optString("status", "unknown").replace('_', ' ') + details,
                                 style = MaterialTheme.typography.bodySmall
                             )
                             val warnings = check.optJSONArray("warnings")
