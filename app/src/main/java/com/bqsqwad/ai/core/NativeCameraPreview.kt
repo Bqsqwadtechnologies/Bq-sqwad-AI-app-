@@ -120,10 +120,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             cameraManager.cameraIdList.firstOrNull { value ->
                 cameraManager.getCameraCharacteristics(value)
                     .get(CameraCharacteristics.LENS_FACING) == facing
-            } ?: cameraManager.cameraIdList.firstOrNull()
+            }
         }.getOrNull()
         if (id == null) {
-            reportCameraError("No usable camera is available. Close other apps using the camera and try again.")
+            val requestedLens = if (facing == CameraCharacteristics.LENS_FACING_FRONT) "front" else "rear"
+            reportCameraError("The $requestedLens camera is not available. Switch to the other camera or check device camera settings.")
             return
         }
 
