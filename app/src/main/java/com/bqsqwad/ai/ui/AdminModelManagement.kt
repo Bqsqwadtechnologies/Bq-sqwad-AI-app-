@@ -47,7 +47,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var description by remember { mutableStateOf("") }
     var creditCost by remember { mutableStateOf("1") }
     var priceUsd by remember { mutableStateOf("0.01") }
-    var active by remember { mutableStateOf(false) }
+    var active by remember { mutableStateOf(true) }
+    var isDefault by remember { mutableStateOf(false) }
     var published by remember { mutableStateOf(true) }
     var confirmDisable by remember { mutableStateOf<JSONObject?>(null) }
 
@@ -73,7 +74,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     Text(model.optString("name"), style = MaterialTheme.typography.titleMedium)
                     Text("${model.optString("providerId")} / ${model.optString("modelId")}", style = MaterialTheme.typography.bodySmall)
                     Text("Feature: ${model.optString("feature")} · Credits/request: ${model.optInt("creditCost")} · Display price: $${"%.4f".format(model.optDouble("priceUsd"))}")
-                    Text("Status: ${if (model.optBoolean("active")) "ACTIVE DEFAULT" else "inactive"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
+                    Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
                             id = model.optString("id"); name = model.optString("name")
@@ -81,7 +82,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             feature = model.optString("feature", "text-chat"); description = model.optString("description")
                             creditCost = model.optInt("creditCost").toString()
                             priceUsd = model.optDouble("priceUsd").toString()
-                            active = model.optBoolean("active"); published = model.optBoolean("published")
+                            active = model.optBoolean("active"); isDefault = model.optBoolean("isDefault"); published = model.optBoolean("published")
                             message = "Editing ${model.optString("name")}."
                         }) { Text("Edit") }
                         OutlinedButton(onClick = { confirmDisable = JSONObject(model.toString()).put("active", false) }) { Text("Deactivate") }
@@ -108,7 +109,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(creditCost, { creditCost = it }, label = { Text("Credits charged per request") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Display price in USD per request (informational)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Row { Checkbox(active, { active = it }); Text("Set as active default for this feature", Modifier.padding(top = 12.dp)) }
+        Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
+        Row { Checkbox(isDefault, { isDefault = it }); Text("Use as the default model for this feature", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(published, { published = it }); Text("Publish in the user model catalogue", Modifier.padding(top = 12.dp)) }
         Button(
             enabled = !saving && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
@@ -119,7 +121,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     put("id", id.trim()); put("name", name.trim()); put("providerId", provider.trim())
                     put("modelId", providerModelId.trim()); put("feature", feature)
                     put("description", description.trim()); put("creditCost", creditCost.toInt())
-                    put("priceUsd", priceUsd.toDouble()); put("active", active); put("published", published)
+                    put("priceUsd", priceUsd.toDouble()); put("active", active); put("isDefault", isDefault); put("published", published)
                 }
                 scope.launch {
                     saving = true
@@ -130,7 +132,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; active = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("Important: model IDs must be valid for the provider and feature. Voice/image/video APIs have different request formats; registering a model does not make an incompatible model work with those APIs. Verify each feature before enabling it.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
     }
@@ -147,7 +149,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                         put("providerId", selected.optString("providerId")); put("modelId", selected.optString("modelId"))
                         put("feature", selected.optString("feature")); put("description", selected.optString("description"))
                         put("creditCost", selected.optInt("creditCost")); put("priceUsd", selected.optDouble("priceUsd"))
-                        put("published", selected.optBoolean("published")); put("active", false)
+                        put("published", selected.optBoolean("published")); put("isDefault", false); put("active", false)
                     }
                     confirmDisable = null
                     scope.launch {
