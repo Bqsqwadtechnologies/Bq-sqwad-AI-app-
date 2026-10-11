@@ -106,7 +106,8 @@ private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String 
     if (lower.contains("insufficient credits") || lower.contains("insufficient_credits") || lower.contains("credit_balance")) {
         return "You've run out of BQ Sqwad AI credits. Open Plans & Credits to continue."
     }
-    if (lower.contains("capability_disabled")) {
+    if (lower.contains("capability_disabled") || lower.contains("capability_killed") ||
+        lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
         return "This BQ Sqwad AI feature is currently turned off. Try another feature or contact support."
     }
     val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|provider_not_configured|not_configured|client_secret_missing|realtime_session_failed|image_generation_|image_edit_|firebase|firestore|storage/|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
