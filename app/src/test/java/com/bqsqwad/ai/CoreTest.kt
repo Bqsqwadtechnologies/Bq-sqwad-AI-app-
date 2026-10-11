@@ -1,6 +1,8 @@
 package com.bqsqwad.ai
 
 import com.bqsqwad.ai.core.ApiConfig
+import com.bqsqwad.ai.core.WorkspaceAccessSnapshot
+import com.bqsqwad.ai.domain.Workspace
 import com.bqsqwad.ai.core.ChatAttachmentReader
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
@@ -17,6 +19,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 
 class CoreTest {
@@ -140,5 +144,25 @@ class CoreTest {
         ).forEach { request ->
             assertFalse("Expected ordinary chat for: " + request, isImageGenerationRequest(request))
         }
+    }
+
+    @Test fun testModeBypassesWorkspacePlanGateOnlyForAuthorizedAdmin() {
+        val catalog = JSONObject().put(
+            "plans",
+            JSONArray().put(
+                JSONObject()
+                    .put("id", "businesspro")
+                    .put("module", "business")
+                    .put("price", JSONObject().put("monthly", 19.99))
+            )
+        )
+        val noEntitlements = JSONObject().put("items", JSONArray())
+        val normalUser = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = false, testMode = true)
+        val adminWithoutTestMode = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = false)
+        val authorizedAdminTestMode = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = true)
+
+        assertFalse(normalUser.hasVerifiedAccess(Workspace.BUSINESS))
+        assertFalse(adminWithoutTestMode.hasVerifiedAccess(Workspace.BUSINESS))
+        assertTrue(authorizedAdminTestMode.hasVerifiedAccess(Workspace.BUSINESS))
     }
 }
