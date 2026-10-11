@@ -465,11 +465,20 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         "data-analysis" to "Data Analysis",
                         "credits" to "Credits & Top-ups"
                     )
+                    val moduleDescriptions = mapOf(
+                        "organization" to "Shared AI workflows, source materials, live production and organization usage.",
+                        "truthguard" to "Check claims against evidence and keep sources visible.",
+                        "life-mathis" to "Personal planning, everyday decisions and practical problem-solving.",
+                        "companion" to "Personalized conversations, memory and companion tools.",
+                        "frontier" to "Explore advanced AI capabilities and experimental workflows.",
+                        "data-analysis" to "Analyze documents and structured data with AI-assisted insights.",
+                        "credits" to "Add credits for eligible BQ Sqwad AI features and usage."
+                    )
                     moduleOrder.filter { grouped.containsKey(it) }.forEach { module ->
                         item(key = "module:" + module) {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(moduleTitles[module] ?: "Additional plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text("Plans, pricing, availability and included features for this workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(moduleDescriptions[module] ?: "Plans, pricing, availability and included features.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         grouped.getValue(module).sortedBy { it.sortOrder }.forEach { plan ->
