@@ -3515,6 +3515,7 @@ fun CameraWorkspace() {
     var active by remember { mutableStateOf(false) }
     var previewEnabled by remember { mutableStateOf(false) }
     var fullScreenPreview by remember { mutableStateOf(false) }
+    var fullScreenPreviewReady by remember { mutableStateOf(false) }
     var analyzing by remember { mutableStateOf(false) }
     var permissionExplanation by remember { mutableStateOf(false) }
     var lastAnalysisAt by remember { mutableLongStateOf(0L) }
@@ -3906,7 +3907,16 @@ fun CameraWorkspace() {
                         )
                     }
                     TextButton(
-                        onClick = { fullScreenPreview = true },
+                        onClick = {
+                            // First remove the inline AndroidView, then let Camera2 finish
+                            // closing its session before the full-screen view opens.
+                            fullScreenPreview = true
+                            fullScreenPreviewReady = false
+                            scope.launch {
+                                kotlinx.coroutines.delay(300)
+                                fullScreenPreviewReady = true
+                            }
+                        },
                         modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
                     ) { Text("Full screen", color = Color.White) }
                     Surface(
@@ -4084,9 +4094,9 @@ fun CameraWorkspace() {
     }
     DeviceIntelligencePanel("AI Live Camera")
 
-    if (fullScreenPreview && granted && previewEnabled) {
+    if (fullScreenPreview && fullScreenPreviewReady && granted && previewEnabled) {
         androidx.compose.ui.window.Dialog(
-            onDismissRequest = { fullScreenPreview = false },
+            onDismissRequest = { fullScreenPreview = false; fullScreenPreviewReady = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -4141,7 +4151,7 @@ fun CameraWorkspace() {
                     }
                     Spacer(Modifier.weight(1f))
                     Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
-                        TextButton(onClick = { fullScreenPreview = false }) { Text("Close", color = Color.White) }
+                        TextButton(onClick = { fullScreenPreview = false; fullScreenPreviewReady = false }) { Text("Close", color = Color.White) }
                     }
                 }
                 val visibleAnswer = liveAnswer.ifBlank { liveUiState.status.takeIf { it.isNotBlank() && it != "stopped" }.orEmpty() }
