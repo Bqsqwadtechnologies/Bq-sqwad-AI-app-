@@ -497,10 +497,10 @@ async function assertSharedCreditsAvailable(user) {
   if (!balance || balance.total <= 0) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
 }
 
-async function withSharedCreditCharge(user, capabilityName, action) {
+async function withSharedCreditCharge(user, capabilityName, action, modelRegistryId = null) {
   let control = await capability(user.uid, capabilityName);
-  if (body.modelRegistryId && capabilityName === "chat") {
-    const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
+  if (modelRegistryId && capabilityName === "chat") {
+    const selected = await resolvePublishedModel(modelRegistryId, "text-chat");
     control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
   }
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
