@@ -4,8 +4,12 @@ export async function generateImageNative(env,user,b,charge,commit,reverse){cons
 export async function editImageNative(env,user,b,charge,commit,reverse){
   const prompt=String(b.prompt||"").trim().slice(0,12000);
   const encoded=String(b.imageBase64||"").trim();
+  const requestedMime=String(b.mimeType||"image/png").trim().toLowerCase();
+  const mimeType=requestedMime==="image/jpg"?"image/jpeg":requestedMime;
+  const extensions={"image/png":"png","image/jpeg":"jpg","image/webp":"webp"};
   if(!prompt)throw new Error("image_edit_prompt_required");
   if(!encoded)throw new Error("image_edit_input_required");
+  if(!extensions[mimeType]) throw Object.assign(new Error("image_edit_type_unsupported"), { httpStatus: 415 });
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
   const reservation=await charge(user.uid,Number(b.creditCost||0),"image_generation",user);
@@ -18,7 +22,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse){
     form.append("prompt",prompt);
     form.append("size",String(b.size||"1024x1024"));
     form.append("quality",String(b.quality||"auto"));
-    form.append("image",new Blob([bytes],{type:"image/png"}),"bq-sqwad-ai-image.png");
+    form.append("image",new Blob([bytes],{type:mimeType}),"bq-sqwad-ai-image."+extensions[mimeType]);
     const z=await openai(env,"/images/edits",{method:"POST",body:form});
     const x=z.data?.[0];
     if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
