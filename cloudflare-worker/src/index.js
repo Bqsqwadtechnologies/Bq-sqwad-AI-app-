@@ -130,8 +130,10 @@ async function adminReadinessSelfTest(env) {
       try {
         const url = provider === "openai"
           ? "https://api.openai.com/v1/models"
-          : "https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(String(key)) + "&pageSize=1";
-        const headers = provider === "openai" ? { Authorization: "Bearer " + String(key) } : {};
+          : "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1";
+        const headers = provider === "openai"
+          ? { Authorization: "Bearer " + String(key) }
+          : { "x-goog-api-key": String(key) };
         const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(5000) });
         return {
           status: response.ok ? "reachable" : (response.status === 401 || response.status === 403 ? "authentication_failed" : "provider_error"),
