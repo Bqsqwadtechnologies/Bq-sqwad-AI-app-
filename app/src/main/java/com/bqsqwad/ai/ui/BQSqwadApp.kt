@@ -3576,7 +3576,7 @@ fun CameraWorkspace() {
         return when {
             lower.contains("permission") -> "camera_permission_missing"
             lower.contains("busy") || lower.contains("in use") -> "camera_busy"
-            lower.contains("no camera") || lower.contains("unavailable") -> "camera_unavailable"
+            lower.contains("no camera") || lower.contains("unavailable") || lower.contains("not available") -> "camera_unavailable"
             lower.contains("timeout") -> "live_camera_timeout"
             else -> "live_camera_runtime_error"
         }
