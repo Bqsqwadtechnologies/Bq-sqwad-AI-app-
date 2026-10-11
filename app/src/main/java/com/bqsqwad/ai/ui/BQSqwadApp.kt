@@ -3788,6 +3788,10 @@ fun CameraWorkspace() {
 @Composable
 fun VoiceWorkspace() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var publishedVoiceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedVoiceModelId by remember { mutableStateOf("") }
+    var voiceModelExpanded by remember { mutableStateOf(false) }
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
     var permissionExplanation by remember { mutableStateOf(false) }
@@ -3803,6 +3807,7 @@ fun VoiceWorkspace() {
         context.startForegroundService(
             Intent(context, LiveMediaForegroundService::class.java)
                 .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
+                .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedVoiceModelId.takeIf { it.isNotBlank() })
         )
         active = true
         state = "connecting"
@@ -3815,6 +3820,16 @@ fun VoiceWorkspace() {
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array ->
+                publishedVoiceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                    .filter { it.optString("feature") == "live-voice" && it.optBoolean("active") && it.optBoolean("published") }
+                if (selectedVoiceModelId.isNotBlank() && publishedVoiceModels.none { it.optString("id") == selectedVoiceModelId }) {
+                    selectedVoiceModelId = ""
+                }
+            }
+    }
     LaunchedEffect(liveUiState) {
         if (liveUiState.mode == LiveMediaForegroundService.MODE_VOICE) {
             active = liveUiState.active
@@ -3885,6 +3900,34 @@ fun VoiceWorkspace() {
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
+
+        Box {
+            OutlinedButton(onClick = {
+                voiceModelExpanded = true
+                scope.launch {
+                    runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+                        .onSuccess { array ->
+                            publishedVoiceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+                                .filter { it.optString("feature") == "live-voice" && it.optBoolean("active") && it.optBoolean("published") }
+                        }
+                }
+            }) {
+                val selectedName = publishedVoiceModels.firstOrNull { it.optString("id") == selectedVoiceModelId }?.optString("name")
+                    ?: publishedVoiceModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
+                    ?: "Server default"
+                Text("AI model: " + selectedName.take(20))
+            }
+            DropdownMenu(expanded = voiceModelExpanded, onDismissRequest = { voiceModelExpanded = false }) {
+                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVoiceModelId = ""; voiceModelExpanded = false })
+                publishedVoiceModels.forEach { model ->
+                    val perMinute = if (model.isNull("creditsPerMinute")) "server rate" else "${model.optInt("creditsPerMinute")} credits/min"
+                    DropdownMenuItem(
+                        text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
+                        onClick = { selectedVoiceModelId = model.optString("id"); voiceModelExpanded = false }
+                    )
+                }
+            }
+        }
 
         Button(
             onClick = { if (active) stopVoice() else startVoice() },
