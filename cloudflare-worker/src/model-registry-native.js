@@ -104,6 +104,7 @@ export async function saveAiModel(raw, actorUid) {
       const voicePricing = await firestoreGet("adminAdvancedOptions/live_voice_pricing") || {};
       await firestoreSet("adminAdvancedOptions/live_voice_pricing", {
         ...voicePricing,
+        enabled: true,
         modelId: model.modelId,
         updatedBy: actorUid,
         updatedAt: new Date(),
