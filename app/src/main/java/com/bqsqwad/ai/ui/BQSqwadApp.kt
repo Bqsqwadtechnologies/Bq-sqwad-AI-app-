@@ -1279,6 +1279,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
+    var selectedImageMimeType by remember { mutableStateOf("image/png") }
     var selectedImagePrompt by remember { mutableStateOf("") }
     var selectedImageMessageId by remember { mutableStateOf<String?>(null) }
     var showImageActions by remember { mutableStateOf(false) }
@@ -1888,6 +1889,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                             ChatAttachmentPreview(attachment) {
                                                 if (!attachment.imageBase64.isNullOrBlank()) {
                                                     selectedImageBase64 = attachment.imageBase64
+                                                    selectedImageMimeType = attachment.mimeType
                                                     selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
                                                     selectedImageMessageId = m.id
                                                     showImageViewer = true
@@ -1911,6 +1913,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 IconButton(onClick = {
                                     val image = m.attachments.firstOrNull { !it.imageBase64.isNullOrBlank() } ?: return@IconButton
                                     selectedImageBase64 = image.imageBase64
+                                    selectedImageMimeType = image.mimeType
                                     selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
                                     selectedImageMessageId = m.id
                                     showImageActions = true
@@ -2194,8 +2197,8 @@ val composerShape = RoundedCornerShape(26.dp)
                 confirmButton = { Button(enabled = imageEditPrompt.isNotBlank() && !busy, onClick = {
                     val image = selectedImageBase64.orEmpty(); val prompt = imageEditPrompt.trim(); val targetId = selectedImageMessageId; showImageEdit = false; busy = true; statusText = "Editing image…"
                     scope.launch {
-                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }
-                            .onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image edited.", attachments = listOf(ChatMessageAttachment("Edited image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImagePrompt = prompt; error = "Image edit completed." }
+                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }, mimeType = selectedImageMimeType) }
+                            .onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image edited.", attachments = listOf(ChatMessageAttachment("Edited image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImageMimeType = "image/png"; selectedImagePrompt = prompt; error = "Image edit completed." }
                             .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
                         busy = false; statusText = "Ready"
                     }
@@ -2208,7 +2211,7 @@ val composerShape = RoundedCornerShape(26.dp)
                 text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Choose an output size. This creates a new version using the original prompt."); listOf("1024x1024" to "Square · 1024 × 1024", "1536x1024" to "Landscape · 1536 × 1024", "1024x1536" to "Portrait · 1024 × 1536").forEach { option -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selectedImageSize == option.first, onClick = { selectedImageSize = option.first }); Text(option.second) } } } },
                 confirmButton = { Button(enabled = !busy, onClick = {
                     val prompt = selectedImagePrompt.ifBlank { "Create an image" }; val targetId = selectedImageMessageId; showImageResize = false; busy = true; statusText = "Generating image…"
-                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
+                    scope.launch { runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }.onSuccess { generated -> val idx = messages.indexOfFirst { it.id == targetId }; if (idx >= 0) messages[idx] = messages[idx].copy(text = "Image resized.", attachments = listOf(ChatMessageAttachment("Resized image.png", "image/png", generated.imageBase64)), imageUrl = null); selectedImageBase64 = generated.imageBase64; selectedImageMimeType = "image/png"; error = "New image size generated." }.onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }; busy = false; statusText = "Ready" }
                 }) { Text("Create new size") } },
                 dismissButton = { TextButton(onClick = { showImageResize = false }) { Text("Cancel") } }
             )
