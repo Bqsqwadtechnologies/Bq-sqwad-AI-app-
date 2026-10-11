@@ -85,6 +85,10 @@ class PlayBillingClient(
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
+        if (result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
+            onPurchaseState(PlayPurchaseState("cancelled", "Purchase cancelled. No payment was completed. You can try again whenever you're ready."))
+            return
+        }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
             return
