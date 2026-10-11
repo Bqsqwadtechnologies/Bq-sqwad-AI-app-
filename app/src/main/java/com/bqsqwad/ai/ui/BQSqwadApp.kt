@@ -3813,7 +3813,16 @@ fun CameraWorkspace() {
                             startLiveCamera()
                         }
                     }
-                ) { Text(if (active || previewEnabled) "End live camera" else if (screenActive) "Stop screen sharing first" else "Start live camera") }
+                ) {
+                    Text(
+                        when {
+                            active -> "End live camera"
+                            screenActive -> "Stop screen sharing first"
+                            previewEnabled -> "Stop preview"
+                            else -> "Start live camera"
+                        }
+                    )
+                }
                 OutlinedButton(onClick = {
                     lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                     if (active) {
