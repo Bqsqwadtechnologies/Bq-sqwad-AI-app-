@@ -791,7 +791,11 @@ async function stream(request, user, body) {
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
-  const control = await capability(user.uid, capabilityName);
+  let control = await capability(user.uid, capabilityName);
+  if (body.modelRegistryId && capabilityName === "chat") {
+    const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
+    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+  }
   const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
   try {
     const memory = await memoryContext(user.uid);
