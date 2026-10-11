@@ -143,7 +143,10 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     fun startIfReady() {
         if (closed.get() || !isAvailable || camera != null) return
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            reportCameraError("Camera permission is required. Allow Camera in Android settings, then retry AI Live Camera.")
+            return
+        }
         openCamera()
     }
 
