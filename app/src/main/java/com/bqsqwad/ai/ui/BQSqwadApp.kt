@@ -3535,6 +3535,8 @@ fun CameraWorkspace() {
     var tiktokHandoffNotice by remember { mutableStateOf<String?>(null) }
     var liveTermsAccepted by remember { mutableStateOf(context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).getBoolean("accepted", false)) }
     var showLiveTerms by remember { mutableStateOf(false) }
+    var pendingLiveAction by remember { mutableStateOf("camera") }
+    var pendingScreenPermission by remember { mutableStateOf(false) }
     var selectedVoice by remember { mutableStateOf("marin") }
     var publishedCameraModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedCameraModelId by remember { mutableStateOf("") }
@@ -3597,8 +3599,12 @@ fun CameraWorkspace() {
     }
 
     val startLiveCamera = {
-        if (!liveTermsAccepted) showLiveTerms = true
-        else livePermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        if (!liveTermsAccepted) {
+            pendingLiveAction = "camera"
+            showLiveTerms = true
+        } else {
+            livePermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        }
     }
 
     val toggleFlashlight: () -> Unit = {
@@ -3677,6 +3683,32 @@ fun CameraWorkspace() {
             context.stopService(Intent(context, LiveMediaForegroundService::class.java))
             screenActive = false
             screenAnswer = t.message ?: "Could not start screen sharing."
+        }
+    }
+
+    val screenMicPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { grantedMic ->
+        pendingScreenPermission = false
+        if (grantedMic || androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            screenLauncher.launch(
+                context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+                    .createScreenCaptureIntent()
+            )
+        } else {
+            screenAnswer = "Microphone access is required for live screen conversation. You can allow it in Android Settings."
+            scope.launch(Dispatchers.IO) {
+                runCatching { WorkspaceApiClient().reportIssue("/screen-share", "microphone_permission_missing") }
+            }
+        }
+    }
+    val launchScreenWithMic = {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            screenLauncher.launch(
+                context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+                    .createScreenCaptureIntent()
+            )
+        } else {
+            pendingScreenPermission = true
+            screenMicPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -3790,12 +3822,10 @@ fun CameraWorkspace() {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         screenActive = false
                     } else if (!liveTermsAccepted) {
+                        pendingLiveAction = "screen"
                         showLiveTerms = true
                     } else {
-                        screenLauncher.launch(
-                            context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
-                                .createScreenCaptureIntent()
-                        )
+                        launchScreenWithMic()
                     }
                 }, enabled = !active || screenActive) {
                     Text(if (screenActive) "Stop screen" else "Share screen")
@@ -4121,7 +4151,13 @@ fun CameraWorkspace() {
                     liveTermsAccepted = true
                     context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).edit().putBoolean("accepted", true).apply()
                     showLiveTerms = false
-                    startLiveCamera()
+                    if (pendingLiveAction == "screen") {
+                        pendingLiveAction = "camera"
+                        launchScreenWithMic()
+                    } else {
+                        pendingLiveAction = "camera"
+                        startLiveCamera()
+                    }
                 }) { Text("Accept & Continue") }
             },
             dismissButton = { TextButton(onClick = { showLiveTerms = false }) { Text("Cancel") } }
