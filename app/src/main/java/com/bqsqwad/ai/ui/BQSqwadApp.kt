@@ -3460,6 +3460,11 @@ fun CameraWorkspace() {
             }
         } else {
             streamError = "Camera permission is required to show the live preview."
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    WorkspaceApiClient().reportIssue("/live-camera", if (cameraOk) "microphone_permission_missing" else "camera_permission_missing")
+                }
+            }
         }
     }
 
@@ -3510,6 +3515,11 @@ fun CameraWorkspace() {
             }
         } else {
             streamError = "Camera and microphone permission are required for online streaming."
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    WorkspaceApiClient().reportIssue("/live-camera", if (!cameraOk) "camera_permission_missing" else "microphone_permission_missing")
+                }
+            }
         }
     }
 
