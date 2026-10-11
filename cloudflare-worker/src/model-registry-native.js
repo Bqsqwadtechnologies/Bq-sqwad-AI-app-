@@ -55,12 +55,12 @@ function normalizeModel(raw, actorUid) {
 
 export async function ensureCurrentModelRegistry(defaultModels = {}) {
   const definitions = [
-    { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-5.6-luna", id: "current-text-chat", name: "Current Text Model" },
-    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2", id: "current-image-generation", name: "Current Image Model" },
-    { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-camera", name: "Current Live Camera Model" },
-    { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-voice", name: "Current Live Voice Model" },
-    { feature: "video-generation", capability: "video_generation", providerId: "openai", modelId: "sora-2", id: "current-video-generation", name: "Current Video Model" },
-    { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Current Device Intelligence Model" }
+    { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-5.6-luna", id: "current-text-chat", name: "GPT-5.6 Luna" },
+    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2", id: "current-image-generation", name: "GPT Image 2" },
+    { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-camera", name: "GPT Realtime 2.1 — Live Camera" },
+    { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-voice", name: "GPT Realtime 2.1 — Live Voice" },
+    { feature: "video-generation", capability: "video_generation", providerId: "openai", modelId: "sora-2", id: "current-video-generation", name: "Sora 2" },
+    { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
   ];
   const existingRows = await firestoreQuery("aiModelRegistry", { limit: 200 });
   const now = new Date();
@@ -98,7 +98,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     const model = {
       ...(matching || {}),
       id,
-      name: String(matching?.name || definition.name),
+      name: String(matching?.name || (modelId === definition.modelId ? definition.name : modelId)),
       providerId,
       modelId,
       feature: definition.feature,
