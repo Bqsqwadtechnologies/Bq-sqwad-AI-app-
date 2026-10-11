@@ -1095,7 +1095,7 @@ private fun isImageGenerationRequest(text: String): Boolean {
     if (q.isBlank()) return false
 
     // Exclude informational questions about image concepts; "Can you create..." remains a request.
-    if (Regex("^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me how|could you tell me how|tell me about|tell me how|describe|difference between|show me how|how does .* work|how can i learn|should i|do i need to|is it okay to|is it worth|would it be better|can i|could i|may i|should we)\\b")
+    if (Regex("^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me how|could you tell me how|tell me about|tell me how|describe|difference between|show me how|how do i|how can i|how would i|how does .* work|how can i learn|i want to know how to|i need to know how to|what should i|is there a way to|should i|do i need to|is it okay to|is it worth|would it be better|can i|could i|may i|should we)\\b")
             .containsMatchIn(q)) return false
     if (Regex("\\b(don't|do not|never|avoid|stop)\\b.{0,50}\\b(generate|create|make|draw|design|produce|render|illustrate|paint)\\b.{0,50}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?)\\b")
             .containsMatchIn(q)) return false
@@ -1103,8 +1103,10 @@ private fun isImageGenerationRequest(text: String): Boolean {
     val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build)\\b|\\bshow me\\b")
     val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?)\\b")
     val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|show me)\\b")
+    val directCreationRequest = Regex("\\b(i want|i need|give me|make me|create for me|generate for me|please make|please create|please generate)\\b")
     val drawObjectRequest = Regex("\\b(draw|illustrate|paint)\\s+(me\\s+)?(a|an|the)\\s+[a-z0-9-]+\\b")
     return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
+        (directCreationRequest.containsMatchIn(q) && asset.containsMatchIn(q)) ||
         (actionAtStart.containsMatchIn(q) && drawObjectRequest.containsMatchIn(q))
 }
 
