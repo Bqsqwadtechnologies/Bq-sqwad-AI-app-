@@ -1970,9 +1970,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (!m.mine) Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
+                                .padding(top = 4.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
                             BqLogo(22.dp)
                             if (m.attachments.any { !it.imageBase64.isNullOrBlank() } || !m.imageUrl.isNullOrBlank()) {
@@ -2057,7 +2063,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
                 }
-                if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                if (busy) item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("Thinking…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 error?.let { message ->
                     item {
                         Surface(
@@ -3803,6 +3823,8 @@ fun CameraWorkspace() {
                             Text("Connecting to live stream preview…", color = Color.White,
                                 modifier = Modifier.align(Alignment.Center))
                         }
+                    } else if (fullScreenPreview) {
+                        Text("Live preview is open in full screen.", color = Color.White, modifier = Modifier.align(Alignment.Center))
                     } else {
                         NativeCameraPreview(
                             modifier = Modifier.fillMaxSize(),
