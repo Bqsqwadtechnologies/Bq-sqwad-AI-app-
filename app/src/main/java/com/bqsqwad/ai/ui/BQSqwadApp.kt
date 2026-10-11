@@ -3643,8 +3643,14 @@ fun CameraWorkspace() {
                         .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
                         .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                }.onSuccess {
+                    // Re-enable the preview container only after the service has had a
+                    // moment to claim Camera2; streamOnline switches it to SourcePreview.
+                    kotlinx.coroutines.delay(350)
+                    previewEnabled = true
                 }.onFailure {
                     streamOnline = false
+                    previewEnabled = true
                     streamError = "Android could not start the custom live stream. Check Camera and Microphone permissions and retry."
                 }
             }
@@ -4027,6 +4033,11 @@ fun CameraWorkspace() {
                             OutlinedButton(onClick = {
                                 context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                                 streamOnline = false
+                                scope.launch {
+                                    kotlinx.coroutines.delay(250)
+                                    previewEnabled = true
+                                    active = false
+                                }
                             }) { Text("Stop") }
                         }
                     }
