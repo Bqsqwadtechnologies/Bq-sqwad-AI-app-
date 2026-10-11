@@ -89,6 +89,11 @@ class PlayBillingClient(
             onPurchaseState(PlayPurchaseState("cancelled", "Purchase cancelled. No payment was completed. You can try again whenever you're ready."))
             return
         }
+        if (result.responseCode == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
+            onPurchaseState(PlayPurchaseState("verifying", "This purchase is already owned. Refreshing verified access…"))
+            restorePurchases()
+            return
+        }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
             return
