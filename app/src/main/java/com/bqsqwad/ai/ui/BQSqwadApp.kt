@@ -2273,7 +2273,10 @@ val composerShape = RoundedCornerShape(26.dp)
         if (showImageActions && selectedImageBase64 != null) {
             AlertDialog(onDismissRequest = { showImageActions = false }, title = { Text("Image options") }, text = { Text("Open full screen, save or share this image, edit it with instructions, or create another output size.") },
                 confirmButton = { TextButton(onClick = { showImageActions = false; showImageViewer = true }) { Text("Full screen") } },
-                dismissButton = { Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                dismissButton = { Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     TextButton(onClick = { runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." }; showImageActions = false }) { Text("Save") }
                     TextButton(onClick = { runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }.onFailure { error = it.message ?: "Could not share image." }; showImageActions = false }) { Text("Share") }
                     TextButton(onClick = { imageEditPrompt = ""; showImageActions = false; showImageEdit = true }) { Text("Edit") }
