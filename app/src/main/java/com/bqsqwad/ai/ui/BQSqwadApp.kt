@@ -1095,7 +1095,7 @@ private fun isImageGenerationRequest(text: String): Boolean {
     if (q.isBlank()) return false
 
     // Exclude informational questions about image concepts; "Can you create..." remains a request.
-    if (Regex("^(what is|what are|why does|why is|explain|tell me about|describe|difference between|how does .* work)\\b")
+    if (Regex("^(what is|what are|why does|why is|explain|can you explain|could you explain|tell me about|tell me how|describe|difference between|show me how|how does .* work|how can i learn)\\b")
             .containsMatchIn(q)) return false
 
     val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build)\\b|\\bshow me\\b")
