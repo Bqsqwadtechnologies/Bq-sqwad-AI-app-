@@ -53,6 +53,96 @@ function normalizeModel(raw, actorUid) {
   };
 }
 
+export async function ensureCurrentModelRegistry(defaultModels = {}) {
+  const definitions = [
+    { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-5.6-luna", id: "current-text-chat", name: "Current Text Model" },
+    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2", id: "current-image-generation", name: "Current Image Model" },
+    { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-camera", name: "Current Live Camera Model" },
+    { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-voice", name: "Current Live Voice Model" },
+    { feature: "video-generation", capability: "video_generation", providerId: "openai", modelId: "sora-2", id: "current-video-generation", name: "Current Video Model" },
+    { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Current Device Intelligence Model" }
+  ];
+  const existingRows = await firestoreQuery("aiModelRegistry", { limit: 200 });
+  const now = new Date();
+  for (const definition of definitions) {
+    const featureRows = existingRows.filter(row => row.feature === definition.feature);
+    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true)) continue;
+
+    const capability = await firestoreGet("adminAdvancedOptions/capability_" + definition.capability) || {};
+    const voiceConfig = definition.feature === "live-voice"
+      ? (await firestoreGet("adminAdvancedOptions/live_voice_pricing") || {})
+      : null;
+    let modelId = String(
+      (definition.feature === "live-voice" ? voiceConfig?.modelId : null) ||
+      capability.modelId ||
+      definition.modelId
+    );
+    let providerId = String(capability.providerId || definition.providerId).toLowerCase();
+    if (["live-camera", "live-voice"].includes(definition.feature)) {
+      if (providerId !== "openai") providerId = "openai";
+      if (!modelId.startsWith("gpt-realtime")) modelId = definition.modelId;
+    }
+    if (definition.feature === "image-generation" && (!modelId.startsWith("gpt-image"))) modelId = definition.modelId;
+    if (definition.feature === "video-generation" && (!modelId.startsWith("sora"))) modelId = definition.modelId;
+    if (definition.feature === "device-commands") providerId = "gemini";
+
+    const matching = featureRows.find(row => row.modelId === modelId && row.providerId === providerId);
+    const id = String(matching?.id || String(matching?.__name || "").split("/").pop() || definition.id);
+    const active = capability.enabled !== false && capability.killSwitch !== true;
+    const model = {
+      ...(matching || {}),
+      id,
+      name: String(matching?.name || definition.name),
+      providerId,
+      modelId,
+      feature: definition.feature,
+      description: String(matching?.description || "Existing BQ Sqwad AI server model"),
+      active,
+      isDefault: active,
+      published: matching?.published !== false,
+      creditCost: Math.max(1, Number(matching?.creditCost ?? capability.creditCost ?? 1)),
+      priceUsd: Math.max(0, Number(matching?.priceUsd ?? capability.priceUsd ?? 0)),
+      creditsPerMinute: matching?.creditsPerMinute == null
+        ? (capability.creditsPerMinute == null ? null : Math.max(0, Number(capability.creditsPerMinute)))
+        : Math.max(0, Number(matching.creditsPerMinute)),
+      updatedAt: now,
+      updatedBy: "system-bootstrap"
+    };
+    if (model.isDefault && model.published) {
+      await firestoreSet("adminAdvancedOptions/capability_" + definition.capability, {
+        ...capability,
+        id: "capability_" + definition.capability,
+        enabled: capability.enabled !== false && capability.killSwitch !== true,
+        providerId,
+        modelId,
+        creditCost: model.creditCost,
+        priceUsd: model.priceUsd,
+        creditsPerMinute: model.creditsPerMinute,
+        selectedRegistryModelId: id,
+        selectedRegistryModelName: model.name,
+        updatedAt: now
+      }, true);
+      if (definition.feature === "live-voice") {
+        await firestoreSet("adminAdvancedOptions/live_voice_pricing", {
+          ...voiceConfig,
+          modelId,
+          updatedAt: now
+        }, true);
+      }
+      for (const other of featureRows) {
+        const otherId = String(other.id || String(other.__name || "").split("/").pop());
+        if (otherId && otherId !== id && other.isDefault === true) {
+          await firestoreSet("aiModelRegistry/" + otherId, { ...other, isDefault: false, updatedAt: now }, true);
+        }
+      }
+    } else {
+      model.isDefault = false;
+    }
+    await firestoreSet("aiModelRegistry/" + id, model, true);
+  }
+  return { seeded: definitions.length, ok: true };
+}
+
 export async function listAiModels({ admin = false } = {}) {
   const rows = await firestoreQuery("aiModelRegistry", { limit: 200 });
   const models = rows.map(x => ({
