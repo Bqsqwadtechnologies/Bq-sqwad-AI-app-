@@ -57,6 +57,13 @@ export async function listAiModels({ admin = false } = {}) {
 export async function saveAiModel(raw, actorUid) {
   const model = normalizeModel(raw, actorUid);
   const existing = await firestoreGet("aiModelRegistry/" + model.id);
+  if (existing?.active === true && model.active !== true) {
+    const capabilityName = FEATURE_CAPABILITIES[model.feature];
+    const activeCapability = await firestoreGet("adminAdvancedOptions/capability_" + capabilityName);
+    if (String(activeCapability?.selectedRegistryModelId || "") === model.id) {
+      throw new Error("select_replacement_model_before_deactivating_active_default");
+    }
+  }
   await firestoreSet("aiModelRegistry/" + model.id, model, true);
   if (model.active) {
     const capability = FEATURE_CAPABILITIES[model.feature];
