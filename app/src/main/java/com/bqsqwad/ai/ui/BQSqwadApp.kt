@@ -1561,6 +1561,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     fun shouldAutoSaveHistory(): Boolean = com.bqsqwad.ai.core.shouldAutoSaveChat(privateChat, chatHistoryEnabled, autoSaveEnabled)
 
     fun saveConversationNow() {
+        if (busy) {
+            error = "Wait for the current response to finish before saving this conversation."
+            return
+        }
         if (privateChat) {
             error = "Private Chat conversations are never saved."
             return
@@ -1872,7 +1876,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                         if (chatHistoryEnabled && !privateChat && messages.isNotEmpty()) {
                             DropdownMenuItem(
-                                enabled = !savingChat,
+                                enabled = !savingChat && !busy,
                                 text = { Text(if (savingChat) "Saving conversation…" else "Save conversation now") },
                                 onClick = { menuOpen = false; saveConversationNow() }
                             )
