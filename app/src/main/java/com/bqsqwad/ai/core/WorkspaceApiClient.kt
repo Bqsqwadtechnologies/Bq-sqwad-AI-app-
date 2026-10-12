@@ -568,11 +568,17 @@ class WorkspaceApiClient {
     suspend fun companionProfile(): JSONObject = request("/companion/profile", "GET")
     suspend fun saveCompanionProfile(profile: JSONObject): JSONObject = request("/companion/profile", "PUT", profile)
     suspend fun companionHistory(): JSONObject = request("/companion/history", "GET")
-    suspend fun companionChat(message: String): JSONObject =
-        request("/companion/chat", payload=JSONObject().put("message", message.take(12000)))
+    suspend fun companionChat(message: String, personality: String? = null): JSONObject =
+        request("/companion/chat", payload=JSONObject().apply {
+            put("message", message.take(12000))
+            if (!personality.isNullOrBlank()) put("personality", personality.take(40))
+        })
     suspend fun companionCheckins(): JSONObject = request("/companion/checkins", "GET")
-    suspend fun companionCheckin(prompt: String): JSONObject =
-        request("/companion/checkin", payload=JSONObject().put("prompt", prompt.take(500)))
+    suspend fun companionCheckin(prompt: String, personality: String? = null): JSONObject =
+        request("/companion/checkin", payload=JSONObject().apply {
+            put("prompt", prompt.take(500))
+            if (!personality.isNullOrBlank()) put("personality", personality.take(40))
+        })
     suspend fun companionSettings(): JSONObject = request("/companion/settings", "GET")
     suspend fun saveCompanionSettings(settings: JSONObject): JSONObject = request("/companion/settings", "PUT", settings)
 
