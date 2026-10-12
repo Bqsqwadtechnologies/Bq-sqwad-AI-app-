@@ -133,6 +133,10 @@ fun VideoGenerationWorkspace() {
                     busy = true
                     error = null
                     contentUrl = null
+                    status = "queued"
+                    progress = 0
+                    pollingFailed = false
+                    jobId = null
                     scope.launch {
                         runCatching { GenerationApiClient().createVideo(prompt, seconds, size, selectedVideoModelId.takeIf { it.isNotBlank() }) }
                             .onSuccess {
