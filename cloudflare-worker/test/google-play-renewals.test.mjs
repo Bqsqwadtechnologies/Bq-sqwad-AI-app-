@@ -17,6 +17,7 @@ test("Google Play subscription renewals grant credits once per verified billing 
   let orderId = "order-cycle-1";
   let expiryTime = "2030-01-01T00:00:00Z";
   const originalFetch = globalThis.fetch;
+  let failNextReceiptCommit = true;
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
     if (url === "https://oauth2.googleapis.com/token") {
@@ -51,6 +52,11 @@ test("Google Play subscription renewals grant credits once per verified billing 
       return value == null ? null : structuredClone(value);
     },
     async commit(writes) {
+      // Simulate a transient receipt-write failure after the grant transaction.
+      if (failNextReceiptCommit && writes.some(write => write.path.startsWith("billingReceipts/"))) {
+        failNextReceiptCommit = false;
+        throw new Error("Simulated receipt persistence outage");
+      }
       // Match Firestore's atomic create preconditions so duplicate event creation
       // cannot silently grant the same billing cycle twice.
       for (const write of writes) {
@@ -63,16 +69,21 @@ test("Google Play subscription renewals grant credits once per verified billing 
 
   try {
     const input = { uid: "test-user", productId: "credit100", purchaseToken: "subscription-token" };
-    const first = await verifyPlayPurchase(env, firestore, input);
-    assert.equal(first.ok, true);
-    assert.equal(first.alreadyProcessed, false);
+    await assert.rejects(verifyPlayPurchase(env, firestore, input), /Simulated receipt persistence outage/);
     assert.equal((await firestore.get("users/test-user")).subCredits, 100);
+
+    // A retry must finish receipt/acknowledgement side effects without granting
+    // the same cycle again after the credit transaction already committed.
+    const recovered = await verifyPlayPurchase(env, firestore, input);
+    assert.equal(recovered.ok, true);
+    assert.equal(recovered.alreadyProcessed, true);
+    assert.equal((await firestore.get("users/test-user")).subCredits, 100);
+    assert.equal([...documents.keys()].filter(key => key.startsWith("creditLedger/")).length, 1);
 
     const repeat = await verifyPlayPurchase(env, firestore, input);
     assert.equal(repeat.ok, true);
     assert.equal(repeat.alreadyProcessed, true);
     assert.equal((await firestore.get("users/test-user")).subCredits, 100);
-    assert.equal([...documents.keys()].filter(key => key.startsWith("creditLedger/")).length, 1);
 
     // Google Play reuses the subscription token, but a renewal has a new verified
     // successful order ID and expiry. It must grant the next cycle exactly once.
