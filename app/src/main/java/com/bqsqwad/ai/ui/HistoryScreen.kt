@@ -36,7 +36,7 @@ fun HistoryScreen(
         scope.launch {
             runCatching { HistoryApiClient().list() }
                 .onSuccess { items = it }
-                .onFailure { error = it.message ?: "Could not load history." }
+                .onFailure { error = safeUserFacingIssue(it, "Could not load history.") }
             busy = false
         }
     }
@@ -52,6 +52,7 @@ fun HistoryScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).fillMaxSize()) {
+            SurfaceCard("History privacy", "Saved chats preserve text, attachment names and generated-image links. Original files are not retained; reattach a file to analyze it again.")
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             error?.let { message ->
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 8.dp)) {
@@ -71,7 +72,7 @@ fun HistoryScreen(
                         scope.launch {
                             runCatching { HistoryApiClient().load(item.id) }
                                 .onSuccess { selected = item to it }
-                                .onFailure { error = it.message ?: "Could not open this chat." }
+                                .onFailure { error = safeUserFacingIssue(it, "Could not open this chat.") }
                             loadingItemId = null
                         }
                     }, modifier = Modifier.fillMaxWidth()) {
@@ -105,7 +106,7 @@ fun HistoryScreen(
                                 items = items.filterNot { it.id == item.id }
                                 error = null
                             }
-                            .onFailure { error = it.message ?: "Could not delete this chat." }
+                            .onFailure { error = safeUserFacingIssue(it, "Could not delete this chat.") }
                         deletingId = null
                         deletingItem = null
                     }
@@ -125,6 +126,16 @@ fun HistoryScreen(
                 LazyColumn(Modifier.heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(messages, key = { it.id }) { message ->
                         SurfaceCard(if (message.mine) "You" else "BQ Sqwad AI", message.text)
+                        if (message.attachmentNames.isNotEmpty()) {
+                            Text(
+                                "Attachments: " + message.attachmentNames.joinToString(", ") { it.substringAfter('|', it) },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (!message.imageUrl.isNullOrBlank()) {
+                            Text("Generated image link is saved with this message.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             },
