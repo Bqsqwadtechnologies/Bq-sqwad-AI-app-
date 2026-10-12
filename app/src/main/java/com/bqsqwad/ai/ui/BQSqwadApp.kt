@@ -3542,6 +3542,7 @@ private fun SearchWorkspace() {
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var deep by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var answer by remember { mutableStateOf<String?>(null) }
     val results = remember { mutableStateListOf<SearchSource>() }
@@ -3549,10 +3550,24 @@ private fun SearchWorkspace() {
         Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Search") })
         Row(verticalAlignment = Alignment.CenterVertically) { Switch(deep, { deep = it }); Text("Deep Research") }
-        Button(enabled = query.isNotBlank(), onClick = {
+        Button(enabled = query.isNotBlank() && !busy, onClick = {
+            val submittedQuery = query.trim()
+            busy = true
             error = null
-            scope.launch { try { val reply = WorkspaceApiClient().search(query.trim(), deep); answer = reply.answer; results.clear(); results.addAll(reply.sources) } catch (t: Throwable) { error = t.message ?: "Search failed" } }
-        }) { Text("Search") }
+            answer = null
+            results.clear()
+            scope.launch {
+                try {
+                    val reply = WorkspaceApiClient().search(submittedQuery, deep)
+                    answer = reply.answer
+                    results.addAll(reply.sources)
+                } catch (t: Throwable) {
+                    error = t.message ?: "Search failed"
+                } finally {
+                    busy = false
+                }
+            }
+        }) { Text(if (busy) "Searching…" else "Search") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         answer?.let { SurfaceCard(if (deep) "Deep Research Answer" else "Answer", it) }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
