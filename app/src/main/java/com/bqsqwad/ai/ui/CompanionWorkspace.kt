@@ -115,13 +115,16 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     fun saveSettings() {
         scope.launch {
             runCatching {
-                WorkspaceApiClient().saveCompanionSettings(JSONObject()
+                val api = WorkspaceApiClient()
+                api.saveCompanionSettings(JSONObject()
                     .put("notifications", notifications)
                     .put("saveHistory", saveHistory)
                     .put("safeMode", safeMode)
                     .put("voiceName", "Aurora")
                     .put("avatarStyle", "Natural"))
-            }.onFailure { notice = it.message ?: "Companion settings could not be saved." }
+                api.saveCompanionProfile(JSONObject().put("personality", personality))
+            }.onSuccess { notice = "Companion settings saved." }
+                .onFailure { notice = it.message ?: "Companion settings could not be saved." }
         }
     }
 
