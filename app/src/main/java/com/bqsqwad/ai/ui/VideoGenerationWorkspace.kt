@@ -30,6 +30,8 @@ fun VideoGenerationWorkspace() {
     var contentUrl by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var pollingFailed by remember { mutableStateOf(false) }
+    var pollRefresh by remember { mutableIntStateOf(0) }
     var publishedVideoModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedVideoModelId by remember { mutableStateOf("") }
     var videoModelExpanded by remember { mutableStateOf(false) }
@@ -43,18 +45,28 @@ fun VideoGenerationWorkspace() {
             }
     }
 
-    LaunchedEffect(jobId) {
+    LaunchedEffect(jobId, pollRefresh) {
         val id = jobId ?: return@LaunchedEffect
+        var consecutiveFailures = 0
+        pollingFailed = false
         while (true) {
             runCatching { GenerationApiClient().videoJob(id) }
                 .onSuccess {
+                    consecutiveFailures = 0
                     status = it.status
-                    progress = it.progress
+                    progress = it.progress.coerceIn(0, 100)
                     contentUrl = it.contentUrl
                     error = it.error
                 }
-                .onFailure { error = it.message }
-            if (status == "completed" || status == "failed") break
+                .onFailure {
+                    consecutiveFailures += 1
+                    error = it.message ?: "Could not refresh render status."
+                }
+            if (status in setOf("completed", "failed", "cancelled")) break
+            if (consecutiveFailures >= 3) {
+                pollingFailed = true
+                break
+            }
             delay(15000)
         }
         busy = false
@@ -142,7 +154,7 @@ fun VideoGenerationWorkspace() {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Render status", fontWeight = FontWeight.Bold)
                     Text(status)
-                    if (status == "queued" || status == "in_progress") LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                    if (status == "queued" || status == "in_progress") LinearProgressIndicator(progress = { progress.coerceIn(0, 100) / 100f }, modifier = Modifier.fillMaxWidth())
                     if (jobId != null) Text("Job: $jobId", style = MaterialTheme.typography.labelSmall)
                     if (contentUrl != null) {
                         Text("Video ready.", color = MaterialTheme.colorScheme.primary)
@@ -165,13 +177,21 @@ fun VideoGenerationWorkspace() {
                             }) { Text("Share") }
                         }
                     }
+                    if (pollingFailed && !busy && jobId != null) {
+                        OutlinedButton(onClick = {
+                            busy = true
+                            pollingFailed = false
+                            error = null
+                            pollRefresh += 1
+                        }) { Text("Retry status check") }
+                    }
                     if (status == "failed" && !busy) {
                         OutlinedButton(onClick = {
                             busy = true
                             error = null
                             contentUrl = null
                             scope.launch {
-                                runCatching { GenerationApiClient().createVideo(prompt, seconds, size) }
+                                runCatching { GenerationApiClient().createVideo(prompt, seconds, size, selectedVideoModelId.takeIf { it.isNotBlank() }) }
                                     .onSuccess {
                                         jobId = it.jobId
                                         status = it.status
