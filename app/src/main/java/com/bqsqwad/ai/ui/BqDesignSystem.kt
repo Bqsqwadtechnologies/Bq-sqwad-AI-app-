@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
@@ -70,12 +71,21 @@ object BqLogoBranding {
     }
 
     fun set(context: Context, uri: Uri) {
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
+        // Validate the selected image before saving its URI. A picker URI that
+        // cannot be reopened after the picker closes must not be reported as saved.
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val readable = context.contentResolver.openInputStream(uri)?.use { stream ->
+            BitmapFactory.decodeStream(stream, null, bounds)
+            bounds.outWidth > 0 && bounds.outHeight > 0
+        } ?: false
+        require(readable) { "Choose a valid image file." }
+
+        // Persistent read access is required because the selected logo is reused
+        // after the app is restarted. Let permission errors reach the UI.
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
         customLogoUri = uri.toString()
         context.getSharedPreferences("bq_branding", Context.MODE_PRIVATE)
             .edit().putString("logo_uri", customLogoUri).apply()
@@ -93,10 +103,32 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { BqLogoBranding.load(context) }
     val uri = BqLogoBranding.customLogoUri
-    val bitmap by produceState<Bitmap?>(initialValue = null, uri) {
+    val targetPixels = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
+    val bitmap by produceState<Bitmap?>(initialValue = null, uri, targetPixels) {
         value = if (uri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
             runCatching {
-                context.contentResolver.openInputStream(Uri.parse(uri))?.use { stream -> BitmapFactory.decodeStream(stream) }
+                val parsedUri = Uri.parse(uri)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream, null, bounds)
+                }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    null
+                } else {
+                    // App logos render at small sizes; decode near the target size
+                    // instead of allocating a full-resolution photo for every logo.
+                    var sampleSize = 1
+                    while (
+                        bounds.outWidth / sampleSize > targetPixels * 2 ||
+                        bounds.outHeight / sampleSize > targetPixels * 2
+                    ) {
+                        sampleSize *= 2
+                    }
+                    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    context.contentResolver.openInputStream(parsedUri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream, null, options)
+                    }
+                }
             }.getOrNull()
         }
     }
