@@ -1,5 +1,6 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
+import { normalizeHistoryMessages } from "./history-policy.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
@@ -1373,19 +1374,7 @@ export default {
         const existing = requestedId ? await firestoreGet("chatHistory/" + id) : null;
         if (existing && String(existing.uid || "") !== user.uid) return json({ error: "history_forbidden" }, 403);
         const rawMessages = Array.isArray(body.messages) ? body.messages : [];
-        const messages = rawMessages.slice(-100).map(item => ({
-          id: String(item?.id || crypto.randomUUID()).slice(0, 120),
-          mine: item?.mine === true,
-          text: String(item?.text || "").slice(0, 20000),
-          ...(item?.prompt ? { prompt: String(item.prompt).slice(0, 20000) } : {}),
-          ...(Array.isArray(item?.attachments) ? {
-            attachments: item.attachments.slice(0, 8).map(value => String(value || "").slice(0, 300)).filter(Boolean)
-          } : {}),
-          ...(typeof item?.imageUrl === "string" && /^https:\/\//i.test(item.imageUrl)
-            ? { imageUrl: item.imageUrl.slice(0, 2000) }
-            : {})
-        })).filter(item => item.text.length > 0);
-        if (!messages.length) return json({ error: "history_messages_required" }, 400);
+        const messages = normalizeHistoryMessages(rawMessages);
         const title = String(body.title || messages.find(item => item.mine)?.text || "New chat").trim().slice(0, 180);
         await firestoreSet("chatHistory/" + id, { uid:user.uid, title, messages, createdAt:existing?.createdAt || new Date(), updatedAt:new Date() }, true);
         return json({ ok:true, id, title, messageCount:messages.length });
