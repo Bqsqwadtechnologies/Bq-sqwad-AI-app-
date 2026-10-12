@@ -272,7 +272,7 @@ export async function verifyPlayPurchase(env, firestore, input) {
     { path: "playPurchases/" + purchaseId, data: purchaseData },
     { path: "entitlements/" + uid, data: entitlementData }
   ];
-  if (mapping.productType === "subs") {
+  if (mapping.productType === "subs" && creditGrant <= 0) {
     writes.push({
       path: "users/" + uid,
       data: {
