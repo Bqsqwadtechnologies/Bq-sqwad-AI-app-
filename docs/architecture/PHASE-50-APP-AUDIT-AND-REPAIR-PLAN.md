@@ -112,3 +112,22 @@ The following source changes have been committed to `main` after the approved au
 - Static code review only; no Gradle build or test suite was run.
 - No APK was produced, no GitHub Actions workflow was dispatched, and no Worker was deployed.
 - Android runtime, purchase verification, provider execution, permission lifecycle, and live broadcast checks remain pending. Do not mark any of them passed without test evidence.
+
+
+---
+
+## Progress log — 2026-10-12
+
+### Phase 1 — Full source audit and feature map
+- Completed a current-state source audit and feature table in `docs/architecture/PHASE-01-REPOSITORY-AUDIT.md`.
+- Explicitly separated source-wired features from partial functionality and runtime verification still pending.
+- Recorded the app's Worker API configuration, legacy Functions boundary, known document-extraction gaps, camera/screen/voice limitations, external-channel limitations, and unverified provider/purchase/device requirements.
+- Phase 1 source deliverable: **COMPLETE**. This is not an end-to-end runtime PASS.
+
+### Phase 2 — Branding and logo consistency
+- Source inventory across the native UI found shared logo rendering through `BqLogo` in `BqDesignSystem.kt`; the branding settings screen uses the same component. No alternate direct in-app logo drawable renderer was found in the inspected feature screens. The launcher asset remains separate by design.
+- Confirmed branding settings is reachable through the existing app settings callback; no new screen or navigation path was added.
+- Fixed a confirmed persistence issue in `BqLogoBranding.set()`: it previously swallowed persisted-URI permission errors and could still report the logo as saved. It now validates the selected image and requires persistent read access before saving.
+- Reduced custom-logo memory pressure by downsampling images to the rendered logo size in the shared `BqLogo` component. The bundled logo, circular crop, sizing, app theme, and image-generation loader were not changed by this fix.
+- Commit: `06f304825737d8794997a0133b6450ff1382a2a9`.
+- Phase 2 remains **IN PROGRESS** until the changed Kotlin source is build-checked and logo choose/reset/relaunch behavior is exercised. No build or GitHub Actions workflow was run or triggered.
