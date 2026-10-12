@@ -1693,7 +1693,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (detail.contains("attachment_payload_too_large") || detail.contains("image_too_large")) {
                             error = "These attachments are too large to send together. Remove a file or choose smaller files, then try again."
                         } else if (detail.contains("file_type_invalid") || detail.contains("file_required")) {
-                            error = "Only PDF documents can be analyzed as file attachments right now. Choose a PDF or a supported text file."
+                            error = "BQ Sqwad AI could not read that file format. Try a PDF, DOCX, XLSX, PPTX, or a supported text document, then send again."
                         } else if (detail.contains("image_type_invalid")) {
                             error = "One selected image format is not supported. Choose a JPEG, PNG, or WebP image and try again."
                         } else if (detail.contains("attachment_count_invalid") || detail.contains("image_count_invalid")) {
