@@ -64,6 +64,9 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
+        // A previous unauthenticated catalog query cannot fetch Play mappings.
+        // Retry on refresh so signing in does not require leaving this screen.
+        billing?.refreshCatalog()
         error = null
         val cachedCatalog = context.getSharedPreferences("bq_product_catalog", Context.MODE_PRIVATE)
             .getString("catalog", null)
