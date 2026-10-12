@@ -99,7 +99,7 @@ import kotlin.coroutines.resumeWithException
 import org.json.JSONArray
 import org.json.JSONObject
 
-private fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
+internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
     val lower = message.lowercase()
