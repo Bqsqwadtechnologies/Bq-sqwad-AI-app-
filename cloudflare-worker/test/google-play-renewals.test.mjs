@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPairSync, webcrypto } from "node:crypto";
+import { createHash, generateKeyPairSync, webcrypto } from "node:crypto";
 import { verifyPlayPurchase } from "../src/google-play.js";
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
@@ -16,6 +16,7 @@ test("Google Play subscription renewals grant credits once per verified billing 
   };
   let orderId = "order-cycle-1";
   let expiryTime = "2030-01-01T00:00:00Z";
+  const expectedAccountId = createHash("sha256").update("test-user").digest("hex");
   const originalFetch = globalThis.fetch;
   let failNextReceiptCommit = true;
   globalThis.fetch = async (input, init = {}) => {
@@ -28,7 +29,9 @@ test("Google Play subscription renewals grant credits once per verified billing 
         subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
         latestOrderId: orderId,
         startTime: "2029-01-01T00:00:00Z",
+        externalAccountIdentifiers: { obfuscatedExternalAccountId: expectedAccountId },
         lineItems: [{
+          productId: "credit100",
           latestSuccessfulOrderId: orderId,
           expiryTime,
           offerDetails: { basePlanId: "monthly", offerId: "trial-3d" },
