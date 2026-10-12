@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.SearchSource
@@ -262,13 +263,17 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
 
 
 @Composable
-fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}) {
+fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", android.content.Context.MODE_PRIVATE) }
+    val webSearchEnabled = remember { settingsPrefs.getBoolean("web_search_enabled", true) }
     var mode by remember { mutableStateOf("Experiment") }
     var prompt by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var researchSources by remember { mutableStateOf("") }
     var planName by remember { mutableStateOf("Frontier plan") }
     var planFeatures by remember { mutableStateOf(emptyList<String>()) }
     var planPrice by remember { mutableStateOf<String?>(null) }
@@ -311,17 +316,32 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}) {
     fun runExperiment() {
         val input = prompt.trim()
         if (input.isBlank() || busy) return
+        if (mode == "Research" && !webSearchEnabled) {
+            error = "Turn on Web Search in Settings before using Frontier research mode."
+            return
+        }
         busy = true
         error = null
+        result = null
+        researchSources = ""
         scope.launch {
             runCatching {
-                WorkspaceApiClient().workspaceAi(
+                val api = WorkspaceApiClient()
+                val evidence = if (mode == "Research") {
+                    val search = api.search(input, false)
+                    researchSources = search.sources.take(8).joinToString("\\n") { source ->
+                        source.title + "\\n" + source.url + source.snippet?.takeIf { it.isNotBlank() }?.let { "\\n" + it } .orEmpty()
+                    }
+                    "Web search summary:\\n" + search.answer + "\\n\\nSources:\\n" + researchSources
+                } else ""
+                api.workspaceAi(
                     "frontier_lab",
-                    input,
+                    if (evidence.isBlank()) input else input + "\\n\\nResearch evidence to analyze:\\n" + evidence,
                     """You are BQ Sqwad AI Frontier Lab.
 Mode: $mode
 Explore advanced AI ideas, prototypes, technical reasoning and structured experiments.
-Separate established facts from hypotheses. Do not claim an experiment was executed unless the backend actually executed it."""
+Separate established facts from hypotheses. Treat supplied web evidence critically, distinguish sourced facts from inference, and do not invent citations.
+Do not claim an experiment was executed unless the backend actually executed it."""
                 )
             }.onSuccess { result = it.optString("text").ifBlank { it.optString("answer") } }
                 .onFailure { error = it.message ?: "Frontier Lab could not complete the experiment." }
@@ -347,6 +367,13 @@ Separate established facts from hypotheses. Do not claim an experiment was execu
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             OutlinedButton(onClick = onOpenPlans) { Text("View Frontier plans") }
         }
+        if (mode == "Research" && !webSearchEnabled) {
+            SurfaceCard("Web Search is off", "Turn it on in Settings to attach current sources to Frontier research.")
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
+        }
+        if (mode == "Research" && webSearchEnabled) {
+            SurfaceCard("Research mode", "Runs web search followed by Frontier analysis. Each service uses its configured credit price.")
+        }
         Text("Experiment mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Experiment", "Prototype", "Research", "Architecture").forEach {
@@ -365,6 +392,7 @@ Separate established facts from hypotheses. Do not claim an experiment was execu
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         result?.let { SurfaceCard("Lab result", it) }
+        if (researchSources.isNotBlank()) SurfaceCard("Research sources", researchSources)
     }
 }
 
