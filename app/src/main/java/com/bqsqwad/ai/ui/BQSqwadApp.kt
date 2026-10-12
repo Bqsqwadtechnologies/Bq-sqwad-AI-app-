@@ -110,7 +110,13 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
         lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
         return "This BQ Sqwad AI feature is currently turned off. Try another feature or contact support."
     }
-    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|provider_not_configured|not_configured|client_secret_missing|realtime_session_failed|image_generation_|image_edit_|firebase|firestore|storage/|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
+    if (lower.contains("attachment_payload_too_large")) return "The combined attachment size is too large. Send fewer or smaller files."
+    if (lower.contains("attachment_count_invalid")) return "Attach up to four supported files at a time."
+    if (lower.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
+    if (lower.contains("consent_required")) return "Accept the required consent in Settings before using AI features."
+    if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Credits to review access."
+    if (lower.contains("rate limit") || lower.contains("rate_limited") || lower.contains("http 429")) return "You are sending requests too quickly. Wait a moment and try again."
+    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|provider_not_configured|not_configured|client_secret_missing|realtime_session_failed|image_generation_|image_edit_|firebase|firestore|storage/|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|429|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
     return if (technical.containsMatchIn(message)) {
         "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
     } else message.take(240)
