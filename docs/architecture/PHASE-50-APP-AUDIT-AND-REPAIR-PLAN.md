@@ -154,3 +154,12 @@ The following source changes have been committed to `main` after the approved au
 
 
 - Follow-up: updated `.github/workflows/validate-main.yml` to run `:app:connectedDebugAndroidTest` on a managed API 35 emulator after the debug build/unit-test step. The workflow remains `workflow_dispatch` only; this commit did not dispatch it. Commit: `3d1a74d017b74b75b53e092363e6d0d14c4db9c5`.
+
+
+### Phase 4 start — Main Chat and text experience — 2026-10-12
+- Started Phase 4 against the existing native Compose Main Chat. Kept the existing streaming/cancel path, BQ AI Features launcher, shared-text handoff, attachment reader, markdown/code rendering, feedback actions, image actions, and saved-history APIs; did not replace the chat screen or alter the Worker API architecture.
+- Fixed a privacy boundary bug: turns composed while **Private Chat** is enabled could be included in a later history save after Private Chat was turned off. New turns are now tagged by message ID while private, and every history snapshot path (normal text/file chat, image generation, image regeneration, image editing, and resizing) filters those private turns out. Restoring a saved chat clears the in-memory private-message tracking for the restored conversation.
+- Corrected the stale attachment failure message so it lists the formats the current reader supports (PDF, DOCX, XLSX, PPTX, and supported text documents) instead of incorrectly claiming only PDF/text files are supported.
+- Commits: `6d6f1225fabc3dee76d16db2a4467dbaa32db06d` (private-turn filtering for main chat); `68a5b2af4ae5c9cb07e12f0da9ef10d38d03c75c` (private-turn filtering for image-history updates); `5e1a6971bca25c2ab6ff80b29dfc31ce7fc8b02e` (attachment error copy).
+- Source review confirmed all four ordinary history snapshot sites and the separate image-regeneration snapshot exclude IDs recorded during Private Chat. Runtime privacy/history behavior is not yet tested.
+- No Gradle build, unit/instrumentation test run, APK generation, GitHub Actions dispatch, purchase, or Worker deployment was performed. Workflow remains manual-only. Phase 4 is **IN PROGRESS**; continue reviewing history loading/deletion errors, message action correctness, cancellation/retry behavior, attachment handoff, and UI/keyboard behavior before moving to Phase 5.
