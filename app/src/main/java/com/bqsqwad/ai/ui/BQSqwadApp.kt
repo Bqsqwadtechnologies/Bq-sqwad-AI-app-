@@ -1306,6 +1306,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    var chatHistoryEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("chat_history", true)) }
+    var autoSaveEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("auto_save", true)) }
+    var voiceRepliesEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("voice_replies", true)) }
+    var savingChat by remember { mutableStateOf(false) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
     var message by remember { mutableStateOf("") }
     // Text shared from another Android app is placed into the composer for user review.
@@ -1529,6 +1534,42 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         else micError = "Allow microphone access to use voice input."
     }
 
+    fun shouldAutoSaveHistory(): Boolean = !privateChat && chatHistoryEnabled && autoSaveEnabled
+
+    fun saveConversationNow() {
+        if (privateChat) {
+            error = "Private Chat conversations are never saved."
+            return
+        }
+        if (!chatHistoryEnabled) {
+            error = "Turn on Conversation history in Settings before saving a chat."
+            return
+        }
+        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
+            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+        }
+        if (snapshot.isEmpty()) {
+            error = "There are no non-private messages to save."
+            return
+        }
+        if (savingChat) return
+        savingChat = true
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    HistoryApiClient().save(historyId, snapshot.firstOrNull { it.mine }?.text ?: "New chat", snapshot)
+                }
+            }.onSuccess {
+                historyId = it
+                error = null
+                statusText = "Conversation saved."
+            }.onFailure {
+                error = "Could not save this conversation. Please try again."
+            }
+            savingChat = false
+        }
+    }
+
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
         if (creditsExhausted) {
@@ -1588,7 +1629,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         // after the request so the chat never keeps showing a stale credit count.
                         runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                             .onSuccess { applyCreditSnapshot(it) }
-                        if (!privateChat) {
+                        if (shouldAutoSaveHistory()) {
                             runCatching {
                                 val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                     HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
@@ -1681,7 +1722,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     statusText = "Done."
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
-                    if (!privateChat) {
+                    if (shouldAutoSaveHistory()) {
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
@@ -1804,6 +1845,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                         if (publishedAiModels.any { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }) {
                             DropdownMenuItem(text = { Text("Image model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedImageModelId }?.optString("name") ?: publishedAiModels.firstOrNull { it.optString("feature") == "image-generation" && it.optBoolean("isDefault") }?.optString("name") ?: "Server default")) }, onClick = { menuOpen = false; imageModelMenuOpen = true })
+                        }
+                        if (chatHistoryEnabled && !privateChat && messages.isNotEmpty()) {
+                            DropdownMenuItem(
+                                enabled = !savingChat,
+                                text = { Text(if (savingChat) "Saving conversation…" else "Save conversation now") },
+                                onClick = { menuOpen = false; saveConversationNow() }
+                            )
                         }
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
@@ -2080,8 +2128,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             IconButton(modifier = Modifier.size(36.dp), onClick = { shareText(context, m.text) }) {
                                 Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
+                            if (voiceRepliesEnabled) {
+                                IconButton(modifier = Modifier.size(36.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
+                                }
                             }
                             IconButton(modifier = Modifier.size(36.dp), onClick = { message = m.prompt ?: m.text }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurface)
@@ -2382,7 +2432,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     selectedImageBase64 = generated.imageBase64
                                     selectedImageMimeType = "image/png"
                                     error = if (durableUrl == null) "The image was regenerated, but secure storage is unavailable; it may not appear when you reopen this chat." else null
-                                    if (!privateChat) runCatching {
+                                    if (shouldAutoSaveHistory()) runCatching {
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name }, item.imageUrl) }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
@@ -2422,7 +2472,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 error = if (generated.imageBase64 != null && durableImageUrl == null)
                                     "Image edit completed, but secure image storage is unavailable; it may not appear when you reopen this chat."
                                 else "Image edit completed."
-                                if (!privateChat) {
+                                if (shouldAutoSaveHistory()) {
                                     runCatching {
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                             HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
@@ -2464,7 +2514,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 error = if (generated.imageBase64 != null && durableImageUrl == null)
                                     "New image size generated, but secure image storage is unavailable; it may not appear when you reopen this chat."
                                 else "New image size generated."
-                                if (!privateChat) {
+                                if (shouldAutoSaveHistory()) {
                                     runCatching {
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                             HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
