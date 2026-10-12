@@ -3633,7 +3633,8 @@ private fun DataAnalysisWorkspace() {
                     analysisJob = scope.launch(Dispatchers.IO) {
                         try {
                             val bounded = dataText.take(120000)
-                            val request = "DATASET: " + fileName + "\nROWS: " + rows + "\nCOLUMNS: " + columns + "\nUSER REQUEST: " + prompt.trim() + "\n\nDATA:\n" + bounded
+                            val dimensions = if (isCsvDataset) "ROWS: " + rows + "\nCOLUMNS: " + columns else "NON_EMPTY_LINES: " + rows
+                            val request = "DATASET: " + fileName + "\n" + dimensions + "\nUSER REQUEST: " + prompt.trim() + "\n\nDATA:\n" + bounded
                             val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace", onDelta = { delta -> scope.launch(Dispatchers.Main) { streaming += delta } })
                             scope.launch(Dispatchers.Main) { result = reply.text; streaming = ""; busy = false; analysisJob = null }
                         } catch (t: Throwable) {
