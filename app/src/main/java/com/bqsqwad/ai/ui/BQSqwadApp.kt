@@ -752,6 +752,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("notifications_enabled", true)) }
+    var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
@@ -798,7 +799,12 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
 
     LaunchedEffect(email, notificationsEnabled) {
-        if (email.isBlank()) return@LaunchedEffect
+        if (email.isBlank()) {
+            // Invalidate the device token on sign-out so a previous account cannot
+            // continue delivering notifications to this device.
+            launch { runCatching { withContext(Dispatchers.IO) { Tasks.await(FirebaseMessaging.getInstance().deleteToken()) } } }
+            return@LaunchedEffect
+        }
         launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -809,6 +815,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         else api.unregisterNotificationToken(token)
                     }
                 }
+            }.onSuccess {
+                notificationStatus = if (notificationsEnabled) "Notifications are enabled for this account." else "Notifications are paused."
+            }.onFailure {
+                notificationStatus = "Notification preferences could not be synced. Check your connection and try again."
             }
         }
         if (
@@ -996,6 +1006,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenLegalCenter = { legalCenter = true },
                 onOpenBranding = { brandingSettings = true },
                 onNotificationsChanged = { notificationsEnabled = it },
+                notificationStatus = notificationStatus,
                 onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
             history -> HistoryScreen(
@@ -4794,7 +4805,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -5106,6 +5117,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         putBoolean("notifications_enabled", it)
                         onNotificationsChanged(it)
                     }
+                    notificationStatus?.let { Text(it, color = if (it.startsWith("Notification preferences could not")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                     Text("Notification permission is controlled by Android. Sound and vibration follow your device settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     settingsNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
