@@ -11,9 +11,43 @@ export async function companionCatalog(user,env){const g=await gate(user,env,"co
 export async function companionProfile(uid){const x=await firestoreGet("companionProfiles/"+uid)||{};return {ok:true,profile:{personality:String(x.personality||"Warm"),name:String(x.name||"BQ Companion"),memoryEnabled:x.memoryEnabled!==false,checkInsEnabled:x.checkInsEnabled!==false,voiceEnabled:x.voiceEnabled===true,cameraEnabled:x.cameraEnabled===true,updatedAt:x.updatedAt||null}}}
 export async function saveCompanionProfile(uid,b){const p={uid,name:clean(b.name||"BQ Companion",60),personality:clean(b.personality||"Warm",40),memoryEnabled:b.memoryEnabled!==false,checkInsEnabled:b.checkInsEnabled!==false,voiceEnabled:b.voiceEnabled===true,cameraEnabled:b.cameraEnabled===true,updatedAt:new Date()};await firestoreSet("companionProfiles/"+uid,p,true);return {ok:true,profile:p}}
 export async function companionHistory(uid){const a=await firestoreQuery("companionMessages",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:100});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {ok:true,items:a.map(x=>({id:String(x.__name||"").split("/").pop(),...x}))}}
-export async function companionChat(env,user,b,charge,commit,reverse){const m=clean(b.message);if(!m)throw new Error("message_required");const r=await charge(user.uid,Number(b.creditCost||0),"companion",user);try{const p=await firestoreGet("companionProfiles/"+user.uid)||{};const a=await firestoreQuery("companionMessages",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:user.uid}}],limit:20});a.sort((x,y)=>String(x.createdAt||"").localeCompare(String(y.createdAt||"")));const memory=p.memoryEnabled===false?"":a.map(x=>String(x.role||"user")+": "+clean(x.text,1000)).join("\n");const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:m,system:["You are BQ Sqwad AI Companion.","Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+String(p.personality||"Warm"),memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"user",text:m,createdAt:new Date()});await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:z.modelId||null});await commit(user.uid,r.reservationId,z.providerId||"companion");return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
+export async function companionChat(env,user,b,charge,commit,reverse){
+  const m=clean(b.message);
+  if(!m)throw new Error("message_required");
+  const r=await charge(user.uid,Number(b.creditCost||0),"companion",user);
+  try{
+    const p=await firestoreGet("companionProfiles/"+user.uid)||{};
+    const settings=await firestoreGet("companionSettings/"+user.uid)||{};
+    const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm"]);
+    const requestedPersonality=clean(b.personality||p.personality||"Warm",40);
+    const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
+    const history=settings.saveHistory===false||p.memoryEnabled===false?[]:await firestoreQuery("companionMessages",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:user.uid}}],limit:20});
+    history.sort((x,y)=>String(x.createdAt||"").localeCompare(String(y.createdAt||"")));
+    const memory=p.memoryEnabled===false?"":history.map(x=>String(x.role||"user")+": "+clean(x.text,1000)).join("\n");
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:m,system:["You are BQ Sqwad AI Companion.","Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
+    if(settings.saveHistory!==false){
+      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"user",text:m,createdAt:new Date()});
+      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:z.modelId||null});
+    }
+    await commit(user.uid,r.reservationId,z.providerId||"companion");
+    return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0};
+  }catch(e){await reverse(user.uid,r.reservationId);throw e}
+}
 export async function companionCheckins(uid){const a=await firestoreQuery("companionCheckins",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:60});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {ok:true,items:a.map(x=>({id:String(x.__name||"").split("/").pop(),...x}))}}
-export async function companionCheckin(env,user,b,charge,commit,reverse){const p=clean(b.prompt||"How are you doing today?",500),r=await charge(user.uid,Number(b.creditCost||0),"companion_checkin",user);try{const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:p,system:"Give a brief reflective check-in prompt. Do not present yourself as a human."});const id=crypto.randomUUID();await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:z.text||"",createdAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"companion_checkin");return {ok:true,text:z.text||"",creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
+export async function companionCheckin(env,user,b,charge,commit,reverse){
+  const p=clean(b.prompt||"How are you doing today?",500);
+  const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm"]);
+  const requestedPersonality=clean(b.personality||"Warm",40);
+  const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
+  const r=await charge(user.uid,Number(b.creditCost||0),"companion_checkin",user);
+  try{
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:p,system:"Give a brief reflective check-in prompt. Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
+    const id=crypto.randomUUID();
+    await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:z.text||"",createdAt:new Date()});
+    await commit(user.uid,r.reservationId,z.providerId||"companion_checkin");
+    return {ok:true,text:z.text||"",creditsCharged:r.amount||0};
+  }catch(e){await reverse(user.uid,r.reservationId);throw e}
+}
 export async function companionSettings(uid){return {ok:true,settings:await firestoreGet("companionSettings/"+uid)||{notifications:true,saveHistory:true}}}
 export async function saveCompanionSettings(uid,b){const p={};for(const k of ["notifications","saveHistory","safeMode","voiceName","avatarStyle"])if(b[k]!==undefined)p[k]=b[k];p.updatedAt=new Date();await firestoreSet("companionSettings/"+uid,p,true);return {ok:true}}
 
