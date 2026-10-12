@@ -109,7 +109,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         status = buildString {
                             append("The BQ Sqwad AI catalog endpoint returned zero visible plans.")
                             if (catalogWarnings.isNotEmpty()) append(" Catalog data warnings: ").append(catalogWarnings.joinToString(", "))
-                            append(" Check the active canonical plan catalog and Worker Firebase configuration; no sample prices or fake plans were added.")
+                            append(" Please refresh the catalog or try again later. No sample prices have been shown.")
                         }
                     }
                     context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
@@ -186,7 +186,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
-                        "The catalog request succeeded, but no active plans are configured on the server. An authorized administrator should open Admin > Plan Catalog, configure at least one real plan, save it, and refresh this screen. Google Play free-trial offers must also be configured in Play Console."
+                        "No active plans are available right now. Please refresh this screen or try again later. Google Play offers are configured separately from the BQ Sqwad AI catalog."
                     )
                 }
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
