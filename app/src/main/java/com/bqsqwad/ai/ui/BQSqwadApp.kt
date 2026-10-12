@@ -3283,7 +3283,7 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
             if (entry?.credits != false) {
                 SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits follow the published BQ Sqwad AI catalog.")
             }
-            AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch)
+            AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch, onOpenSettings = onOpenAppSettings)
         }
     }
 }
@@ -3423,16 +3423,21 @@ private fun AiTaskWorkspace(
     description: String,
     capability: String = "chat",
     showMemory: Boolean = false,
-    allowWebSearch: Boolean = false
+    allowWebSearch: Boolean = false,
+    onOpenSettings: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val webSearchEnabled = remember { settingsPrefs.getBoolean("web_search_enabled", true) }
+    var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var prompt by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
     var memoryText by remember { mutableStateOf("") }
     var memoryEnabled by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var useWebSearch by remember { mutableStateOf(allowWebSearch) }
+    var useWebSearch by remember { mutableStateOf(allowWebSearch && settingsPrefs.getBoolean("web_search_enabled", true)) }
     var streamingResult by remember { mutableStateOf("") }
 
     LaunchedEffect(showMemory) {
@@ -3481,12 +3486,20 @@ private fun AiTaskWorkspace(
             minLines = 3
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = prompt.isNotBlank() && !busy, onClick = {
+            Button(enabled = busy || prompt.isNotBlank(), onClick = {
+                if (busy) {
+                    activeJob?.cancel()
+                    return@Button
+                }
+                if (useWebSearch && !webSearchEnabled) {
+                    error = "Turn on Web Search in Settings before using web evidence."
+                    return@Button
+                }
                 busy = true
                 error = null
                 result = ""
                 streamingResult = ""
-                scope.launch {
+                activeJob = scope.launch {
                     try {
                         val requestText = if (useWebSearch) {
                             val search = WorkspaceApiClient().search(prompt.trim(), false)
@@ -3502,17 +3515,26 @@ private fun AiTaskWorkspace(
                         })
                         result = reply.text
                     } catch (t: Throwable) {
-                        error = t.message ?: "Request failed"
+                        if (t is kotlinx.coroutines.CancellationException) {
+                            result = streamingResult
+                            streamingResult = ""
+                            error = if (result.isNotBlank()) "Stopped. Partial output is shown above." else null
+                        } else {
+                            error = t.message ?: "Request failed"
+                        }
                     } finally {
                         busy = false
+                        activeJob = null
                     }
                 }
-            }) { Text(if (busy) "Working…" else "Run with BQ Sqwad AI") }
+            }) { Text(if (busy) "Stop" else "Run with BQ Sqwad AI") }
 
-            if (allowWebSearch) {
+            if (allowWebSearch && webSearchEnabled) {
                 OutlinedButton(onClick = { useWebSearch = !useWebSearch }, enabled = !busy) {
                     Text(if (useWebSearch) "Web Search on" else "Web Search off")
                 }
+            } else if (allowWebSearch && !webSearchEnabled) {
+                OutlinedButton(onClick = onOpenSettings, enabled = !busy) { Text("Enable Web Search in Settings") }
             }
 
             if (showMemory) {
