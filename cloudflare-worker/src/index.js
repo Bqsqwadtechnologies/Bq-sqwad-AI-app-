@@ -1,4 +1,5 @@
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
+import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
@@ -451,20 +452,8 @@ async function openai(body, stream = false) {
 function outputText(result) {
   return result.output_text || result.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
 }
-const ADMIN_ONLY_AI_CAPABILITIES = new Set([
-  "ai_agent", "admin_experimentation", "feature_rollout_percentages", "emergency_kill_switches",
-  "provider_health_checks", "ai_incident_replay", "model_version_rollback", "admin_capability_marketplace",
-  "security_event_monitoring", "ai_abuse_risk_detection", "rate_limiting", "abuse_protection",
-  "incident_system", "ai_evaluation_center", "ai_evaluation_laboratory", "provider_cost_optimizer",
-  "automatic_quality_fallback", "credit_reservation", "credit_reversal", "secure_file_pipeline",
-  "offline_retry_queue", "model_routing", "provider_failover", "ai_orchestration"
-]);
-
 async function capability(uid, name) {
-  const normalizedName = String(name || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (ADMIN_ONLY_AI_CAPABILITIES.has(normalizedName)) {
-    throw Object.assign(new Error("capability_requires_admin_console"), { httpStatus: 403 });
-  }
+  assertPublicCapabilityAllowed(name);
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
