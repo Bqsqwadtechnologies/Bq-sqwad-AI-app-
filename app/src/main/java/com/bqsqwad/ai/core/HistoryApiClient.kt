@@ -63,22 +63,40 @@ class HistoryApiClient {
     }
 
     suspend fun save(id: String?, title: String, messages: List<HistoryMessage>): String {
+        require(messages.size <= 100) {
+            "This conversation has more than 100 messages. Start a new chat to keep history complete."
+        }
+        messages.forEach { message ->
+            require(message.text.length <= 20000 && (message.prompt?.length ?: 0) <= 20000) {
+                "A message is too large to save in history. Keep individual messages under 20,000 characters."
+            }
+            require(message.attachmentNames.size <= 8 && message.attachmentNames.all { it.length <= 300 }) {
+                "This message has too many or too-large attachment names to save."
+            }
+            require(message.imageUrl.isNullOrBlank() || (message.imageUrl.length <= 2000 && message.imageUrl.startsWith("https://", ignoreCase = true))) {
+                "The generated image link cannot be saved safely."
+            }
+        }
         val array = JSONArray()
-        messages.takeLast(100).forEach { m ->
+        messages.forEach { m ->
             array.put(JSONObject().apply {
                 put("id", m.id)
                 put("mine", m.mine)
-                put("text", m.text.take(20000))
-                if (m.prompt != null) put("prompt", m.prompt.take(20000))
-                if (m.attachmentNames.isNotEmpty()) put("attachments", JSONArray(m.attachmentNames.take(8).map { it.take(300) }))
-                if (!m.imageUrl.isNullOrBlank()) put("imageUrl", m.imageUrl.take(2000))
+                put("text", m.text)
+                if (m.prompt != null) put("prompt", m.prompt)
+                if (m.attachmentNames.isNotEmpty()) put("attachments", JSONArray(m.attachmentNames))
+                if (!m.imageUrl.isNullOrBlank()) put("imageUrl", m.imageUrl)
             })
         }
-        val body = request("/history", "POST", JSONObject().apply {
+        val payload = JSONObject().apply {
             if (!id.isNullOrBlank()) put("id", id)
             put("title", title.take(180))
             put("messages", array)
-        })
+        }
+        require(payload.toString().toByteArray(Charsets.UTF_8).size <= 700000) {
+            "This conversation is too large to save as one history item. Start a new chat to keep history complete."
+        }
+        val body = request("/history", "POST", payload)
         return body.optString("id")
     }
 
