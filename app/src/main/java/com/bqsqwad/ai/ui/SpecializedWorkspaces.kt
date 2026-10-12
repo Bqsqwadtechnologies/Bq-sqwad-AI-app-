@@ -329,14 +329,14 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
                 val api = WorkspaceApiClient()
                 val evidence = if (mode == "Research") {
                     val search = api.search(input, false)
-                    researchSources = search.sources.take(8).joinToString("\\n") { source ->
-                        source.title + "\\n" + source.url + source.snippet?.takeIf { it.isNotBlank() }?.let { "\\n" + it } .orEmpty()
+                    researchSources = search.sources.take(8).joinToString("\n") { source ->
+                        source.title + "\n" + source.url + source.snippet?.takeIf { it.isNotBlank() }?.let { "\n" + it } .orEmpty()
                     }
-                    "Web search summary:\\n" + search.answer + "\\n\\nSources:\\n" + researchSources
+                    "Web search summary:\n" + search.answer + "\n\nSources:\n" + researchSources
                 } else ""
                 api.workspaceAi(
                     "frontier_lab",
-                    if (evidence.isBlank()) input else input + "\\n\\nResearch evidence to analyze:\\n" + evidence,
+                    if (evidence.isBlank()) input else input + "\n\nResearch evidence to analyze:\n" + evidence,
                     """You are BQ Sqwad AI Frontier Lab.
 Mode: $mode
 Explore advanced AI ideas, prototypes, technical reasoning and structured experiments.
