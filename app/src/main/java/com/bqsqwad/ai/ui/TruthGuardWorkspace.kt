@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
@@ -27,8 +28,11 @@ private data class TruthGuardPlan(
 )
 
 @Composable
-fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
+fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", android.content.Context.MODE_PRIVATE) }
+    val webSearchEnabled = remember { settingsPrefs.getBoolean("web_search_enabled", true) }
     var claim by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var deepResearch by remember { mutableStateOf(false) }
@@ -91,6 +95,10 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
             notice = "Enter a claim to verify."
             return
         }
+        if (!webSearchEnabled) {
+            notice = "Turn on Web Search in Settings to verify claims against current sources."
+            return
+        }
         if (deepResearch && !proOrHigher) {
             notice = "Deep Evidence Sweep requires TruthGuard Pro or Team."
             return
@@ -120,6 +128,10 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
     ) {
         item { TruthGuardHero(activePlanId, isAdmin, plans.firstOrNull { it.id == activePlanId }, onOpenPlans) }
         item { TruthGuardPlanStrip(plans, activePlanId, isAdmin, onOpenPlans) }
+        if (!webSearchEnabled) item {
+            SurfaceCard("Web Search is off", "Turn it on in Settings to verify claims against current web evidence.")
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
+        }
 
         item {
             Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, tonalElevation = 2.dp) {
@@ -174,7 +186,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                     }
                     Button(
                         onClick = ::verify,
-                        enabled = !busy && claim.isNotBlank(),
+                        enabled = !busy && claim.isNotBlank() && webSearchEnabled,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (busy) "Verifying…" else "Verify claim") }
                     Text(
