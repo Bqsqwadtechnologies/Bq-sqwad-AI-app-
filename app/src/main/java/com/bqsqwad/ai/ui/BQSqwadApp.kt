@@ -1874,7 +1874,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqHeaderIconButton(
                         icon = Icons.Default.MoreVert,
                         contentDescription = "More chat options",
-                        onClick = { menuOpen = true; scope.launch { runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }.onSuccess { array -> applyPublishedAiModels(array) } } } }
+                        onClick = { menuOpen = true; scope.launch { runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }.onSuccess { array -> applyPublishedAiModels(array) } } }
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         if (publishedAiModels.any { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }) {
