@@ -3324,7 +3324,7 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpe
             if (entry?.credits != false) {
                 SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits follow the published BQ Sqwad AI catalog.")
             }
-            AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch, onOpenSettings = onOpenAppSettings)
+            AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch, onOpenSettings = onOpenSettings)
         }
     }
 }
