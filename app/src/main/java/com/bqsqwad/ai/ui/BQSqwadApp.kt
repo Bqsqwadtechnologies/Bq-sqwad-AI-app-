@@ -752,7 +752,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("notifications_enabled", true)) }
-    var appTextScale by remember { mutableStateOf(context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
@@ -864,8 +863,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     LaunchedEffect(drawerOpen) {
         if (drawerOpen) drawerState.open() else drawerState.close()
     }
-    val baseDensity = androidx.compose.ui.platform.LocalDensity.current
-    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides baseDensity.copy(fontScale = baseDensity.fontScale * appTextScale)) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -999,7 +996,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenLegalCenter = { legalCenter = true },
                 onOpenBranding = { brandingSettings = true },
                 onNotificationsChanged = { notificationsEnabled = it },
-                onTextScaleChanged = { appTextScale = it },
                 onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
             history -> HistoryScreen(
@@ -1099,7 +1095,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 TextButton(onClick = { paywallWorkspace = null }) { Text("Cancel") }
             }
         )
-    }
     }
 }
 
@@ -4758,7 +4753,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, onTextScaleChanged: (Float) -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -5005,7 +5000,6 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                     Slider(value = textScale, onValueChange = { value ->
                         textScale = value
                         prefs.edit().putFloat("text_scale", value).apply()
-                        onTextScaleChanged(value)
                     }, valueRange = 0.85f..1.4f, steps = 10)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Smaller", style = MaterialTheme.typography.labelSmall)
