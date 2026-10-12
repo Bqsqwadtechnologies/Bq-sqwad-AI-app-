@@ -272,15 +272,14 @@ fun OrganizationStudioWorkspace() {
                         "orgproduction" -> "Production workspace for sources, scenes, AI Director and operational health."
                         "orgbroadcast" -> "Broadcast workspace for YouTube Live, audience controls and live billing."
                         "orgenterprise" -> "Enterprise workspace for full governance, production and broadcast controls."
-                        else -> "Administrator activation required. No subscription price; usage is billed from the separate Organization USD balance."
+                        else -> "An activated Organization profile is required. Usage is billed from the separate Organization USD balance."
                     }
                     Text("Organization AI / Studio", style = MaterialTheme.typography.headlineSmall)
                     Text(planName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(planDescription, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        if (organizationAccess?.optBoolean("testMode", false) == true) "ADMIN TEST MODE • $activePlanId • customer entitlements unchanged"
-                        else if (organizationAccess?.optBoolean("activated", false) == true) "Administrator activated • Pay-as-you-go • No subscription price"
-                        else "Access not activated by administrator",
+                        if (organizationAccess?.optBoolean("activated", false) == true) "Organization profile active • Pay-as-you-go • No subscription price"
+                        else "Organization profile not activated",
                         color = if (organizationAccess?.optBoolean("activated", false) == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -317,7 +316,7 @@ fun OrganizationStudioWorkspace() {
                         }
                         else -> {
                             Text("Activation Required", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("An administrator must activate an Organization operating profile before organization features can run.")
+                            Text("Activate an Organization operating profile before using these features.")
                         }
                     }
                 }
