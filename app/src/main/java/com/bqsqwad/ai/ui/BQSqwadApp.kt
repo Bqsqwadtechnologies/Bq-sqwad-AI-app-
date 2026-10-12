@@ -1606,12 +1606,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 } catch (t: Throwable) {
                     scope.launch(Dispatchers.Main) {
                         if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
-                        error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
+                        val cancelled = t is kotlinx.coroutines.CancellationException
+                        if (cancelled) {
+                            error = null
+                            statusText = "Stopped."
+                        } else {
+                            error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
+                            statusText = "Request failed. You can try again."
+                        }
                         busy = false
-                        statusText = "Request failed. You can try again."
                         streamJob = null
-                        // A failed generation can reverse its reservation; refresh the
-                        // server balance to reflect that reversal immediately.
+                        // Failed or cancelled generation can settle a server-side reservation;
+                        // refresh the canonical balance instead of leaving stale credit state.
                         runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                             .onSuccess { applyCreditSnapshot(it) }
                     }
