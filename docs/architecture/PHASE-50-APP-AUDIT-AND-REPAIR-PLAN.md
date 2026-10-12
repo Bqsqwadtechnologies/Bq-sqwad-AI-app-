@@ -204,3 +204,11 @@ The following source changes have been committed to `main` after the approved au
 - All source edits above were committed to `main`; no APK has been generated and no GitHub Actions workflow has been dispatched.
 - The validation workflow remains manual-only (`workflow_dispatch`); it has not been triggered during these edits.
 - Final testing must be run only after this complete source pass. Until then, mark every build/runtime-dependent item as **NOT RUN**, not PASS.
+
+
+### Final post-change verification attempt — 2026-10-12
+
+- Ran 14 source-level assertions against the current `main` files after the Phase 3/4/5 source pass. All 14 passed: admin workspace filtering and paywall guard; history/auto-save/manual-save wiring; read-aloud preference; camera sampling preference; Search/TruthGuard Web Search gates; Frontier source attachment; one-time receipt classification; renewal test presence; manual-only workflow trigger; and phase audit-log presence.
+- Attempted to clone the current repository to run the actual build and tests locally. The environment could not resolve `github.com` (`Could not resolve host: github.com`), and no Gradle executable or connected repository checkout is available in the execution environment.
+- Therefore Android unit tests, Android instrumentation tests, Worker Node tests, APK build, emulator tests and physical Redmi 10C checks remain **NOT RUN**. The source assertions are not substitutes for those execution tests.
+- No GitHub Actions workflow was dispatched, no APK was produced, no purchase was made, and no Worker deployment was performed. The existing validation workflow remains manual-only.
