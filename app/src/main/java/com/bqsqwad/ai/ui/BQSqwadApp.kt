@@ -4759,8 +4759,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var companionMemory by remember { mutableStateOf(prefs.getBoolean("companion_memory", true)) }
     var truthGuardSources by remember { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
     var notifications by remember { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
-    var sound by remember { mutableStateOf(prefs.getBoolean("sound_enabled", true)) }
-    var vibration by remember { mutableStateOf(prefs.getBoolean("vibration_enabled", true)) }
+    var settingsNotice by remember { mutableStateOf<String?>(null) }
     var reduceMotion by remember { mutableStateOf(prefs.getBoolean("reduce_motion", false)) }
     var compactUi by remember { mutableStateOf(prefs.getBoolean("compact_ui", false)) }
     var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
@@ -5023,16 +5022,30 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item { SettingsSectionTitle("Live AI", "Voice, camera and Companion controls") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsToggleCard("Live Voice replies", "Enable spoken replies where supported.", voiceReplies) { voiceReplies = it; putBoolean("voice_replies", it) }
+                    SettingsToggleCard("Read-aloud replies", "Show spoken playback controls for text responses.", voiceReplies) { voiceReplies = it; putBoolean("voice_replies", it) }
                     SettingsToggleCard("Camera enhancement", "Use available visual processing enhancements.", cameraEnhance) { cameraEnhance = it; putBoolean("camera_enhance", it) }
-                    SettingsToggleCard("Companion memory", "Allow Companion to use its configured memory controls.", companionMemory) { companionMemory = it; putBoolean("companion_memory", it) }
+                    SettingsToggleCard("Companion memory", "Allow Companion to use its configured memory controls.", companionMemory) {
+                        companionMemory = it
+                        putBoolean("companion_memory", it)
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(it) }
+                                .onFailure { settingsNotice = "Companion memory could not be updated on the server. Try again." }
+                        }
+                    }
                 }
             }
 
             item { SettingsSectionTitle("AI features", "Feature-specific controls stay inside their workspaces") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsToggleCard("TruthGuard evidence sources", "Show source-backed evidence and reliability details.", truthGuardSources) { truthGuardSources = it; putBoolean("truthguard_sources", it) }
+                    SettingsToggleCard("TruthGuard evidence sources", "Show source-backed evidence and reliability details.", truthGuardSources) {
+                        truthGuardSources = it
+                        putBoolean("truthguard_sources", it)
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().saveTruthGuardSettings(JSONObject().put("showSources", it)) }
+                                .onFailure { settingsNotice = "TruthGuard source preferences could not be synced. Open TruthGuard settings and save again." }
+                        }
+                    }
                     FeatureCard(Workspace.LEARNING.title, Workspace.LEARNING.description) { selectedAiFeature = Workspace.LEARNING }
                     FeatureCard(Workspace.LIFE.title, Workspace.LIFE.description) { selectedAiFeature = Workspace.LIFE }
                     FeatureCard(Workspace.BUSINESS.title, Workspace.BUSINESS.description) { selectedAiFeature = Workspace.BUSINESS }
@@ -5045,9 +5058,13 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item { SettingsSectionTitle("Notifications & feedback", "Stay informed without losing control") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsToggleCard("Notifications", "Plan, generation, business and security notifications.", notifications) { notifications = it; putBoolean("notifications_enabled", it) }
-                    SettingsToggleCard("Sound", "Use app sounds where supported.", sound) { sound = it; putBoolean("sound_enabled", it) }
-                    SettingsToggleCard("Vibration", "Use haptic feedback where supported.", vibration) { vibration = it; putBoolean("vibration_enabled", it) }
+                    SettingsToggleCard("Notifications", "Receive supported plan, generation, business and security notifications.", notifications) {
+                        notifications = it
+                        putBoolean("notifications_enabled", it)
+                        onNotificationsChanged(it)
+                    }
+                    Text("Notification permission is controlled by Android. Sound and vibration follow your device settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    settingsNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
             }
 
