@@ -53,7 +53,7 @@ fun ContactSalesDialog(
                 sending=true; error=null
                 scope.launch {
                     runCatching{WorkspaceApiClient().submitContactSales(email.trim(),companyName.trim(),companyEmail.trim(),planId,planName,selected.toList(),message.trim(),billingPeriod)}
-                        .onSuccess{onSubmitted("Request sent. Our admin team can review it and contact you at $email.");onDismiss()}
+                        .onSuccess{onSubmitted("Request sent. Our sales team can review it and contact you at $email.");onDismiss()}
                         .onFailure{error=it.message ?: "Could not send your request."}
                     sending=false
                 }
