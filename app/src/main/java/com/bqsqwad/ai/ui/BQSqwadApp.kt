@@ -4380,6 +4380,7 @@ fun VoiceWorkspace() {
     var voiceModelExpanded by remember { mutableStateOf(false) }
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
+    var startError by remember { mutableStateOf<String?>(null) }
     var permissionExplanation by remember { mutableStateOf(false) }
 
     fun startVoice() {
@@ -4390,19 +4391,27 @@ fun VoiceWorkspace() {
             permissionExplanation = true
             return
         }
-        context.startForegroundService(
-            Intent(context, LiveMediaForegroundService::class.java)
-                .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
-                .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedVoiceModelId.takeIf { it.isNotBlank() })
-        )
-        active = true
-        state = "connecting"
+        runCatching {
+            context.startForegroundService(
+                Intent(context, LiveMediaForegroundService::class.java)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedVoiceModelId.takeIf { it.isNotBlank() })
+            )
+        }.onSuccess {
+            active = true
+            state = "connecting"
+            startError = null
+        }.onFailure {
+            active = false
+            state = "error"
+            startError = "Live Voice could not start. Check microphone permission and try again."
+        }
     }
 
     fun stopVoice() {
-        context.stopService(Intent(context, LiveMediaForegroundService::class.java))
-        active = false
-        state = "stopped"
+        runCatching { context.stopService(Intent(context, LiveMediaForegroundService::class.java)) }
+            .onSuccess { active = false; state = "stopped"; startError = null }
+            .onFailure { startError = "Live Voice could not stop cleanly. Close the session again or restart the app." }
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
@@ -4486,6 +4495,7 @@ fun VoiceWorkspace() {
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
+        startError?.let { Text(it, color = MaterialTheme.colorScheme.error, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
 
         Box {
             OutlinedButton(onClick = {
