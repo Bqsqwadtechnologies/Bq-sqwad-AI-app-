@@ -8,7 +8,7 @@ export const ADMIN_ONLY_AI_CAPABILITIES = new Set([
 ]);
 
 export function assertPublicCapabilityAllowed(name) {
-  const normalizedName = String(name || "").trim().toLowerCase().replace(/[\\s-]+/g, "_");
+  const normalizedName = String(name || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (ADMIN_ONLY_AI_CAPABILITIES.has(normalizedName)) {
     throw Object.assign(new Error("capability_requires_admin_console"), { httpStatus: 403 });
   }
