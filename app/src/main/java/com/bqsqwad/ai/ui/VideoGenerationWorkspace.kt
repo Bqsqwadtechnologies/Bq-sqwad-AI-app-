@@ -169,7 +169,7 @@ fun VideoGenerationWorkspace() {
                                 if (!url.isNullOrBlank()) {
                                     runCatching {
                                         context.startActivity(Intent(Intent.ACTION_SEND).apply {
-                                            type = "video/mp4"
+                                            type = "text/plain"
                                             putExtra(Intent.EXTRA_TEXT, url)
                                         })
                                     }.onFailure { error = it.message ?: "The video could not be shared." }
