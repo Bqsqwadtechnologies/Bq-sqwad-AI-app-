@@ -3575,6 +3575,7 @@ private fun DataAnalysisWorkspace() {
     var prompt by remember { mutableStateOf("") }
     var dataText by remember { mutableStateOf("") }
     var fileName by remember { mutableStateOf("") }
+    var isCsvDataset by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
     var streaming by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -3589,9 +3590,15 @@ private fun DataAnalysisWorkspace() {
                 scope.launch(Dispatchers.Main) {
                     dataText = text
                     fileName = attachment.name
-                    val lines = text.lines().filter { it.isNotBlank() }
-                    rows = (lines.size - 1).coerceAtLeast(0)
-                    columns = lines.firstOrNull()?.split(',')?.size ?: 0
+                    isCsvDataset = attachment.name.substringAfterLast('.', "").equals("csv", ignoreCase = true) || attachment.mimeType.equals("text/csv", ignoreCase = true) || attachment.mimeType.equals("application/csv", ignoreCase = true)
+                    if (isCsvDataset) {
+                        val dimensions = com.bqsqwad.ai.core.detectCsvDimensions(text)
+                        rows = dimensions.dataRows
+                        columns = dimensions.columns
+                    } else {
+                        rows = text.lineSequence().count { it.isNotBlank() }
+                        columns = 0
+                    }
                     error = null
                 }
             }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
@@ -3603,7 +3610,15 @@ private fun DataAnalysisWorkspace() {
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text(if (fileName.isBlank()) "No dataset loaded" else fileName, fontWeight = FontWeight.SemiBold); if (fileName.isNotBlank()) Text(rows.toString() + " rows • " + columns + " columns detected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Column(Modifier.weight(1f)) {
+                        Text(if (fileName.isBlank()) "No dataset loaded" else fileName, fontWeight = FontWeight.SemiBold)
+                        if (fileName.isNotBlank()) Text(
+                            if (isCsvDataset) rows.toString() + " data rows • " + columns + " columns detected"
+                            else rows.toString() + " non-empty lines • " + dataText.length + " characters",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     OutlinedButton(onClick = { picker.launch(arrayOf("text/*", "application/json", "application/csv", "text/csv")) }, enabled = !busy) { Text("Load data") }
                 }
                 OutlinedTextField(prompt, { prompt = it }, label = { Text("What should I analyze?") }, placeholder = { Text("Summarize trends, compare columns, find anomalies, or create a report…") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
@@ -3616,7 +3631,7 @@ private fun DataAnalysisWorkspace() {
                     analysisJob = scope.launch(Dispatchers.IO) {
                         try {
                             val bounded = dataText.take(120000)
-                            val request = "DATASET: " + fileName + "\\nROWS: " + rows + "\\nCOLUMNS: " + columns + "\\nUSER REQUEST: " + prompt.trim() + "\\n\\nDATA:\\n" + bounded
+                            val request = "DATASET: " + fileName + "\nROWS: " + rows + "\nCOLUMNS: " + columns + "\nUSER REQUEST: " + prompt.trim() + "\n\nDATA:\n" + bounded
                             val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace", onDelta = { delta -> scope.launch(Dispatchers.Main) { streaming += delta } })
                             scope.launch(Dispatchers.Main) { result = reply.text; streaming = ""; busy = false; analysisJob = null }
                         } catch (t: Throwable) {
@@ -3639,7 +3654,7 @@ private fun DataAnalysisWorkspace() {
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (streaming.isNotBlank()) SurfaceCard("Live analysis", streaming)
         if (result.isNotBlank()) SurfaceCard("AI report", result)
-        if (dataText.isNotBlank()) SurfaceCard("Dataset preview", dataText.lineSequence().take(8).joinToString("\\n"))
+        if (dataText.isNotBlank()) SurfaceCard("Dataset preview", dataText.lineSequence().take(8).joinToString("\n"))
         SurfaceCard("Credits", "Data analysis uses the shared backend credit system and the current service pricing configuration.")
     }
 }
