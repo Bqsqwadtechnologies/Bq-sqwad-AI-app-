@@ -3223,7 +3223,7 @@ private fun WorkspaceScreen(
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onSettings)
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onSettings)
-                Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans)
+                Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onSettings)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
