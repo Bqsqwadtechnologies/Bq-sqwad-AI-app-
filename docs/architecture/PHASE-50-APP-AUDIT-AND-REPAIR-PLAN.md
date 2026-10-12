@@ -165,3 +165,42 @@ The following source changes have been committed to `main` after the approved au
 - No Gradle build, unit/instrumentation test run, APK generation, GitHub Actions dispatch, purchase, or Worker deployment was performed. Workflow remains manual-only. Phase 4 is **IN PROGRESS**; continue reviewing history loading/deletion errors, message action correctness, cancellation/retry behavior, attachment handoff, and UI/keyboard behavior before moving to Phase 5.
 
 - Additional Phase 4 reliability fix: cancelling a regular image-generation turn previously flowed through the failure-message path. Cancellation now removes the in-progress placeholder, reports **Stopped** without a false error, clears busy state, and refreshes the server's canonical credit balance. Commit: `8fb4c89e2f1c36f658d28ec432b4161e3c342102`.
+
+
+### Phase 3 continuation — catalog, entitlement and purchase review — 2026-10-12
+
+- Traced the native catalog path from Firestore `playCatalog/config` and the canonical plan catalog into product/base-plan/offer mapping. Purchase verification uses the verified Google Play product and base plan, rejects mismatches, checks the subscription state, and uses the verified successful order/expiry as a cycle reference so a renewed subscription token can grant a new cycle without granting the same cycle twice.
+- Fixed one receipt classification defect: verified one-time in-app purchases were being written under a receipt path suffixed `-subscription`. Receipt paths now use `-subscription` only for subscriptions and `-purchase` for one-time purchases. Commit: `aa74fc8aeedbc839501856a5642b73c9c2989169`.
+- Added a focused Worker test for subscription renewal idempotency: the first verified cycle grants once, a repeated verification does not re-grant, and a later verified order/expiry on the same token grants the next cycle once. File: `cloudflare-worker/test/google-play-renewals.test.mjs`.
+- Source review also caught and fixed a duplicate `users/{uid}` write when a subscription has no credit grant; subscription profile metadata and credit-grant writes now use distinct paths through a single write per user document.
+- Phase 3 source review: **COMPLETE**. Execution status: **NOT RUN** — no Worker tests, Gradle build, real purchase, Play acknowledgement, or deployed-backend verification was performed. Do not interpret source review as purchase-runtime PASS.
+
+### Phase 4 continuation — Main Chat and text experience — 2026-10-12
+
+- Connected the existing Settings preferences to Main Chat: automatic saving obeys both Conversation history and Automatic saving; manual **Save conversation now** is available for non-private chats when history is enabled; private turns remain excluded from every history snapshot; read-aloud controls respect the Read-aloud replies preference.
+- Made Settings backend-sync errors recoverable: successful retries clear the previous error for Personal memory, Companion memory and TruthGuard source-display preferences.
+- Corrected the advanced-feature route so feature workspaces can open Settings through an explicit callback rather than an out-of-scope reference.
+- Preserved the existing native Compose chat layout and message alignment, streaming/cancel path, image generation/edit/regenerate/resize flows, attachment preparation, source links, markdown, copy/share/feedback actions, and server-authoritative credit refresh.
+- Phase 4 source review: **COMPLETE**. Runtime status: **NOT RUN** — keyboard behavior, streaming/cancel, private-history exclusion, manual/automatic save, attachment paths and message actions still require build/instrumentation/device verification.
+
+### Phase 5 — Research, files and multimodal AI — source review complete — 2026-10-12
+
+- Wired the global Web Search preference into the dedicated Search workspace, TruthGuard claim verification, Frontier Lab Research mode, and the shared advanced-feature workspace. When Web Search is disabled, affected actions are disabled or show a clear Settings path rather than silently running a search.
+- Frontier Lab Research mode now runs the configured web-search service first, attaches its answer and up to eight retrieved sources to the Frontier analysis request, displays the sources separately, and avoids rendering a literal `null` when the search service returns no summary. The UI explicitly warns that Research mode invokes separately priced services.
+- Connected Camera enhancement to the camera frame-sampling and AI-analysis intervals; disabling it reduces sampling frequency instead of leaving the preference inert.
+- Corrected generated-video sharing to advertise a text/link payload rather than falsely labeling a URL as an `video/mp4` attachment.
+- Audited the existing attachment reader: it enforces a 5 MB input limit, bounds Office ZIP expansion, extracts text from DOCX/PPTX/XLSX, rejects extracted text above 120,000 characters, accepts supported image types, and sends PDFs through the server-side file-analysis path. Existing unit tests cover Office text extraction and CSV dimensions. This does not claim OCR for scanned PDFs or support for every document/media format.
+- AI workspace review covered Search, TruthGuard, Frontier Lab, Data Analysis, Live Camera, Live Voice, Personal Intelligence, Life Matters, Companion, Learning, Business, Organization Studio and Video Generation. The existing dedicated workspace routes and Material 3 theme system were retained; live provider execution, hardware access, subscription access and external-channel connections are not certified by source inspection.
+- Phase 5 source review: **COMPLETE**. Runtime status: **NOT RUN** — the Android build, unit tests, emulator instrumentation tests, Redmi 10C camera/microphone sessions, generated-media rendering, and live Worker/provider requests remain unverified.
+
+### User/admin separation review — 2026-10-12
+
+- Confirmed the normal drawer filters out `Workspace.ADMIN` unless the server authorization check succeeds; Feature Hub excludes it for all users; the Admin Control Center still checks authorization before rendering.
+- Tightened the final navigation guard so an unauthorized admin destination cannot surface as a normal plan/paywall option even if a stale or unexpected navigation event attempts to open it. Commit: `17bccba8212131f222ff2bdcbc4728166cff7606`.
+- Administrative provider, security, catalog and testing panels remain in the dedicated authorized Admin Control Center. Business/organization member roles remain in their own product workspaces and are not app-admin dashboard controls.
+
+### Whole-prompt verification boundary
+
+- All source edits above were committed to `main`; no APK has been generated and no GitHub Actions workflow has been dispatched.
+- The validation workflow remains manual-only (`workflow_dispatch`); it has not been triggered during these edits.
+- Final testing must be run only after this complete source pass. Until then, mark every build/runtime-dependent item as **NOT RUN**, not PASS.
