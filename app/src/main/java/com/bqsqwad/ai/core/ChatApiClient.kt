@@ -225,41 +225,48 @@ class ChatApiClient(
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Content-Type", "application/json")
         }
-        connection.outputStream.use {
-            it.write(JSONObject().apply {
-                put("message", message)
-                val images = (if (imageBase64.isNullOrBlank()) emptyList() else listOf(mimeType to imageBase64.orEmpty())) + additionalImages
-                if (images.isNotEmpty()) put("images", JSONArray().apply {
-                    images.take(4).forEach { (type, encoded) ->
-                        put(JSONObject().put("mimeType", type).put("imageBase64", encoded))
-                    }
-                })
-                if (additionalFiles.isNotEmpty()) put("files", JSONArray().apply {
-                    additionalFiles.take(4).forEach { (name, type, encoded) ->
-                        put(JSONObject().put("name", name).put("mimeType", type).put("fileBase64", encoded))
-                    }
-                })
-                put("capability", capability)
-                if (!system.isNullOrBlank()) put("system", system)
-            }.toString().toByteArray())
+        try {
+            connection.outputStream.use {
+                it.write(JSONObject().apply {
+                    put("message", message)
+                    val images = (if (imageBase64.isNullOrBlank()) emptyList() else listOf(mimeType to imageBase64.orEmpty())) + additionalImages
+                    if (images.isNotEmpty()) put("images", JSONArray().apply {
+                        images.take(4).forEach { (type, encoded) ->
+                            put(JSONObject().put("mimeType", type).put("imageBase64", encoded))
+                        }
+                    })
+                    if (additionalFiles.isNotEmpty()) put("files", JSONArray().apply {
+                        additionalFiles.take(4).forEach { (name, type, encoded) ->
+                            put(JSONObject().put("name", name).put("mimeType", type).put("fileBase64", encoded))
+                        }
+                    })
+                    put("capability", capability)
+                    if (!system.isNullOrBlank()) put("system", system)
+                }.toString().toByteArray())
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val body = runCatching { JSONObject(raw) }.getOrNull()
+            if (status !in 200..299) {
+                val serverError = body?.optString("error").orEmpty()
+                val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
+                throw IllegalStateException("HTTP $status: $detail")
+            }
+            if (body == null) {
+                throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+            }
+            val responseText = body.optString("text").trim()
+            if (responseText.isBlank()) throw IllegalStateException("AI service returned an empty response.")
+            ChatReply(
+                text = responseText,
+                providerId = body.optString("providerId").takeIf { it.isNotBlank() },
+                modelId = body.optString("modelId").takeIf { it.isNotBlank() },
+                creditsCharged = body.optDouble("creditsCharged", 0.0)
+            )
+        } finally {
+            connection.disconnect()
         }
-        val status = connection.responseCode
-        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        val body = runCatching { JSONObject(raw) }.getOrNull()
-        if (status !in 200..299) {
-            val serverError = body?.optString("error").orEmpty()
-            val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
-            throw IllegalStateException("HTTP $status: $detail")
-        }
-        if (body == null) {
-            throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
-        }
-        ChatReply(
-            text = body.optString("text").trim(),
-            providerId = body.optString("providerId").takeIf { it.isNotBlank() },
-            modelId = body.optString("modelId").takeIf { it.isNotBlank() },
-            creditsCharged = body.optDouble("creditsCharged", 0.0)
-        )
     } }
+}
 }
