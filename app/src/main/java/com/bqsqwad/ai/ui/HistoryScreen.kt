@@ -25,6 +25,9 @@ fun HistoryScreen(
     var items by remember { mutableStateOf<List<HistoryItem>>(emptyList()) }
     var selected by remember { mutableStateOf<Pair<HistoryItem, List<HistoryMessage>>?>(null) }
     var busy by remember { mutableStateOf(true) }
+    var loadingItemId by remember { mutableStateOf<String?>(null) }
+    var deletingItem by remember { mutableStateOf<HistoryItem?>(null) }
+    var deletingId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
@@ -50,17 +53,26 @@ fun HistoryScreen(
     ) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).fillMaxSize()) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp)) }
+            error?.let { message ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(message, color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = { refresh() }, enabled = !busy) { Text("Try again") }
+                }
+            }
             if (!busy && items.isEmpty() && error == null) {
                 Text("No saved chats yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(items, key = { it.id }) { item ->
                     ElevatedCard(onClick = {
+                        if (loadingItemId != null || deletingId != null) return@ElevatedCard
+                        loadingItemId = item.id
+                        error = null
                         scope.launch {
                             runCatching { HistoryApiClient().load(item.id) }
                                 .onSuccess { selected = item to it }
                                 .onFailure { error = it.message ?: "Could not open this chat." }
+                            loadingItemId = null
                         }
                     }, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -68,18 +80,41 @@ fun HistoryScreen(
                                 Text(item.title, style = MaterialTheme.typography.titleMedium)
                                 Text("${item.messageCount} messages", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            TextButton(onClick = {
-                                scope.launch {
-                                    runCatching { HistoryApiClient().delete(item.id) }
-                                        .onSuccess { refresh() }
-                                        .onFailure { error = it.message ?: "Could not delete this chat." }
-                                }
-                            }) { Text("Delete") }
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                TextButton(onClick = { deletingItem = item }, enabled = deletingId == null && loadingItemId == null) { Text("Delete") }
+                                if (loadingItemId == item.id) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    deletingItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { if (deletingId == null) deletingItem = null },
+            title = { Text("Delete saved chat?") },
+            text = { Text("‘${item.title}’ will be removed from your saved chat history. This cannot be undone.") },
+            confirmButton = {
+                TextButton(enabled = deletingId == null, onClick = {
+                    deletingId = item.id
+                    scope.launch {
+                        runCatching { HistoryApiClient().delete(item.id) }
+                            .onSuccess {
+                                items = items.filterNot { it.id == item.id }
+                                error = null
+                            }
+                            .onFailure { error = it.message ?: "Could not delete this chat." }
+                        deletingId = null
+                        deletingItem = null
+                    }
+                }) { Text(if (deletingId == item.id) "Deleting…" else "Delete") }
+            },
+            dismissButton = {
+                TextButton(enabled = deletingId == null, onClick = { deletingItem = null }) { Text("Cancel") }
+            }
+        )
     }
 
     selected?.let { (item, messages) ->
