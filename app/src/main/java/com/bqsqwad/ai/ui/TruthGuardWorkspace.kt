@@ -69,7 +69,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
             defaultDeepResearch = settings.optBoolean("defaultDeepResearch", false)
             deepResearch = defaultDeepResearch && proOrHigher
             history = api.truthGuardHistory()
-        }.onFailure { notice = it.message ?: "TruthGuard could not load." }
+        }.onFailure { notice = safeUserFacingIssue(it, "TruthGuard could not load.") }
         loading = false
     }
 
@@ -85,7 +85,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                         .put("defaultDeepResearch", defaultDeepResearch && proOrHigher)
                 )
             }.onSuccess { notice = "TruthGuard settings saved." }
-                .onFailure { notice = it.message ?: "TruthGuard settings could not be saved." }
+                .onFailure { notice = safeUserFacingIssue(it, "TruthGuard settings could not be saved.") }
         }
     }
 
@@ -111,7 +111,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                     result = it
                     if (saveHistory) runCatching { history = WorkspaceApiClient().truthGuardHistory() }
                 }
-                .onFailure { notice = it.message ?: "TruthGuard verification failed." }
+                .onFailure { notice = safeUserFacingIssue(it, "TruthGuard verification failed.") }
             busy = false
         }
     }
