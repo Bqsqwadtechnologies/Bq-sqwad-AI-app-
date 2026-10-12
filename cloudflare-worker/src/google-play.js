@@ -195,7 +195,9 @@ export async function verifyPlayPurchase(env, firestore, input) {
   }
 
   const verifiedBasePlanId = actualBasePlanId || String(mapping.basePlanId || "");
-  const verifiedOfferId = String(lineItem.offerDetails?.offerId || requestedOfferId || "");
+  const actualOfferId = String(lineItem.offerDetails?.offerId || "");
+  if (requestedOfferId && String(requestedOfferId) !== actualOfferId) throw new Error("play_offer_mismatch");
+  const verifiedOfferId = actualOfferId || String(requestedOfferId || "");
   const cycleReference = mapping.productType === "subs"
     ? String(lineItem.latestSuccessfulOrderId || verified.latestOrderId || lineItem.expiryTime || "")
     : purchaseToken;
