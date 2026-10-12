@@ -5077,7 +5077,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("Read-aloud replies", "Show spoken playback controls for text responses.", voiceReplies) { voiceReplies = it; putBoolean("voice_replies", it) }
-                    SettingsToggleCard("Camera enhancement", "Use available visual processing enhancements.", cameraEnhance) { cameraEnhance = it; putBoolean("camera_enhance", it) }
+                    SettingsToggleCard("Camera enhancement", "Analyze camera frames more frequently for a more responsive live AI view.", cameraEnhance) { cameraEnhance = it; putBoolean("camera_enhance", it) }
                     SettingsToggleCard("Companion memory", "Allow Companion to use its configured memory controls.", companionMemory) {
                         companionMemory = it
                         putBoolean("companion_memory", it)
