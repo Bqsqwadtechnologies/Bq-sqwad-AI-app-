@@ -60,7 +60,7 @@ fun VideoGenerationWorkspace() {
                 }
                 .onFailure {
                     consecutiveFailures += 1
-                    error = it.message ?: "Could not refresh render status."
+                    error = safeUserFacingIssue(it, "Could not refresh render status.")
                 }
             if (status in setOf("completed", "failed", "cancelled")) break
             if (consecutiveFailures >= 3) {
@@ -141,7 +141,7 @@ fun VideoGenerationWorkspace() {
                                 progress = it.progress
                             }
                             .onFailure {
-                                error = it.message ?: "Video generation failed."
+                                error = safeUserFacingIssue(it, "Video generation failed.")
                                 busy = false
                             }
                     }
@@ -162,7 +162,7 @@ fun VideoGenerationWorkspace() {
                             Button(onClick = {
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contentUrl)))
-                                }.onFailure { error = it.message ?: "The generated video could not be opened." }
+                                }.onFailure { error = safeUserFacingIssue(it, "The generated video could not be opened.") }
                             }) { Text("Open video") }
                             OutlinedButton(onClick = {
                                 val url = contentUrl
@@ -172,7 +172,7 @@ fun VideoGenerationWorkspace() {
                                             type = "text/plain"
                                             putExtra(Intent.EXTRA_TEXT, url)
                                         })
-                                    }.onFailure { error = it.message ?: "The video could not be shared." }
+                                    }.onFailure { error = safeUserFacingIssue(it, "The video could not be shared.") }
                                 }
                             }) { Text("Share") }
                         }
@@ -198,7 +198,7 @@ fun VideoGenerationWorkspace() {
                                         progress = it.progress
                                     }
                                     .onFailure {
-                                        error = it.message ?: "Video retry failed."
+                                        error = safeUserFacingIssue(it, "Video retry failed.")
                                         busy = false
                                     }
                             }
