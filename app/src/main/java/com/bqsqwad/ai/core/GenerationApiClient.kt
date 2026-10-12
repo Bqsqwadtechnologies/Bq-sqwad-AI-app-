@@ -51,12 +51,17 @@ class GenerationApiClient {
                 }
                 setRequestProperty("Authorization", "Bearer $token")
             }
-            if (method != "GET") c.outputStream.use { it.write(payload.toString().toByteArray()) }
-            val status = c.responseCode
-            val raw = (if (status in 200..299) c.inputStream else c.errorStream).bufferedReader().use { it.readText() }
-            val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
-            if (status !in 200..299) error(body.optString("error", "Generation request failed"))
-            body
+            try {
+                if (method != "GET") c.outputStream.use { it.write(payload.toString().toByteArray()) }
+                val status = c.responseCode
+                val stream = if (status in 200..299) c.inputStream else c.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
+                if (status !in 200..299) error(body.optString("error", "Generation request failed"))
+                body
+            } finally {
+                c.disconnect()
+            }
         }
 
     suspend fun generateImage(prompt: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null): GeneratedImage {
