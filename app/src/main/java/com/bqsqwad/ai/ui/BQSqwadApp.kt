@@ -2846,7 +2846,9 @@ private val ADMIN_ONLY_CAPABILITIES = setOf(
     "provider_health_checks", "ai_incident_replay", "model_version_rollback",
     "admin_capability_marketplace", "security_event_monitoring", "ai_abuse_risk_detection",
     "rate_limiting", "abuse_protection", "incident_system", "ai_evaluation_center",
-    "accessibility_ai_controls", "model_routing", "provider_failover", "ai_orchestration"
+    "ai_evaluation_laboratory", "provider_cost_optimizer", "automatic_quality_fallback",
+    "credit_reservation", "credit_reversal", "secure_file_pipeline", "offline_retry_queue",
+    "model_routing", "provider_failover", "ai_orchestration"
 )
 
 private val ADVANCED_APP_FEATURES: List<AppFeature>
