@@ -334,7 +334,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
                     researchSources = search.sources.take(8).joinToString("\n") { source ->
                         source.title + "\n" + source.url + source.snippet?.takeIf { it.isNotBlank() }?.let { "\n" + it } .orEmpty()
                     }
-                    "Web search summary:\n" + search.answer + "\n\nSources:\n" + researchSources
+                    "Web search summary:\n" + search.answer.orEmpty().ifBlank { "No search summary was returned; review the sources below." } + "\n\nSources:\n" + researchSources
                 } else ""
                 api.workspaceAi(
                     "frontier_lab",
