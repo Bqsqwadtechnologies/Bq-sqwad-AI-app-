@@ -5103,7 +5103,11 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                     SettingsToggleCard("Automatic saving", "Save completed conversations and supported attachments.", autoSave) { autoSave = it; putBoolean("auto_save", it) }
                     SettingsToggleCard("Personal memory", "Use the memory system you control.", memory) {
                         memory = it; putBoolean("memory_enabled", it)
-                        scope.launch { runCatching { WorkspaceApiClient().setMemoryEnabled(it) } }
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().setMemoryEnabled(it) }
+                                .onSuccess { settingsNotice = null }
+                                .onFailure { settingsNotice = "Personal memory could not be updated on the server. Try again." }
+                        }
                     }
                     SettingsToggleCard("Web Search", "Allow supported AI features to use server-controlled web search.", webSearch) { webSearch = it; putBoolean("web_search_enabled", it) }
                 }
@@ -5119,6 +5123,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         putBoolean("companion_memory", it)
                         scope.launch {
                             runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(it) }
+                                .onSuccess { settingsNotice = null }
                                 .onFailure { settingsNotice = "Companion memory could not be updated on the server. Try again." }
                         }
                     }
@@ -5133,6 +5138,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                         putBoolean("truthguard_sources", it)
                         scope.launch {
                             runCatching { WorkspaceApiClient().saveTruthGuardSettings(JSONObject().put("showSources", it)) }
+                                .onSuccess { settingsNotice = null }
                                 .onFailure { settingsNotice = "TruthGuard source preferences could not be synced. Open TruthGuard settings and save again." }
                         }
                     }
