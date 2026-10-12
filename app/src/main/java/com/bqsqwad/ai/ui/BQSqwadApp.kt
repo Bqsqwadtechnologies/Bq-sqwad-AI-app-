@@ -2377,7 +2377,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     selectedImageMimeType = "image/png"
                                     error = if (durableUrl == null) "The image was regenerated, but secure storage is unavailable; it may not appear when you reopen this chat." else null
                                     if (!privateChat) runCatching {
-                                        val snapshot = messages.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name }, item.imageUrl) }
+                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name }, item.imageUrl) }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
                                         .onFailure { error = "The image was regenerated, but this conversation could not be saved." }
