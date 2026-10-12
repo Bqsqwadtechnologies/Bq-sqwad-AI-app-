@@ -1337,6 +1337,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
+    // Keep Private Chat turns visible in this session but never include them in a saved history payload.
+    val privateMessageIds = remember { mutableStateListOf<String>() }
+    fun appendChatMessage(chatMessage: ChatMessage) {
+        messages.add(chatMessage)
+        if (privateChat) privateMessageIds.add(chatMessage.id)
+    }
     var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
     var selectedImageMimeType by remember { mutableStateOf("image/png") }
     var selectedImagePrompt by remember { mutableStateOf("") }
@@ -1375,6 +1381,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val saved = restoredChat ?: return@LaunchedEffect
         historyId = saved.first
         messages.clear()
+        privateMessageIds.clear()
         messages.addAll(saved.second.map { item ->
             ChatMessage(
                 mine = item.mine,
@@ -1550,9 +1557,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         if (imageRequest) {
             val promptText = text.trim()
             message = ""
-            messages.add(ChatMessage(true, promptText))
+            appendChatMessage(ChatMessage(true, promptText))
             val aiIndex = messages.size
-            messages.add(ChatMessage(false, "Generating image…"))
+            appendChatMessage(ChatMessage(false, "Generating image…"))
             busy = true
             statusText = "Generating image…"
             error = null
@@ -1583,7 +1590,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             .onSuccess { applyCreditSnapshot(it) }
                         if (!privateChat) {
                             runCatching {
-                                val snapshot = messages.map { m ->
+                                val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                     HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
                                 }
                                 withContext(Dispatchers.IO) {
@@ -1633,9 +1640,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             return
         }
         val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
-        messages.add(ChatMessage(true, displayText, attachments = selectedAttachments.map { ChatMessageAttachment(it.name, it.mimeType, it.imageBase64) }))
+        appendChatMessage(ChatMessage(true, displayText, attachments = selectedAttachments.map { ChatMessageAttachment(it.name, it.mimeType, it.imageBase64) }))
         val aiIndex = messages.size
-        messages.add(ChatMessage(false, "", prompt = actualPrompt))
+        appendChatMessage(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
         error = null
         statusText = "Connecting to BQ Sqwad AI…"
@@ -1669,7 +1676,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                     if (!privateChat) {
-                        val snapshot = messages.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
+                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
                         }.onFailure { error = "The response was generated, but chat history could not be saved." }
@@ -2411,7 +2418,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 else "Image edit completed."
                                 if (!privateChat) {
                                     runCatching {
-                                        val snapshot = messages.map { m ->
+                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                             HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
@@ -2453,7 +2460,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 else "New image size generated."
                                 if (!privateChat) {
                                     runCatching {
-                                        val snapshot = messages.map { m ->
+                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
                                             HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
