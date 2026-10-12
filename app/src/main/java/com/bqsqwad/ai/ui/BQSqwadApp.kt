@@ -1596,7 +1596,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 error = null
                 statusText = "Conversation saved."
             }.onFailure {
-                error = "Could not save this conversation. Please try again."
+                error = safeUserFacingIssue(it, "Could not save this conversation. Please try again.")
             }
             savingChat = false
         }
@@ -1672,7 +1672,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             }.onSuccess { savedId ->
                                 historyId = savedId
                             }.onFailure {
-                                error = "The image was generated, but this conversation could not be saved."
+                                error = safeUserFacingIssue(it, "The image was generated, but this conversation could not be saved.")
                             }
                         }
                     }
@@ -1758,7 +1758,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
-                        }.onFailure { error = "The response was generated, but chat history could not be saved." }
+                        }.onFailure { error = safeUserFacingIssue(it, "The response was generated, but chat history could not be saved.") }
                     }
                 }
             } catch (t: Throwable) {
@@ -2468,7 +2468,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name }, item.imageUrl) }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
-                                        .onFailure { error = "The image was regenerated, but this conversation could not be saved." }
+                                        .onFailure { error = safeUserFacingIssue(it, "The image was regenerated, but this conversation could not be saved.") }
                                 }.onFailure { error = safeUserFacingIssue(it, "BQ Sqwad AI could not regenerate the image. Please try again.") }
                                 runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                                     .onSuccess { applyCreditSnapshot(it) }
@@ -2511,7 +2511,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
-                                        .onFailure { error = "Image edit completed, but this conversation could not be saved." }
+                                        .onFailure { error = safeUserFacingIssue(it, "Image edit completed, but this conversation could not be saved.") }
                                 }
                             }
                             .onFailure { error = safeUserFacingIssue(it, "The image could not be edited. Please try again.") }
@@ -2553,7 +2553,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
-                                        .onFailure { error = "New image size generated, but this conversation could not be saved." }
+                                        .onFailure { error = safeUserFacingIssue(it, "New image size generated, but this conversation could not be saved.") }
                                 }
                             }
                             .onFailure { error = safeUserFacingIssue(it, "The new image size could not be generated.") }
