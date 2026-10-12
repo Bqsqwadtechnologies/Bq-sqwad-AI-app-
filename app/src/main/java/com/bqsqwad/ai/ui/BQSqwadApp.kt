@@ -3568,6 +3568,7 @@ private fun DataAnalysisWorkspace() {
     var streaming by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var analysisJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var rows by remember { mutableIntStateOf(0) }
     var columns by remember { mutableIntStateOf(0) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -3595,17 +3596,33 @@ private fun DataAnalysisWorkspace() {
                     OutlinedButton(onClick = { picker.launch(arrayOf("text/*", "application/json", "application/csv", "text/csv")) }, enabled = !busy) { Text("Load data") }
                 }
                 OutlinedTextField(prompt, { prompt = it }, label = { Text("What should I analyze?") }, placeholder = { Text("Summarize trends, compare columns, find anomalies, or create a report…") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
-                Button(enabled = dataText.isNotBlank() && prompt.isNotBlank() && !busy, onClick = {
+                Button(enabled = busy || (dataText.isNotBlank() && prompt.isNotBlank()), onClick = {
+                    if (busy) {
+                        analysisJob?.cancel()
+                        return@Button
+                    }
                     busy = true; error = null; result = ""; streaming = ""
-                    scope.launch(Dispatchers.IO) {
+                    analysisJob = scope.launch(Dispatchers.IO) {
                         try {
                             val bounded = dataText.take(120000)
                             val request = "DATASET: " + fileName + "\\nROWS: " + rows + "\\nCOLUMNS: " + columns + "\\nUSER REQUEST: " + prompt.trim() + "\\n\\nDATA:\\n" + bounded
                             val reply = ChatApiClient().streamMessage(request, "data_analysis_workspace", onDelta = { delta -> scope.launch(Dispatchers.Main) { streaming += delta } })
-                            scope.launch(Dispatchers.Main) { result = reply.text; busy = false }
-                        } catch (t: Throwable) { scope.launch(Dispatchers.Main) { error = t.message ?: "Data analysis failed."; busy = false } }
+                            scope.launch(Dispatchers.Main) { result = reply.text; streaming = ""; busy = false; analysisJob = null }
+                        } catch (t: Throwable) {
+                            scope.launch(Dispatchers.Main) {
+                                if (t is kotlinx.coroutines.CancellationException) {
+                                    result = streaming
+                                    streaming = ""
+                                    error = if (result.isNotBlank()) "Analysis stopped. Partial output is shown below." else null
+                                } else {
+                                    error = t.message ?: "Data analysis failed."
+                                }
+                                busy = false
+                                analysisJob = null
+                            }
+                        }
                     }
-                }) { Text(if (busy) "Analyzing…" else "Analyze dataset") }
+                }) { Text(if (busy) "Stop analysis" else "Analyze dataset") }
             }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
