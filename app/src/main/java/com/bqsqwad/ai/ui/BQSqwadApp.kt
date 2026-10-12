@@ -1025,6 +1025,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         onLearnMore = { featureInfo = workspace!! },
                         onPrivacy = { featurePrivacy = workspace!! },
                         onSettings = { featureSettings = workspace!! },
+                        onOpenAppSettings = { settings = true },
                         onOpenPlans = { plans = true }
                     )
                 }
@@ -3177,6 +3178,7 @@ private fun WorkspaceScreen(
     onLearnMore: () -> Unit,
     onPrivacy: () -> Unit,
     onSettings: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     onOpenPlans: () -> Unit
 ) {
     Scaffold(
@@ -3225,9 +3227,9 @@ private fun WorkspaceScreen(
         ) {
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
-                Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onSettings)
-                Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onSettings)
-                Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onSettings)
+                Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onOpenAppSettings)
+                Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
+                Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
                 Workspace.CAMERA -> CameraWorkspace()
                 Workspace.VOICE -> VoiceWorkspace()
