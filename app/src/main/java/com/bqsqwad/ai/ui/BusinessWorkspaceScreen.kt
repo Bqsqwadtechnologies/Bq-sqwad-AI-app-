@@ -125,7 +125,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 }
                 if (planContext.optBoolean("adminTest", false)) {
                     Text(
-                        "ADMIN TEST MODE • " + planId + " • customer entitlements are not changed",
+                        "Authorized workspace access is active.",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -149,7 +149,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Business plan access required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "This workspace is protected by the server-side Business plan gate. A verified Business entitlement or an active admin test session is required.",
+                        "A verified Business entitlement is required to use these workspace tools.",
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Button(onClick = onOpenPlans) { Text("View Business Plans") }
@@ -175,7 +175,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         }
                         val expires = planContext.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" }
                         if (expires != null) append(" • Access through " + expires)
-                        if (planContext.optBoolean("adminTest", false)) append(" • Admin Test Mode")
+                        if (planContext.optBoolean("adminTest", false)) append(" • Authorized access")
                     }
                 )
                 val limits = planContext.optJSONObject("limits") ?: JSONObject()
@@ -837,13 +837,13 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                     )
                     Text(
                         item.optString("description").ifBlank {
-                            if (requiresCredentials) "Configured securely by the administrator." else "Available without adding a provider API key."
+                            if (requiresCredentials) "Configured securely for this workspace." else "Available without adding a provider API key."
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text(if (isConfigured) "Connected" else if (noKey) "Available" else "Waiting for admin configuration")
+                            Text(if (isConfigured) "Connected" else if (noKey) "Available" else "Not configured yet")
                             Text(
                                 if (noKey) "No provider key required" else "Credentials are server-side",
                                 style = MaterialTheme.typography.bodySmall,
