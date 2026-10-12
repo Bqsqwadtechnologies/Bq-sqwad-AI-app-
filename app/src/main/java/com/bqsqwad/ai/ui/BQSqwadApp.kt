@@ -1003,7 +1003,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onAdvancedFeature = { selected -> featureHub = false; advancedFeature = selected }
             )
             featureSettings != null -> FeatureSettingsScreen(featureSettings!!) { featureSettings = null }
-            advancedFeature != null -> AdvancedFeatureScreen(advancedFeature!!) { advancedFeature = null }
+            advancedFeature != null -> AdvancedFeatureScreen(
+                feature = advancedFeature!!,
+                onBack = { advancedFeature = null },
+                onOpenSettings = { settings = true }
+            )
             plans -> ProductCatalogScreen { plans = false }
             brandingSettings -> BrandingSettingsScreen { brandingSettings = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
@@ -3269,7 +3273,7 @@ private fun WorkspaceScreen(
 }
 
 @Composable
-private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
+private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpenSettings: () -> Unit) {
     val entry = NativeFeatureRegistry.find(feature.id)
     Scaffold(
         topBar = {
