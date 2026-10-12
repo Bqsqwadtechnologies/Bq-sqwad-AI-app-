@@ -3603,7 +3603,7 @@ private fun DataAnalysisWorkspace() {
                     }
                     error = null
                 }
-            }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
+            }.onFailure { t -> scope.launch(Dispatchers.Main) { error = safeUserFacingIssue(t, "Could not read the data file.") } }
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
