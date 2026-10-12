@@ -3533,7 +3533,7 @@ private fun AiTaskWorkspace(
                             streamingResult = ""
                             error = if (result.isNotBlank()) "Stopped. Partial output is shown above." else null
                         } else {
-                            error = t.message ?: "Request failed"
+                            error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete this request. Please try again.")
                         }
                     } finally {
                         busy = false
@@ -3643,7 +3643,7 @@ private fun DataAnalysisWorkspace() {
                                     streaming = ""
                                     error = if (result.isNotBlank()) "Analysis stopped. Partial output is shown below." else null
                                 } else {
-                                    error = t.message ?: "Data analysis failed."
+                                    error = safeUserFacingIssue(t, "Data analysis failed. Please try again.")
                                 }
                                 busy = false
                                 analysisJob = null
@@ -3694,7 +3694,7 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
                     answer = reply.answer
                     results.addAll(reply.sources)
                 } catch (t: Throwable) {
-                    error = t.message ?: "Search failed"
+                    error = safeUserFacingIssue(t, "Search could not be completed. Please try again.")
                 } finally {
                     busy = false
                 }
