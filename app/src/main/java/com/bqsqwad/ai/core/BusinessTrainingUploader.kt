@@ -65,23 +65,27 @@ object BusinessTrainingUploader {
             setRequestProperty("X-Bz-Content-Sha1", "do_not_verify")
         }
 
-        resolver.openInputStream(uri)?.use { input ->
-            connection.outputStream.use { output ->
-                input.copyTo(output, 1024 * 1024)
-            }
-        } ?: error("Unable to open selected file")
+        try {
+            resolver.openInputStream(uri)?.use { input ->
+                connection.outputStream.use { output ->
+                    input.copyTo(output, 1024 * 1024)
+                }
+            } ?: error("Unable to open selected file")
 
-        val response = connection.responseCode
-        val responseBody = (if (response in 200..299) connection.inputStream else connection.errorStream)
-            ?.bufferedReader()
-            ?.use { it.readText() }
-            .orEmpty()
-        if (response !in 200..299) {
-            val message = runCatching { JSONObject(responseBody).optString("message") }
-                .getOrDefault("")
-                .ifBlank { responseBody.take(500) }
-                .ifBlank { "Training upload failed" }
-            error("Training upload failed with HTTP $response: $message")
+            val response = connection.responseCode
+            val responseBody = (if (response in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                .orEmpty()
+            if (response !in 200..299) {
+                val message = runCatching { JSONObject(responseBody).optString("message") }
+                    .getOrDefault("")
+                    .ifBlank { responseBody.take(500) }
+                    .ifBlank { "Training upload failed" }
+                error("Training upload failed with HTTP $response: $message")
+            }
+        } finally {
+            connection.disconnect()
         }
 
         api.finalizeBusinessTrainingUpload(created.optString("assetId"))
