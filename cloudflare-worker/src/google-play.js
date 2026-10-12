@@ -172,6 +172,12 @@ export async function verifyPlayPurchase(env, firestore, input) {
   const subscriptionState = initialMapping.productType === "subs" ? String(verified.subscriptionState || "") : "";
   const purchaseState = initialMapping.productType === "inapp" ? Number(verified.purchaseState ?? -1) : 0;
   const lineItem = initialMapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
+  const actualProductId = initialMapping.productType === "subs" ? String(lineItem.productId || "") : String(verified.productId || productId);
+  if (actualProductId && actualProductId !== String(productId)) throw new Error("play_product_mismatch");
+  const googleAccountId = String(initialMapping.productType === "subs"
+    ? verified.externalAccountIdentifiers?.obfuscatedExternalAccountId || ""
+    : verified.obfuscatedExternalAccountId || "");
+  if (googleAccountId && googleAccountId !== await sha256Hex(uid)) throw new Error("play_account_mismatch");
   const actualBasePlanId = String(lineItem.offerDetails?.basePlanId || "");
   if (requestedBasePlanId && actualBasePlanId && String(requestedBasePlanId) !== actualBasePlanId) throw new Error("play_base_plan_mismatch");
 
