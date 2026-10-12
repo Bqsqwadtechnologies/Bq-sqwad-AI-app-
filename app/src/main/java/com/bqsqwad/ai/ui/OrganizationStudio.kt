@@ -1046,7 +1046,7 @@ fun OrganizationStudioWorkspace() {
                     Text("Organization data: server-persisted and scoped")
                     Text("Personal memory: separate from organization knowledge")
                     Text("Channels: server-persisted with enable/disable state")
-                    Text("Broadcast adapters: admin/provider controlled; credentials are not stored in the APK")
+                    Text("Broadcast adapters depend on configured provider connections; credentials are not stored in the app.")
                     Text("Network cameras, QR pairing and platform broadcast require configured provider endpoints")
                 }
             }
