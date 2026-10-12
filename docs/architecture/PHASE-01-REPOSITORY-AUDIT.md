@@ -404,3 +404,59 @@ Phase 1 is considered structurally complete when:
 The next phase is the professional native application architecture and design system. It must create dedicated feature workspaces instead of routing every feature back into Main Chat.
 
 Build configuration remains intentionally untouched during the feature architecture work.
+
+
+---
+
+## Current audit addendum — 2026-10-12
+
+This addendum supersedes outdated historical statements above that the repository is empty or that the new logo is still waiting to be supplied. The current repository contains a native Android app and an established Cloudflare Worker. This is a source audit, not a device/backend PASS.
+
+### Current architecture and change-control
+- Repository: `Bqsqwadtechnologies/Bq-sqwad-AI-app-`; branch: `main`; package: `com.bqsqwad.ai`.
+- Android is Kotlin/Jetpack Compose. The app API configuration points to the Cloudflare Worker in `cloudflare-worker/`; `functions/` is legacy/reference code, not the app's configured API base.
+- Current reviewed HEAD before this audit update: `e1f17c7b24eb32ca23291cd75078149beff003a5`.
+- GitHub commit status has no completed checks (`total_count: 0`). No build, Worker test suite, deployment, or device test was run during this audit. No GitHub Actions workflow was triggered.
+- Preserve the native app, logo asset, Firebase/Worker architecture, signing, package ID, product IDs, security gates, and credit reserve/commit/reverse semantics.
+
+### Feature audit
+Status labels deliberately distinguish source presence from execution.
+
+| # | Feature | Status label | Finding / remaining verification |
+|---:|---|---|---|
+| 1 | Sign-in, sign-up, consent, sign-out, deletion | WIRED IN CODE (not run) | Firebase/auth and consent paths exist; account lifecycle and provider callbacks need device/backend verification. |
+| 2 | Main chat, streaming, stop, regenerate, copy, attachments, private chat, history | WIRED IN CODE (not run) | Main flow, response actions, history save/reopen and credit refresh paths exist. PDF/Office extraction and end-to-end persistence remain gaps. |
+| 3 | Image generation/editing | WIRED IN CODE (not run) | Worker generation route, input validation, credit reversal, chat preview and durable-image upload paths exist. Provider model/account access, Storage rules, deployed secrets and visible result must be tested. |
+| 4 | Video generation | WIRED IN CODE (not run) | Worker generation paths exist; provider access, output retrieval, timeout and client display are unverified. |
+| 5 | Web search/deep research | WIRED IN CODE (not run) | Dedicated UI/API paths exist; live search credentials, source quality and failure handling are unverified. |
+| 6 | File/document analysis | PARTIAL | Image and supported text-like files are handled; PDF and Office extraction are not implemented in the current reader. |
+| 7 | Advanced capability picker | WIRED IN CODE (not run) | Capability/model selection is present; each selection-to-request mapping requires runtime checks. |
+| 8 | AI Live Voice | WIRED IN CODE (not run) | Speech recognition + AI response + TTS source path exists. Do not label it low-latency full-duplex audio; microphone interruption and release require device testing. |
+| 9 | AI Live Camera | WIRED IN CODE (not run) | Camera2 preview, lens switching, flashlight, frame sampling, diagnostics and retry paths are present in recent commits. Real front/back camera, vision response and lifecycle are unverified. |
+| 10 | Screen sharing | WIRED IN CODE (not run) | MediaProjection user-consent and stop/revocation paths exist; Android-version and device testing remain. |
+| 11 | Device commands | WIRED IN CODE (not run) | Allowlisted command paths exist; each supported action and permission handoff needs device verification. |
+| 12 | Learning Studio, exam add-ons, downloads | WIRED IN CODE (not run) | Dedicated workspace and API paths exist; plan entitlements, downloads and progress persistence are unverified. |
+| 13 | TruthGuard AI | WIRED IN CODE (not run) | Dedicated workspace/source paths exist; provider execution and result handling are unverified. |
+| 14 | Life Mathis plan gate | WIRED IN CODE (not run) | Dedicated plan-gate path exists; server entitlement consistency is unverified. |
+| 15 | AI Companion | WIRED IN CODE (not run) | Dedicated workspace and memory controls exist; persistence and plan enforcement are unverified. |
+| 16 | Personal Intelligence | WIRED IN CODE (not run) | Dedicated workspace/API paths exist; saved state and server behavior are unverified. |
+| 17 | Business AI | PARTIAL | Workspace, assistants/knowledge/training and analytics paths exist. Named external channels are not all proven to have complete authenticated platform adapters. |
+| 18 | Organization AI/Studio | PARTIAL | Production metadata and a YouTube-specific RTMP path exist in source. Do not imply equivalent TikTok/other-platform broadcast control without a complete supported adapter and device test. |
+| 19 | History | WIRED IN CODE (not run) | List/open/continue/delete paths exist; ownership and persisted conversation continuity require runtime verification. |
+| 20 | Plans & Credits/catalog | WIRED IN CODE (not run) | Canonical Worker catalog and client parsing exist; deployed Firestore configuration, plan completeness and purchase eligibility need verification. |
+| 21 | Purchase, restore, backend verification | WIRED IN CODE (not run) | Google Play Billing and Worker verification paths exist; real purchases/restores are not tested here. |
+| 22 | Trial/daily credits, warnings, reserve/commit/reverse | WIRED IN CODE (not run) | Credit/usage ledger and reversal paths exist in source. Admin-configured daily grant values, expiry/90% notices and live balance accuracy need explicit runtime tests. |
+| 23 | Settings, account protection, legal, notifications | PARTIAL | Settings and protection/legal surfaces exist; individual passkey/biometric and notification flows are not all verified. |
+| 24 | Admin Control Center and test mode | WIRED IN CODE (not run) | Admin-only routes, model controls, readiness diagnostics and self-test code exist. Confirm super-admin enforcement against a live Worker; self-test readiness is not proof of actual paid output. |
+| 25 | Push notifications | WIRED IN CODE (not run) | Messaging service/source path exists; token registration and delivery are not verified. |
+| 26 | Remote config/offline behavior | WIRED IN CODE (not run) | Remote-config and cache contracts exist; live publication, cache reconciliation and offline recovery are unverified. |
+
+### Confirmed boundaries and unresolved runtime checks
+- The Android app's configured API base is the Cloudflare Worker. The legacy `functions/` directory must not be assumed to match Worker behavior or to be the active Android backend.
+- Worker and legacy Functions route parity has not been exhaustively executed or verified against a live deployment. Treat Worker routes as the implementation source for this app and test each app-called route's request/response contract.
+- Recent commits improve image-intent routing, image history/display handling, credit refresh, camera ownership/lifecycle, front/back lens errors, flashlight controls, screen consent, chat loading/action contrast, and sanitized admin diagnostics. These changes are source evidence only, not runtime PASS.
+- Camera and microphone access must follow Android permission and foreground-service rules. Screen capture must use Android's explicit MediaProjection consent and stop on revocation. The app must not attempt to take over TikTok/YouTube's camera or bypass platform permissions.
+- Provider secrets, Play Console access, Firebase/Storage rules, deployed Worker secrets, real purchase credentials, and a physical Android test run were not available to validate in this audit.
+
+### Phase 1 outcome
+The current source feature map and the major known gaps are now documented. **Phase 1 source-audit deliverable is complete; end-to-end runtime verification remains pending.** Phase 2 is branding/logo consistency: audit all shared logo placements, preserve the existing approved logo, and fix only confirmed inconsistencies without redesigning screens.
