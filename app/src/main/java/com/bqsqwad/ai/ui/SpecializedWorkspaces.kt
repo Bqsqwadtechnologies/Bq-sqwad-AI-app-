@@ -543,6 +543,7 @@ fun PersonalIntelligenceWorkspace() {
     var request by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun runPersonal() {
