@@ -31,13 +31,17 @@ class HistoryApiClient {
                 }
                 setRequestProperty("Authorization", "Bearer " + token)
             }
-            if (method != "GET") connection.outputStream.use { it.write(payload.toString().toByteArray()) }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream.bufferedReader().use { it.readText() }
-            val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
-            if (status !in 200..299) error(body.optString("error", "History request failed"))
-            body
+            try {
+                if (method != "GET") connection.outputStream.use { it.write(payload.toString().toByteArray()) }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
+                if (status !in 200..299) error(body.optString("error", "History request failed"))
+                body
+            } finally {
+                connection.disconnect()
+            }
         }
 
     suspend fun list(limit: Int = 50): List<HistoryItem> {
