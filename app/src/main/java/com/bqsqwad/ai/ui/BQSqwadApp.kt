@@ -1552,7 +1552,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         else micError = "Allow microphone access to use voice input."
     }
 
-    fun shouldAutoSaveHistory(): Boolean = !privateChat && chatHistoryEnabled && autoSaveEnabled
+    fun shouldAutoSaveHistory(): Boolean = com.bqsqwad.ai.core.shouldAutoSaveChat(privateChat, chatHistoryEnabled, autoSaveEnabled)
 
     fun saveConversationNow() {
         if (privateChat) {
