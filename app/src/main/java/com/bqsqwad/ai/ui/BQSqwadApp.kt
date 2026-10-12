@@ -4774,8 +4774,6 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
     var truthGuardSources by remember { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
     var notifications by remember { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
-    var reduceMotion by remember { mutableStateOf(prefs.getBoolean("reduce_motion", false)) }
-    var compactUi by remember { mutableStateOf(prefs.getBoolean("compact_ui", false)) }
     var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
     var consentStatus by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
@@ -4981,7 +4979,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                 }
             }
 
-            item { SettingsSectionTitle("Appearance", "Theme, color and interface density") }
+            item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             item {
                 SurfaceCard("Theme", "Choose how BQ Sqwad AI looks across the native app.")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -4998,13 +4996,6 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                     }
                 }
             }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(Modifier.weight(1f)) { SettingsToggleCard("Compact UI", "Tighter spacing", compactUi) { compactUi = it; putBoolean("compact_ui", it) } }
-                    Box(Modifier.weight(1f)) { SettingsToggleCard("Reduce motion", "Fewer animations", reduceMotion) { reduceMotion = it; putBoolean("reduce_motion", it) } }
-                }
-            }
-
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Text size", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
