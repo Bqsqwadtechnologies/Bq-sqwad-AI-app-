@@ -732,7 +732,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         onDispose { auth.removeAuthStateListener(listener) }
     }
     val email = firebaseUser?.email.orEmpty()
-    val adminNotificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     LaunchedEffect(sharedText) {
         if (!sharedText.isNullOrBlank()) workspace = null
@@ -817,7 +817,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             android.os.Build.VERSION.SDK_INT >= 33 &&
             androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
-            adminNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
