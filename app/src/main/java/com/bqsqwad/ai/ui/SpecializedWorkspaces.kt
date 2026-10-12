@@ -105,7 +105,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                     ).takeIf { it.claim.isNotBlank() && it.analysis.isNotBlank() }
                 }
             }.onFailure {
-                error = it.message ?: "Could not refresh TruthGuard access."
+                error = safeUserFacingIssue(it, "Could not refresh TruthGuard access.")
             }
             loadingPlan = false
         }
@@ -344,7 +344,7 @@ Separate established facts from hypotheses. Treat supplied web evidence critical
 Do not claim an experiment was executed unless the backend actually executed it."""
                 )
             }.onSuccess { result = it.optString("text").ifBlank { it.optString("answer") } }
-                .onFailure { error = it.message ?: "Frontier Lab could not complete the experiment." }
+                .onFailure { error = safeUserFacingIssue(it, "Frontier Lab could not complete the experiment.") }
             busy = false
         }
     }
@@ -422,7 +422,7 @@ Mode: $mode
 Teach step by step, check understanding, and do not simply give answers when a learner needs to learn the method."""
                 )
             }.onSuccess { result = it.optString("text") }
-                .onFailure { error = it.message ?: "Learning Studio could not respond." }
+                .onFailure { error = safeUserFacingIssue(it, "Learning Studio could not respond.") }
             busy = false
         }
     }
@@ -485,7 +485,7 @@ Focus area: $focus
 Give realistic, supportive, actionable guidance. Do not claim to be a professional or make high-stakes decisions for the user."""
                 )
             }.onSuccess { result = it.optString("text") }
-                .onFailure { error = it.message ?: "Life Matters could not respond." }
+                .onFailure { error = safeUserFacingIssue(it, "Life Matters could not respond.") }
             busy = false
         }
     }
@@ -552,7 +552,7 @@ Available memory context:
 ${memory.optString("context", "")}"""
                 )
             }.onSuccess { result = it.optString("text") }
-                .onFailure { error = it.message ?: "Personal Intelligence could not respond." }
+                .onFailure { error = safeUserFacingIssue(it, "Personal Intelligence could not respond.") }
             busy = false
         }
     }
