@@ -125,7 +125,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
                     val seen=rows.firstOrNull { it.optString("status")=="seen" }
                     contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
-                        ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by the admin team." }
+                        ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by our sales team." }
                 }.getOrNull()
             } catch(t:Throwable) {
                 if (hasCachedCatalog) {
