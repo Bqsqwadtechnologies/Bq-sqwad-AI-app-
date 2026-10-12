@@ -909,7 +909,7 @@ private fun BusinessEnterprisePanel(api: WorkspaceApiClient, workspaceId: String
         SurfaceCard("Audit Logs", (config.optJSONObject("auditLogs") ?: JSONObject()).optBoolean("enabled", true).toString())
         SurfaceCard("White Label", (config.optJSONObject("whiteLabel") ?: JSONObject()).optBoolean("enabled").toString())
         SurfaceCard("SLA", (config.optJSONObject("sla") ?: JSONObject()).optDouble("targetPercent", 99.9).toString() + "%")
-        SurfaceCard("Security", "MFA, session and IP policy are admin-configurable.")
+        SurfaceCard("Security", "Multi-factor authentication, session and IP controls depend on your organization’s configured security policies.")
     }
 }
 
