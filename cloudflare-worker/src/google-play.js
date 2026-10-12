@@ -358,7 +358,7 @@ export async function verifyPlayPurchase(env, firestore, input) {
     });
   }
 
-  const receiptPath = "billingReceipts/" + paymentReference + "-subscription";
+  const receiptPath = "billingReceipts/" + paymentReference + (mapping.productType === "subs" ? "-subscription" : "-purchase");
   const paymentPath = "payments/" + paymentReference;
   const receipt = {
     uid, module: String(mapping.product || "general"), planName: String(mapping.name || mapping.planId || productId),
