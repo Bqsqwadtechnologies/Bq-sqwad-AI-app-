@@ -135,7 +135,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
                     Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
                 Text(
-                    if (isAdminBypass) "Admin test access" else (activePlan?.name ?: "Explorer"),
+                    if (isAdminBypass) "Full access" else (activePlan?.name ?: "Explorer"),
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
@@ -236,7 +236,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
         }
 
         Text(
-            "Usage is charged through the BQ Sqwad AI credit system. Plan limits and feature gates are enforced by the server, and admin testing access can bypass customer plan/credit restrictions.",
+            "Usage is charged through the BQ Sqwad AI credit system. Plan limits and feature access are enforced by the server.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
