@@ -3563,7 +3563,7 @@ private fun DataAnalysisWorkspace() {
             }.onFailure { t -> scope.launch(Dispatchers.Main) { error = t.message ?: "Could not read the data file." } }
         }
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Data Analyst", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Analyze CSV, JSON and supported text-based datasets, then generate an AI explanation or report.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
@@ -3608,6 +3608,7 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
     val results = remember { mutableStateListOf<SearchSource>() }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Find current sources, review the answer, and open source links directly.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Search") })
         Row(verticalAlignment = Alignment.CenterVertically) { Switch(checked = deep, onCheckedChange = { deep = it }, enabled = webSearchEnabled); Text("Deep Research") }
         if (!webSearchEnabled) {
@@ -3633,8 +3634,9 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
             }
         }) { Text(if (busy) "Searching…" else "Search") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         answer?.let { SurfaceCard(if (deep) "Deep Research Answer" else "Answer", it) }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(results) { r ->
                 Card(Modifier.fillMaxWidth().clickable {
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.url))) }
