@@ -3284,7 +3284,7 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit) {
                 SurfaceCard("Web Search", "Web evidence is available to this capability through the shared search service.")
             }
             if (entry?.credits != false) {
-                SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits remain admin-configurable.")
+                SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits follow the published BQ Sqwad AI catalog.")
             }
             AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch)
         }
@@ -5208,7 +5208,7 @@ private fun SettingsToggleCard(title: String, description: String, checked: Bool
     }
 }
 
-@Composable private fun AccessDenied() { Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("Admin access required", fontWeight = FontWeight.Bold) } }
+@Composable private fun AccessDenied() { Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("This area is not available for your account.", fontWeight = FontWeight.Bold) } }
 
 private fun shareText(context: Context, text: String) {
     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) }, "Share"))
