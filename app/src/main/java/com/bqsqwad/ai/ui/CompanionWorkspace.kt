@@ -76,15 +76,17 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             notifications = companionSettings.optBoolean("notifications", true)
             saveHistory = companionSettings.optBoolean("saveHistory", true)
             safeMode = companionSettings.optBoolean("safeMode", true)
-            val profile = api.companionProfile().optJSONObject("profile") ?: JSONObject()
+            val profile = runCatching { api.companionProfile().optJSONObject("profile") ?: JSONObject() }.getOrDefault(JSONObject())
             personality = profile.optString("personality").takeIf { it in setOf("Caring", "Encouraging", "Calm") } ?: "Caring"
             if (saveHistory) {
-                val saved = api.companionHistory().optJSONArray("items") ?: JSONArray()
-                messages.clear()
-                for (index in saved.length() - 1 downTo 0) {
-                    val item = saved.optJSONObject(index) ?: continue
-                    messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
-                }
+                runCatching {
+                    val saved = api.companionHistory().optJSONArray("items") ?: JSONArray()
+                    messages.clear()
+                    for (index in saved.length() - 1 downTo 0) {
+                        val item = saved.optJSONObject(index) ?: continue
+                        messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
+                    }
+                }.onFailure { notice = it.message ?: "Saved Companion history could not be loaded." }
             }
             val plans = parseCompanionPlans(catalog)
             catalogPlans = plans
