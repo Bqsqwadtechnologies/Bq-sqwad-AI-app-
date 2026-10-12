@@ -580,6 +580,7 @@ private fun humanizePlanLimit(key: String): String {
         .replaceFirstChar { it.uppercase() }
 }
 
+@Composable
 private fun LivePlanCard(
     plan: LivePlan,
     playEntries: List<PlayCatalogEntry>,
