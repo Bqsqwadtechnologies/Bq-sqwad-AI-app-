@@ -86,7 +86,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                         val item = saved.optJSONObject(index) ?: continue
                         messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
                     }
-                }.onFailure { notice = it.message ?: "Saved Companion history could not be loaded." }
+                }.onFailure { notice = safeUserFacingIssue(it, "Saved Companion history could not be loaded.") }
             }
             val plans = parseCompanionPlans(catalog)
             catalogPlans = plans
@@ -106,7 +106,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
             }
         }.onFailure {
-            notice = it.message ?: "Could not verify your Companion plan."
+            notice = safeUserFacingIssue(it, "Could not verify your Companion plan.")
             currentPlan = null
         }
         loadingAccess = false
@@ -124,7 +124,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     .put("avatarStyle", "Natural"))
                 api.saveCompanionProfile(JSONObject().put("personality", personality))
             }.onSuccess { notice = "Companion settings saved." }
-                .onFailure { notice = it.message ?: "Companion settings could not be saved." }
+                .onFailure { notice = safeUserFacingIssue(it, "Companion settings could not be saved.") }
         }
     }
 
@@ -225,7 +225,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                             memoryEnabled = enabled
                             scope.launch {
                                 runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(enabled) }
-                                    .onFailure { notice = it.message ?: "Memory setting could not be saved." }
+                                    .onFailure { notice = safeUserFacingIssue(it, "Memory setting could not be saved.") }
                             }
                         }
                     )
@@ -312,7 +312,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                         }.onSuccess { reply ->
                             val answer = reply.optString("text").ifBlank { reply.optString("answer") }
                             if (answer.isNotBlank()) messages.add(CompanionMessage(false, answer))
-                        }.onFailure { notice = it.message ?: "Companion response failed." }
+                        }.onFailure { notice = safeUserFacingIssue(it, "Companion response failed.") }
                         busy = false
                     }
                 }
@@ -328,7 +328,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     runCatching {
                         WorkspaceApiClient().companionCheckin(prompt, personality)
                     }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
-                        .onFailure { notice = it.message ?: "Check-in failed." }
+                        .onFailure { notice = safeUserFacingIssue(it, "Check-in failed.") }
                     busy = false
                 }
             },
