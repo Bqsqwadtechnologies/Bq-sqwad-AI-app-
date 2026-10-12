@@ -22,9 +22,13 @@ class WorkspaceApiClient {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
                 requestMethod=method; connectTimeout=4500; readTimeout=6500; doInput=true
             }
-            val status=c.responseCode
-            val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
-            status to raw
+            try {
+                val status=c.responseCode
+                val raw=(if(status in 200..299)c.inputStream else c.errorStream)?.bufferedReader()?.use{it.readText()}.orEmpty()
+                status to raw
+            } finally {
+                c.disconnect()
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Throwable) {
@@ -49,11 +53,15 @@ class WorkspaceApiClient {
                 if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
                 setRequestProperty("Authorization","Bearer $token")
             }
-            if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
-            val status=c.responseCode
-            val stream=if(status in 200..299)c.inputStream else c.errorStream
-            val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
-            status to raw
+            try {
+                if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
+                val status=c.responseCode
+                val stream=if(status in 200..299)c.inputStream else c.errorStream
+                val raw=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+                status to raw
+            } finally {
+                c.disconnect()
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Throwable) {
