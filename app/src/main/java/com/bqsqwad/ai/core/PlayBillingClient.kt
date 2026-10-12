@@ -58,13 +58,22 @@ class PlayBillingClient(
     private val details = mutableMapOf<String, ProductDetails>()
     private val catalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
     private var connected = false
+    private var connecting = false
 
     fun start() {
-        if (!client.isReady) client.startConnection(this)
-        else {
+        if (client.isReady) {
+            connected = true
             queryCatalog()
             restorePurchases()
+        } else if (!connecting) {
+            connecting = true
+            client.startConnection(this)
         }
+    }
+
+    /** Refresh the server-backed Play mapping after sign-in or a catalog refresh. */
+    fun refreshCatalog() {
+        if (connected && client.isReady) queryCatalog() else start()
     }
 
     fun close() {
@@ -73,6 +82,7 @@ class PlayBillingClient(
     }
 
     override fun onBillingSetupFinished(result: BillingResult) {
+        connecting = false
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
         if (connected) {
             queryCatalog()
@@ -82,6 +92,7 @@ class PlayBillingClient(
 
     override fun onBillingServiceDisconnected() {
         connected = false
+        connecting = false
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
