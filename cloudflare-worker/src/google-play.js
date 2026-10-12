@@ -178,7 +178,9 @@ export async function verifyPlayPurchase(env, firestore, input) {
   const googleAccountId = String(initialMapping.productType === "subs"
     ? verified.externalAccountIdentifiers?.obfuscatedExternalAccountId || ""
     : verified.obfuscatedExternalAccountId || "");
-  if (googleAccountId && googleAccountId !== await sha256Hex(uid)) throw new Error("play_account_mismatch");
+  const expectedGoogleAccountId = await sha256Hex(uid);
+  if (googleAccountId && googleAccountId !== expectedGoogleAccountId) throw new Error("play_account_mismatch");
+  if (!googleAccountId && existing?.verified !== true) throw new Error("play_account_binding_required");
   const actualBasePlanId = String(lineItem.offerDetails?.basePlanId || "");
   if (requestedBasePlanId && actualBasePlanId && String(requestedBasePlanId) !== actualBasePlanId) throw new Error("play_base_plan_mismatch");
 
