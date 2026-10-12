@@ -4,6 +4,7 @@ import com.bqsqwad.ai.core.ApiConfig
 import com.bqsqwad.ai.core.WorkspaceAccessSnapshot
 import com.bqsqwad.ai.domain.Workspace
 import com.bqsqwad.ai.core.ChatAttachmentReader
+import com.bqsqwad.ai.core.detectCsvDimensions
 import com.bqsqwad.ai.core.shouldAutoSaveChat
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
@@ -45,6 +46,12 @@ class CoreTest {
         val image = blocks[0] as MdBlock.Image
         assertEquals("preview", image.alt)
         assertEquals("https://example.com/image.png", image.url)
+    }
+
+    @Test fun csvDimensionsRespectQuotedCommasAndMultilineFields() {
+        val dimensions = detectCsvDimensions("name,notes\nAlice,\"works in sales, finance\"\nBob,\"first line\nsecond line\"\n")
+        assertEquals(2, dimensions.dataRows)
+        assertEquals(2, dimensions.columns)
     }
 
     @Test fun docxAttachmentExtractsDocumentText() {
