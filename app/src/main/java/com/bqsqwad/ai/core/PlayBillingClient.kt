@@ -184,9 +184,17 @@ class PlayBillingClient(
                     readTimeout = 30000
                     setRequestProperty("Authorization", "Bearer $token")
                 }
-                val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                val raw = try {
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (status !in 200..299) error("Play catalog request failed.")
+                    text
+                } finally {
+                    connection.disconnect()
+                }
                 val catalogJson = JSONObject(raw).optJSONArray("products") ?: JSONArray()
-                catalog.clear()
+                val nextCatalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
                 val products = mutableListOf<QueryProductDetailsParams.Product>()
                 val seenProducts = mutableSetOf<String>()
                 for (i in 0 until catalogJson.length()) {
@@ -195,7 +203,7 @@ class PlayBillingClient(
                     val id = item.optString("productId")
                     val type = item.optString("productType")
                     if (id.isBlank() || (type != ProductType.SUBS && type != ProductType.INAPP)) continue
-                    catalog.getOrPut(id) { mutableListOf() }.add(
+                    nextCatalog.getOrPut(id) { mutableListOf() }.add(
                         PlayCatalogItem(
                             planId = item.optString("planId"),
                             productId = id,
@@ -218,8 +226,16 @@ class PlayBillingClient(
                 client.queryProductDetailsAsync(
                     QueryProductDetailsParams.newBuilder().setProductList(products).build()
                 ) { result, queried ->
-                    if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                        queried.productDetailsList.forEach { details[it.productId] = it }
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK && queried.productDetailsList.isNotEmpty()) {
+                        // Replace mappings/details together only after Play returned a valid
+                        // product-details response. Empty or failed refreshes keep the last
+                        // valid checkout mapping rather than leaving stale details unmapped.
+                        synchronized(catalog) {
+                            catalog.clear()
+                            nextCatalog.forEach { (id, mappings) -> catalog[id] = mappings }
+                            details.clear()
+                            queried.productDetailsList.forEach { details[it.productId] = it }
+                        }
                     }
                 }
             }
@@ -255,11 +271,16 @@ class PlayBillingClient(
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Authorization", "Bearer $token")
                 }
-                connection.outputStream.use { it.write(payload.toString().toByteArray()) }
-                val status = connection.responseCode
-                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val raw = stream.bufferedReader().use { it.readText() }
-                if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(raw).optString("error") }.getOrDefault("Purchase verification failed"))
+                val raw = try {
+                    connection.outputStream.use { it.write(payload.toString().toByteArray()) }
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(text).optString("error") }.getOrDefault("Purchase verification failed"))
+                    text
+                } finally {
+                    connection.disconnect()
+                }
                 val verifiedBody = JSONObject(raw)
                 val verified = verifiedBody.optBoolean("ok", false)
                 if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
