@@ -273,6 +273,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var researchSources by remember { mutableStateOf("") }
     var planName by remember { mutableStateOf("Frontier plan") }
     var planFeatures by remember { mutableStateOf(emptyList<String>()) }
@@ -315,7 +316,8 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
 
     fun runExperiment() {
         val input = prompt.trim()
-        if (input.isBlank() || busy) return
+        if (busy) { activeJob?.cancel(); return }
+        if (input.isBlank()) return
         if (mode == "Research" && !webSearchEnabled) {
             error = "Turn on Web Search in Settings before using Frontier research mode."
             return
@@ -324,7 +326,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
         error = null
         result = null
         researchSources = ""
-        scope.launch {
+        activeJob = scope.launch {
             runCatching {
                 val api = WorkspaceApiClient()
                 val evidence = if (mode == "Research") {
@@ -344,8 +346,12 @@ Separate established facts from hypotheses. Treat supplied web evidence critical
 Do not claim an experiment was executed unless the backend actually executed it."""
                 )
             }.onSuccess { result = it.optString("text").ifBlank { it.optString("answer") } }
-                .onFailure { error = safeUserFacingIssue(it, "Frontier Lab could not complete the experiment.") }
+                .onFailure {
+                    error = if (it is kotlinx.coroutines.CancellationException) null
+                    else safeUserFacingIssue(it, "Frontier Lab could not complete the experiment.")
+                }
             busy = false
+            activeJob = null
         }
     }
 
@@ -387,8 +393,8 @@ Do not claim an experiment was executed unless the backend actually executed it.
             minLines = 5,
             placeholder = { Text("Describe the AI experiment, prototype or research problem…") }
         )
-        Button(onClick = ::runExperiment, enabled = prompt.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Running…" else "Run in Frontier Lab")
+        Button(onClick = ::runExperiment, enabled = busy || prompt.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Text(if (busy) "Stop experiment" else "Run in Frontier Lab")
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         result?.let { SurfaceCard("Lab result", it) }
@@ -468,14 +474,16 @@ fun LifeMattersWorkspace(onOpenPlans: () -> Unit = {}) {
     var result by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var accessGranted by remember { mutableStateOf(false) }
 
     fun runLife() {
         val input = request.trim()
-        if (input.isBlank() || busy) return
+        if (busy) { activeJob?.cancel(); return }
+        if (input.isBlank()) return
         busy = true
         error = null
-        scope.launch {
+        activeJob = scope.launch {
             runCatching {
                 WorkspaceApiClient().workspaceAi(
                     "life_matters",
@@ -485,8 +493,12 @@ Focus area: $focus
 Give realistic, supportive, actionable guidance. Do not claim to be a professional or make high-stakes decisions for the user."""
                 )
             }.onSuccess { result = it.optString("text") }
-                .onFailure { error = safeUserFacingIssue(it, "Life Matters could not respond.") }
+                .onFailure {
+                    error = if (it is kotlinx.coroutines.CancellationException) null
+                    else safeUserFacingIssue(it, "Life Matters could not respond.")
+                }
             busy = false
+            activeJob = null
         }
     }
 
@@ -516,8 +528,8 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
             minLines = 4,
             placeholder = { Text("What would you like help organizing?") }
         )
-        Button(onClick = ::runLife, enabled = request.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Planning…" else "Get practical help")
+        Button(onClick = ::runLife, enabled = busy || request.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Text(if (busy) "Stop planning" else "Get practical help")
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         result?.let { SurfaceCard("Your plan", it) }
@@ -535,10 +547,11 @@ fun PersonalIntelligenceWorkspace() {
 
     fun runPersonal() {
         val input = request.trim()
-        if (input.isBlank() || busy) return
+        if (busy) { activeJob?.cancel(); return }
+        if (input.isBlank()) return
         busy = true
         error = null
-        scope.launch {
+        activeJob = scope.launch {
             runCatching {
                 val api = WorkspaceApiClient()
                 val memory = runCatching { api.memory() }.getOrDefault(JSONObject())
@@ -552,8 +565,12 @@ Available memory context:
 ${memory.optString("context", "")}"""
                 )
             }.onSuccess { result = it.optString("text") }
-                .onFailure { error = safeUserFacingIssue(it, "Personal Intelligence could not respond.") }
+                .onFailure {
+                    error = if (it is kotlinx.coroutines.CancellationException) null
+                    else safeUserFacingIssue(it, "Personal Intelligence could not respond.")
+                }
             busy = false
+            activeJob = null
         }
     }
 
@@ -575,8 +592,8 @@ ${memory.optString("context", "")}"""
             minLines = 4,
             placeholder = { Text("Ask Personal Intelligence to organize something…") }
         )
-        Button(onClick = ::runPersonal, enabled = request.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Organizing…" else "Organize")
+        Button(onClick = ::runPersonal, enabled = busy || request.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Text(if (busy) "Stop" else "Organize")
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         result?.let { SurfaceCard("Workspace result", it) }
