@@ -869,7 +869,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             workspace = null
             signInRequired = true
         } else if (selected == Workspace.ADMIN) {
-            if (adminAuthorized) workspace = selected else paywallWorkspace = selected
+            // Never expose an admin-only destination as a user-facing plan/paywall option.
+            if (adminAuthorized) workspace = selected
         } else if (accessLoading) {
             paywallWorkspace = selected
         } else if (workspaceAccess.hasVerifiedAccess(selected)) {
