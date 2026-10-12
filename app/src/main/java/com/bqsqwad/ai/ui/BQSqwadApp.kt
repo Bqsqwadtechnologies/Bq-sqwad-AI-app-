@@ -3656,6 +3656,10 @@ private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 fun CameraWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val cameraEnhanceEnabled = remember { settingsPrefs.getBoolean("camera_enhance", true) }
+    val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 1800L else 2800L
+    val aiFrameIntervalMs = if (cameraEnhanceEnabled) 1600L else 2600L
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
     var previewEnabled by remember { mutableStateOf(false) }
@@ -4075,11 +4079,11 @@ fun CameraWorkspace() {
                         NativeCameraPreview(
                             modifier = Modifier.fillMaxSize(),
                             lensFacing = lens,
-                            captureEveryMs = 1800L,
+                            captureEveryMs = frameCaptureIntervalMs,
                             torchEnabled = flashlightOn,
                             onFrame = { bytes ->
                                 val now = System.currentTimeMillis()
-                                if (active && now - lastAnalysisAt >= 1600L) {
+                                if (active && now - lastAnalysisAt >= aiFrameIntervalMs) {
                                     lastAnalysisAt = now
                                     LiveMediaForegroundService.submitVisualFrame(bytes)
                                 }
@@ -4317,11 +4321,11 @@ fun CameraWorkspace() {
                     NativeCameraPreview(
                         modifier = Modifier.fillMaxSize(),
                         lensFacing = lens,
-                        captureEveryMs = 1800L,
+                        captureEveryMs = frameCaptureIntervalMs,
                         torchEnabled = flashlightOn,
                         onFrame = { bytes ->
                             val now = System.currentTimeMillis()
-                            if (active && now - lastAnalysisAt >= 1600L) {
+                            if (active && now - lastAnalysisAt >= aiFrameIntervalMs) {
                                 lastAnalysisAt = now
                                 LiveMediaForegroundService.submitVisualFrame(bytes)
                             }
