@@ -3221,7 +3221,7 @@ private fun WorkspaceScreen(
         ) {
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
-                Workspace.SEARCH -> SearchWorkspace()
+                Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onSettings)
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
@@ -3594,9 +3594,11 @@ private fun DataAnalysisWorkspace() {
 }
 
 @Composable
-private fun SearchWorkspace() {
+private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    var webSearchEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("web_search_enabled", true)) }
     var query by remember { mutableStateOf("") }
     var deep by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
@@ -3606,8 +3608,12 @@ private fun SearchWorkspace() {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Search") })
-        Row(verticalAlignment = Alignment.CenterVertically) { Switch(deep, { deep = it }); Text("Deep Research") }
-        Button(enabled = query.isNotBlank() && !busy, onClick = {
+        Row(verticalAlignment = Alignment.CenterVertically) { Switch(checked = deep, onCheckedChange = { deep = it }, enabled = webSearchEnabled); Text("Deep Research") }
+        if (!webSearchEnabled) {
+            SurfaceCard("Web Search is off", "Turn it on in Settings to search the web or run Deep Research.")
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings") }
+        }
+        Button(enabled = query.isNotBlank() && !busy && webSearchEnabled, onClick = {
             val submittedQuery = query.trim()
             busy = true
             error = null
