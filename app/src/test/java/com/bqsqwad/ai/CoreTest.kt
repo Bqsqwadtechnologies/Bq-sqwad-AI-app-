@@ -4,6 +4,7 @@ import com.bqsqwad.ai.core.ApiConfig
 import com.bqsqwad.ai.core.WorkspaceAccessSnapshot
 import com.bqsqwad.ai.domain.Workspace
 import com.bqsqwad.ai.core.ChatAttachmentReader
+import com.bqsqwad.ai.core.shouldAutoSaveChat
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -151,6 +152,13 @@ class CoreTest {
         ).forEach { request ->
             assertFalse("Expected ordinary chat for: " + request, isImageGenerationRequest(request))
         }
+    }
+
+    @Test fun privateChatsAndDisabledHistoryNeverAutoSave() {
+        assertFalse(shouldAutoSaveChat(privateChat = true, historyEnabled = true, autoSaveEnabled = true))
+        assertFalse(shouldAutoSaveChat(privateChat = false, historyEnabled = false, autoSaveEnabled = true))
+        assertFalse(shouldAutoSaveChat(privateChat = false, historyEnabled = true, autoSaveEnabled = false))
+        assertTrue(shouldAutoSaveChat(privateChat = false, historyEnabled = true, autoSaveEnabled = true))
     }
 
     @Test fun testModeBypassesWorkspacePlanGateOnlyForAuthorizedAdmin() {
