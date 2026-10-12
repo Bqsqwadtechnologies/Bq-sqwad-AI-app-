@@ -131,3 +131,13 @@ The following source changes have been committed to `main` after the approved au
 - Reduced custom-logo memory pressure by downsampling images to the rendered logo size in the shared `BqLogo` component. The bundled logo, circular crop, sizing, app theme, and image-generation loader were not changed by this fix.
 - Commit: `06f304825737d8794997a0133b6450ff1382a2a9`.
 - Phase 2 remains **IN PROGRESS** until the changed Kotlin source is build-checked and logo choose/reset/relaunch behavior is exercised. No build or GitHub Actions workflow was run or triggered.
+
+
+### Phase 2 continuation — 2026-10-12
+- Expanded the source inventory across the native UI Kotlin files. Confirmed the central `Brand & App Logo` entry is exposed from the existing Settings screen and navigates to `BrandingSettingsScreen`; did not add a duplicate settings route.
+- Found one remaining in-app logo bypass in `BqGeneratingIndicator.kt`: the animated AI-generation indicator loaded `R.drawable.bq_sqwad_logo` directly, so it ignored the user's selected logo.
+- Replaced that direct drawable rendering with `BqLogo(54.dp, Modifier.alpha(alpha))`. The animation remains, while the displayed brand now follows the same persisted custom-logo setting as other shared logo placements.
+- Commit: `676609a5a94769be0f8919b9c10961c5b833808c`.
+- Launcher assets remain separate by design. No changes were made to the app's logo asset, authentication, billing, backend, or app navigation beyond the existing branding-settings route.
+- Verification: read-after-write source review only. Gradle build, unit tests, APK generation, device testing, Worker deployment, and GitHub Actions dispatch were not run.
+- Phase 2 remains **IN PROGRESS** pending build and runtime verification of choose, reset, and persistence after app restart.
