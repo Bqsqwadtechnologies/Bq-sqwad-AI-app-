@@ -76,6 +76,16 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             notifications = companionSettings.optBoolean("notifications", true)
             saveHistory = companionSettings.optBoolean("saveHistory", true)
             safeMode = companionSettings.optBoolean("safeMode", true)
+            val profile = api.companionProfile().optJSONObject("profile") ?: JSONObject()
+            personality = profile.optString("personality").takeIf { it in setOf("Caring", "Encouraging", "Calm") } ?: "Caring"
+            if (saveHistory) {
+                val saved = api.companionHistory().optJSONArray("items") ?: JSONArray()
+                messages.clear()
+                for (index in saved.length() - 1 downTo 0) {
+                    val item = saved.optJSONObject(index) ?: continue
+                    messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
+                }
+            }
             val plans = parseCompanionPlans(catalog)
             catalogPlans = plans
             val items = entitlements.optJSONArray("items") ?: JSONArray()
@@ -293,13 +303,11 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     notice = null
                     scope.launch {
                         runCatching {
-                            WorkspaceApiClient().workspaceAi(
-                                "companion",
-                                text,
-                                "You are BQ Sqwad AI Companion. Personality: $personality. Be supportive, respectful, and honest about limits. Do not claim to be human or create dependency."
-                            )
-                        }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
-                            .onFailure { notice = it.message ?: "Companion response failed." }
+                            WorkspaceApiClient().companionChat(text, personality)
+                        }.onSuccess { reply ->
+                            val answer = reply.optString("text").ifBlank { reply.optString("answer") }
+                            if (answer.isNotBlank()) messages.add(CompanionMessage(false, answer))
+                        }.onFailure { notice = it.message ?: "Companion response failed." }
                         busy = false
                     }
                 }
@@ -313,11 +321,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                 busy = true
                 scope.launch {
                     runCatching {
-                        WorkspaceApiClient().workspaceAi(
-                            "companion_checkin",
-                            prompt,
-                            "You are BQ Sqwad AI Companion. Personality: $personality. Give a brief supportive daily check-in without pretending to be a human."
-                        )
+                        WorkspaceApiClient().companionCheckin(prompt, personality)
                     }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
                         .onFailure { notice = it.message ?: "Check-in failed." }
                     busy = false
