@@ -42,8 +42,11 @@ export async function companionCheckin(env,user,b,charge,commit,reverse){
   const r=await charge(user.uid,Number(b.creditCost||0),"companion_checkin",user);
   try{
     const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:p,system:"Give a brief reflective check-in prompt. Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
-    const id=crypto.randomUUID();
-    await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:z.text||"",createdAt:new Date()});
+    const settings=await firestoreGet("companionSettings/"+user.uid)||{};
+    if(settings.saveHistory!==false){
+      const id=crypto.randomUUID();
+      await firestoreCreate("companionCheckins/"+id,{uid:user.uid,prompt:p,response:z.text||"",createdAt:new Date()});
+    }
     await commit(user.uid,r.reservationId,z.providerId||"companion_checkin");
     return {ok:true,text:z.text||"",creditsCharged:r.amount||0};
   }catch(e){await reverse(user.uid,r.reservationId);throw e}
