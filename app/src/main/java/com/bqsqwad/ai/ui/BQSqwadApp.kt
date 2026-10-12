@@ -751,6 +751,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
+    var notificationsEnabled by remember { mutableStateOf(context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("notifications_enabled", true)) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
@@ -766,20 +767,12 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             adminAuthorized = false
             return@LaunchedEffect
         }
-        // Keep startup work parallel: chat stays visible while admin status and push
-        // registration load independently, so incident alerts are registered sooner.
+        // Keep startup work parallel: chat stays visible while authorization and
+        // notification registration load independently.
         launch {
             adminAuthorized = runCatching {
                 WorkspaceApiClient().adminAccess().optBoolean("allowed")
             }.getOrDefault(false)
-        }
-        launch {
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    val token = Tasks.await(FirebaseMessaging.getInstance().token)
-                    if (token.isNotBlank()) WorkspaceApiClient().registerNotificationToken(token)
-                }
-            }
         }
     }
 
@@ -804,9 +797,22 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             }
     }
 
-    LaunchedEffect(adminAuthorized) {
+    LaunchedEffect(email, notificationsEnabled) {
+        if (email.isBlank()) return@LaunchedEffect
+        launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val token = Tasks.await(FirebaseMessaging.getInstance().token)
+                    if (token.isNotBlank()) {
+                        val api = WorkspaceApiClient()
+                        if (notificationsEnabled) api.registerNotificationToken(token)
+                        else api.unregisterNotificationToken(token)
+                    }
+                }
+            }
+        }
         if (
-            adminAuthorized &&
+            notificationsEnabled &&
             android.os.Build.VERSION.SDK_INT >= 33 &&
             androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
@@ -990,6 +996,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenAccountProtection = { accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
                 onOpenBranding = { brandingSettings = true },
+                onNotificationsChanged = { notificationsEnabled = it },
                 onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
             )
             history -> HistoryScreen(
@@ -4735,7 +4742,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
