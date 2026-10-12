@@ -110,6 +110,10 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
         lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
         return "This BQ Sqwad AI feature is currently turned off. Try another feature or contact support."
     }
+    if (lower.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."
+    if (lower.contains("history_message_too_large") || lower.contains("history_prompt_too_large")) return "A message is too large to save in history. Keep individual messages under 20,000 characters."
+    if (lower.contains("history_payload_too_large")) return "This conversation is too large to save as one history item. Start a new chat to keep history complete."
+    if (lower.contains("history_attachment_limit_exceeded") || lower.contains("history_attachment_name_too_large")) return "This message has too many or too-large attachment names to save."
     if (lower.contains("attachment_payload_too_large")) return "The combined attachment size is too large. Send fewer or smaller files."
     if (lower.contains("attachment_count_invalid")) return "Attach up to four supported files at a time."
     if (lower.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
