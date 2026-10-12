@@ -126,7 +126,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         when {
-                            isAdmin -> "TruthGuard Test Lab"
+                            isAdmin -> "Deep Evidence Lab"
                             activePlanId == "truthguardfree" -> "Quick Check Workspace"
                             activePlanId == "tgplus" -> "Evidence Desk"
                             activePlanId == "tgpro" -> "Deep Evidence Lab"
@@ -234,12 +234,12 @@ private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPla
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("TruthGuard AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(
-                if (isAdmin) "Admin-unlimited verification workspace." else "Evidence-aware fact checking, source analysis and claim review.",
+                "Evidence-aware fact checking, source analysis and claim review.",
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(if (isAdmin) "Admin Unlimited" else (plan?.name ?: "TruthGuard Free"), fontWeight = FontWeight.Bold)
+                    Text(if (isAdmin) "Full access" else (plan?.name ?: "TruthGuard Free"), fontWeight = FontWeight.Bold)
                     val price = plan?.price?.entries?.joinToString(" • ") { pair ->
                         pair.key.replaceFirstChar { it.uppercase() } + ": $" + pair.value
                     }.orEmpty()
