@@ -173,6 +173,7 @@ export async function verifyPlayPurchase(env, firestore, input) {
   const purchaseState = initialMapping.productType === "inapp" ? Number(verified.purchaseState ?? -1) : 0;
   const lineItem = initialMapping.productType === "subs" ? (verified.lineItems?.[0] || {}) : {};
   const actualProductId = initialMapping.productType === "subs" ? String(lineItem.productId || "") : String(verified.productId || productId);
+  if (initialMapping.productType === "subs" && !actualProductId) throw new Error("play_product_unresolved");
   if (actualProductId && actualProductId !== String(productId)) throw new Error("play_product_mismatch");
   const googleAccountId = String(initialMapping.productType === "subs"
     ? verified.externalAccountIdentifiers?.obfuscatedExternalAccountId || ""
