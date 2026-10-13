@@ -185,6 +185,11 @@ class WorkspaceApiClient {
         transcript
     }
 
+    suspend fun adminWorkspaceScopeGuards(): JSONObject = request("/admin/workspace-scope-guards", "GET")
+
+    suspend fun saveAdminWorkspaceScopeGuards(enabledByWorkspace: JSONObject): JSONObject =
+        request("/admin/workspace-scope-guards", payload = JSONObject().put("enabledByWorkspace", enabledByWorkspace))
+
     suspend fun adminLivePricing(feature: String): JSONObject {
         val path = when (feature.lowercase()) {
             "voice", "live_voice", "live-voice" -> "/admin/live-voice-pricing"
