@@ -4431,9 +4431,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
         if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
             screenActive = liveServiceActive
             if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
+            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = liveUiState.status
         } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
             active = liveServiceActive
             if (liveAnswer.isNotBlank()) answer = liveAnswer
+            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = liveUiState.status
         }
     }
 
@@ -4742,7 +4744,10 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                     }
                     streamError?.let { message ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                            if (message.contains("credit", ignoreCase = true)) {
+                                TextButton(onClick = onOpenCredits) { Text("Buy credits") }
+                            }
                             TextButton(onClick = {
                                 streamError = null
                                 if (!granted) {
@@ -4790,7 +4795,10 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                     else "Camera preview is stopped. Start or retry the live session."
                 )
                 streamError?.let { message ->
-                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(message, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                    if (message.contains("credit", ignoreCase = true)) {
+                        Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
+                    }
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -5084,7 +5092,11 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
-        startError?.let { Text(it, color = MaterialTheme.colorScheme.error, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+        startError?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+        if (!active && state.contains("credit", ignoreCase = true)) {
+            Text("You need credits to use Live Voice.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
+        }
 
         Box {
             OutlinedButton(onClick = {
