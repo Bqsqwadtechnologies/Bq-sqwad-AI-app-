@@ -37,6 +37,7 @@ class RealtimeVoiceSession(
     private val running = AtomicBoolean(false)
     private val audioCaptureStarted = AtomicBoolean(false)
     private val sessionConfigured = AtomicBoolean(false)
+    private val sessionCreated = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
     // Realtime accepts one active response at a time. Keep only the newest visual frame
     // while speech is being answered, then submit it when the current response finishes.
@@ -54,6 +55,19 @@ class RealtimeVoiceSession(
             .url("wss://api.openai.com/v1/realtime?model=${java.net.URLEncoder.encode(model, "UTF-8")}")
             .addHeader("Authorization", "Bearer $clientSecret")
             .build()
+        toolScope.launch {
+            delay(10_000L)
+            if (running.get() && !sessionConfigured.get()) {
+                onError(
+                    if (sessionCreated.get()) {
+                        "Live Voice connected but could not finish configuring in 10 seconds. Check the network and tap Retry."
+                    } else {
+                        "Live Voice did not receive a session response in 10 seconds. Check the network and tap Retry."
+                    }
+                )
+                stopInternal()
+            }
+        }
         socket = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 try {
@@ -168,7 +182,10 @@ class RealtimeVoiceSession(
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
-            "session.created" -> onState("configuring")
+            "session.created" -> {
+                sessionCreated.set(true)
+                onState("configuring")
+            }
             "response.created" -> {
                 suppressAudioUntilResponse.set(false)
                 responseInProgress.set(true)
