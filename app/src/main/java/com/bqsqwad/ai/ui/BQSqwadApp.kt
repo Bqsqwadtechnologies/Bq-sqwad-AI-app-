@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.ContentValues
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.util.LruCache
 import java.net.URL
 import android.net.Uri
 import android.util.Base64
@@ -1165,6 +1167,33 @@ private data class ChatMessage(
 
 private fun decodeImageBytes(imageBase64: String): ByteArray = Base64.decode(imageBase64, Base64.DEFAULT)
 
+private object ChatImageBitmapCache {
+    private val cache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    fun decode(cacheKey: String, bytes: ByteArray): Bitmap? {
+        cache.get(cacheKey)?.let { return it }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sampleSize = 1
+        while (bounds.outWidth / sampleSize > 1400 || bounds.outHeight / sampleSize > 1400) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.also { cache.put(cacheKey, it) }
+    }
+}
+
+private fun imageCacheKey(value: String): String =
+    java.security.MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+
 /** Load an owner's HTTPS Storage image when a saved chat is reopened. */
 private fun downloadGeneratedImageBase64(imageUrl: String): String {
     require(imageUrl.startsWith("https://", ignoreCase = true)) { "Only secure image links can be opened." }
@@ -1237,16 +1266,23 @@ private fun shareGeneratedImage(context: Context, imageBase64: String) {
 }
 
 @Composable
-private fun ChatAttachmentPreview(attachment: ChatMessageAttachment, onImageClick: (() -> Unit)? = null) {
+private fun ChatAttachmentPreview(
+    attachment: ChatMessageAttachment,
+    onImageClick: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null
+) {
     var decoding by remember(attachment.imageBase64) { mutableStateOf(attachment.imageBase64 != null) }
+    var decodeFailed by remember(attachment.imageBase64) { mutableStateOf(false) }
     val image by produceState<ImageBitmap?>(initialValue = null, key1 = attachment.imageBase64) {
         val encoded = attachment.imageBase64
-        value = if (encoded.isNullOrBlank()) null else withContext(Dispatchers.IO) {
+        val loaded = if (encoded.isNullOrBlank()) null else withContext(Dispatchers.IO) {
             runCatching {
                 val bytes = Base64.decode(encoded, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                ChatImageBitmapCache.decode("inline:" + imageCacheKey(encoded), bytes)?.asImageBitmap()
             }.getOrNull()
         }
+        value = loaded
+        decodeFailed = !encoded.isNullOrBlank() && loaded == null
         decoding = false
     }
     if (image != null) {
@@ -1261,6 +1297,11 @@ private fun ChatAttachmentPreview(attachment: ChatMessageAttachment, onImageClic
         }
     } else if (decoding) {
         Text("Loading " + attachment.name + "…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else if (decodeFailed && attachment.mimeType.startsWith("image/")) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Image could not be displayed.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            if (onRetry != null) OutlinedButton(onClick = onRetry) { Text("Retry image") }
+        }
     } else {
         Surface(
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -1294,11 +1335,27 @@ internal fun ChatRemoteImage(url: String, description: String = "Image") {
         val loaded = withContext(Dispatchers.IO) {
             runCatching {
                 if (!url.startsWith("https://", ignoreCase = true)) return@runCatching null
-                URL(url).openConnection().apply {
+                val connection = (URL(url).openConnection() as java.net.HttpURLConnection).apply {
                     connectTimeout = 10000
                     readTimeout = 20000
-                }.getInputStream().use { stream ->
-                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+                try {
+                    val bytes = connection.inputStream.use { stream ->
+                        val output = java.io.ByteArrayOutputStream()
+                        val buffer = ByteArray(8192)
+                        var total = 0
+                        while (true) {
+                            val count = stream.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            require(total <= 20 * 1024 * 1024) { "The saved image is too large to display." }
+                            output.write(buffer, 0, count)
+                        }
+                        output.toByteArray()
+                    }
+                    ChatImageBitmapCache.decode("url:" + imageCacheKey(url), bytes)?.asImageBitmap()
+                } finally {
+                    connection.disconnect()
                 }
             }.getOrNull()
         }
@@ -1493,6 +1550,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var failedImagePrompt by remember { mutableStateOf<String?>(null) }
     var isListening by remember { mutableStateOf(false) }
     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         isListening = false
@@ -1642,6 +1700,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             busy = true
             statusText = "Generating image…"
             error = null
+            failedImagePrompt = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
                     val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() })
@@ -1660,6 +1719,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         busy = false
                         statusText = "Ready"
                         streamJob = null
+                        failedImagePrompt = null
                         if (generated.imageBase64 != null && durableImageUrl == null) {
                             error = "Your image was created, but secure image storage is unavailable, so it may not appear when you reopen this chat."
                         }
@@ -1691,6 +1751,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             statusText = "Stopped."
                         } else {
                             error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
+                            failedImagePrompt = promptText
                             statusText = "Request failed. You can try again."
                         }
                         busy = false
@@ -2105,7 +2166,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                             }
                                         }
                                         m.attachments.forEach { attachment ->
-                                            ChatAttachmentPreview(attachment) {
+                                            ChatAttachmentPreview(
+                                            attachment,
+                                            onImageClick = {
                                                 if (!attachment.imageBase64.isNullOrBlank()) {
                                                     selectedImageBase64 = attachment.imageBase64
                                                     selectedImageMimeType = attachment.mimeType
@@ -2113,8 +2176,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                                     selectedImageMessageId = m.id
                                                     showImageViewer = true
                                                 }
+                                            },
+                                            onRetry = {
+                                                val retryPrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
+                                                if (retryPrompt.isNotBlank()) sendAuthenticatedMessage(retryPrompt)
                                             }
-                                        }
+                                        )
                                         // Prefer the in-memory image during this session; use the durable URL
                                         // only when restoring history or when no inline image bytes exist.
                                         if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
@@ -2275,6 +2342,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text("BQ Sqwad AI", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                                     Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                                    if (!failedImagePrompt.isNullOrBlank()) {
+                                        TextButton(
+                                            onClick = {
+                                                val retryPrompt = failedImagePrompt
+                                                failedImagePrompt = null
+                                                error = null
+                                                if (!retryPrompt.isNullOrBlank()) sendAuthenticatedMessage(retryPrompt)
+                                            }
+                                        ) { Text("Retry image") }
+                                    }
                                 }
                             }
                         }
