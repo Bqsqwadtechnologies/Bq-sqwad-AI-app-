@@ -65,12 +65,6 @@ const learningPlans = [
   plan("learning","learnschool","School & Tutor",{productId:"learnschool",productType:"subs",recurring:true,billingPeriods:["monthly","term","yearly"],basePlans:["monthly","term","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:179.99,term:599.99,yearly:1799.99},limits:{learners:60},features:["Up to 60 learners","Learner seats","Teacher dashboards","Classes","Assignments","Bulk onboarding","Curriculum mapping","Coverage reports","Certificates with public verification","Safeguarding log","Data-protection reports","Dedicated onboarding"],configurationNotes:["Yearly price is Contact Sales until the higher applicable Play price limit is available."]})
 ];
 
-const capabilityTiers = [
-  plan("learning-capability","learncapabilityplus","Learning Capability Plus",{productId:"learncapability",billingPeriods:["monthly","term","yearly"],basePlans:["plus-monthly","plus-term","plus-yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,tierId:"plus",price:{monthly:3.99,term:12.99,yearly:34.99},features:["Premium voice tutor","Advanced AI models"]}),
-  plan("learning-capability","learncapabilitypremium","Learning Capability Premium",{productId:"learncapability",billingPeriods:["monthly","term","yearly"],basePlans:["premium-monthly","premium-term","premium-yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,tierId:"premium",price:{monthly:7.99,term:24.99,yearly:69.99},features:["Voice tutor","Advanced AI models","AI Live Camera tutor","Real-time demonstrations"]}),
-  plan("learning-capability","learncapabilityelite","Learning Capability Elite",{productId:"learncapability",billingPeriods:["monthly","term","yearly"],basePlans:["elite-monthly","elite-term","elite-yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,tierId:"elite",price:{monthly:14.99,term:44.99,yearly:129.99},features:["Voice tutor","Advanced AI models","AI Live Camera","Real-time demonstrations","Deep research","AI Studio"]})
-];
-
 const truthGuardPlans = [
   plan("truthguard","truthguardfree","TruthGuard Free",{productId:null,productType:"free",recurring:false,billingPeriods:["free"],price:{free:0},playEligible:false,limits:{checksPerMonth:5},features:["5 checks/month","Verdict","Confidence","Plain-English explanation","Up to 3 cited sources/check"]}),
   plan("truthguard","tgplus","TruthGuard Plus",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:4.99,yearly:49.70},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:150},features:["150 checks/month","Live web evidence","Source reliability notes","Manipulation/bias signals","History"],configurationNotes:["Yearly price is approved at $49.70 USD\/year (monthly price × 12 × 0.83)."]}),
@@ -97,103 +91,6 @@ const creditPlans = [
   plan("credits","credit1000","1,000 Credits",{productId:"credit1000",billingPeriods:["weekly","monthly"],basePlans:["weekly","monthly"],playEligible:true,price:{monthly:79.99},productType:"subs",recurring:true,features:["1,000 credits"],entitlements:["credit:1000"],configurationNotes:["Google Play subscription ID is credit1000. Base plans are weekly and monthly. The existing monthly price is preserved at $79.99; weekly prices must be configured before those base plans are published."]})
 ];
 
-const tierProducts = [
-  {id:"bizaoadvindustrymodule",name:"Industry Pre-trained Module",price:19.99,unit:"module/month",quantityTiers:[["qty1",1,19.99],["qty5",5,99.95],["qty10",10,199.90],["qty25",25,499.75]]},
-  {id:"bizaoadvcompliancemode",name:"Compliance Mode",price:34.99,unit:"mode/month",quantityTiers:[["qty1",1,34.99],["qty5",5,174.95],["qty10",10,349.90],["qty25",25,874.75]]},
-  {id:"bizaoteamuser",name:"Extra Team Member",price:9.99,unit:"user/month",quantityTiers:[["qty1",1,9.99],["qty5",5,49.95],["qty10",10,99.90],["qty25",25,249.75]]},
-  {id:"bizaoextraassistant",name:"Extra Assistant",price:19.99,unit:"assistant/month",quantityTiers:[["qty1",1,19.99],["qty5",5,99.95],["qty10",10,199.90],["qty25",25,499.75]]}
-];
-
-const simpleAddOns = [
-  ["bizaoadvmultimodal","Multimodal Assistant",39.99,"monthly",["Text","Voice","Vision","Shared memory"]],
-  ["bizaoadvunifiedmemory","Unified Cross-Channel Memory",19.99,"monthly",[]],
-  ["bizaoadvabtesting","A/B Testing for AI Responses",24.99,"monthly",[]],
-  ["bizaoadvhumanhandoff","Real-Time Human Handoff",14.99,"monthly",[]],
-  ["bizaoadvproactive","Proactive Outreach Engine",29.99,"monthly",[]],
-  ["bizaoadvcustomvoice","Custom Cloned Brand Voice",49.99,"monthly",[]],
-  ["bizaoadvauditexplain","Explainable AI Audit Trail",14.99,"monthly",[]],
-  ["bizaomsgs10k","+10,000 AI messages",13.99,"monthly",[]],
-  ["bizaomsgs50k","+50,000 AI messages",54.99,"monthly",[]],
-  ["bizaomsgs100k","+100,000 AI messages",94.99,"monthly",[]],
-  ["bizaomsgsunlimited","Unlimited AI messages / fair use",269.99,"monthly",[]],
-  ["bizaostorage10gb","+10 GB",6.99,"monthly",[]],
-  ["bizaostorage100gb","+100 GB",19.99,"monthly",[]],
-  ["bizaostorage1tb","+1 TB",69.99,"monthly",[]],
-  ["bizaointwhatsapp","WhatsApp Integration",19.99,"monthly",[]],
-  ["bizaointmessenger","Messenger Integration",13.99,"monthly",[]],
-  ["bizaointinstagram","Instagram Integration",13.99,"monthly",[]],
-  ["bizaointtelegram","Telegram Integration",6.99,"monthly",[]],
-  ["bizaointslack","Slack Integration",13.99,"monthly",[]],
-  ["bizaointdiscord","Discord Integration",13.99,"monthly",[]],
-  ["bizaointshopify","Shopify Integration",26.99,"monthly",[]],
-  ["bizaointwoocommerce","WooCommerce Integration",19.99,"monthly",[]],
-  ["bizaointwordpress","WordPress Integration",13.99,"monthly",[]],
-  ["bizaointzapier","Zapier Integration",26.99,"monthly",[]],
-  ["bizaointcrm","CRM Integration",34.99,"monthly",[]],
-  ["bizaointapi","API Integration",34.99,"monthly",[]],
-  ["bizaoaivoice","AI Voice",34.99,"monthly",[]],
-  ["bizaoaiphone","AI Phone",69.99,"monthly",[]],
-  ["bizaoaibooking","AI Booking",19.99,"monthly",[]],
-  ["bizaoaisales","AI Sales",39.99,"monthly",[]],
-  ["bizaoaimarketing","AI Marketing",34.99,"monthly",[]],
-  ["bizaoaiemail","AI Email",19.99,"monthly",[]],
-  ["bizaoaiworkflow","AI Workflow",54.99,"monthly",[]],
-  ["bizaoaidocs","AI Documents",39.99,"monthly",[]],
-  ["bizaosupportpriority","Priority Support",34.99,"monthly",[]],
-  ["bizaosupportpremium","Premium Support",69.99,"monthly",[]],
-  ["bizaosupportmanager","Dedicated Manager",139.99,"monthly",[]],
-  ["bizaosupsetup","AI Setup",349,"one-time",[]],
-  ["bizaosupmigration","Migration",199,"one-time",[]],
-  ["bizaosupwhitelabel","White Label",199,"monthly",[]],
-  ["bizaosupdomain","Custom Domain",69,"one-time",[]],
-  ["bizaosupcustommodel","Custom AI Model","CONTACT","custom",[]]
-];
-
-const examAddOns = [
-  ["learnexamwaecneco","WAEC/NECO",6.99,19.99],
-  ["learnexamgcse","GCSE",6.99,19.99],
-  ["learnexamsatact","SAT/ACT",7.99,22.99],
-  ["learnexamigcsalevel","IGCSE/A Level",7.99,22.99]
-];
-
-const tieredAddOns = tierProducts.map(x => ({
-  module:"business-addon", id:x.id, name:x.name, productId:x.id, productType:"subs", recurring:true,
-  billingPeriods:["monthly"], basePlans:["monthly"], offerId:null, trialDays:0, trialEligible:false,
-  price:{monthly:x.price}, priceStatus:"approved", playEligible:false, contactSales:false, active:true,
-  limits:{}, features:[], entitlements:[], countryAvailability:{mode:"all",countries:[]},
-  gracePeriodDays:7, accountHold:"google-play-automatic", resubscribe:"allow", planChange:"charge-next-billing-date",
-  localizedPlayPrice:"play-authoritative",currency:"USD",tierId:null,
-  quantityTiers:x.quantityTiers.map(([tierId,quantity,price])=>({tierId,quantity,price,billingPeriod:"monthly",unitType:x.unit,maximumQuantity:quantity,available:true,active:true,basePlanId:"monthly",includedEntitlement:x.id+":"+quantity})),
-  addOnQuantityRules:{min:1,max:25,allowedTierIds:["qty1","qty5","qty10","qty25"]},includedAddOns:[],
-  configurationNotes:["Add-on; no 3-day trial.","Quantity and entitlement must be validated server-side."]
-}));
-
-const addOns = [
-  ...tieredAddOns,
-  ...simpleAddOns.map(([id,name,price,billingPeriod,features]) => ({
-    module:"business-addon",id,name,productId:id,
-    productType:billingPeriod === "one-time" ? "inapp" : price === "CONTACT" ? "custom" : "subs",
-    recurring:billingPeriod === "monthly",billingPeriods:[billingPeriod],
-    basePlans:billingPeriod === "monthly" ? ["monthly"] : [],
-    offerId:null,trialDays:0,trialEligible:false,
-    price:{[billingPeriod]:price},priceStatus:"approved",playEligible:false,
-    contactSales:price === "CONTACT",active:true,limits:{},features,entitlements:[],
-    countryAvailability:{mode:"all",countries:[]},gracePeriodDays:7,accountHold:"google-play-automatic",
-    resubscribe:"allow",planChange:"charge-next-billing-date",localizedPlayPrice:"play-authoritative",currency:"USD",
-    tierId:null,quantityTiers:[],addOnQuantityRules:null,includedAddOns:[],
-    configurationNotes:[billingPeriod === "one-time" ? "One-time service; do not model as recurring." : "Add-on; no 3-day trial."]
-  })),
-  ...examAddOns.map(([id,name,monthly,term]) => ({
-    module:"learning-exam-addon",id,name,productId:id,productType:"subs",recurring:true,
-    billingPeriods:["monthly","term"],basePlans:["monthly","term"],offerId:null,trialDays:0,trialEligible:false,
-    price:{monthly,term},priceStatus:"approved",playEligible:false,contactSales:false,active:true,
-    limits:{},features:[],entitlements:[],countryAvailability:{mode:"all",countries:[]},gracePeriodDays:7,
-    accountHold:"google-play-automatic",resubscribe:"allow",planChange:"charge-next-billing-date",
-    localizedPlayPrice:"play-authoritative",currency:"USD",tierId:null,quantityTiers:[],addOnQuantityRules:null,includedAddOns:[],
-    configurationNotes:["No 3-day trial on exam add-ons."]
-  }))
-];
-
 export const COMMERCIAL_CATALOG = {
   version: PLAN_CATALOG_VERSION,
   currency: "USD",
@@ -213,11 +110,8 @@ export const COMMERCIAL_CATALOG = {
   },
   sections: {
     business: businessPlans,
-    businessAddOns: addOns.filter(x=>x.module === "business-addon"),
     companion: companionPlans,
     learning: learningPlans,
-    learningCapability: capabilityTiers,
-    learningExamAddOns: addOns.filter(x=>x.module === "learning-exam-addon"),
     truthGuard: truthGuardPlans,
     lifeMathis: lifeMathisPlans,
     frontier: frontierPlans,
@@ -227,7 +121,7 @@ export const COMMERCIAL_CATALOG = {
 
 // Legacy compact shape retained for existing callers/tests; values are derived from the canonical objects above.
 export const PLAN_CATALOG = Object.fromEntries(Object.entries(COMMERCIAL_CATALOG.sections).map(([section, rows]) => [
-  section === "businessAddOns" ? "addOns" : section,
+  section,
   rows.map(p => [p.id, p.name, p.price?.monthly ?? p.price?.free ?? null, p.price?.yearly ?? null, p.features || [], p.limits || {}])
 ]));
 PLAN_CATALOG.trialOfferId = "trial-3d";

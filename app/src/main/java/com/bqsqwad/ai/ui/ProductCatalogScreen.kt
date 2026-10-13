@@ -39,6 +39,8 @@ private data class PublicContactOption(val name:String,val module:String,val bil
 private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
 private data class UserEntitlement(val id:String,val planId:String,val productId:String,val product:String,val basePlanId:String?,val state:String,val renewalState:String,val endDate:String?)
 
+private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
+
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit) {
     val context=androidx.compose.ui.platform.LocalContext.current
@@ -48,6 +50,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
+    var planSearch by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("all") }
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
     var showAllCapabilities by remember { mutableStateOf(true) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
@@ -169,6 +173,37 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         }
     }
     LaunchedEffect(Unit){load()}
+
+    // Customer plans come only from the live/cached server catalog. Add-ons and
+    // capability-only products stay out of the general plan browser until configured.
+    val customerPlanModules = plans.filter { plan ->
+        val module = plan.module.lowercase(java.util.Locale.ROOT)
+        module !in setOf("business-addon", "learning-exam-addon", "learning-capability", "credits") &&
+            !module.contains("addon") && !module.contains("capability")
+    }
+    val categorySpecs = listOf(
+        Triple("business", "Business", setOf("business")),
+        Triple("truthguard", "TruthGuard", setOf("truthguard")),
+        Triple("learning", "Learning", setOf("learning")),
+        Triple("companion", "Companion", setOf("companion")),
+        Triple("personal-intelligence", "Personal Intelligence", setOf("personal-intelligence")),
+        Triple("life-mathis", "Life Matters", setOf("life-mathis")),
+        Triple("frontier", "Frontier Lab", setOf("frontier")),
+        Triple("data-analysis", "Data Analyst", setOf("data-analysis", "data-analyst")),
+        Triple("organization", "Organization Studio", setOf("organization", "organization-studio"))
+    ).filter { spec -> customerPlanModules.any { it.module.equalsAnyCatalogModule(spec.third) } }
+    val normalizedSearch = planSearch.trim().lowercase(java.util.Locale.ROOT)
+    val compactSearch = normalizedSearch.filter { it.isLetterOrDigit() }
+    val filteredCustomerPlans = customerPlanModules.filter { plan ->
+        val categoryMatch = selectedCategory == "all" ||
+            categorySpecs.firstOrNull { it.first == selectedCategory }?.third?.contains(plan.module.lowercase(java.util.Locale.ROOT)) == true
+        val searchText = (plan.id + " " + plan.name + " " + plan.module)
+            .lowercase(java.util.Locale.ROOT)
+            .replace(Regex("[^a-z0-9]+"), " ")
+            .trim()
+        val compactText = searchText.filter { it.isLetterOrDigit() }
+        categoryMatch && (normalizedSearch.isBlank() || searchText.contains(normalizedSearch) || compactText.contains(compactSearch))
+    }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 
     Scaffold(topBar={
         TopAppBar(
@@ -378,133 +413,78 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             }
                         }
                     }
-                    item { Text("Plans by workspace", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
-                    val grouped = plans.groupBy { it.module }
-                    val businessMain = plans.filter {
-                        it.module == "business" && !it.contactSales && !it.name.contains("enterprise", ignoreCase = true)
-                    }.sortedBy { it.sortOrder }
-                    val businessAddOns = plans.filter { it.module == "business-addon" }.sortedBy { it.sortOrder }
-                    val businessContact = plans.filter {
-                        it.module == "business" && (it.contactSales || it.name.contains("enterprise", ignoreCase = true))
-                    }.sortedBy { it.sortOrder }
-                    if (businessMain.isNotEmpty() || businessAddOns.isNotEmpty() || businessContact.isNotEmpty()) {
-                        item(key = "module:business") {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Business AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text("Business plans, team capacity, assistants, training, storage and connected channels.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    item { Text("Browse plans", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
+                    item {
+                        OutlinedTextField(
+                            value = planSearch,
+                            onValueChange = { planSearch = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("Search plans") },
+                            placeholder = { Text("Business, TruthGuard, Learning…") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                        )
+                    }
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = selectedCategory == "all",
+                                    onClick = { selectedCategory = "all" },
+                                    label = { Text("All plans") }
+                                )
                             }
-                        }
-                        businessMain.forEach { plan ->
-                            item(key = "plan:" + plan.id) {
-                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus = { status = it })
-                            }
-                        }
-                        if (businessAddOns.isNotEmpty()) {
-                            item(key = "subheading:business-addons") {
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("Business add-ons", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    Text("Optional capacity and feature extensions for eligible Business AI plans.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            businessAddOns.forEach { plan ->
-                                item(key = "plan:" + plan.id) {
-                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                        onStatus = { status = it })
-                                }
-                            }
-                        }
-                        businessContact.forEach { plan ->
-                            item(key = "plan:" + plan.id) {
-                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus = { status = it })
+                            items(categorySpecs, key = { it.first }) { category ->
+                                FilterChip(
+                                    selected = selectedCategory == category.first,
+                                    onClick = { selectedCategory = category.first },
+                                    label = { Text(category.second, maxLines = 1) }
+                                )
                             }
                         }
                     }
-
-                    val learningMain = plans.filter { it.module == "learning" || it.module == "learning-capability" }.sortedBy { it.sortOrder }
-                    val learningExamAddOns = plans.filter { it.module == "learning-exam-addon" }.sortedBy { it.sortOrder }
-                    if (learningMain.isNotEmpty() || learningExamAddOns.isNotEmpty()) {
-                        item(key = "module:learning") {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Learning Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text("Study tools, learning plans and exam preparation options.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                    if (filteredCustomerPlans.isEmpty()) {
+                        item {
+                            Text(
+                                if (customerPlanModules.isEmpty()) "No live plans are configured yet. Refresh the catalog to check again."
+                                else "No plans match your search. Try another name or category.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
-                        learningMain.forEach { plan ->
-                            item(key = "plan:" + plan.id) {
-                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus = { status = it })
-                            }
+                    } else {
+                        val moduleTitles = categorySpecs.associate { it.first to it.second }
+                        val categoryForModule: (String) -> String = { module ->
+                            categorySpecs.firstOrNull { spec -> module.lowercase(java.util.Locale.ROOT) in spec.third }?.first
+                                ?: "other"
                         }
-                        if (learningExamAddOns.isNotEmpty()) {
-                            item(key = "subheading:learning-exams") {
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("Exam add-ons", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    Text("Additional exam-focused options for Learning Studio.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        filteredCustomerPlans.groupBy { categoryForModule(it.module) }
+                            .toList()
+                            .sortedWith(compareBy<Pair<String, List<LivePlan>>> {
+                                categorySpecs.indexOfFirst { spec -> spec.first == it.first }.let { index -> if (index < 0) Int.MAX_VALUE else index }
+                            }.thenBy { it.first })
+                            .forEach { (categoryKey, categoryPlans) ->
+                                item(key = "category:" + categoryKey) {
+                                    Text(
+                                        moduleTitles[categoryKey] ?: "Other plans",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                categoryPlans.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) }).forEach { plan ->
+                                    item(key = "plan:" + plan.id) {
+                                        LivePlanCard(
+                                            plan,
+                                            catalog.filter { it.planId == plan.id && it.enabled },
+                                            playProducts,
+                                            billing,
+                                            onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                                            onStatus = { status = it }
+                                        )
+                                    }
                                 }
                             }
-                            learningExamAddOns.forEach { plan ->
-                                item(key = "plan:" + plan.id) {
-                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                        onStatus = { status = it })
-                                }
-                            }
-                        }
                     }
-
-                    val moduleOrder = listOf("organization", "truthguard", "life-mathis", "companion", "frontier", "data-analysis", "credits")
-                    val moduleTitles = mapOf(
-                        "organization" to "Organization AI / Studio",
-                        "truthguard" to "TruthGuard AI",
-                        "life-mathis" to "Life Mathis",
-                        "companion" to "AI Companion",
-                        "frontier" to "Frontier Lab",
-                        "data-analysis" to "Data Analysis",
-                        "credits" to "Credits & Top-ups"
-                    )
-                    val moduleDescriptions = mapOf(
-                        "organization" to "Shared AI workflows, source materials, live production and organization usage.",
-                        "truthguard" to "Check claims against evidence and keep sources visible.",
-                        "life-mathis" to "Personal planning, everyday decisions and practical problem-solving.",
-                        "companion" to "Personalized conversations, memory and companion tools.",
-                        "frontier" to "Explore advanced AI capabilities and experimental workflows.",
-                        "data-analysis" to "Analyze documents and structured data with AI-assisted insights.",
-                        "credits" to "Add credits for eligible BQ Sqwad AI features and usage."
-                    )
-                    moduleOrder.filter { grouped.containsKey(it) }.forEach { module ->
-                        item(key = "module:" + module) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(moduleTitles[module] ?: "Additional plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text(moduleDescriptions[module] ?: "Plans, pricing, availability and included features.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        grouped.getValue(module).sortedBy { it.sortOrder }.forEach { plan ->
-                            item(key = "plan:" + plan.id) {
-                                LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                    onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                    onStatus = { status = it })
-                            }
-                        }
-                    }
-                    plans.filter { it.module !in setOf("business", "business-addon", "learning", "learning-capability", "learning-exam-addon") && it.module !in moduleOrder }
-                        .groupBy { it.module }.forEach { (_, modulePlans) ->
-                            item(key = "module:additional:" + modulePlans.first().id) {
-                                Text("Additional plans", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            }
-                            modulePlans.sortedBy { it.sortOrder }.forEach { plan ->
-                                item(key = "plan:" + plan.id) {
-                                    LivePlanCard(plan, catalog.filter { it.planId == plan.id && it.enabled }, playProducts, billing,
-                                        onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
-                                        onStatus = { status = it })
-                                }
-                            }
-                        }
                 }
                 item {
                     Text("BQ Sqwad AI Feature Directory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
