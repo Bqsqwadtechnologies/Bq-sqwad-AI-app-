@@ -1,6 +1,7 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.bqsqwad.ai.ui
 
-import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.combinedClickable
@@ -27,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.ApiConfig
@@ -39,7 +39,6 @@ import java.net.URL
 
 @Composable
 fun WebSourceChip(source: SearchSource, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     val parsed = remember(source.url) { Uri.parse(source.url) }
     val safeUrl = parsed.scheme.equals("https", ignoreCase = true) && !parsed.host.isNullOrBlank()
     val domain = parsed.host.orEmpty().removePrefix("www.").ifBlank { "source" }
@@ -99,7 +98,6 @@ fun WebSourceChip(source: SearchSource, onOpen: (String) -> Unit, modifier: Modi
         AlertDialog(
             onDismissRequest = { showTitle = false },
             title = { Text(source.title.ifBlank { domain }) },
-            text = { Text("Source title") },
             confirmButton = { TextButton(onClick = { showTitle = false }) { Text("Close") } }
         )
     }
