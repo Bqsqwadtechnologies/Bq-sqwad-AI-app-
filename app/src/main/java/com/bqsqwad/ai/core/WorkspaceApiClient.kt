@@ -123,7 +123,7 @@ class WorkspaceApiClient {
         }
         // Learning renders its redirect inline; all other workspaces use the shared
         // navigation card so dedicated API routes cannot silently drop redirect data.
-        if (path != "/learning/session") body.optJSONObject("redirect")?.let(WorkspaceRedirectStore::publish)
+        if (path != "/learning/session") body.optJSONObject("redirect")?.let { WorkspaceRedirectStore.publish(it) }
         body
     }
 
