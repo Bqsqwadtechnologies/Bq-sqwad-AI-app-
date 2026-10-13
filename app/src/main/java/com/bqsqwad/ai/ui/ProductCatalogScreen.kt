@@ -41,6 +41,18 @@ private data class PublicContactOption(val name:String,val module:String,val bil
 private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
 private data class UserEntitlement(val id:String,val planId:String,val productId:String,val product:String,val basePlanId:String?,val state:String,val renewalState:String,val endDate:String?)
 
+private fun livePriceLabel(price: JSONObject): String {
+    if (!price.optBoolean("enabled", true)) return "Unavailable"
+    if (price.optBoolean("free", false)) return "Free now"
+    val rate = price.optDouble("creditsPerMinute", 0.0)
+    val rateText = if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()
+    val startFee = price.optDouble("startFeeCredits", 0.0)
+    return buildString {
+        append(rateText).append(" credits/min")
+        if (startFee > 0.0) append(" • ").append(startFee).append(" start fee")
+    }
+}
+
 private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
 
 @Composable
@@ -475,17 +487,6 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                             placeholder = { Text("Business, TruthGuard, Learning…") },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                         )
-                    }
-                    stickyHeader(key = "catalog-category-filter") {
-                        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
-                                item { FilterChip(selected = selectedCategory == "credits", onClick = { selectedCategory = "credits"; scope.launch { listState.animateScrollToItem(1) } }, label = { Text("Credits") }) }
-                                item { FilterChip(selected = selectedCategory == "all", onClick = { selectedCategory = "all" }, label = { Text("All plans") }) }
-                                items(categorySpecs, key = { it.first }) { category ->
-                                    FilterChip(selected = selectedCategory == category.first, onClick = { selectedCategory = category.first }, label = { Text(if (category.first == "business") "Business AI" else category.second, maxLines = 1) })
-                                }
-                            }
-                        }
                     }
                     if (filteredCustomerPlans.isEmpty()) {
                         item {
