@@ -2432,6 +2432,26 @@ export default {
         return json({ ok: true, disconnected: true, platform: account.platform || null });
       }
 
+      if (url.pathname === "/web/favicon" && request.method === "GET") {
+        const domain = String(url.searchParams.get("domain") || "").trim().toLowerCase().replace(/^www\./, "");
+        if (!domain || domain.length > 253 || !/^[a-z0-9.-]+$/.test(domain) || domain.includes("..") || domain.startsWith(".") || domain.endsWith(".") || domain === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) {
+          return new Response(null, { status: 400, headers: { "Cache-Control": "no-store" } });
+        }
+        const cacheKey = new Request(new URL("/web/favicon?domain=" + encodeURIComponent(domain), url.origin).toString(), { method: "GET" });
+        const cache = caches.default;
+        const cached = await cache.match(cacheKey);
+        if (cached) return cached;
+        const upstream = await fetch("https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64", { cf: { cacheTtl: 86400, cacheEverything: true } });
+        if (!upstream.ok) return new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=300" } });
+        const contentType = upstream.headers.get("content-type") || "image/png";
+        if (!contentType.toLowerCase().startsWith("image/")) return new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=300" } });
+        const response = new Response(await upstream.arrayBuffer(), {
+          status: 200,
+          headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" }
+        });
+        await cache.put(cacheKey, response.clone());
+        return response;
+      }
       if (url.pathname === "/web-search" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid);
