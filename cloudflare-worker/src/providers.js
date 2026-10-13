@@ -112,9 +112,11 @@ export async function callGemini(env, { model, message, system, images = [], fil
 export async function callTavily(env, query, maxResults = 10, deepResearch = false) {
   const result = await jsonFetch("https://api.tavily.com/search", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      Authorization: "Bearer " + secret(env, "TAVILY_API_KEY"),
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({
-      api_key: secret(env, "TAVILY_API_KEY"),
       query: String(query || ""),
       max_results: Math.min(Math.max(Number(maxResults) || 10, 1), 20),
       search_depth: deepResearch ? "advanced" : "basic",
