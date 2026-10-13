@@ -20,8 +20,7 @@ service cloud.firestore {
     }
 
     match /adminProviderRoutes/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     match /webSearchPricing/{id} {
@@ -30,13 +29,11 @@ service cloud.firestore {
     }
 
     match /adminAdvancedOptions/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     match /adminConfigAudit/{id} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if false;
     }
 
     match /plans/{id} {

@@ -1228,10 +1228,27 @@ export default {
         "POST /admin/security/biometric/challenge",
         "POST /admin/security/biometric/verify"
       ]);
-      if (url.pathname.startsWith("/admin/") && !adminBootstrapRoutes.has(request.method + " " + url.pathname)) {
+      if (url.pathname.startsWith("/admin/")) {
         const adminIdentity = await verifyFirebaseUser(request);
         if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        await requireAdminSessionNative(adminIdentity.uid);
+        const routeKey = request.method + " " + url.pathname;
+        if (!adminBootstrapRoutes.has(routeKey)) await requireAdminSessionNative(adminIdentity.uid);
+        // Record admin API actions without request bodies, credentials, or provider secrets.
+        const auditExclusions = new Set([
+          "GET /admin/access",
+          "GET /admin/security/status",
+          "GET /admin/security/session",
+          "POST /admin/security/unlock"
+        ]);
+        if (!auditExclusions.has(routeKey)) {
+          await firestoreCreate("adminAuditLogs/" + crypto.randomUUID(), {
+            uid: adminIdentity.uid,
+            action: "admin_api_request",
+            method: request.method,
+            path: url.pathname,
+            createdAt: new Date()
+          });
+        }
       }
       const protectedPaths = new Set(["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"]);
       if (protectedPaths.has(url.pathname) && !request.headers.get("Authorization")) {

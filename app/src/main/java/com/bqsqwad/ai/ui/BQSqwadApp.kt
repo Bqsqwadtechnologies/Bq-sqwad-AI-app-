@@ -5306,6 +5306,11 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     Slider(value = textScale, onValueChange = { value ->
                         textScale = value
                         prefs.edit().putFloat("text_scale", value).apply()
+                    }, onValueChangeFinished = {
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put("text_scale", textScale.toDouble())) }
+                                .onFailure { settingsNotice = "Saved on this device, but could not sync text size yet." }
+                        }
                     }, valueRange = 0.85f..1.4f, steps = 10)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Smaller", style = MaterialTheme.typography.labelSmall)
