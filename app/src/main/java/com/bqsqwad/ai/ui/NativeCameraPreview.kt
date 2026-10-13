@@ -15,7 +15,9 @@ fun NativeCameraPreview(
     captureEveryMs: Long = 1800L,
     torchEnabled: Boolean = false,
     onFrame: (ByteArray) -> Unit = {},
-    onError: (String) -> Unit = {}
+    onError: (String) -> Unit = {},
+    onClosed: () -> Unit = {},
+    onLensSelected: (Int) -> Unit = {}
 ) {
     CoreNativeCameraPreview(
         modifier = modifier,
@@ -23,6 +25,8 @@ fun NativeCameraPreview(
         captureEveryMs = captureEveryMs,
         torchEnabled = torchEnabled,
         onFrame = onFrame,
-        onError = onError
+        onError = onError,
+        onClosed = onClosed,
+        onLensSelected = onLensSelected
     )
 }
