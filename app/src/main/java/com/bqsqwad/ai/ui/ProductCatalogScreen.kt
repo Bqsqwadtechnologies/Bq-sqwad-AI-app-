@@ -195,17 +195,18 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     // capability-only products stay out of the general plan browser until configured.
     val customerPlanModules = plans.filter { plan ->
         val module = plan.module.lowercase(java.util.Locale.ROOT)
-        module !in setOf("business-addon", "learning-exam-addon", "learning-capability") &&
-            !module.contains("addon") && !module.contains("capability")
+        module !in setOf("learning-capability") &&
+            (!module.contains("addon") || module in setOf("business-addon", "learning-exam-addon")) &&
+            !module.contains("capability")
     }
     val creditPackOrder = listOf("credit100", "credit250", "credit500", "credit1000")
     val creditPacks = customerPlanModules.filter { it.id in creditPackOrder }
         .sortedBy { creditPackOrder.indexOf(it.id) }
     val nonCreditCustomerPlans = customerPlanModules.filter { it.module.lowercase(java.util.Locale.ROOT) != "credits" }
     val categorySpecs = listOf(
-        Triple("business", "Business", setOf("business")),
+        Triple("business", "Business AI", setOf("business", "business-addon")),
         Triple("truthguard", "TruthGuard", setOf("truthguard")),
-        Triple("learning", "Learning", setOf("learning")),
+        Triple("learning", "Learning", setOf("learning", "learning-exam-addon")),
         Triple("companion", "Companion", setOf("companion")),
         Triple("personal-intelligence", "Personal Intelligence", setOf("personal-intelligence")),
         Triple("life-mathis", "Life Matters", setOf("life-mathis")),
@@ -233,10 +234,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             actions={IconButton(onClick={::load},enabled=!loading){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
         )
     }){padding->
-        LaunchedEffect(initialSection) {
-            if (initialSection.equals("credits", ignoreCase = true)) {
-                kotlinx.coroutines.delay(100)
-                listState.animateScrollToItem(1)
+        LaunchedEffect(initialSection, loading, error) {
+            if (!loading && error == null && initialSection.equals("credits", ignoreCase = true)) {
+                kotlinx.coroutines.delay(50)
+                if (listState.layoutInfo.totalItemsCount > 1) listState.animateScrollToItem(1)
             }
         }
         when{
@@ -270,7 +271,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                         }
                                     }
                                 }
-                                balance.optString("trialExpiresAt").takeIf { it.isNotBlank() }?.let {
+                                balance.optString("trialExpiresAt").takeIf { it.isNotBlank() && it != "null" }?.let {
                                     Text("Trial expiry: " + it.take(10), color=MaterialTheme.colorScheme.onSurface)
                                 }
                                 val voicePrice = livePricing?.optJSONObject("liveVoice")
