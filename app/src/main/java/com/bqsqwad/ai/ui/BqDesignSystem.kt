@@ -29,25 +29,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.produceState
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.ui.unit.Dp
@@ -55,107 +41,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import com.bqsqwad.ai.R
 
-/**
- * One app-wide logo source. Choosing a replacement in Settings updates every
- * BqLogo instance immediately and persists the URI on this device.
- */
-object BqLogoBranding {
-    var customLogoUri by mutableStateOf<String?>(null)
-        private set
-
-    fun load(context: Context) {
-        if (customLogoUri == null) {
-            customLogoUri = context.getSharedPreferences("bq_branding", Context.MODE_PRIVATE)
-                .getString("logo_uri", null)
-        }
-    }
-
-    fun set(context: Context, uri: Uri) {
-        // Validate the selected image before saving its URI. A picker URI that
-        // cannot be reopened after the picker closes must not be reported as saved.
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        val readable = context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream, null, bounds)
-            bounds.outWidth > 0 && bounds.outHeight > 0
-        } ?: false
-        require(readable) { "Choose a valid image file." }
-
-        // Persistent read access is required because the selected logo is reused
-        // after the app is restarted. Let permission errors reach the UI.
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-        )
-        customLogoUri = uri.toString()
-        context.getSharedPreferences("bq_branding", Context.MODE_PRIVATE)
-            .edit().putString("logo_uri", customLogoUri).apply()
-    }
-
-    fun reset(context: Context) {
-        customLogoUri = null
-        context.getSharedPreferences("bq_branding", Context.MODE_PRIVATE)
-            .edit().remove("logo_uri").apply()
-    }
-}
-
+/** The official bundled BQ Sqwad AI logo is fixed for all users. */
 @Composable
 fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    LaunchedEffect(Unit) { BqLogoBranding.load(context) }
-    val uri = BqLogoBranding.customLogoUri
-    val targetPixels = with(LocalDensity.current) { size.roundToPx().coerceAtLeast(1) }
-    val bitmap by produceState<Bitmap?>(initialValue = null, uri, targetPixels) {
-        value = if (uri.isNullOrBlank()) null else withContext(Dispatchers.IO) {
-            runCatching {
-                val parsedUri = Uri.parse(uri)
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(parsedUri)?.use { stream ->
-                    BitmapFactory.decodeStream(stream, null, bounds)
-                }
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                    null
-                } else {
-                    // App logos render at small sizes; decode near the target size
-                    // instead of allocating a full-resolution photo for every logo.
-                    var sampleSize = 1
-                    while (
-                        bounds.outWidth / sampleSize > targetPixels * 2 ||
-                        bounds.outHeight / sampleSize > targetPixels * 2
-                    ) {
-                        sampleSize *= 2
-                    }
-                    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                    context.contentResolver.openInputStream(parsedUri)?.use { stream ->
-                        BitmapFactory.decodeStream(stream, null, options)
-                    }
-                }
-            }.getOrNull()
-        }
-    }
     Surface(
         modifier = modifier.size(size),
         shape = CircleShape,
-        // One identical logo treatment throughout the app: no glow, fade, or
-        // feature-specific shadow effect.
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         color = MaterialTheme.colorScheme.surface
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = "BQ Sqwad AI logo",
-                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Image(
-                painter = painterResource(R.drawable.bq_sqwad_logo),
-                contentDescription = "BQ Sqwad AI logo",
-                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.bq_sqwad_logo),
+            contentDescription = "BQ Sqwad AI logo",
+            modifier = Modifier.fillMaxSize().clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
     }
 }
 
