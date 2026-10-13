@@ -1721,7 +1721,7 @@ export default {
          let reservation = null;
          if (!organization && startFee > 0) reservation = await chargeCredits(u.uid, startFee, capabilityName, u);
          try {
-           const model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
+           let model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
            const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
           const voice = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].includes(voice0)
             ? voice0 : String(conf.defaultVoice || "marin");
@@ -1730,33 +1730,52 @@ export default {
           }
           const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.uid));
           const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
-          const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
-            method: "POST",
-            headers: {
-              Authorization: "Bearer " + String(env.OPENAI_API_KEY),
-              "Content-Type": "application/json",
-              "OpenAI-Safety-Identifier": safetyIdentifier
-            },
-            body: JSON.stringify({
-              session: {
-                type: "realtime", model, voice, output_modalities: ["audio"],
-                audio: {
-                  input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
-                  output: { format: { type: "audio/pcm", rate: 24000 } }
-                }
-              }
-            })
-          });
-          const raw = await response.text();
-          let out = {};
-          try { out = raw ? JSON.parse(raw) : {}; } catch {}
-          if (!response.ok) {
-            throw Object.assign(new Error("realtime_session_failed"), {
-              httpStatus: 502,
-              safeError: "realtime_session_failed",
-              providerStatus: response.status
-            });
-          }
+          const createRealtimeSecret = (sessionModel) => fetch("https://api.openai.com/v1/realtime/client_secrets", {
+             method: "POST",
+             headers: {
+               Authorization: "Bearer " + String(env.OPENAI_API_KEY),
+               "Content-Type": "application/json",
+               "OpenAI-Safety-Identifier": safetyIdentifier
+             },
+             body: JSON.stringify({
+               session: {
+                 type: "realtime", model: sessionModel, voice, output_modalities: ["audio"],
+                 audio: {
+                   input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+                   output: { format: { type: "audio/pcm", rate: 24000 } }
+                 }
+               }
+             })
+           });
+           let response = await createRealtimeSecret(model);
+           let raw = await response.text();
+           let out = {};
+           try { out = raw ? JSON.parse(raw) : {}; } catch {}
+           if (!response.ok && [400, 404, 422].includes(response.status) && model !== "gpt-realtime") {
+             const rejectedModel = model;
+             const providerCode = String(out?.error?.code || out?.error?.type || "model_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_model_rejected:" + rejectedModel + ":" + providerCode);
+             const fallbackModel = "gpt-realtime";
+             const fallbackResponse = await createRealtimeSecret(fallbackModel);
+             const fallbackRaw = await fallbackResponse.text();
+             let fallbackOut = {};
+             try { fallbackOut = fallbackRaw ? JSON.parse(fallbackRaw) : {}; } catch {}
+             if (fallbackResponse.ok) {
+               model = fallbackModel;
+               response = fallbackResponse;
+               raw = fallbackRaw;
+               out = fallbackOut;
+             } else {
+               const fallbackCode = String(fallbackOut?.error?.code || fallbackOut?.error?.type || "fallback_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+               await notifyAdminOfIssue(env, url.pathname, 502, "realtime_fallback_rejected:" + fallbackCode);
+               throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: fallbackResponse.status });
+             }
+           }
+           if (!response.ok) {
+             const providerCode = String(out?.error?.code || out?.error?.type || "provider_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_session_failed:" + response.status + ":" + providerCode);
+             throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: response.status });
+           }
           const secret = out?.value || out?.client_secret?.value;
           if (!secret) {
             throw Object.assign(new Error("realtime_client_secret_missing"), {
@@ -1768,7 +1787,7 @@ export default {
             if (wallet.balanceCents <= 0) throw Object.assign(new Error("organization_insufficient_balance"), { httpStatus: 402 });
             await orgChargeAssistant(u.uid, "realtime-" + Date.now());
           } else {
-            await commitCredits(u.uid, reservation.reservationId, "openai");
+            if (reservation?.reservationId) await commitCredits(u.uid, reservation.reservationId, "openai");
           }
           return json({
             clientSecret: String(secret), model, voice,
