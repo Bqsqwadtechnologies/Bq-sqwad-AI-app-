@@ -1134,9 +1134,9 @@ internal fun isImageGenerationRequest(text: String): Boolean {
     if (Regex("\\b(don't|do not|never|avoid|stop)\\b.{0,50}\\b(generate|create|make|draw|design|produce|render|illustrate|paint)\\b.{0,50}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?)\\b")
             .containsMatchIn(q)) return false
 
-    val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build)\\b|\\bshow me\\b")
-    val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?)\\b")
-    val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|show me)\\b")
+    val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose)\\b|\\bshow me\\b")
+    val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?)\\b")
+    val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|show me)\\b")
     val directCreationRequest = Regex("\\b(i want|i need|give me|make me|create for me|generate for me|please make|please create|please generate)\\b")
     val drawObjectRequest = Regex("\\b(draw|illustrate|paint)\\s+(me\\s+)?(a|an|the)\\s+[a-z0-9-]+\\b")
     return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
@@ -1365,7 +1365,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var micError by remember { mutableStateOf<String?>(null) }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by remember { mutableStateOf<String?>(null) }
-    var selectedAdvanced by remember { mutableStateOf<AppFeature?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedTextModelId by remember { mutableStateOf("") }
     var selectedImageModelId by remember { mutableStateOf("") }
@@ -1435,7 +1434,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             )
         })
         attachments = emptyList()
-        selectedAdvanced = null
         privateChat = false
         error = null
         statusText = "Saved conversation loaded."
@@ -1614,7 +1612,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             creditNotice = error
             return
         }
-        val activeCapability = selectedAdvanced?.capability ?: "chat"
+        val activeCapability = "chat"
         val conversationContext = messages
             .filter { it.text.isNotBlank() && it.text != "Generating image…" }
             .takeLast(20)
@@ -1623,15 +1621,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 role + ": " + msg.text.take(4000)
             }
             .takeLast(16000)
-        val activeSystem = listOfNotNull(
-            selectedAdvanced?.let { "You are operating in the BQ Sqwad AI ${it.title} mode. Use the capabilities of this mode when relevant, while remaining accurate about what you can and cannot do." },
-            conversationContext.takeIf { it.isNotBlank() }?.let {
-                "Recent conversation context. Continue the conversation naturally and do not repeat questions already answered:\n" + it
-            }
-        ).joinToString("\n\n")
-        val imageModeSelected = selectedAdvanced?.capability == AdvancedCapabilities.IMAGE_GENERATION
-        val imageRequest = text.isNotBlank() && attachments.isEmpty() &&
-            (imageModeSelected || isImageGenerationRequest(text))
+        val activeSystem = conversationContext.takeIf { it.isNotBlank() }?.let {
+            "Recent conversation context. Continue the conversation naturally and do not repeat questions already answered:\n" + it
+        }.orEmpty()
+        val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
         if (imageRequest) {
             val promptText = text.trim()
             message = ""
@@ -1956,37 +1949,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         BqLogo(20.dp)
                         Spacer(Modifier.width(6.dp))
                         Text("Private Chat • not saved to History", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                    }
-                }
-            }
-            if (ADVANCED_APP_FEATURES.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().height(34.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("AI", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    LazyRow(
-                        Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(horizontal = 1.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = selectedAdvanced == null,
-                                onClick = { selectedAdvanced = null },
-                                label = { Text("Main", maxLines = 1) },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(14.dp)) }
-                            )
-                        }
-                        items(ADVANCED_APP_FEATURES) { feature ->
-                            FilterChip(
-                                selected = selectedAdvanced?.id == feature.id,
-                                onClick = { selectedAdvanced = if (selectedAdvanced?.id == feature.id) null else feature },
-                                label = { Text(feature.title, maxLines = 1) },
-                                leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(14.dp)) }
-                            )
-                        }
                     }
                 }
             }
