@@ -142,6 +142,28 @@ class WorkspaceApiClient {
     suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice", modelRegistryId: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }; if (organization) put("organization", true) })
     suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
 
+    suspend fun livePricing(): JSONObject = request("/live/pricing", "GET")
+
+    suspend fun adminLivePricing(feature: String): JSONObject {
+        val path = when (feature.lowercase()) {
+            "voice", "live_voice", "live-voice" -> "/admin/live-voice-pricing"
+            "camera", "live_camera", "live-camera" -> "/admin/live-camera-pricing"
+            "dictation" -> "/admin/dictation-pricing"
+            else -> throw IllegalArgumentException("Unknown live pricing feature")
+        }
+        return request(path, "GET")
+    }
+
+    suspend fun saveAdminLivePricing(feature: String, enabled: Boolean, killSwitch: Boolean, config: JSONObject): JSONObject {
+        val path = when (feature.lowercase()) {
+            "voice", "live_voice", "live-voice" -> "/admin/live-voice-pricing"
+            "camera", "live_camera", "live-camera" -> "/admin/live-camera-pricing"
+            "dictation" -> "/admin/dictation-pricing"
+            else -> throw IllegalArgumentException("Unknown live pricing feature")
+        }
+        return request(path, payload = JSONObject().put("enabled", enabled).put("killSwitch", killSwitch).put("config", config))
+    }
+
     suspend fun plans():JSONObject = request("/plans","GET")
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
