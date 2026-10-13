@@ -24,6 +24,26 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun adminTestModeBypassesWorkspacePlanGatesWithoutGrantingEntitlements() {
+        val catalog = org.json.JSONObject().put("plans", org.json.JSONArray().put(
+            org.json.JSONObject()
+                .put("id", "business-pro")
+                .put("module", "business")
+                .put("price", org.json.JSONObject().put("monthly", 99))
+        ))
+        val noEntitlements = org.json.JSONObject().put("items", org.json.JSONArray())
+
+        val adminTesting = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = true)
+        val normalAdmin = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = false)
+        val normalUser = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = false, testMode = false)
+
+        assertTrue(adminTesting.hasVerifiedAccess(Workspace.BUSINESS))
+        assertFalse(normalAdmin.hasVerifiedAccess(Workspace.BUSINESS))
+        assertFalse(normalUser.hasVerifiedAccess(Workspace.BUSINESS))
+        assertTrue(adminTesting.entitlements.isEmpty())
+        assertTrue(adminTesting.entitlementModules.isEmpty())
+    }
+
     @Test fun apiConfigBuildsCanonicalUrls() {
         assertTrue(ApiConfig.url("/health").endsWith("/health"))
         assertTrue(ApiConfig.url("health").endsWith("/health"))
