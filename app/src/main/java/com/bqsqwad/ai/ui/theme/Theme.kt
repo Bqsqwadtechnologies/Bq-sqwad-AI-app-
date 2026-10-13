@@ -23,7 +23,7 @@ private val BQIndigo = Color(0xFF5C6BC0)
 private val BQViolet = Color(0xFF7E57C2)
 private val BQTeal = Color(0xFF26A69A)
 private val BQEmeraId = Color(0xFF43A047)
-private val BQRose = Color(0xFFD81B60)
+private val BQRose = BQBlue
 private val BQAmber = Color(0xFFFFA000)
 private val BQGraphite = Color(0xFF78909C)
 
@@ -33,7 +33,7 @@ private fun accent(name: String): Color = when (name.lowercase()) {
     "violet" -> BQViolet
     "teal" -> BQTeal
     "emerald" -> BQEmeraId
-    "rose" -> BQRose
+    "rose" -> BQBlue
     "amber" -> BQAmber
     "graphite" -> BQGraphite
     else -> BQSignature
@@ -78,7 +78,7 @@ private fun darkPalette(primary: Color, mode: String): ThemePalette {
         "sunset" -> ThemePalette(
             primary, Color(0xFFFFC27A), Color(0xFFFF91B2),
             Color(0xFF12090A), Color(0xFF1B1011), Color(0xFF281718), Color(0xFF382022),
-            Color(0xFF48292B), Color(0xFFFFF4F0), Color(0xFFD6B9B4), Color(0xFF765957),
+            Color(0xFF48292B), Color(0xFFFFF4F0), Color(0xFFFFD7A0), Color(0xFF765957),
             Color(0xFF2A0F16)
         )
         else -> ThemePalette(
@@ -121,7 +121,9 @@ private fun paletteScheme(p: ThemePalette, dark: Boolean) =
         surface = p.surface, onSurface = p.onSurface,
         surfaceVariant = p.surfaceVariant, onSurfaceVariant = p.onSurfaceVariant,
         surfaceContainer = p.surface, surfaceContainerHigh = p.surfaceHigh,
-        surfaceContainerHighest = p.surfaceHighest, outline = p.outline
+        surfaceContainerHighest = p.surfaceHighest, outline = p.outline,
+        error = Color(0xFFFFC46B), onError = Color(0xFF271900),
+        errorContainer = Color(0xFF3D2A0A), onErrorContainer = Color(0xFFFFE2AD)
     ) else lightColorScheme(
         primary = p.primary, onPrimary = p.onPrimary,
         primaryContainer = p.primary.copy(alpha = .14f), onPrimaryContainer = Color(0xFF10243A),
@@ -130,7 +132,9 @@ private fun paletteScheme(p: ThemePalette, dark: Boolean) =
         surface = p.surface, onSurface = p.onSurface,
         surfaceVariant = p.surfaceVariant, onSurfaceVariant = p.onSurfaceVariant,
         surfaceContainer = p.surfaceHigh, surfaceContainerHigh = p.surfaceHigh,
-        surfaceContainerHighest = p.surfaceHighest, outline = p.outline
+        surfaceContainerHighest = p.surfaceHighest, outline = p.outline,
+        error = Color(0xFF8A4B00), onError = Color.White,
+        errorContainer = Color(0xFFFFF0D2), onErrorContainer = Color(0xFF4B2D00)
     )
 
 @Composable

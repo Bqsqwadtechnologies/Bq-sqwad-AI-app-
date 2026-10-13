@@ -2552,7 +2552,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(modifier = Modifier.size(36.dp), onClick = { shareText(context, m.text) }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.onSurface)
+                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.primary)
                             }
                             if (voiceRepliesEnabled) {
                                 IconButton(modifier = Modifier.size(36.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
@@ -2896,7 +2896,11 @@ val composerShape = RoundedCornerShape(26.dp)
                         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (fullImage != null) Image(bitmap = fullImage!!, contentDescription = "Generated image full screen", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) else CircularProgressIndicator() }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { saveGeneratedImage(context, encodedImage) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." } }) { Icon(Icons.Default.Download, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Save") }
-                            OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = it.message ?: "Could not share image." } }) { Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Share") }
+                            Button(
+                                modifier = Modifier.weight(1f),
+                                onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = it.message ?: "Could not share image." } },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
+                            ) { Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Share") }
                             Button(modifier = Modifier.weight(1f), onClick = { showImageViewer = false; showImageActions = true }) { Icon(Icons.Default.MoreVert, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("More") }
                         }
                     }
