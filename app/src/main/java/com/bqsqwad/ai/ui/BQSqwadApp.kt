@@ -2108,13 +2108,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             DropdownMenu(expanded = textModelMenuOpen, onDismissRequest = { textModelMenuOpen = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedTextModelId = ""; textModelMenuOpen = false })
                 publishedAiModels.filter { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request · $" + "%.4f".format(model.optDouble("priceUsd")) + " reference" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
+                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
                 }
             }
             DropdownMenu(expanded = imageModelMenuOpen, onDismissRequest = { imageModelMenuOpen = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedImageModelId = ""; imageModelMenuOpen = false })
                 publishedAiModels.filter { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request · $" + "%.4f".format(model.optDouble("priceUsd")) + " reference" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
+                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
                 }
             }
             Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -5269,7 +5269,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage and Google Play subscriptions") }
+            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage and Google Pay subscriptions") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
@@ -5292,9 +5292,9 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
                         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Google Play billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Google Pay billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(if (billing.optBoolean("autoRenewEnabled", false)) "Auto-renewal is on" else "Auto-renewal is off", fontWeight = FontWeight.Bold)
-                                Text("Google Play controls renewal, payment methods and subscription changes.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Google Pay handles in-app purchases. Subscription changes and cancellations open the Play subscriptions page.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("managementUrl")))) }, Modifier.weight(1f)) { Text("Manage") }
                                     OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("paymentMethodManagementUrl")))) }, Modifier.weight(1f)) { Text("Payment") }
