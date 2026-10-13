@@ -110,10 +110,17 @@ export async function callGemini(env, { model, message, system, images = [], fil
 }
 
 export async function callTavily(env, query, maxResults = 10, deepResearch = false) {
+  if (!env?.TAVILY_API_KEY) {
+    throw Object.assign(new Error("web_search_not_configured"), {
+      httpStatus: 503,
+      safeError: "web_search_not_configured"
+    });
+  }
+  const apiKey = secret(env, "TAVILY_API_KEY");
   const result = await jsonFetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
-      Authorization: "Bearer " + secret(env, "TAVILY_API_KEY"),
+      Authorization: "Bearer " + apiKey,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({

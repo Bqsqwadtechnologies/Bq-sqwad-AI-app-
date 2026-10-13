@@ -72,6 +72,8 @@ class WorkspaceApiClient {
         if(status !in 200..299) {
             val serverError = body?.optString("error").orEmpty().lowercase()
             val friendly = when {
+                serverError == "web_search_not_configured" ->
+                    "Web Search is unavailable right now because the search provider is not configured."
                 serverError == "openai_provider_not_configured" ->
                     "Live Voice and AI Live Camera are unavailable because their AI provider is not configured yet. Please try another feature or contact support."
                 serverError == "live_voice_disabled" ->

@@ -14,6 +14,7 @@ class RealtimeVoiceSession(
     private val clientSecret: String, // Server-issued short-lived realtime credential; never a permanent API key.
     private val model: String,
     private val voice: String = "marin",
+    private val allowWebSearch: Boolean = true,
     private val onState: (String) -> Unit,
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
@@ -27,6 +28,8 @@ class RealtimeVoiceSession(
     }
 
     private val http = OkHttpClient()
+    private val toolScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val toolCallInProgress = AtomicBoolean(false)
     private var socket: WebSocket? = null
     private var recorder: AudioRecord? = null
     private var player: AudioTrack? = null
@@ -89,7 +92,25 @@ class RealtimeVoiceSession(
             put("type", "session.update")
             put("session", JSONObject().apply {
                 put("type", "realtime")
-                put("instructions", "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context: answer the user's question or briefly describe meaningful visible details and changes. Do not invent details, repeatedly narrate an unchanged frame, or ask the user to read or type text. Respond with voice audio only.")
+                put("instructions", if (allowWebSearch) {
+                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. For current facts, latest news, current prices, sports schedules/scores, or current office holders, call search_web and answer from its sources. If the tool fails or returns no sources, clearly say Web Search is unavailable right now. Do not claim you cannot access live results when search_web is available. Do not invent citations. Respond with voice audio only."
+                } else {
+                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. If the user asks for current facts, explain that Web Search is turned off and that the answer may not be current. Respond with voice audio only."
+                })
+                put("tools", org.json.JSONArray().apply {
+                    if (allowWebSearch) put(JSONObject().apply {
+                        put("type", "function")
+                        put("name", "search_web")
+                        put("description", "Search current public web information when the user asks for latest or time-sensitive facts.")
+                        put("parameters", JSONObject().apply {
+                            put("type", "object")
+                            put("properties", JSONObject().put("query", JSONObject().put("type", "string").put("description", "A concise search query for the user's current-information question.")))
+                            put("required", org.json.JSONArray().put("query"))
+                            put("additionalProperties", false)
+                        })
+                    })
+                })
+                put("tool_choice", if (allowWebSearch) "auto" else "none")
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
@@ -222,11 +243,50 @@ class RealtimeVoiceSession(
                     onState("speaking")
                 }
             }
+            "response.function_call_arguments.done" -> {
+                if (allowWebSearch && event.optString("name") == "search_web") {
+                    val callId = event.optString("call_id")
+                    val query = runCatching { JSONObject(event.optString("arguments")).optString("query").trim() }.getOrDefault("")
+                    if (callId.isNotBlank() && query.isNotBlank() && toolCallInProgress.compareAndSet(false, true)) {
+                        toolScope.launch {
+                            val output = runCatching {
+                                val result = WorkspaceApiClient().search(query, false)
+                                JSONObject().apply {
+                                    put("sources", org.json.JSONArray().apply {
+                                        result.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(10).forEach { source ->
+                                            put(JSONObject().put("title", source.title).put("url", source.url).put("snippet", source.snippet.orEmpty()))
+                                        }
+                                    })
+                                    if (result.sources.isEmpty()) put("message", "Web Search returned no current sources.")
+                                }.toString()
+                            }.getOrElse {
+                                JSONObject().put("error", "Web Search is unavailable right now.").toString()
+                            }
+                            if (running.get()) {
+                                val outputSent = ws.send(JSONObject().apply {
+                                    put("type", "conversation.item.create")
+                                    put("item", JSONObject().apply {
+                                        put("type", "function_call_output")
+                                        put("call_id", callId)
+                                        put("output", output)
+                                    })
+                                }.toString())
+                                if (outputSent) {
+                                    ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().put("output_modalities", org.json.JSONArray().put("audio"))).toString())
+                                } else {
+                                    onError("Web Search results could not be returned to the live session.")
+                                }
+                            }
+                            toolCallInProgress.set(false)
+                        }
+                    }
+                }
+            }
             "response.done" -> {
                 responseInProgress.set(false)
                 onAudioLevel(0f)
                 onState("listening")
-                sendPendingVisualFrameIfIdle(ws)
+                if (!toolCallInProgress.get()) sendPendingVisualFrameIfIdle(ws)
             }
             "error" -> {
                 responseInProgress.set(false)
@@ -329,6 +389,8 @@ class RealtimeVoiceSession(
         audioCaptureStarted.set(false)
         audioJob?.cancel()
         audioJob = null
+        toolScope.coroutineContext.cancelChildren()
+        toolCallInProgress.set(false)
         onAudioLevel(0f)
         inputTranscript.setLength(0)
         outputTranscript.setLength(0)

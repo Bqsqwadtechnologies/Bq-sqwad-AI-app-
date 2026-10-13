@@ -1144,6 +1144,13 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         (actionAtStart.containsMatchIn(q) && drawObjectRequest.containsMatchIn(q))
 }
 
+internal fun needsCurrentWebSearch(text: String): Boolean {
+    val query = text.trim().lowercase(java.util.Locale.ROOT)
+    if (query.isBlank()) return false
+    return Regex("\\b(latest|today|right now|currently|current|this week|this month|breaking|news|price|prices|cost|exchange rate|weather|score|scores|schedule|fixture|fixtures|standings|results|release date|recent update|as of|who is the current|president|prime minister|ceo of)\\b")
+        .containsMatchIn(query)
+}
+
 private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null)
 private data class ChatMessage(
     val mine: Boolean,
@@ -1151,7 +1158,8 @@ private data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val prompt: String? = null,
     val attachments: List<ChatMessageAttachment> = emptyList(),
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val sources: List<SearchSource> = emptyList()
 )
 
 
@@ -1723,8 +1731,43 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         busy = true
         error = null
         statusText = "Connecting to BQ Sqwad AI…"
+        val shouldSearchWeb = selectedAttachments.isEmpty() && needsCurrentWebSearch(text)
+        val webSearchEnabled = context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
+            .getBoolean("web_search_enabled", true)
         streamJob = scope.launch(Dispatchers.IO) {
+            var webSources = emptyList<SearchSource>()
+            var webSearchNotice: String? = null
             try {
+                if (shouldSearchWeb) {
+                    if (!webSearchEnabled) {
+                        webSearchNotice = "Web Search is turned off. This answer may not include current information."
+                    } else {
+                        withContext(Dispatchers.Main) { statusText = "Searching the web…" }
+                        try {
+                            val search = WorkspaceApiClient().search(text.trim(), false)
+                            webSources = search.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(10)
+                            if (webSources.isEmpty()) webSearchNotice = "Web Search is unavailable right now. No current sources were returned."
+                        } catch (_: Throwable) {
+                            webSearchNotice = "Web Search is unavailable right now. This answer may not include current information."
+                        }
+                    }
+                }
+                val requestPrompt = buildString {
+                    append(actualPrompt)
+                    if (webSources.isNotEmpty()) {
+                        append("\n\nCURRENT WEB SEARCH SOURCES (answer from these; cite using [1], [2], etc.):\n")
+                        append(webSources.mapIndexed { index, source ->
+                            "[${index + 1}] ${source.title}\nURL: ${source.url}\n${source.snippet.orEmpty()}"
+                        }.joinToString("\n\n"))
+                    } else if (webSearchNotice != null) {
+                        append("\n\nCurrent-information status: ").append(webSearchNotice)
+                    }
+                }
+                val requestSystem = listOf(
+                    activeSystem.takeIf { it.isNotBlank() },
+                    if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. If sources conflict or do not answer the question, say so and cite only supplied links." else null,
+                    if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
+                ).filterNotNull().joinToString("\n\n")
                 val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
                     val firstImage = imageParts.firstOrNull()
                     ChatApiClient().analyzeCameraFrame(
@@ -1737,7 +1780,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(actualPrompt, capability = activeCapability, system = activeSystem, modelRegistryId = selectedTextModelId.takeIf { activeCapability == "chat" && it.isNotBlank() }, onDelta = { delta ->
+                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = selectedTextModelId.takeIf { activeCapability == "chat" && it.isNotBlank() }, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
@@ -1746,7 +1789,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
-                    if (current != null) messages[aiIndex] = current.copy(text = reply.text)
+                    if (current != null) messages[aiIndex] = current.copy(text = (webSearchNotice?.let { "$it\n\n" } ?: "") + reply.text, sources = webSources)
                     busy = false
                     streamJob = null
                     statusText = "Done."
@@ -2077,6 +2120,27 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
                                             m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                        if (!m.mine && m.sources.isNotEmpty()) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text("Sources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                m.sources.forEachIndexed { sourceIndex, source ->
+                                    TextButton(
+                                        onClick = {
+                                            if (source.url.startsWith("https://", ignoreCase = true)) {
+                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(source.url))) }
+                                                    .onFailure { error = "Could not open this source link." }
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("[${sourceIndex + 1}] " + source.title.ifBlank { source.url })
                                     }
                                 }
                             }

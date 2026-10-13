@@ -72,6 +72,7 @@ class LiveMediaForegroundService : Service() {
     private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
+    private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
     private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
@@ -166,6 +167,7 @@ class LiveMediaForegroundService : Service() {
                         context = this@LiveMediaForegroundService,
                         clientSecret = secret,
                         model = model,
+                        allowWebSearch = webSearchEnabledForAccount(),
                         onState = { state ->
                             writeState(true, state)
                             if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -219,6 +221,7 @@ class LiveMediaForegroundService : Service() {
                 context = this@LiveMediaForegroundService,
                 clientSecret = secret,
                 model = model,
+                allowWebSearch = webSearchEnabledForAccount(),
                 onState = { state ->
                     writeState(true, state)
                     if (state.lowercase() in setOf("connected", "listening", "speaking")) {
