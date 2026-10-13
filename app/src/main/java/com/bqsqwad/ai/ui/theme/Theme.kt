@@ -76,10 +76,10 @@ private fun darkPalette(primary: Color, mode: String): ThemePalette {
             Color(0xFF17102A)
         )
         "sunset" -> ThemePalette(
-            primary, Color(0xFFFFC27A), Color(0xFFFF91B2),
-            Color(0xFF12090A), Color(0xFF1B1011), Color(0xFF281718), Color(0xFF382022),
-            Color(0xFF48292B), Color(0xFFFFF4F0), Color(0xFFFFD7A0), Color(0xFF765957),
-            Color(0xFF2A0F16)
+            primary, Color(0xFFFFC27A), Color(0xFF8DC5FF),
+            Color(0xFF0E1016), Color(0xFF151A24), Color(0xFF202A38), Color(0xFF2B3749),
+            Color(0xFF303A4B), Color(0xFFFFF7E8), Color(0xFFFFD7A0), Color(0xFF687583),
+            Color(0xFF06142C)
         )
         else -> ThemePalette(
             primary, Color(0xFF9BB9D8), Color(0xFF74D7D1),
@@ -100,9 +100,9 @@ private fun lightPalette(primary: Color, mode: String): ThemePalette {
             Color(0xFFDDECEF), Color(0xFF142126), Color(0xFF50666D), Color(0xFF71858B)
         )
         "sunset" -> ThemePalette(
-            primary, Color(0xFF8A4A3C), Color(0xFF8C3F5A),
-            Color(0xFFFFF8F5), Color.White, Color(0xFFF9ECE6), Color(0xFFF3E0D8),
-            Color(0xFFF0E2DE), Color(0xFF261A17), Color(0xFF685652), Color(0xFF8A7771)
+            primary, Color(0xFF7A5200), Color(0xFF285C8F),
+            Color(0xFFFFF9F0), Color.White, Color(0xFFF6EBDD), Color(0xFFEFE1CB),
+            Color(0xFFEEE4D3), Color(0xFF201A10), Color(0xFF654A28), Color(0xFF83735C)
         )
         else -> ThemePalette(
             primary, Color(0xFF4E6478), Color(0xFF246B68),
