@@ -3,6 +3,97 @@ import { runProvider, callTavily, DEFAULT_MODELS } from "./providers.js";
 
 const activeStates=new Set(["active","grace","on_hold","paused"]);
 const clean=(v,n=12000)=>String(v??"").trim().slice(0,n);
+
+const SCOPE_WORKSPACES = {
+  learning: { title: "Learning Studio", job: "learning, lessons, practice, quizzes, homework help, revision and exam preparation" },
+  truthguard: { title: "TruthGuard AI", job: "checking claims against evidence and sources" },
+  life_mathis: { title: "Life Mathis", job: "life guidance, reflection and personal decisions" },
+  companion: { title: "AI Companion", job: "companionship, supportive conversation and check-ins" },
+  personal_intelligence: { title: "Personal Intelligence", job: "planning, organizing, goals and priorities" },
+  data_analyst: { title: "Data Analyst", job: "analyzing datasets, spreadsheets, statistics and reports" },
+  frontier_lab: { title: "Frontier Lab", job: "experiments, hypotheses, prototypes and simulations" },
+  video: { title: "Video Generation", job: "generating video clips and animations" }
+};
+
+function normalizeScopeWorkspace(value) {
+  const key = String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+  const aliases = {
+    learningstudio: "learning", learning: "learning", explorer: "learning", learningstudiocapability: "learning",
+    truthguard: "truthguard", truthguardai: "truthguard", truthguardcheck: "truthguard",
+    lifemathis: "life_mathis", lifemathisworkspace: "life_mathis",
+    companion: "companion", aicompanion: "companion",
+    personal: "personal_intelligence", personalintelligence: "personal_intelligence",
+    dataanalyst: "data_analyst", dataanalysis: "data_analyst", dataanalystworkspace: "data_analyst",
+    frontier: "frontier_lab", frontierlab: "frontier_lab",
+    video: "video", videogeneration: "video", videoworkspace: "video"
+  };
+  return aliases[key] || null;
+}
+
+function classifyWorkspaceScope(workspace, prompt) {
+  const key = normalizeScopeWorkspace(workspace);
+  if (!key) return { inScope: true };
+  const text = clean(prompt, 4000).toLowerCase();
+  if (!text) return { inScope: false, redirect: { workspace: "CHAT", message: "Please enter a request. Main Chat can help you choose the right workspace." } };
+
+  const taskRedirect = () => {
+    if (/\b(news|latest headlines|current events|today's events|weather forecast|what happened today)\b/.test(text)) return ["WEB_SEARCH", "Web Search"];
+    if (/\b(generate|create|make|edit|render)\b.{0,30}\b(video|clip|animation)\b|\b(video|clip|animation)\b.{0,30}\b(generate|create|edit|render)\b/.test(text)) return ["VIDEO_GENERATION", "Video Generation"];
+    if (/\b(dataset|spreadsheet|csv|xlsx|statistics|data analysis|analyze data|analyse data|chart|trend analysis)\b/.test(text)) return ["DATA_ANALYST", "Data Analyst"];
+    if (/\b(plan my|schedule|organize|organise|prioritize|prioritise|to-do list|task list|routine|calendar plan|set goals)\b/.test(text)) return ["PERSONAL_INTELLIGENCE", "Personal Intelligence"];
+    if (/\b(fact.?check|verify this claim|is it true|check this claim|misinformation|source check)\b/.test(text)) return ["TRUTHGUARD", "TruthGuard AI"];
+    if (/\b(lesson|homework|exam revision|quiz me|teach me|explain this topic|study plan)\b/.test(text)) return ["LEARNING", "Learning Studio"];
+    return ["CHAT", "Main Chat"];
+  };
+
+  const clearlyUnrelated = /\b(write me (a )?(love )?poem|love poem|tell me (the )?news|latest news|weather forecast|build (me )?(an? )?app|write (me )?(an? )?email|send (an? )?email|tell me a joke|make me laugh|generate (an? )?image|draw (me )|small talk|code (an? )?app|create (a )?website)\b/.test(text);
+  let inScope = false;
+  switch (key) {
+    case "learning":
+      inScope = !clearlyUnrelated && /\b(teach|learn|explain|lesson|practice|quiz|homework|revise|revision|exam|study|solve|understand|formula|equation|definition|notes|school|subject|past paper|flashcards|test me|mathematics|math|algebra|geometry|calculus|physics|chemistry|biology|photosynthesis|mitosis|gravity|newton|fractions|grammar|literature|geography|history|science|essay assignment)\b/.test(text);
+      break;
+    case "truthguard":
+      inScope = !clearlyUnrelated && (/\b(claim|verify|fact.?check|is it true|true or false|check whether|check if|evidence|sources|hoax|rumou?r|misinformation|debunk|reliable source|is .* true|did .* really)\b/.test(text) || text.split(/\s+/).length >= 4);
+      break;
+    case "life_mathis":
+      inScope = !clearlyUnrelated && /\b(life advice|life guidance|personal decision|relationship|career|personal growth|habit|motivation|stress|wellbeing|well-being|difficult decision|family issue|life challenge|confidence|boundaries|coping|what should i do)\b/.test(text);
+      break;
+    case "companion":
+      inScope = !clearlyUnrelated && /\b(hi|hello|hey|how are you|talk to me|check.?in|i feel|i am feeling|i'm feeling|i had a bad day|lonely|sad|worried|anxious|encourage|motivate|celebrate|thank you|thanks|need someone to talk|support me|keep me company)\b/.test(text);
+      break;
+    case "personal_intelligence":
+      inScope = !clearlyUnrelated && /\b(plan|planning|schedule|organize|organise|prioritize|prioritise|to-do|task list|goal|routine|calendar|time management|break down|project plan|weekly plan|daily plan)\b/.test(text);
+      break;
+    case "data_analyst":
+      inScope = !clearlyUnrelated && /\b(analy[sz]e|analysis|dataset|data|spreadsheet|csv|xlsx|statistics|chart|trend|report|sql|metrics|calculate|correlation|average|median|regression|visuali[sz]e)\b/.test(text);
+      break;
+    case "frontier_lab":
+      inScope = !clearlyUnrelated && /\b(experiment|hypothesis|prototype|simulation|benchmark|lab|research design|test an idea|scientific model|proof of concept|feasibility|experimental)\b/.test(text);
+      break;
+    case "video":
+      inScope = !clearlyUnrelated && /\b(generate video|create video|video clip|animation|animated clip|video prompt|scene sequence|text.to.video|video generation)\b/.test(text);
+      break;
+  }
+  if (inScope) return { inScope: true };
+  const [destination, destinationName] = taskRedirect();
+  return {
+    inScope: false,
+    redirect: {
+      workspace: destination,
+      message: SCOPE_WORKSPACES[key].title + " is only for " + SCOPE_WORKSPACES[key].job + ". For this request, please open " + destinationName + "."
+    }
+  };
+}
+
+export async function workspaceScopeRedirect(workspace, prompt) {
+  const key = normalizeScopeWorkspace(workspace);
+  if (!key) return null;
+  const stored = await firestoreGet("adminAdvancedOptions/workspace_scope_guards") || {};
+  const flags = stored.enabledByWorkspace || stored.config?.enabledByWorkspace || {};
+  if (flags[key] === false) return null;
+  const result = classifyWorkspaceScope(key, prompt);
+  return result.inScope ? null : result.redirect;
+}
 async function section(name){const x=await firestoreGet("planCatalog/config");return Array.isArray(x?.catalog?.sections?.[name])?x.catalog.sections[name]:[]}
 async function adminTest(user,env){const claims=user?.customAttributes||{},email=String(user?.email||"").toLowerCase(),owner=String(env?.SUPER_ADMIN_EMAIL||"").toLowerCase();const root=(Boolean(owner)&&email===owner&&user?.emailVerified===true)||claims.superAdmin===true||claims.role==="super_admin";if(!root)return false;return (await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.enabled===true}
 async function gate(user,env,fallback){const e=await firestoreGet("entitlements/"+user.uid),test=await adminTest(user,env),active=activeStates.has(String(e?.state||""));return {planId:test?"admin-unlimited":(active?String(e.planId||fallback):fallback),adminTestMode:test}}
@@ -14,6 +105,8 @@ export async function companionHistory(uid){const a=await firestoreQuery("compan
 export async function companionChat(env,user,b,charge,commit,reverse){
   const m=clean(b.message);
   if(!m)throw new Error("message_required");
+  const redirect = await workspaceScopeRedirect("companion", m);
+  if (redirect) return { ok: true, redirect };
   const r=await charge(user.uid,Number(b.creditCost||0),"companion",user);
   try{
     const p=await firestoreGet("companionProfiles/"+user.uid)||{};
@@ -36,6 +129,8 @@ export async function companionChat(env,user,b,charge,commit,reverse){
 export async function companionCheckins(uid){const a=await firestoreQuery("companionCheckins",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:60});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {ok:true,items:a.map(x=>({id:String(x.__name||"").split("/").pop(),...x}))}}
 export async function companionCheckin(env,user,b,charge,commit,reverse){
   const p=clean(b.prompt||"How are you doing today?",500);
+  const redirect = await workspaceScopeRedirect("companion", p);
+  if (redirect) return { ok: true, redirect };
   const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm"]);
   const requestedPersonality=clean(b.personality||"Warm",40);
   const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
@@ -56,13 +151,13 @@ export async function saveCompanionSettings(uid,b){const p={};for(const k of ["n
 
 export async function learningCatalog(user,env){const g=await gate(user,env,"explorer"),p=await section("learning"),a=await section("learningExamAddOns");return {ok:true,activePlanId:g.planId,plans:p.map(x=>({id:x.id,name:x.name,description:x.description||"",price:x.price||{},limits:x.limits||{},features:x.features||[],basePlans:x.basePlans||[],trialDays:x.trialDays||0,playEligible:x.playEligible===true})),examAddOns:a.map(x=>({id:x.id,name:x.name,price:x.price||{},playEligible:x.playEligible===true}))}}
 export async function learningProgress(uid){const a=await firestoreQuery("learningSessions",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:200}),c=a.filter(x=>String(x.status||"completed")==="completed"),subjects={};for(const x of c){const s=String(x.subject||"General");subjects[s]=(subjects[s]||0)+1}return {ok:true,lessonsCompleted:c.length,quizzesCompleted:c.filter(x=>String(x.mode||"").toLowerCase()==="quiz").length,subjects,recent:c.slice(-20).reverse()}}
-export async function learningSession(env,user,b,charge,commit,reverse){const goal=clean(b.goal);if(!goal)throw new Error("learning_goal_required");const g=await gate(user,env,"explorer"),plan=g.planId,mode=clean(b.mode||"Tutor",32).toLowerCase(),feature=clean(b.feature,40).toLowerCase();if(!g.adminTestMode&&["exam","timed_exam","past_paper"].includes(mode)&&!["learnscholar","learnfamily","learnschool"].includes(plan))throw new Error("learning_feature_locked:exam_mode");const r=await charge(user.uid,Number(b.creditCost||0),"learning_studio",user);try{const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:goal,system:["You are BQ Sqwad AI Learning Studio, a structured, age-appropriate learning tutor.","Teach rather than merely answer. Use clear steps, examples, checks for understanding and concise practice.","Never invent curriculum requirements, exam dates, marking schemes or school policies.","Mode: "+mode,"Subject: "+clean(b.subject||"General",80),"Plan: "+plan].join("\n")});const id=crypto.randomUUID();await firestoreCreate("learningSessions/"+id,{uid:user.uid,id,planId:plan,mode,subject:clean(b.subject||"General",80),goal,feature:feature||null,status:"completed",providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"learning_studio");return {ok:true,id,planId:plan,mode,subject:clean(b.subject||"General",80),text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
+export async function learningSession(env,user,b,charge,commit,reverse){const goal=clean(b.goal);if(!goal)throw new Error("learning_goal_required");const redirect=await workspaceScopeRedirect("learning",goal);if(redirect)return {ok:true,redirect};const g=await gate(user,env,"explorer"),plan=g.planId,mode=clean(b.mode||"Tutor",32).toLowerCase(),feature=clean(b.feature,40).toLowerCase();if(!g.adminTestMode&&["exam","timed_exam","past_paper"].includes(mode)&&!["learnscholar","learnfamily","learnschool"].includes(plan))throw new Error("learning_feature_locked:exam_mode");const r=await charge(user.uid,Number(b.creditCost||0),"learning_studio",user);try{const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:goal,system:["You are BQ Sqwad AI Learning Studio, a structured, age-appropriate learning tutor.","Teach rather than merely answer. Use clear steps, examples, checks for understanding and concise practice.","Never invent curriculum requirements, exam dates, marking schemes or school policies.","Mode: "+mode,"Subject: "+clean(b.subject||"General",80),"Plan: "+plan].join("\n")});const id=crypto.randomUUID();await firestoreCreate("learningSessions/"+id,{uid:user.uid,id,planId:plan,mode,subject:clean(b.subject||"General",80),goal,feature:feature||null,status:"completed",providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"learning_studio");return {ok:true,id,planId:plan,mode,subject:clean(b.subject||"General",80),text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
 
 export async function truthguardCatalog(user,env){const g=await gate(user,env,"truthguardfree"),p=await section("truthguard"),s=await firestoreGet("truthGuardSettings/"+user.uid);return {ok:true,activePlanId:g.planId,adminTestMode:g.adminTestMode,settings:s||{showSources:true,showReliability:true,conservativeVerdicts:true,saveHistory:true,defaultDeepResearch:false},plans:p.map(x=>({id:x.id,name:x.name,description:x.description||"",price:x.price||{},features:x.features||[],limits:x.limits||{},basePlans:x.basePlans||[],billingPeriods:x.billingPeriods||[],trialDays:x.trialDays||0,trialEligible:x.trialEligible!==false,playEligible:x.playEligible===true}))}}
 export async function truthguardSettings(uid){return {ok:true,settings:await firestoreGet("truthGuardSettings/"+uid)||{showSources:true,showReliability:true,conservativeVerdicts:true,saveHistory:true,defaultDeepResearch:false}}}
 export async function saveTruthguardSettings(uid,b){const o=await firestoreGet("truthGuardSettings/"+uid)||{},n={showSources:b.showSources==null?o.showSources!==false:b.showSources===true,showReliability:b.showReliability==null?o.showReliability!==false:b.showReliability===true,conservativeVerdicts:b.conservativeVerdicts==null?o.conservativeVerdicts!==false:b.conservativeVerdicts===true,saveHistory:b.saveHistory==null?o.saveHistory!==false:b.saveHistory===true,defaultDeepResearch:b.defaultDeepResearch===true,updatedAt:new Date()};await firestoreSet("truthGuardSettings/"+uid,n,true);return {ok:true,settings:{...n,updatedAt:null}}}
 export async function truthguardHistory(uid){const a=await firestoreQuery("truthGuardChecks",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:100});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {items:a.map(x=>({id:String(x.__name||"").split("/").pop(),claim:String(x.claim||""),analysis:String(x.analysis||""),sources:Array.isArray(x.sources)?x.sources:[],depth:String(x.depth||"standard"),planId:String(x.planId||"truthguardfree"),createdAt:x.createdAt||null}))}}
-export async function truthguardCheck(env,user,b,charge,commit,reverse){const claim=clean(b.claim);if(!claim)throw new Error("truthguard_claim_required");const g=await gate(user,env,"truthguardfree"),plan=g.planId,deep=Boolean(b.deepResearch&&["tgpro","tgteam"].includes(plan)),limit=plan==="truthguardfree"?3:plan==="tgplus"?10:20,r=await charge(user.uid,Number(b.creditCost||0),"truth_guard",user);try{const s=await callTavily(env,claim,limit,deep),sources=(s.sources||[]).slice(0,limit).map(x=>({title:clean(x.title,500),url:clean(x.url,2000),snippet:clean(x.snippet,4000)})),evidence=sources.map((x,i)=>"["+(i+1)+"] "+x.title+"\nURL: "+x.url+"\n"+x.snippet).join("\n\n"),settings=await firestoreGet("truthGuardSettings/"+user.uid)||{},z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:claim,system:["You are TruthGuard AI, an evidence-first claim verification system.","Evaluate only the supplied claim and retrieved evidence.","Do not invent sources, facts, quotes, or certainty.","Return a clear verdict, confidence level, explanation, and source-grounded reasoning.","Evidence:",evidence||"(No usable sources were returned.)"].join("\n")}),id=crypto.randomUUID();if(settings.saveHistory!==false)await firestoreCreate("truthGuardChecks/"+id,{uid:user.uid,claim,analysis:z.text||"",sources,depth:deep?"deep":"standard",planId:plan,providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"truth_guard");return {ok:true,id:settings.saveHistory!==false?id:null,claim,analysis:z.text||"",sources,planId:plan,creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
+export async function truthguardCheck(env,user,b,charge,commit,reverse){const claim=clean(b.claim);if(!claim)throw new Error("truthguard_claim_required");const redirect=await workspaceScopeRedirect("truthguard",claim);if(redirect)return {ok:true,redirect};const g=await gate(user,env,"truthguardfree"),plan=g.planId,deep=Boolean(b.deepResearch&&["tgpro","tgteam"].includes(plan)),limit=plan==="truthguardfree"?3:plan==="tgplus"?10:20,r=await charge(user.uid,Number(b.creditCost||0),"truth_guard",user);try{const s=await callTavily(env,claim,limit,deep),sources=(s.sources||[]).slice(0,limit).map(x=>({title:clean(x.title,500),url:clean(x.url,2000),snippet:clean(x.snippet,4000)})),evidence=sources.map((x,i)=>"["+(i+1)+"] "+x.title+"\nURL: "+x.url+"\n"+x.snippet).join("\n\n"),settings=await firestoreGet("truthGuardSettings/"+user.uid)||{},z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:claim,system:["You are TruthGuard AI, an evidence-first claim verification system.","Evaluate only the supplied claim and retrieved evidence.","Do not invent sources, facts, quotes, or certainty.","Return a clear verdict, confidence level, explanation, and source-grounded reasoning.","Evidence:",evidence||"(No usable sources were returned.)"].join("\n")}),id=crypto.randomUUID();if(settings.saveHistory!==false)await firestoreCreate("truthGuardChecks/"+id,{uid:user.uid,claim,analysis:z.text||"",sources,depth:deep?"deep":"standard",planId:plan,providerId:z.providerId||null,modelId:z.modelId||null,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,r.reservationId,z.providerId||"truth_guard");return {ok:true,id:settings.saveHistory!==false?id:null,claim,analysis:z.text||"",sources,planId:plan,creditsCharged:r.amount||0}}catch(e){await reverse(user.uid,r.reservationId);throw e}}
 
 export async function organizationGet(uid){let x=await firestoreGet("organizationWorkspaces/"+uid);if(!x){x={uid,name:"My Organization",description:"",members:[{id:uid,role:"owner",status:"active"}],channels:[],settings:{assistantEnabled:true,sharedMemoryEnabled:false},knowledge:[],createdAt:new Date(),updatedAt:new Date()};await firestoreSet("organizationWorkspaces/"+uid,x,false)}return {exists:true,...x}}
 export async function organizationUpdate(uid,b){const name=clean(b.name,160);if(!name)throw new Error("organization_name_required");await firestoreSet("organizationWorkspaces/"+uid,{name,description:clean(b.description,2000),updatedAt:new Date()},true);return organizationGet(uid)}
