@@ -11,7 +11,7 @@ import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatu
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
-import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant } from "./legacy-native.js";
+import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant, workspaceScopeRedirect } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
 import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel } from "./model-registry-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
@@ -949,13 +949,15 @@ const BQ_APP_KNOWLEDGE = [
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
-  const idem = await loadIdempotentResponse(request, user, "/ai");
-  if (idem?.replay) return idem.replay;
-  if (idem?.fresh) await firestoreCreate("idempotency/" + idem.hash, { uid:user.uid, status:"pending", createdAt:new Date(), expiresAt:new Date(Date.now()+600000) });
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
+  const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
+  if (redirect) return json({ ok: true, redirect });
+  const idem = await loadIdempotentResponse(request, user, "/ai");
+  if (idem?.replay) return idem.replay;
+  if (idem?.fresh) await firestoreCreate("idempotency/" + idem.hash, { uid:user.uid, status:"pending", createdAt:new Date(), expiresAt:new Date(Date.now()+600000) });
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
@@ -1017,6 +1019,8 @@ async function vision(request, user, body) {
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
   const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
+  const redirect = await workspaceScopeRedirect(capabilityName, message);
+  if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "live_camera") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "live-camera");
@@ -1066,6 +1070,8 @@ async function stream(request, user, body) {
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
+  const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
+  if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
@@ -2174,6 +2180,33 @@ export default {
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
       if (url.pathname === "/admin/route" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),id=String(b.id||b.capability||"");if(!id)throw new Error("capability_required");const key=id.startsWith("capability_")?id:"capability_"+id;await firestoreSet("adminAdvancedOptions/"+key,{...b,id:key,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/"+key)); }
+      if (url.pathname === "/admin/workspace-scope-guards" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const stored = await firestoreGet("adminAdvancedOptions/workspace_scope_guards") || {};
+        const saved = stored.enabledByWorkspace || stored.config?.enabledByWorkspace || {};
+        const names = ["learning", "truthguard", "life_mathis", "companion", "personal_intelligence", "data_analyst", "frontier_lab", "video"];
+        return json({ enabledByWorkspace: Object.fromEntries(names.map(name => [name, saved[name] !== false])), updatedAt: stored.updatedAt || null });
+      }
+      if (url.pathname === "/admin/workspace-scope-guards" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const body = await readBody(request);
+        const incoming = body.enabledByWorkspace;
+        if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+          throw Object.assign(new Error("enabledByWorkspace_required"), { httpStatus: 400, safeError: "enabledByWorkspace_required" });
+        }
+        const names = ["learning", "truthguard", "life_mathis", "companion", "personal_intelligence", "data_analyst", "frontier_lab", "video"];
+        const current = await firestoreGet("adminAdvancedOptions/workspace_scope_guards") || {};
+        const previous = current.enabledByWorkspace || current.config?.enabledByWorkspace || {};
+        const enabledByWorkspace = Object.fromEntries(names.map(name => {
+          const value = incoming[name] == null ? previous[name] !== false : incoming[name];
+          if (typeof value !== "boolean") throw Object.assign(new Error("invalid_scope_guard_value"), { httpStatus: 400, safeError: "invalid_scope_guard_value" });
+          return [name, value];
+        }));
+        await firestoreSet("adminAdvancedOptions/workspace_scope_guards", { enabledByWorkspace, updatedBy: u.uid, updatedAt: new Date() }, true);
+        return json({ ok: true, enabledByWorkspace });
+      }
       const livePricingAdminKeys = {
         "/admin/live-voice-pricing": "live_voice_pricing",
         "/admin/live-camera-pricing": "live_camera_pricing",
