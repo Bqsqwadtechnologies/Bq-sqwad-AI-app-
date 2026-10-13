@@ -1132,7 +1132,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 restoredChat = restoredChat,
                 onRestoredChatConsumed = { restoredChat = null },
                 sharedText = sharedText,
-                onSharedTextConsumed = onSharedTextConsumed
+                onSharedTextConsumed = onSharedTextConsumed,
+                onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it }
             ) }
         }
     }
@@ -1463,7 +1464,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -1626,25 +1627,28 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var failedImagePrompt by remember { mutableStateOf<String?>(null) }
     var isListening by remember { mutableStateOf(false) }
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    cancelActiveWorkOnSignOut = {
-        streamJob?.cancel()
-        streamJob = null
-        busy = false
-        messages.clear()
-        attachments = emptyList()
-        selectedImageBase64 = null
-        selectedImagePrompt = ""
-        selectedImageMessageId = null
-        showImageActions = false
-        showImageViewer = false
-        failedImagePrompt = null
-        message = ""
-        error = null
-        creditNotice = null
-        statusText = "Signed out"
-        isListening = false
-        privateMessageIds.clear()
-        historyId = null
+    DisposableEffect(Unit) {
+        onRegisterCancelActiveWork {
+            streamJob?.cancel()
+            streamJob = null
+            busy = false
+            messages.clear()
+            attachments = emptyList()
+            selectedImageBase64 = null
+            selectedImagePrompt = ""
+            selectedImageMessageId = null
+            showImageActions = false
+            showImageViewer = false
+            failedImagePrompt = null
+            message = ""
+            error = null
+            creditNotice = null
+            statusText = "Signed out"
+            isListening = false
+            privateMessageIds.clear()
+            historyId = null
+        }
+        onDispose { onRegisterCancelActiveWork(null) }
     }
     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         isListening = false
