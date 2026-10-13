@@ -308,7 +308,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                             val url = playManagement?.optString("managementUrl").orEmpty()
                                             if (url.isNotBlank()) {
                                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                                status = "Google Play opened. Turn off auto-renewal there; your access remains until the paid period ends."
+                                                status = "Your Play subscriptions page opened. Turn off auto-renewal there; your access remains until the paid period ends."
                                             }
                                         },
                                         modifier=Modifier.weight(1f)
@@ -324,7 +324,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                                     ) { Text("Payment method") }
                                 }
                                 Text(
-                                    if (autoRenew) "Turn off auto-renewal opens the Google Play subscription controls. Google Play remains authoritative; BQ Sqwad AI will refresh the backend entitlement after the change." else "Auto-renewal is currently off. You can manage or resubscribe through Google Play. BQ Sqwad AI will refresh the backend entitlement after the change.",
+                                    if (autoRenew) "Turn off auto-renewal opens the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change." else "Auto-renewal is currently off. You can manage or resubscribe through the Play subscriptions page. BQ Sqwad AI will refresh your verified access after the change.",
                                     style=MaterialTheme.typography.bodySmall,
                                     color=MaterialTheme.colorScheme.onSurfaceVariant
                                 )
