@@ -1220,9 +1220,6 @@ export default {
         "GET /admin/access",
         "GET /admin/security/status",
         "GET /admin/security/session",
-        "POST /admin/security/password",
-        "POST /admin/security/totp/start",
-        "POST /admin/security/totp/confirm",
         "POST /admin/security/unlock",
         "GET /admin/security/biometric",
         "POST /admin/security/biometric/challenge",
@@ -1232,7 +1229,14 @@ export default {
         const adminIdentity = await verifyFirebaseUser(request);
         if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const routeKey = request.method + " " + url.pathname;
-        if (!adminBootstrapRoutes.has(routeKey)) await requireAdminSessionNative(adminIdentity.uid);
+        const securityConfig = await securityStatusNative();
+        const initialSecuritySetup = !securityConfig.passwordConfigured && !securityConfig.totpConfigured;
+        const initialSetupRoute = initialSecuritySetup && [
+          "POST /admin/security/password",
+          "POST /admin/security/totp/start",
+          "POST /admin/security/totp/confirm"
+        ].includes(routeKey);
+        if (!adminBootstrapRoutes.has(routeKey) && !initialSetupRoute) await requireAdminSessionNative(adminIdentity.uid);
         // Record admin API actions without request bodies, credentials, or provider secrets.
         const auditExclusions = new Set([
           "GET /admin/access",
