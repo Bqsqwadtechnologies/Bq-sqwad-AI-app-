@@ -190,10 +190,19 @@ private fun LifeMathisGateCard(
                 }
             }
 
+            val storePriceText = plan.productId?.let { productId ->
+                billing?.productDetails(productId)?.let { product ->
+                    product.subscriptionOfferDetails
+                        ?.firstOrNull { offer -> offer.basePlanId == selectedPeriod }
+                        ?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
+                        ?: product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.formattedPrice
+                }
+            }
             val configuredNgnPrice = plan.priceNgn[selectedPeriod]
             val numericNgnPrice = configuredNgnPrice?.toDoubleOrNull()
             val displayedPrice = when {
                 isFree -> "Free"
+                !storePriceText.isNullOrBlank() -> "$storePriceText / " + if (selectedPeriod == "yearly") "year" else "month"
                 numericNgnPrice != null -> String.format(java.util.Locale.US, "₦%,.2f / %s", numericNgnPrice, if (selectedPeriod == "yearly") "year" else "month")
                 !configuredNgnPrice.isNullOrBlank() && configuredNgnPrice.contains("₦") -> configuredNgnPrice
                 else -> "Price not configured"
