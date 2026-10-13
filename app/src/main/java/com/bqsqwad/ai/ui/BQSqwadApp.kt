@@ -102,6 +102,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
+    if (throwable is WorkspaceRedirectException) return ""
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
     val lower = message.lowercase()

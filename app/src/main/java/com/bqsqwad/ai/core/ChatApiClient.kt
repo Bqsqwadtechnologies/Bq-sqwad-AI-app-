@@ -77,6 +77,10 @@ class ChatApiClient(
             if (body == null) {
                 throw IllegalStateException("BQ Sqwad AI received an unexpected response. The BQ Sqwad AI team is working on it.")
             }
+            body.optJSONObject("redirect")?.let { redirect ->
+                WorkspaceRedirectStore.publish(redirect)
+                throw WorkspaceRedirectException()
+            }
             val text = body.optString("text").trim()
             if (text.isBlank()) throw IllegalStateException("The AI service returned an empty response.")
             ChatReply(
@@ -139,6 +143,17 @@ class ChatApiClient(
                     throw IllegalStateException(friendly)
                 }
 
+                val contentType = connection.contentType.orEmpty()
+                if (!contentType.contains("text/event-stream", ignoreCase = true)) {
+                    val raw = connection.inputStream.bufferedReader().use { it.readText() }
+                    val body = runCatching { JSONObject(raw) }.getOrNull()
+                    val redirect = body?.optJSONObject("redirect")
+                    if (redirect != null) {
+                        WorkspaceRedirectStore.publish(redirect)
+                        throw WorkspaceRedirectException()
+                    }
+                    throw IllegalStateException("BQ Sqwad AI received an unexpected response. Please retry.")
+                }
                 val reader = connection.inputStream.bufferedReader()
                 val textBuilder = StringBuilder()
                 var providerId: String? = null
