@@ -1,3 +1,5 @@
+const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1";
+
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
@@ -220,7 +222,7 @@ async function adminReadinessSelfTest(env, adminUser) {
       if (capabilityConfig?.enabled === false || capabilityConfig?.killSwitch === true) {
         return { status: "disabled", model: String(config?.modelId || capabilityConfig?.modelId || "") };
       }
-      const model = String(config?.modelId || capabilityConfig?.modelId || "gpt-realtime-2.1").slice(0, 80);
+      const model = String(config?.modelId || capabilityConfig?.modelId || DEFAULT_REALTIME_MODEL).slice(0, 80);
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(uid || "admin-self-test")));
       const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
       const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -1632,7 +1634,94 @@ export default {
          });
        }
 
-      if (url.pathname === "/realtime/session" && request.method === "POST") { const u=await verifyFirebaseUser(request); enforceRateLimit(u.uid); await requireConsent(u.uid); const b=await readBody(request),organization=b.organization===true,mode=String(b.mode||"voice").toLowerCase(),capabilityName=organization?"organization_studio":(mode==="camera"||mode==="screen"?"live_camera":"live_voice"); let control=await capability(u.uid,capabilityName); if(!organization&&b.modelRegistryId){const expectedFeature=(mode==="camera"||mode==="screen")?"live-camera":"live-voice";const selected=await resolvePublishedModel(b.modelRegistryId,expectedFeature);control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost,creditsPerMinute:selected.creditsPerMinute};} const reservation=organization?null:await chargeCredits(u.uid,control.creditCost||0,capabilityName,u); try { const cfg=await firestoreGet("adminAdvancedOptions/live_voice_pricing"),conf=cfg?.config||{},model=String(b.modelRegistryId?control.modelId:((mode==="camera"||mode==="screen")?control.modelId:(cfg?.modelId||control.modelId))||"gpt-realtime-2.1"),voice0=String(b.voice||conf.defaultVoice||"marin").toLowerCase(),voice=["alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"].includes(voice0)?voice0:String(conf.defaultVoice||"marin"),key=String(env.OPENAI_API_KEY||"");if(mode==="voice"&&cfg?.enabled===false)throw new Error("live_voice_disabled");if(!key)throw new Error("openai_provider_not_configured");const h=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(u.uid));let safety="";for(const v of new Uint8Array(h))safety+=v.toString(16).padStart(2,"0");const rr=await fetch("https://api.openai.com/v1/realtime/client_secrets",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","OpenAI-Safety-Identifier":safety},body:JSON.stringify({session:{type:"realtime",model,voice,output_modalities:["audio"],audio:{input:{format:{type:"audio/pcm",rate:24000},turn_detection:{type:"server_vad",interrupt_response:true,create_response:true}},output:{format:{type:"audio/pcm",rate:24000}}}}})}),raw=await rr.text();let out={};try{out=JSON.parse(raw)}catch{}if(!rr.ok)throw new Error(out?.error?.message||"realtime_session_failed");const secret=out?.value||out?.client_secret?.value;if(!secret)throw new Error("realtime_client_secret_missing");if(organization){const w=await orgWallet(u.uid);if(w.balanceCents<=0)throw new Error("organization_insufficient_balance");await orgChargeAssistant(u.uid,"realtime-"+Date.now()); } else await commitCredits(u.uid,reservation.reservationId,"openai");return json({clientSecret:String(secret),model,voice,pricing:{creditsPerMinute:control.creditsPerMinute==null?(conf.creditsPerMinute==null?null:Number(conf.creditsPerMinute)):Number(control.creditsPerMinute),minimumMinutes:conf.minimumMinutes==null?null:Number(conf.minimumMinutes),maxSessionMinutes:conf.maxSessionMinutes==null?null:Number(conf.maxSessionMinutes)}}); }catch(e){await reverseCredits(u.uid,reservation?.reservationId);throw e} }
+      if (url.pathname === "/realtime/session" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        enforceRateLimit(u.uid);
+        try {
+          await requireConsent(u.uid);
+        } catch (error) {
+          throw Object.assign(new Error("consent_required"), { httpStatus: 403, safeError: "consent_required" });
+        }
+        const b = await readBody(request);
+        const organization = b.organization === true;
+        const mode = String(b.mode || "voice").toLowerCase();
+        const capabilityName = organization ? "organization_studio" : (mode === "camera" || mode === "screen" ? "live_camera" : "live_voice");
+        let control = await capability(u.uid, capabilityName);
+        if (!organization && b.modelRegistryId) {
+          const expectedFeature = (mode === "camera" || mode === "screen") ? "live-camera" : "live-voice";
+          const selected = await resolvePublishedModel(b.modelRegistryId, expectedFeature);
+          control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost, creditsPerMinute: selected.creditsPerMinute };
+        }
+        // Reserve before contacting OpenAI; every post-reservation failure reverses it below.
+        const reservation = organization ? null : await chargeCredits(u.uid, control.creditCost || 0, capabilityName, u);
+        try {
+          const cfg = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
+          const conf = cfg?.config || {};
+          const model = String(b.modelRegistryId ? control.modelId : (cfg?.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
+          const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
+          const voice = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].includes(voice0)
+            ? voice0 : String(conf.defaultVoice || "marin");
+          if (mode === "voice" && (cfg?.enabled === false || cfg?.killSwitch === true)) {
+            throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403, safeError: "live_voice_disabled" });
+          }
+          if (!env?.OPENAI_API_KEY) {
+            throw Object.assign(new Error("openai_provider_not_configured"), { httpStatus: 503, safeError: "openai_provider_not_configured" });
+          }
+          const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(u.uid));
+          const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+          const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer " + String(env.OPENAI_API_KEY),
+              "Content-Type": "application/json",
+              "OpenAI-Safety-Identifier": safetyIdentifier
+            },
+            body: JSON.stringify({
+              session: {
+                type: "realtime", model, voice, output_modalities: ["audio"],
+                audio: {
+                  input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+                  output: { format: { type: "audio/pcm", rate: 24000 } }
+                }
+              }
+            })
+          });
+          const raw = await response.text();
+          let out = {};
+          try { out = raw ? JSON.parse(raw) : {}; } catch {}
+          if (!response.ok) {
+            throw Object.assign(new Error("realtime_session_failed"), {
+              httpStatus: 502,
+              safeError: "realtime_session_failed",
+              providerStatus: response.status
+            });
+          }
+          const secret = out?.value || out?.client_secret?.value;
+          if (!secret) {
+            throw Object.assign(new Error("realtime_client_secret_missing"), {
+              httpStatus: 502, safeError: "realtime_client_secret_missing"
+            });
+          }
+          if (organization) {
+            const wallet = await orgWallet(u.uid);
+            if (wallet.balanceCents <= 0) throw Object.assign(new Error("organization_insufficient_balance"), { httpStatus: 402 });
+            await orgChargeAssistant(u.uid, "realtime-" + Date.now());
+          } else {
+            await commitCredits(u.uid, reservation.reservationId, "openai");
+          }
+          return json({
+            clientSecret: String(secret), model, voice,
+            pricing: {
+              creditsPerMinute: control.creditsPerMinute == null ? (conf.creditsPerMinute == null ? null : Number(conf.creditsPerMinute)) : Number(control.creditsPerMinute),
+              minimumMinutes: conf.minimumMinutes == null ? null : Number(conf.minimumMinutes),
+              maxSessionMinutes: conf.maxSessionMinutes == null ? null : Number(conf.maxSessionMinutes)
+            }
+          });
+        } catch (error) {
+          if (!organization) await reverseCredits(u.uid, reservation?.reservationId);
+          throw error;
+        }
+      }
       if (url.pathname === "/passkey/login/options" && request.method === "GET") { return json(await authenticationOptionsNative()); }
       if (url.pathname === "/passkey/login/verify" && request.method === "POST") { const b=await readBody(request); return json(await verifyAuthenticationNative(env,String(b.sessionId||""),b.response||{})); }
       if (url.pathname === "/security/passkeys" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await passkeyStatus(u.uid)); }
@@ -2196,10 +2285,12 @@ export default {
       throw Object.assign(new Error("route_not_migrated"), { httpStatus: 501 });
     } catch(error) {
       const message = error?.message || "backend_unavailable";
-      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|Admin access required/.test(message) ? 403 : /Insufficient credits/.test(message) ? 402 : /select_replacement_model_before_/.test(message) ? 409 : /model_|selected_model|provider_model|provider_not_supported_for_feature|default_model_must_be_enabled|default_model_must_be_published/.test(message) ? 400 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
+      const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|consent_required|Admin access required/.test(message) ? 403 : /Insufficient credits|insufficient_credits/.test(message) ? 402 : /select_replacement_model_before_/.test(message) ? 409 : /model_|selected_model|provider_model|provider_not_supported_for_feature|default_model_must_be_enabled|default_model_must_be_published/.test(message) ? 400 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
       if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
-      const safeError = status >= 500 ? "service_temporarily_unavailable" : message;
-      return new Response(JSON.stringify({ error: safeError }), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
+      const code = error?.safeError || (/required_consent_missing/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : status >= 500 ? "service_temporarily_unavailable" : message);
+      const body = { error: code };
+      if (Number.isInteger(error?.providerStatus)) body.providerStatus = error.providerStatus;
+      return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
   }
 };

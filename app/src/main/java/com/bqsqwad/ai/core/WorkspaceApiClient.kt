@@ -72,7 +72,24 @@ class WorkspaceApiClient {
         if(status !in 200..299) {
             val serverError = body?.optString("error").orEmpty().lowercase()
             val friendly = when {
-                status >= 500 || serverError == "route_not_migrated" ->
+                serverError == "openai_provider_not_configured" ->
+                    "Live Voice and AI Live Camera are unavailable because their AI provider is not configured yet. Please try another feature or contact support."
+                serverError == "live_voice_disabled" ->
+                    "Live Voice is currently disabled. Try again later or use another AI feature."
+                serverError == "realtime_session_failed" -> {
+                    val providerStatus = body?.optInt("providerStatus", 0) ?: 0
+                    if (providerStatus > 0) "The live AI connection could not be created (provider status $providerStatus). Please try again later."
+                    else "The live AI connection could not be created. Please try again later."
+                }
+                serverError == "realtime_client_secret_missing" ->
+                    "The live AI connection could not be secured. Please try again later."
+                serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
+                    "Your shared BQ Sqwad AI credit balance is too low for this request."
+                serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
+                    "Please review and accept the required BQ Sqwad AI terms to continue."
+                serverError == "route_not_migrated" ->
+                    "This feature is not connected to the current server yet. Please contact support."
+                status >= 500 ->
                     "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
                 serverError == "admin_session_required" ->
                     "The admin unlock session has expired. Open Admin Security and unlock again."

@@ -43,6 +43,7 @@ class LiveMediaForegroundService : Service() {
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
         const val MODE_SCREEN = "screen"
+        private const val DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1"
         private const val CHANNEL_ID = "bq_live_media"
         private const val NOTIFICATION_ID = 4101
         private const val PREFS = "bq_live_media"
@@ -159,7 +160,7 @@ class LiveMediaForegroundService : Service() {
                 val config = WorkspaceApiClient().realtimeSession(voice, mode = "voice", modelRegistryId = modelRegistryId)
                 val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException(config.optString("error", "Realtime voice session could not be created."))
-                val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
+                val model = config.optString("model").ifBlank { DEFAULT_REALTIME_MODEL }
                 withContext(Dispatchers.Main) {
                     realtimeVoice = RealtimeVoiceSession(
                         context = this@LiveMediaForegroundService,
