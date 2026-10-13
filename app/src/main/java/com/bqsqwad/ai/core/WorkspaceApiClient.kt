@@ -6,6 +6,9 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -13,6 +16,14 @@ import java.net.URL
 
 data class SearchSource(val title:String,val url:String,val snippet:String?)
 data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,val answer:String? = null)
+
+object WorkspaceRedirectStore {
+    private val _redirect = MutableStateFlow<JSONObject?>(null)
+    val redirect: StateFlow<JSONObject?> = _redirect.asStateFlow()
+
+    fun publish(value: JSONObject) { _redirect.value = JSONObject(value.toString()) }
+    fun clear() { _redirect.value = null }
+}
 
 class WorkspaceApiClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
@@ -110,6 +121,9 @@ class WorkspaceApiClient {
         if(body == null) {
             error("BQ Sqwad AI received an unexpected response. The BQ Sqwad AI team is working on it.")
         }
+        // Learning renders its redirect inline; all other workspaces use the shared
+        // navigation card so dedicated API routes cannot silently drop redirect data.
+        if (path != "/learning/session") body.optJSONObject("redirect")?.let(WorkspaceRedirectStore::publish)
         body
     }
 

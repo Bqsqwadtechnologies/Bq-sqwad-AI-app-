@@ -774,6 +774,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val email = firebaseUser?.email.orEmpty()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
+    val pendingWorkspaceRedirect by WorkspaceRedirectStore.redirect.collectAsState()
     LaunchedEffect(sharedText) {
         if (!sharedText.isNullOrBlank()) workspace = null
     }
@@ -1172,6 +1173,59 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         workspace = null
                     }
                 )
+            }
+        }
+    }
+
+    pendingWorkspaceRedirect?.let { redirect ->
+        val destination = redirect.optString("workspace").uppercase()
+        val targetWorkspace = when (destination) {
+            "WEB_SEARCH", "SEARCH" -> Workspace.SEARCH
+            "VIDEO_GENERATION", "VIDEO" -> Workspace.VIDEO
+            "DATA_ANALYST", "DATA_ANALYSIS" -> Workspace.DATA_ANALYSIS
+            "PERSONAL_INTELLIGENCE", "PERSONAL" -> Workspace.PERSONAL
+            "TRUTHGUARD", "TRUTH_GUARD" -> Workspace.TRUTH_GUARD
+            "LEARNING", "LEARNING_STUDIO" -> Workspace.LEARNING
+            "LIFE_MATHIS", "LIFE" -> Workspace.LIFE
+            "COMPANION", "AI_COMPANION" -> Workspace.COMPANION
+            "FRONTIER_LAB", "FRONTIER" -> Workspace.FRONTIER_LAB
+            else -> null
+        }
+        Dialog(onDismissRequest = { WorkspaceRedirectStore.clear() }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Open the right workspace", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(redirect.optString("message").ifBlank { "This request belongs in another BQ Sqwad AI workspace." })
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TextButton(onClick = { WorkspaceRedirectStore.clear() }) { Text("Stay here") }
+                        Button(
+                            onClick = {
+                                WorkspaceRedirectStore.clear()
+                                workspace = targetWorkspace
+                                plans = false
+                                settings = false
+                                history = false
+                                featureHub = false
+                                advancedFeature = null
+                                featureSettings = null
+                                featureInfo = null
+                                featurePrivacy = null
+                                legalCenter = false
+                                brandingSettings = false
+                                accountProtection = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) { Text(if (targetWorkspace == null) "Open Main Chat" else "Open ${targetWorkspace.title}") }
+                    }
+                }
             }
         }
     }
