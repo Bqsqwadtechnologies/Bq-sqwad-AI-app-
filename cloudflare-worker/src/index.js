@@ -1290,6 +1290,78 @@ export default {
         const user = await verifyFirebaseUser(request);
         return await ai(request, user, await readBody(request));
       }
+      if (url.pathname === "/ai/transcribe" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid);
+        await requireConsent(user.uid);
+        const configDocument = await firestoreGet("adminAdvancedOptions/dictation_pricing") || {};
+        const pricing = normalizeLivePricing(configDocument.config || configDocument, {}, "dictation_pricing");
+        if (configDocument.enabled === false || configDocument.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
+          throw Object.assign(new Error("dictation_disabled"), { httpStatus: 403, safeError: "dictation_disabled" });
+        }
+        const audioBytes = new Uint8Array(await request.arrayBuffer());
+        if (audioBytes.byteLength < 44 || audioBytes.byteLength > 4000000) {
+          throw Object.assign(new Error("invalid_dictation_audio_size"), { httpStatus: 400, safeError: "invalid_dictation_audio" });
+        }
+        const headerText = String.fromCharCode(...audioBytes.slice(0, 12));
+        if (!headerText.startsWith("RIFF") || !headerText.includes("WAVE")) {
+          throw Object.assign(new Error("invalid_dictation_wav"), { httpStatus: 400, safeError: "invalid_dictation_audio" });
+        }
+        const headerDuration = Number(request.headers.get("X-BQ-Audio-Duration-Seconds") || 0);
+        const durationSeconds = Math.min(120, Math.max(1, Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : Math.ceil((audioBytes.byteLength - 44) / 32000)));
+        const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
+        const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
+        const minutes = Math.max(1, Math.ceil(durationSeconds / 60));
+        const chargeAmount = startFee + rate * minutes;
+        if (chargeAmount > 0 && !isSuperAdmin(user, env)) {
+          const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
+          const minimum = Math.max(Number(pricing.minimumBalanceToStart || 0), chargeAmount);
+          if (!balance || balance.total < minimum) {
+            throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+          }
+        }
+        let reservation = null;
+        if (chargeAmount > 0) reservation = await chargeCredits(user.uid, chargeAmount, "dictation", user);
+        try {
+          if (!env?.OPENAI_API_KEY) throw Object.assign(new Error("openai_provider_not_configured"), { httpStatus: 503, safeError: "openai_provider_not_configured" });
+          const transcribeWithModel = async (model) => {
+            const form = new FormData();
+            form.append("file", new Blob([audioBytes], { type: "audio/wav" }), "dictation.wav");
+            form.append("model", model);
+            return fetch("https://api.openai.com/v1/audio/transcriptions", {
+              method: "POST",
+              headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY) },
+              body: form
+            });
+          };
+          let model = String(pricing.transcriptionModel || "gpt-4o-mini-transcribe").slice(0, 100);
+          let response = await transcribeWithModel(model);
+          let raw = await response.text();
+          let transcription = {};
+          try { transcription = raw ? JSON.parse(raw) : {}; } catch {}
+          if (!response.ok && [400, 404, 422].includes(response.status) && model !== "whisper-1") {
+            const providerCode = String(transcription?.error?.code || transcription?.error?.type || "model_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+            await notifyAdminOfIssue(env, url.pathname, 502, "dictation_model_rejected:" + model + ":" + providerCode);
+            model = "whisper-1";
+            response = await transcribeWithModel(model);
+            raw = await response.text();
+            transcription = {};
+            try { transcription = raw ? JSON.parse(raw) : {}; } catch {}
+          }
+          if (!response.ok) {
+            const providerCode = String(transcription?.error?.code || transcription?.error?.type || "provider_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
+            await notifyAdminOfIssue(env, url.pathname, 502, "dictation_transcription_failed:" + response.status + ":" + providerCode);
+            throw Object.assign(new Error("transcription_failed"), { httpStatus: 502, safeError: "transcription_failed", providerStatus: response.status });
+          }
+          const text = String(transcription?.text || "").trim().slice(0, 12000);
+          if (!text) throw Object.assign(new Error("no_speech_detected"), { httpStatus: 422, safeError: "no_speech_detected" });
+          if (reservation?.reservationId) await commitCredits(user.uid, reservation.reservationId, "openai_transcription");
+          return json({ ok: true, text, charged: chargeAmount, free: chargeAmount === 0 });
+        } catch (error) {
+          if (reservation?.reservationId) await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          throw error;
+        }
+      }
       if (url.pathname === "/ai/vision" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         return await vision(request, user, await readBody(request));
