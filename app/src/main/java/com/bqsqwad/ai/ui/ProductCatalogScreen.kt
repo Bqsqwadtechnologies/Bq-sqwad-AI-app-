@@ -680,6 +680,7 @@ private fun LivePlanCard(
         plan.playEligible && !storePriceText.isNullOrBlank() && selectedEntry?.productType == ProductType.SUBS ->
             (selectedPeriod.replaceFirstChar { it.uppercase() } + ": " + storePriceText)
         plan.playEligible && !storePriceText.isNullOrBlank() -> storePriceText
+        plan.playEligible -> "Price not configured"
         else -> displayPrices.joinToString(" • ") { (period, value) ->
             val numeric = value.toDoubleOrNull()
             val shown = numeric?.let { String.format(java.util.Locale.US, "₦%,.2f", it) }
