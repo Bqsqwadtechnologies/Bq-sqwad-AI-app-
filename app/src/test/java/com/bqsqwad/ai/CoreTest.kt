@@ -2,6 +2,7 @@ package com.bqsqwad.ai
 
 import com.bqsqwad.ai.core.ApiConfig
 import com.bqsqwad.ai.core.WorkspaceAccessSnapshot
+import com.bqsqwad.ai.core.WorkspaceRedirectStore
 import com.bqsqwad.ai.domain.Workspace
 import com.bqsqwad.ai.core.ChatAttachmentReader
 import com.bqsqwad.ai.core.detectCsvDimensions
@@ -27,6 +28,15 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun workspaceRedirectStorePublishesAndClearsTarget() {
+        WorkspaceRedirectStore.clear()
+        WorkspaceRedirectStore.publish(org.json.JSONObject().put("workspace", "CHAT").put("message", "Open Main Chat"))
+        assertEquals("CHAT", WorkspaceRedirectStore.redirect.value?.optString("workspace"))
+        assertEquals("Open Main Chat", WorkspaceRedirectStore.redirect.value?.optString("message"))
+        WorkspaceRedirectStore.clear()
+        assertEquals(null, WorkspaceRedirectStore.redirect.value)
+    }
+
     @Test fun webAnswerHidesBareAndMarkdownUrlsButKeepsReadableWordsAndCitations() {
         val answer = sanitizeWebAnswer("The report says [1]. Read [the source](https://example.com/report) or visit https://example.org/page for details.")
         assertTrue(answer.contains("[1]"))
