@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { isPublicCatalogPlan, isRootSuperAdmin, normalizeLivePricing, liveStartChargePolicy } from "../src/index.js";
+import worker, { isPublicCatalogPlan, isRootSuperAdmin, normalizeLivePricing, liveStartChargePolicy, settleLiveStartReservation } from "../src/index.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "../src/plan-catalog-native.js";
 import { playCatalog } from "../src/google-play.js";
 
@@ -198,4 +198,49 @@ test("live start policy permits free sessions, checks paid minimums, and exempts
   });
   assert.equal(liveStartChargePolicy({ creditsPerMinute: 5, startFeeCredits: 2, minimumBalanceToStart: 10 }, 0, true).allowed, true);
   assert.equal(liveStartChargePolicy({ creditsPerMinute: 5, startFeeCredits: 2, minimumBalanceToStart: 10 }, 0, true).startFeeCredits, 0);
+});
+
+
+test("live session commits the start-fee reservation only after session creation", async () => {
+  const events = [];
+  const result = await settleLiveStartReservation(
+    "user-1",
+    { reservationId: "reservation-1" },
+    async (uid, id, provider) => { events.push(["commit", uid, id, provider]); },
+    async (uid, id) => { events.push(["reverse", uid, id]); },
+    async () => { events.push(["create"]); return "session-secret"; }
+  );
+  assert.equal(result, "session-secret");
+  assert.deepEqual(events, [
+    ["create"],
+    ["commit", "user-1", "reservation-1", "openai"]
+  ]);
+});
+
+test("live session reverses a reserved start fee when provider/session creation fails", async () => {
+  const events = [];
+  await assert.rejects(
+    settleLiveStartReservation(
+      "user-2",
+      { reservationId: "reservation-2" },
+      async (_uid, id) => { events.push(["commit", id]); },
+      async (uid, id) => { events.push(["reverse", uid, id]); },
+      async () => { events.push(["create"]); throw new Error("provider failed"); }
+    ),
+    /provider failed/
+  );
+  assert.deepEqual(events, [["create"], ["reverse", "user-2", "reservation-2"]]);
+});
+
+test("free live sessions create without commit or reverse calls", async () => {
+  const events = [];
+  const result = await settleLiveStartReservation(
+    "user-free",
+    null,
+    async () => { events.push("commit"); },
+    async () => { events.push("reverse"); },
+    async () => { events.push("create"); return "free-session"; }
+  );
+  assert.equal(result, "free-session");
+  assert.deepEqual(events, ["create"]);
 });

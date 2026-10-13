@@ -480,6 +480,17 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "gpt-4o-mini-transcribe").trim().slice(0, 100)
   };
 }
+export async function settleLiveStartReservation(uid, reservation, commit, reverse, createSession) {
+  try {
+    const result = await createSession();
+    if (reservation?.reservationId) await commit(uid, reservation.reservationId, "openai");
+    return result;
+  } catch (error) {
+    if (reservation?.reservationId) await reverse(uid, reservation.reservationId);
+    throw error;
+  }
+}
+
 export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = false) {
   const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
   const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
@@ -1820,7 +1831,7 @@ export default {
          if (!organization && !superAdmin && startPolicy.startFeeCredits > 0) {
            reservation = await chargeCredits(u.uid, startPolicy.startFeeCredits, capabilityName, u);
          }
-         try {
+         return await settleLiveStartReservation(u.uid, reservation, commitCredits, reverseCredits, async () => {
            let model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
            const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
           const voice = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].includes(voice0)
@@ -1886,17 +1897,12 @@ export default {
             const wallet = await orgWallet(u.uid);
             if (wallet.balanceCents <= 0) throw Object.assign(new Error("organization_insufficient_balance"), { httpStatus: 402 });
             await orgChargeAssistant(u.uid, "realtime-" + Date.now());
-          } else {
-            if (reservation?.reservationId) await commitCredits(u.uid, reservation.reservationId, "openai");
           }
           return json({
             clientSecret: String(secret), model, voice,
             pricing: { enabled: true, free: requestedRate === 0 && startFee === 0, creditsPerMinute: requestedRate, startFeeCredits: startFee, minimumBalanceToStart: Number(conf.minimumBalanceToStart || 0), maxSessionMinutes: Number(conf.maxSessionMinutes || 120) }
           });
-        } catch (error) {
-          if (!organization) await reverseCredits(u.uid, reservation?.reservationId);
-          throw error;
-        }
+        });
       }
       if (url.pathname === "/passkey/login/options" && request.method === "GET") { return json(await authenticationOptionsNative()); }
       if (url.pathname === "/passkey/login/verify" && request.method === "POST") { const b=await readBody(request); return json(await verifyAuthenticationNative(env,String(b.sessionId||""),b.response||{})); }
