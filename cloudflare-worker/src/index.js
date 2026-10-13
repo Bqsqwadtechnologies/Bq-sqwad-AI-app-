@@ -2318,7 +2318,7 @@ export default {
       const message = error?.message || "backend_unavailable";
       const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|consent_required|Admin access required/.test(message) ? 403 : /Insufficient credits|insufficient_credits/.test(message) ? 402 : /select_replacement_model_before_/.test(message) ? 409 : /model_|selected_model|provider_model|provider_not_supported_for_feature|default_model_must_be_enabled|default_model_must_be_published/.test(message) ? 400 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
       if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
-      const code = error?.safeError || (/required_consent_missing/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : status >= 500 ? "service_temporarily_unavailable" : message);
+      const code = error?.safeError || (/required_consent_missing|consent_required/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : /route_not_migrated/.test(message) ? "route_not_migrated" : status >= 500 ? "service_temporarily_unavailable" : message);
       const body = { error: code };
       if (Number.isInteger(error?.providerStatus)) body.providerStatus = error.providerStatus;
       return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
