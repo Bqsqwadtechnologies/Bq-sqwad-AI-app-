@@ -43,8 +43,7 @@ class LiveMediaForegroundService : Service() {
         const val MODE_CAMERA = "camera"
         const val MODE_VOICE = "voice"
         const val MODE_SCREEN = "screen"
-        private const val DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1"
-        private const val CHANNEL_ID = "bq_live_media"
+                private const val CHANNEL_ID = "bq_live_media"
         private const val NOTIFICATION_ID = 4101
         private const val PREFS = "bq_live_media"
         private val _uiState = MutableStateFlow(LiveMediaUiState())
@@ -161,12 +160,16 @@ class LiveMediaForegroundService : Service() {
                 val config = WorkspaceApiClient().realtimeSession(voice, mode = "voice", modelRegistryId = modelRegistryId)
                 val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
                     ?: throw IllegalStateException(config.optString("error", "Realtime voice session could not be created."))
-                val model = config.optString("model").ifBlank { DEFAULT_REALTIME_MODEL }
+                val model = config.optString("model").takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("The server did not return the realtime model for this session.")
+                val sessionVoice = config.optString("voice").takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("The server did not return the realtime voice for this session.")
                 withContext(Dispatchers.Main) {
                     realtimeVoice = RealtimeVoiceSession(
                         context = this@LiveMediaForegroundService,
                         clientSecret = secret,
                         model = model,
+                        voice = sessionVoice,
                         allowWebSearch = webSearchEnabledForAccount(),
                         onState = { state ->
                             writeState(true, state)
@@ -215,12 +218,16 @@ class LiveMediaForegroundService : Service() {
         val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode, mode = sessionMode, modelRegistryId = modelRegistryId)
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
-        val model = config.optString("model").ifBlank { "gpt-realtime-2.1" }
+        val model = config.optString("model").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("The server did not return the realtime model for this session.")
+        val sessionVoice = config.optString("voice").takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("The server did not return the realtime voice for this session.")
         withContext(Dispatchers.Main) {
             visualVoice = RealtimeVoiceSession(
                 context = this@LiveMediaForegroundService,
                 clientSecret = secret,
                 model = model,
+                voice = sessionVoice,
                 allowWebSearch = webSearchEnabledForAccount(),
                 onState = { state ->
                     writeState(true, state)
