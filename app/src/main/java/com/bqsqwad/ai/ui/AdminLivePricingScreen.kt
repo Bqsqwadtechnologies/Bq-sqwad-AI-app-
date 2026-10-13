@@ -45,6 +45,7 @@ private data class LivePriceForm(
     val creditsPerMinute: String = "0",
     val startFeeCredits: String = "0",
     val minimumBalanceToStart: String = "0",
+    val minimumBalanceAuto: Boolean = true,
     val maxSessionMinutes: String = "120",
     val modelId: String = "",
     val defaultVoice: String = "marin",
@@ -91,6 +92,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
             creditsPerMinute = config.optDouble("creditsPerMinute", 0.0).toString(),
             startFeeCredits = config.optDouble("startFeeCredits", 0.0).toString(),
             minimumBalanceToStart = config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)).toString(),
+            minimumBalanceAuto = kotlin.math.abs(config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)) - config.optDouble("creditsPerMinute", 0.0)) < 0.000001,
             maxSessionMinutes = config.optInt("maxSessionMinutes", old.maxSessionMinutes.toIntOrNull() ?: 120).toString(),
             modelId = config.optString("modelId", ""),
             defaultVoice = config.optString("defaultVoice", "marin"),
@@ -177,9 +179,14 @@ private fun PricingCard(
                 Text("Emergency kill switch", color = MaterialTheme.colorScheme.onSurface)
                 Checkbox(checked = form.killSwitch, onCheckedChange = { onChange(form.copy(killSwitch = it)) })
             }
-            PriceField("Credits per minute", form.creditsPerMinute) { onChange(form.copy(creditsPerMinute = it)) }
+            PriceField("Credits per minute", form.creditsPerMinute) {
+                val automaticMinimum = if (form.minimumBalanceAuto) it.toDoubleOrNull()?.toString() ?: form.minimumBalanceToStart else form.minimumBalanceToStart
+                onChange(form.copy(creditsPerMinute = it, minimumBalanceToStart = automaticMinimum))
+            }
             PriceField("Start fee (credits)", form.startFeeCredits) { onChange(form.copy(startFeeCredits = it)) }
-            PriceField("Minimum balance to start", form.minimumBalanceToStart) { onChange(form.copy(minimumBalanceToStart = it)) }
+            PriceField("Minimum balance to start", form.minimumBalanceToStart) {
+                onChange(form.copy(minimumBalanceToStart = it, minimumBalanceAuto = false))
+            }
             PriceField("Maximum session minutes", form.maxSessionMinutes) { onChange(form.copy(maxSessionMinutes = it)) }
             if (showVoiceSettings) {
                 PriceField("Realtime model override (optional)", form.modelId) { onChange(form.copy(modelId = it)) }
