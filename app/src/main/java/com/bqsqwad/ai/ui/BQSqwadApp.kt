@@ -832,7 +832,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         notificationStatus = null
     }
 
+    var cancelActiveWorkOnSignOut: (() -> Unit)? by remember { mutableStateOf(null) }
+
     fun signOutFromShell() {
+        cancelActiveWorkOnSignOut?.invoke()
         performSignOut(context) { resetShellAfterSignOut() }
     }
 
@@ -1621,6 +1624,27 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    cancelActiveWorkOnSignOut = {
+        streamJob?.cancel()
+        streamJob = null
+        busy = false
+        messages.clear()
+        attachments = emptyList()
+        selectedAttachments = emptyList()
+        selectedImageBase64 = null
+        selectedImagePrompt = ""
+        selectedImageMessageId = null
+        showImageActions = false
+        showImageViewer = false
+        failedImagePrompt = null
+        message = ""
+        error = null
+        creditNotice = null
+        statusText = "Signed out"
+        isListening = false
+        privateMessageIds.clear()
+        historyId = null
+    }
     var failedImagePrompt by remember { mutableStateOf<String?>(null) }
     var isListening by remember { mutableStateOf(false) }
     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
