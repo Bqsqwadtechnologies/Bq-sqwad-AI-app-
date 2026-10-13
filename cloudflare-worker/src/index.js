@@ -1215,6 +1215,7 @@ export default {
       const adminBootstrapRoutes = new Set([
         "GET /admin/access",
         "GET /admin/security/status",
+        "GET /admin/security/session",
         "POST /admin/security/password",
         "POST /admin/security/totp/start",
         "POST /admin/security/totp/confirm",
@@ -2075,6 +2076,7 @@ export default {
       if (url.pathname === "/admin/social-test" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),p=String(b.platform||"");if(!["x","youtube","tiktok"].includes(p))throw new Error("unsupported_social_platform");const keys={x:["X_CLIENT_ID","X_CLIENT_SECRET"],youtube:["YOUTUBE_CLIENT_ID","YOUTUBE_CLIENT_SECRET"],tiktok:["TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET"]};return json({ok:Boolean(env[keys[p][0]]&&env[keys[p][1]]),platform:p,clientConfigured:Boolean(env[keys[p][0]]),clientSecretConfigured:Boolean(env[keys[p][1]]),testMode:false}); }
       if (url.pathname === "/admin/social-secret" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({error:"cloudflare_secret_required",message:"Provider secrets are managed as Cloudflare Worker secrets, not written into Firestore."},409); }
       if (url.pathname === "/admin/security/status" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({...await securityStatusNative(),encryptionKeyConfigured:Boolean(env.BQ_SECRET_ENCRYPTION_KEY)}); }
+      if (url.pathname === "/admin/security/session" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw Object.assign(new Error("Admin access required"),{httpStatus:403});return json(await adminSessionStatusNative(u.uid)); }
       if (url.pathname === "/admin/security/password" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await configurePasswordNative(env,u.uid,String((await readBody(request)).password||""))); }
       if (url.pathname === "/admin/security/totp/start" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await beginTotpNative(env,u.uid)); }
       if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit("admin-auth:"+u.uid,8);const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }

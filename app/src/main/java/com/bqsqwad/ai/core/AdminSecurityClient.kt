@@ -39,6 +39,8 @@ class AdminSecurityClient(
         request("POST", "/admin/security/totp/confirm", JSONObject().put("code", code))
     }
 
+    suspend fun sessionStatus(): JSONObject = request("GET", "/admin/security/session", null)
+
     suspend fun unlock(password: String, code: String) {
         request("POST", "/admin/security/unlock", JSONObject().apply {
             put("password", password)

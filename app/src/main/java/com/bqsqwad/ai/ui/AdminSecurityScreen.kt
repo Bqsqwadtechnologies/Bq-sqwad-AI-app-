@@ -23,6 +23,7 @@ import com.bqsqwad.ai.core.PasskeyClient
 import com.google.firebase.auth.FirebaseAuth
 import androidx.biometric.BiometricManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 
 private fun createQrBitmap(value: String, size: Int = 720): Bitmap? = runCatching {
@@ -75,6 +76,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var biometricConfigured by remember { mutableStateOf(false) }
+    var sessionRemainingSeconds by remember { mutableIntStateOf(0) }
+    var sessionExpiry by remember { mutableStateOf<String?>(null) }
 
     fun run(action: suspend () -> Unit, success: String) {
         busy = true; error = null
@@ -101,6 +104,19 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 val items = json.optJSONArray("items")
                 passkeyIds = List(items?.length() ?: 0) { i -> items!!.getJSONObject(i).optString("id") }
             }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            runCatching { client.sessionStatus() }.onSuccess { session ->
+                sessionRemainingSeconds = session.optInt("expiresInSeconds", 0).coerceAtLeast(0)
+                sessionExpiry = session.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" }
+            }
+            repeat(15) {
+                delay(1000)
+                if (sessionRemainingSeconds > 0) sessionRemainingSeconds--
+            }
+        }
     }
 
     Scaffold(
@@ -247,6 +263,16 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 HorizontalDivider()
                 Text("Unlock Admin Control Center", style = MaterialTheme.typography.titleLarge)
                 Text("After security is enabled, verify the configured factors here to receive a fresh admin step-up session.")
+                Text(
+                    if (sessionRemainingSeconds > 0) {
+                        "Session active • ${sessionRemainingSeconds / 60}m ${sessionRemainingSeconds % 60}s remaining" +
+                            (sessionExpiry?.let { " • expires at " + it.take(19).replace('T', ' ') + " UTC" } ?: "")
+                    } else "No active admin unlock session.",
+                    color = if (sessionRemainingSeconds > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { password = ""; code = ""; status = "Enter your factors below to unlock again." }) {
+                    Text("Unlock again")
+                }
                 OutlinedTextField(
                     password, { password = it },
                     label = { Text("Password") },
@@ -260,7 +286,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 )
                 Button(
                     enabled = !busy && password.isNotEmpty(),
-                    onClick = { run({ client.unlock(password, code) }, "Admin session unlocked.") }
+                    onClick = { run({ client.unlock(password, code); val session = client.sessionStatus(); sessionRemainingSeconds = session.optInt("expiresInSeconds", 1800); sessionExpiry = session.optString("expiresAt").takeIf { it.isNotBlank() } }, "Admin session unlocked.") }
                 ) { Text("Unlock") }
             }
             status?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }

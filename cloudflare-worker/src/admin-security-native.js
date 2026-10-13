@@ -10,16 +10,95 @@ function code(secret,c=Math.floor(Date.now()/30000)){const m=Buffer.alloc(8);m.w
 function valid(secret,input){const x=String(input||"").replace(/\D/g,"");if(x.length!==6)return false;const c=Math.floor(Date.now()/30000);return [-1,0,1].some(d=>crypto.timingSafeEqual(Buffer.from(code(secret,c+d)),Buffer.from(x)))}
 function pwd(password,salt=crypto.randomBytes(16)){return {salt:salt.toString("base64"),hash:crypto.scryptSync(String(password),salt,32).toString("base64")}}
 function pwdOk(password,r){if(!r?.hash||!r?.salt)return false;const a=crypto.scryptSync(String(password),Buffer.from(r.salt,"base64"),32),b=Buffer.from(r.hash,"base64");return a.length===b.length&&crypto.timingSafeEqual(a,b)}
-export function isAdminSessionActive(record,now=Date.now()){const expiresAt=Date.parse(String(record?.expiresAt||""));return Number.isFinite(expiresAt)&&expiresAt>now}
-export async function adminSessionStatusNative(uid){const x=await firestoreGet("adminStepUp/"+uid),expiresAt=Date.parse(String(x?.expiresAt||"")),active=isAdminSessionActive(x);return {active,expiresAt:active?new Date(expiresAt).toISOString():null}}
-export async function requireAdminSessionNative(uid){const s=await adminSessionStatusNative(uid);if(!s.active)throw Object.assign(new Error("admin_session_required"),{httpStatus:401});return s}
+function timestampMillis(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value < 1e12 ? value * 1000 : value;
+  if (typeof value === "string") return Date.parse(value);
+  if (!value || typeof value !== "object") return NaN;
+  if (typeof value.toDate === "function") {
+    const date = value.toDate();
+    return date instanceof Date ? date.getTime() : NaN;
+  }
+  if (typeof value.timestampValue === "string") return Date.parse(value.timestampValue);
+  const seconds = Number(value.seconds ?? value._seconds ?? value.secondsValue);
+  if (Number.isFinite(seconds)) {
+    const nanos = Number(value.nanoseconds ?? value._nanoseconds ?? value.nanos ?? 0);
+    return seconds * 1000 + (Number.isFinite(nanos) ? nanos / 1e6 : 0);
+  }
+  return NaN;
+}
+export function isAdminSessionActive(record, now = Date.now()) {
+  const expiresAt = timestampMillis(record?.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+export async function adminSessionStatusNative(uid) {
+  const record = await firestoreGet("adminStepUp/" + uid);
+  const expiresAt = timestampMillis(record?.expiresAt);
+  const active = Number.isFinite(expiresAt) && expiresAt > Date.now();
+  return {
+    active,
+    expiresAt: active ? new Date(expiresAt).toISOString() : null,
+    expiresInSeconds: active ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : 0
+  };
+}
+export async function requireAdminSessionNative(uid) {
+  const status = await adminSessionStatusNative(uid);
+  if (!status.active) throw Object.assign(new Error("admin_session_required"), { httpStatus: 401 });
+  // Sliding step-up: sensitive admin activity renews the 30-minute window.
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+  const current = await firestoreGet("adminStepUp/" + uid);
+  await firestoreSet("adminStepUp/" + uid, {
+    uid,
+    verifiedAt: current?.verifiedAt || now,
+    lastActivityAt: now,
+    expiresAt
+  }, true);
+  return { active: true, expiresAt: expiresAt.toISOString(), expiresInSeconds: 1800 };
+}
 export async function securityStatusNative(){const x=await firestoreGet(REF);return {passwordConfigured:Boolean(x?.password?.hash),totpConfigured:Boolean(x?.totpSecretEncrypted),verifiedWindowSeconds:1800,issuer:ISSUER,account:ACCOUNT,biometricConfigured:Boolean(x?.biometric?.publicKey)}}
 export async function configurePasswordNative(env,uid,password){if(String(password||"").length<10)throw new Error("Admin password must be at least 10 characters");const existing=await firestoreGet(REF);if(existing?.password?.hash||existing?.totpSecretEncrypted)await requireAdminSessionNative(uid);await firestoreSet(REF,{password:pwd(password),updatedBy:uid,updatedAt:new Date()},true);return securityStatusNative()}
 export async function beginTotpNative(env,uid){const existing=await firestoreGet(REF);if(existing?.password?.hash||existing?.totpSecretEncrypted)await requireAdminSessionNative(uid);const secret=b32e(crypto.randomBytes(20));await firestoreSet(REF,{pendingTotpSecretEncrypted:enc(env,secret),pendingTotpSecret:null,updatedBy:uid,updatedAt:new Date()},true);return {secret,otpauthUri:"otpauth://totp/"+encodeURIComponent(ISSUER+":"+ACCOUNT)+"?secret="+secret+"&issuer="+encodeURIComponent(ISSUER)+"&algorithm=SHA1&digits=6&period=30"}}
 export async function confirmTotpNative(env,uid,input){const x=await firestoreGet(REF);if(x?.password?.hash||x?.totpSecretEncrypted)await requireAdminSessionNative(uid);const secret=x?.pendingTotpSecretEncrypted?dec(env,x.pendingTotpSecretEncrypted):x?.pendingTotpSecret;if(!secret||!valid(secret,input))throw new Error("Invalid authenticator code");await firestoreSet(REF,{totpSecretEncrypted:enc(env,secret),pendingTotpSecretEncrypted:null,pendingTotpSecret:null,updatedBy:uid,updatedAt:new Date()},true);return securityStatusNative()}
-export async function unlockAdminNative(env,uid,password,otp){const x=await firestoreGet(REF),secret=x?.totpSecretEncrypted?dec(env,x.totpSecretEncrypted):x?.totpSecret;const hasPassword=Boolean(x?.password?.hash),hasTotp=Boolean(secret);if(!hasPassword&&!hasTotp)throw new Error("Configure an admin password or authenticator before unlocking");if(hasPassword&&!pwdOk(password,x.password))throw new Error("Invalid admin password");if(hasTotp&&!valid(secret,otp))throw new Error("Invalid authenticator code");const verifiedAt=new Date(),expiresAt=new Date(verifiedAt.getTime()+1800000);await firestoreSet("adminStepUp/"+uid,{uid,verifiedAt,expiresAt},true);return {ok:true,verifiedAt:verifiedAt.getTime(),expiresAt:expiresAt.toISOString(),expiresInSeconds:1800}}
+async function auditUnlock(uid, action, success, details = {}) {
+  await firestoreCreate("adminAuditLogs/" + crypto.randomUUID(), {
+    uid, action, success, createdAt: new Date(), ...details
+  });
+}
+export async function unlockAdminNative(env, uid, password, otp) {
+  const attemptPath = "adminUnlockAttempts/" + uid;
+  const attempt = await firestoreGet(attemptPath);
+  const now = Date.now();
+  const lockedUntil = timestampMillis(attempt?.lockedUntil);
+  if (Number.isFinite(lockedUntil) && lockedUntil > now) {
+    throw Object.assign(new Error("admin_unlock_locked"), { httpStatus: 429, safeError: "admin_unlock_locked" });
+  }
+  const config = await firestoreGet(REF);
+  const secret = config?.totpSecretEncrypted ? dec(env, config.totpSecretEncrypted) : config?.totpSecret;
+  const hasPassword = Boolean(config?.password?.hash);
+  const hasTotp = Boolean(secret);
+  if (!hasPassword && !hasTotp) throw new Error("Configure an admin password or authenticator before unlocking");
+  const passwordValid = !hasPassword || pwdOk(password, config.password);
+  const otpValid = !hasTotp || valid(secret, otp);
+  if (!passwordValid || !otpValid) {
+    const failures = Number(attempt?.failures || 0) + 1;
+    const lockUntil = failures >= 5 ? new Date(now + 15 * 60 * 1000) : null;
+    await firestoreSet(attemptPath, { uid, failures, lastFailureAt: new Date(now), lockedUntil: lockUntil }, true);
+    await auditUnlock(uid, "admin_unlock_failed", false, { failures, lockedUntil: lockUntil });
+    throw Object.assign(new Error(lockUntil ? "admin_unlock_locked" : "admin_unlock_invalid"), {
+      httpStatus: lockUntil ? 429 : 401,
+      safeError: lockUntil ? "admin_unlock_locked" : "admin_unlock_invalid"
+    });
+  }
+  const verifiedAt = new Date(now);
+  const expiresAt = new Date(now + 30 * 60 * 1000);
+  await firestoreSet(attemptPath, { uid, failures: 0, lockedUntil: null, lastSuccessAt: verifiedAt }, true);
+  await auditUnlock(uid, "admin_unlock_succeeded", true, { expiresAt });
+  await firestoreSet("adminStepUp/" + uid, { uid, verifiedAt, lastActivityAt: verifiedAt, expiresAt }, true);
+  return { ok: true, verifiedAt: verifiedAt.getTime(), expiresAt: expiresAt.toISOString(), expiresInSeconds: 1800 };
+}
 export async function biometricStatusNative(){const x=await firestoreGet(REF);return {configured:Boolean(x?.biometric?.publicKey)}}
 export async function removeBiometricNative(uid){await firestoreSet(REF,{biometric:null,updatedBy:uid,updatedAt:new Date()},true);return {ok:true,configured:false}}
 export async function registerBiometricNative(uid,keyValue){if(!keyValue||String(keyValue).length>10000)throw new Error("biometric_public_key_required");await firestoreSet(REF,{biometric:{publicKey:String(keyValue),registeredAt:new Date(),registeredBy:uid}},true);return biometricStatusNative()}
 export async function beginBiometricNative(uid){const id=crypto.randomBytes(24).toString("base64url"),challenge=crypto.randomBytes(32).toString("base64");await firestoreSet("adminBiometricChallenges/"+id,{uid,challenge,expiresAt:new Date(Date.now()+300000),createdAt:new Date()},false);return {challengeId:id,challenge}}
-export async function verifyBiometricNative(uid,id,sig){const x=await firestoreGet("adminBiometricChallenges/"+id),s=await firestoreGet(REF),pub=s?.biometric?.publicKey;if(!x||x.uid!==uid)throw new Error("biometric_challenge_invalid");if(Date.parse(String(x.expiresAt||""))<Date.now())throw new Error("biometric_challenge_expired");if(!pub)throw new Error("biometric_not_configured");const v=crypto.createVerify("SHA256");v.update(Buffer.from(String(x.challenge),"base64"));v.end();if(!v.verify({key:Buffer.from(String(pub),"base64"),format:"der",type:"spki"},Buffer.from(String(sig||""),"base64")))throw new Error("biometric_verification_failed");await firestoreDelete("adminBiometricChallenges/"+id);const verifiedAt=new Date(),expiresAt=new Date(verifiedAt.getTime()+1800000);await firestoreSet("adminStepUp/"+uid,{uid,verifiedAt,expiresAt},true);return {ok:true,verifiedAt:verifiedAt.getTime(),expiresAt:expiresAt.toISOString(),expiresInSeconds:1800}}
+export async function verifyBiometricNative(uid,id,sig){const x=await firestoreGet("adminBiometricChallenges/"+id),s=await firestoreGet(REF),pub=s?.biometric?.publicKey;if(!x||x.uid!==uid)throw new Error("biometric_challenge_invalid");if(timestampMillis(x.expiresAt)<Date.now())throw new Error("biometric_challenge_expired");if(!pub)throw new Error("biometric_not_configured");const v=crypto.createVerify("SHA256");v.update(Buffer.from(String(x.challenge),"base64"));v.end();if(!v.verify({key:Buffer.from(String(pub),"base64"),format:"der",type:"spki"},Buffer.from(String(sig||""),"base64")))throw new Error("biometric_verification_failed");await firestoreDelete("adminBiometricChallenges/"+id);const verifiedAt=new Date(),expiresAt=new Date(verifiedAt.getTime()+1800000);await firestoreSet("adminStepUp/"+uid,{uid,verifiedAt,expiresAt},true);return {ok:true,verifiedAt:verifiedAt.getTime(),expiresAt:expiresAt.toISOString(),expiresInSeconds:1800}}
