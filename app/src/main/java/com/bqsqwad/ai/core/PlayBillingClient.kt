@@ -244,7 +244,7 @@ class PlayBillingClient(
 
     private fun verifyWithBackend(purchase: Purchase) {
         if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
-            onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan after Google Play confirms it."))
+            onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan after Google Pay confirms it."))
             return
         }
         Thread {
@@ -252,7 +252,7 @@ class PlayBillingClient(
                 val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to verify this purchase.")
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable.")
                 val products = purchase.products
-                if (products.isEmpty()) error("Google Play returned no product for this purchase.")
+                if (products.isEmpty()) error("Google Pay did not return a product for this purchase.")
                 val payload = JSONObject()
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
@@ -283,7 +283,7 @@ class PlayBillingClient(
                 }
                 val verifiedBody = JSONObject(raw)
                 val verified = verifiedBody.optBoolean("ok", false)
-                if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
+                if (!verified) throw IllegalStateException("The server did not confirm this Google Pay purchase.")
 
                 // The secure backend verifies, grants and acknowledges/consumes the purchase.
                 // Do not duplicate that operation from the Android client.

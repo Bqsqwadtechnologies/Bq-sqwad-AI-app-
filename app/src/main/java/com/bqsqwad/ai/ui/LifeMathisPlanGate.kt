@@ -23,6 +23,7 @@ private data class LifeMathisGatePlan(
     val id: String,
     val name: String,
     val price: Map<String, String>,
+    val priceNgn: Map<String, String>,
     val basePlans: List<String>,
     val productId: String?,
     val playEligible: Boolean,
@@ -59,6 +60,9 @@ fun LifeMathisPlanGate(
                     val prices = p.optJSONObject("price") ?: JSONObject()
                     val price = linkedMapOf<String, String>()
                     prices.keys().forEach { key -> price[key] = prices.optString(key) }
+                    val nairaPrices = p.optJSONObject("priceNgn") ?: JSONObject()
+                    val priceNgn = linkedMapOf<String, String>()
+                    nairaPrices.keys().forEach { key -> priceNgn[key] = nairaPrices.optString(key) }
                     val baseArray = p.optJSONArray("basePlans") ?: JSONArray()
                     val bases = List(baseArray.length()) { n -> baseArray.optString(n) }.filter { it.isNotBlank() }
                     val featuresArray = p.optJSONArray("features") ?: JSONArray()
@@ -67,6 +71,7 @@ fun LifeMathisPlanGate(
                         id = p.optString("id"),
                         name = p.optString("name"),
                         price = price,
+                        priceNgn = priceNgn,
                         basePlans = bases,
                         productId = p.optString("productId").ifBlank { null },
                         playEligible = p.optBoolean("playEligible", false),
@@ -185,17 +190,16 @@ private fun LifeMathisGateCard(
                 }
             }
 
-            val value = plan.price[selectedPeriod] ?: plan.price["free"] ?: "0"
-            val numeric = value.toDoubleOrNull()
+            val configuredNgnPrice = plan.priceNgn[selectedPeriod]
+            val numericNgnPrice = configuredNgnPrice?.toDoubleOrNull()
+            val displayedPrice = when {
+                isFree -> "Free"
+                numericNgnPrice != null -> String.format(java.util.Locale.US, "₦%,.2f / %s", numericNgnPrice, if (selectedPeriod == "yearly") "year" else "month")
+                !configuredNgnPrice.isNullOrBlank() && configuredNgnPrice.contains("₦") -> configuredNgnPrice
+                else -> "Price not configured"
+            }
             Text(
-                if (numeric != null) {
-                    String.format(
-                        java.util.Locale.US,
-                        "$%.2f / %s",
-                        numeric,
-                        if (selectedPeriod == "yearly") "year" else "month"
-                    )
-                } else value,
+                displayedPrice,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
