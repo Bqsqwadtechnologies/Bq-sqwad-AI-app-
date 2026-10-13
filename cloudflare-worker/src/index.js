@@ -546,7 +546,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const now = new Date();
   const timeZone = String(config?.timeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
   const renewalTime = String(config?.renewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00");
-  const today = dailyCreditDateKey(now, timeZone);
+  const today = dailyCreditDateKey(now, timeZone, renewalTime);
   if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
