@@ -29,14 +29,15 @@ internal fun selectCameraIdForFacing(
     facingForId: (String) -> Int?
 ): Pair<String, Int?>? {
     if (cameraIds.isEmpty()) return null
-    val requested = cameraIds.firstOrNull { facingForId(it) == requestedFacing }
+    val safeFacing: (String) -> Int? = { id -> runCatching { facingForId(id) }.getOrNull() }
+    val requested = cameraIds.firstOrNull { safeFacing(it) == requestedFacing }
     val otherFacing = if (requestedFacing == CameraCharacteristics.LENS_FACING_FRONT) {
         CameraCharacteristics.LENS_FACING_BACK
     } else {
         CameraCharacteristics.LENS_FACING_FRONT
     }
-    val selected = requested ?: cameraIds.firstOrNull { facingForId(it) == otherFacing } ?: cameraIds.first()
-    return selected to facingForId(selected)
+    val selected = requested ?: cameraIds.firstOrNull { safeFacing(it) == otherFacing } ?: cameraIds.first()
+    return selected to safeFacing(selected)
 }
 
 /**

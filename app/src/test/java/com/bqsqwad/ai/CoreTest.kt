@@ -58,6 +58,7 @@ class CoreTest {
         assertEquals("front" to 0, selectCameraIdForFacing(listOf("logical", "front"), 1) { facings[it] })
         assertEquals("logical" to 2, selectCameraIdForFacing(listOf("logical"), 1) { facings[it] })
         assertEquals(null, selectCameraIdForFacing(emptyList(), 1) { facings[it] })
+        assertEquals("front" to 0, selectCameraIdForFacing(listOf("broken", "front"), 1) { id -> if (id == "broken") error("unreadable characteristics") else facings[id] })
     }
 
     @Test fun imageGenerationRequestsAreDetectedWithoutModeChips() {
