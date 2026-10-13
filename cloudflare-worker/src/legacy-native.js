@@ -53,7 +53,7 @@ export function classifyWorkspaceScope(workspace, prompt) {
       inScope = !clearlyUnrelated && /\b(teach|learn|explain|lesson|practice|quiz|homework|revise|revision|exam|study|solve|understand|formula|equation|definition|notes|school|subject|past paper|flashcards|test me|mathematics|math|algebra|geometry|calculus|physics|chemistry|biology|photosynthesis|mitosis|gravity|newton|fractions|grammar|literature|geography|history|science|essay assignment)\b/.test(text);
       break;
     case "truthguard":
-      inScope = !clearlyUnrelated && (/\b(claim|verify|fact.?check|is it true|true or false|check whether|check if|evidence|sources|hoax|rumou?r|misinformation|debunk|reliable source|is .* true|did .* really)\b/.test(text) || text.split(/\s+/).length >= 4);
+      inScope = !clearlyUnrelated && (/\b(claim|verify|fact.?check|is it true|true or false|check whether|check if|evidence|sources|hoax|rumou?r|misinformation|debunk|reliable source|is .* true|did .* really)\b/.test(text) || (!/^(what|who|where|when|why|how|write|create|generate|make|build|explain|tell me|give me)\b/.test(text) && /\b(is|are|was|were|has|have|causes?|caused|leads? to|proves?|orbits?|contains?|shows?|claims?|reports?)\b/.test(text)));
       break;
     case "life_mathis":
       inScope = !clearlyUnrelated && /\b(life advice|life guidance|personal decision|relationship|career|personal growth|habit|motivation|stress|wellbeing|well-being|difficult decision|family issue|life challenge|confidence|boundaries|coping|what should i do)\b/.test(text);

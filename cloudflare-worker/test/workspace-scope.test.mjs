@@ -2,6 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyWorkspaceScope, workspaceScopeSystemPrompt } from "../src/legacy-native.js";
 
+test("TruthGuard accepts explicit checks and clear claim statements but not general questions", () => {
+  assert.deepEqual(classifyWorkspaceScope("truthguard", "Check whether this claim is true"), { inScope: true });
+  assert.deepEqual(classifyWorkspaceScope("truthguard", "The Earth orbits the Sun"), { inScope: true });
+  assert.equal(classifyWorkspaceScope("truthguard", "What is photosynthesis?").inScope, false);
+});
+
 test("Learning accepts teaching requests and redirects unrelated requests to Main Chat", () => {
   assert.deepEqual(classifyWorkspaceScope("learning", "Teach me how photosynthesis works"), { inScope: true });
   for (const prompt of ["write me a love poem", "tell me the news", "build me an app", "tell me a joke"]) {
