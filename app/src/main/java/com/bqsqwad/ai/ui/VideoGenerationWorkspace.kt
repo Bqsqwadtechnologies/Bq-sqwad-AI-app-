@@ -145,7 +145,14 @@ fun VideoGenerationWorkspace() {
                                 progress = it.progress
                             }
                             .onFailure {
-                                error = safeUserFacingIssue(it, "Video generation failed.")
+                                if (it is WorkspaceRedirectException) {
+                                    error = null
+                                    status = "Redirected to the recommended workspace"
+                                    progress = 0
+                                    jobId = null
+                                } else {
+                                    error = safeUserFacingIssue(it, "Video generation failed.")
+                                }
                                 busy = false
                             }
                     }

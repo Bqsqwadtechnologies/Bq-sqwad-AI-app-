@@ -17,6 +17,8 @@ import java.net.URL
 data class SearchSource(val title:String,val url:String,val snippet:String?)
 data class SearchReply(val sources:List<SearchSource>,val creditsCharged:Double,val answer:String? = null)
 
+class WorkspaceRedirectException : IllegalStateException("workspace_redirected")
+
 object WorkspaceRedirectStore {
     private val _redirect = MutableStateFlow<JSONObject?>(null)
     val redirect: StateFlow<JSONObject?> = _redirect.asStateFlow()

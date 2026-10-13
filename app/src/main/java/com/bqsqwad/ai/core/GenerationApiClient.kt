@@ -58,6 +58,10 @@ class GenerationApiClient {
                 val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
                 if (status !in 200..299) error(body.optString("error", "Generation request failed"))
+                body.optJSONObject("redirect")?.let { redirect ->
+                    WorkspaceRedirectStore.publish(redirect)
+                    throw WorkspaceRedirectException()
+                }
                 body
             } finally {
                 c.disconnect()
