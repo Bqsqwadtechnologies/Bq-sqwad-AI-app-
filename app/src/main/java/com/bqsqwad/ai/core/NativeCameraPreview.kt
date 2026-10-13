@@ -154,17 +154,30 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     private fun openCamera() {
         if (closed.get() || camera != null) return
 
-        val id = runCatching {
-            cameraManager.cameraIdList.firstOrNull { value ->
-                cameraManager.getCameraCharacteristics(value)
-                    .get(CameraCharacteristics.LENS_FACING) == facing
+        val selection = runCatching {
+            val ids = cameraManager.cameraIdList
+            val requested = ids.firstOrNull { value ->
+                cameraManager.getCameraCharacteristics(value).get(CameraCharacteristics.LENS_FACING) == facing
+            }
+            val otherFacing = if (facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                CameraCharacteristics.LENS_FACING_BACK
+            } else {
+                CameraCharacteristics.LENS_FACING_FRONT
+            }
+            val fallback = requested ?: ids.firstOrNull { value ->
+                cameraManager.getCameraCharacteristics(value).get(CameraCharacteristics.LENS_FACING) == otherFacing
+            } ?: ids.firstOrNull()
+            fallback?.let { id ->
+                id to cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
             }
         }.getOrNull()
+        val id = selection?.first
         if (id == null) {
-            val requestedLens = if (facing == CameraCharacteristics.LENS_FACING_FRONT) "front" else "rear"
-            reportCameraError("The $requestedLens camera is not available. Switch to the other camera or check device camera settings.")
+            reportCameraError("No usable camera was found on this device. Check Android camera settings and retry.")
             return
         }
+        // Track the actual camera selected when the requested lens is unavailable.
+        selection.second?.let { actualFacing -> facing = actualFacing }
 
         cameraId = id
         runCatching {
