@@ -3962,6 +3962,17 @@ private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 fun CameraWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var liveCameraRateLabel by remember { mutableStateOf("Checking live price…") }
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().livePricing().optJSONObject("liveCamera") ?: JSONObject() }
+            .onSuccess { price ->
+                liveCameraRateLabel = when {
+                    !price.optBoolean("enabled", true) -> "Live Camera is currently unavailable"
+                    price.optBoolean("free", false) -> "Live Camera / Screen Share: Free right now"
+                    else -> "${price.optDouble("creditsPerMinute", 0.0)} credits per minute"
+                }
+            }.onFailure { liveCameraRateLabel = "Live pricing will be checked when the session starts" }
+    }
     val settingsPrefs = remember { accountPreferences(context) }
     val cameraEnhanceEnabled = remember { settingsPrefs.getBoolean("camera_enhance", true) }
     val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 1800L else 2800L
@@ -4226,6 +4237,7 @@ fun CameraWorkspace() {
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(liveCameraRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -4250,9 +4262,8 @@ fun CameraWorkspace() {
                 DropdownMenu(expanded = cameraModelExpanded, onDismissRequest = { cameraModelExpanded = false }) {
                     DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedCameraModelId = ""; cameraModelExpanded = false })
                     publishedCameraModels.forEach { model ->
-                        val perMinute = if (model.isNull("creditsPerMinute")) "server rate (default 1/min)" else "${model.optInt("creditsPerMinute")} credits/min"
                         DropdownMenuItem(
-                            text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
+                            text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") },
                             onClick = { selectedCameraModelId = model.optString("id"); cameraModelExpanded = false }
                         )
                     }
@@ -4748,6 +4759,17 @@ fun CameraWorkspace() {
 fun VoiceWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var liveVoiceRateLabel by remember { mutableStateOf("Checking live price…") }
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().livePricing().optJSONObject("liveVoice") ?: JSONObject() }
+            .onSuccess { price ->
+                liveVoiceRateLabel = when {
+                    !price.optBoolean("enabled", true) -> "Live Voice is currently unavailable"
+                    price.optBoolean("free", false) -> "Free right now"
+                    else -> "${price.optDouble("creditsPerMinute", 0.0)} credits per minute"
+                }
+            }.onFailure { liveVoiceRateLabel = "Live pricing will be checked when the session starts" }
+    }
     var publishedVoiceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedVoiceModelId by remember { mutableStateOf("") }
     var voiceModelExpanded by remember { mutableStateOf(false) }
@@ -4864,6 +4886,7 @@ fun VoiceWorkspace() {
             }
         }
 
+        Text(liveVoiceRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Text(
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
@@ -4889,9 +4912,8 @@ fun VoiceWorkspace() {
             DropdownMenu(expanded = voiceModelExpanded, onDismissRequest = { voiceModelExpanded = false }) {
                 DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVoiceModelId = ""; voiceModelExpanded = false })
                 publishedVoiceModels.forEach { model ->
-                    val perMinute = if (model.isNull("creditsPerMinute")) "server rate (default 1/min)" else "${model.optInt("creditsPerMinute")} credits/min"
                     DropdownMenuItem(
-                        text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits to start · " + perMinute + if (model.optBoolean("isDefault")) " · Default" else "") },
+                        text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") },
                         onClick = { selectedVoiceModelId = model.optString("id"); voiceModelExpanded = false }
                     )
                 }
