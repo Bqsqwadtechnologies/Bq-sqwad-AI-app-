@@ -779,6 +779,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
     var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
+    var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var brandingSettings by remember { mutableStateOf(false) }
     var accountProtection by remember { mutableStateOf(false) }
@@ -1031,7 +1032,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Plans & Credits") },
                             selected = plans,
-                            onClick = { drawerOpen = false; plans = true },
+                            onClick = { drawerOpen = false; plansInitialSection = "all"; plans = true },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1061,7 +1062,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else when {
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
-                onPlans = { featureHub = false; plans = true },
+                onPlans = { featureHub = false; plansInitialSection = "all"; plans = true },
                 onHistory = { featureHub = false; history = true },
                 onWorkspace = { selected ->
                     featureHub = false
@@ -1075,7 +1076,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onBack = { advancedFeature = null },
                 onOpenSettings = { settings = true }
             )
-            plans -> ProductCatalogScreen { plans = false }
+            plans -> ProductCatalogScreen(onBack = { plans = false }, initialSection = plansInitialSection)
             brandingSettings -> BrandingSettingsScreen { brandingSettings = false }
             accountProtection -> AccountProtectionScreen { accountProtection = false }
             featureInfo != null -> FeatureInfoScreen(featureInfo!!) { featureInfo = null }
@@ -1115,7 +1116,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         onPrivacy = { featurePrivacy = workspace!! },
                         onSettings = { featureSettings = workspace!! },
                         onOpenAppSettings = { settings = true },
-                        onOpenPlans = { plans = true }
+                        onOpenPlans = { plansInitialSection = "all"; plans = true },
+                        onOpenCredits = { plansInitialSection = "credits"; plans = true }
                     )
                 }
             }
@@ -1124,7 +1126,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 openHub = { drawerOpen = true },
                 openFeatures = { featureHub = true },
                 openSettings = { settings = true },
-                openPlans = { plans = true },
+                openPlans = { plansInitialSection = "all"; plans = true },
+                openCredits = { plansInitialSection = "credits"; plans = true },
                 openHistory = { history = true },
                 openPlugins = { featureHub = true },
                 onLearnMore = { featureInfo = Workspace.CHAT },
@@ -1464,7 +1467,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -2711,7 +2714,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
                                     if (dictationNeedsCredits) {
-                                        Button(onClick = { openPlans() }) { Text("Buy credits") }
+                                        Button(onClick = { openCredits() }) { Text("Buy credits") }
                                     }
                                 }
                             }
@@ -3616,7 +3619,8 @@ private fun WorkspaceScreen(
     onPrivacy: () -> Unit,
     onSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
-    onOpenPlans: () -> Unit
+    onOpenPlans: () -> Unit,
+    onOpenCredits: () -> Unit = onOpenPlans
 ) {
     Scaffold(
         topBar = {
@@ -3668,8 +3672,8 @@ private fun WorkspaceScreen(
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
-                Workspace.CAMERA -> CameraWorkspace()
-                Workspace.VOICE -> VoiceWorkspace()
+                Workspace.CAMERA -> CameraWorkspace(onOpenCredits)
+                Workspace.VOICE -> VoiceWorkspace(onOpenCredits)
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
@@ -4157,7 +4161,7 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
 private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 
 @Composable
-fun CameraWorkspace() {
+fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var liveCameraRateLabel by remember { mutableStateOf("Checking live price…") }
@@ -4945,7 +4949,7 @@ fun CameraWorkspace() {
 }
 
 @Composable
-fun VoiceWorkspace() {
+fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var liveVoiceRateLabel by remember { mutableStateOf("Checking live price…") }
