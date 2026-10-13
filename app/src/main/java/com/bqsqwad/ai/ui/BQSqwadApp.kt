@@ -2551,7 +2551,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             IconButton(modifier = Modifier.size(36.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = { shareText(context, m.text) }) {
+                            IconButton(modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), onClick = { shareText(context, m.text) }) {
                                 Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.primary)
                             }
                             if (voiceRepliesEnabled) {
@@ -2899,7 +2899,7 @@ val composerShape = RoundedCornerShape(26.dp)
                             Button(
                                 modifier = Modifier.weight(1f),
                                 onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = it.message ?: "Could not share image." } },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White)
                             ) { Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Share") }
                             Button(modifier = Modifier.weight(1f), onClick = { showImageViewer = false; showImageActions = true }) { Icon(Icons.Default.MoreVert, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("More") }
                         }

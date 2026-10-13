@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
@@ -152,7 +153,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         "A verified Business entitlement is required to use these workspace tools.",
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
-                    Button(onClick = onOpenPlans) { Text("View Business Plans") }
+                    Button(onClick = onOpenPlans, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White)) { Text("View Business Plans") }
                     TextButton(onClick = { load() }) { Text("Check access again") }
                 }
             }

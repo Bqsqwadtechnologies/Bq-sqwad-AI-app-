@@ -20,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.ProductDetails
@@ -329,7 +330,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                 FilterChip(selected=selectedCategory=="all", onClick={selectedCategory="all"}, label={Text("All")})
                             }
                             items(categorySpecs, key={it.first}) { category ->
-                                FilterChip(selected=selectedCategory==category.first, onClick={selectedCategory=category.first}, label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)})
+                                FilterChip(selected=selectedCategory==category.first, onClick={selectedCategory=category.first}, colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Color(0xFF1565C0), selectedLabelColor=Color.White), label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)})
                             }
                         }
                     }
