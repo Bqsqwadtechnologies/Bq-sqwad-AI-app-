@@ -4408,19 +4408,17 @@ fun CameraWorkspace() {
                             onError = { message ->
                                 streamError = message
                                 reportCameraDiagnostic(cameraDiagnosticCode(message))
-                            }
+                            },
+                            onClosed = { if (fullScreenPreview) fullScreenPreviewReady = true },
+                            onLensSelected = { lens = it }
                         )
                     }
                     TextButton(
                         onClick = {
-                            // First remove the inline AndroidView, then let Camera2 finish
-                            // closing its session before the full-screen view opens.
+                            // The inline preview's onClosed callback opens the full-screen view
+                            // only after Camera2 reports that the old device has closed.
                             fullScreenPreview = true
                             fullScreenPreviewReady = false
-                            scope.launch {
-                                kotlinx.coroutines.delay(300)
-                                fullScreenPreviewReady = true
-                            }
                         },
                         modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
                     ) { Text("Full screen", color = Color.White) }
@@ -4430,7 +4428,7 @@ fun CameraWorkspace() {
                     color = Color.Black.copy(alpha = 0.62f)
                 ) {
                     Text(
-                        if (streamOnline) "● STREAMING ONLINE" else if (previewEnabled && granted) "● CAMERA ACTIVE" else "Connecting…",
+                        if (streamOnline) "● STREAMING ONLINE" else if (previewEnabled && granted) "● CAMERA ACTIVE · " + if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) "FRONT" else "REAR" else "Connecting…",
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
@@ -4617,13 +4615,8 @@ fun CameraWorkspace() {
     if (fullScreenPreview && fullScreenPreviewReady && granted && previewEnabled) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = {
-                // Keep the inline preview unmounted until the dialog's Camera2
-                // device has had time to close.
+                // The dialog preview's onClosed callback returns to the inline preview.
                 fullScreenPreviewReady = false
-                scope.launch {
-                    kotlinx.coroutines.delay(250)
-                    fullScreenPreview = false
-                }
             },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
@@ -4651,11 +4644,9 @@ fun CameraWorkspace() {
                             streamError = message
                             reportCameraDiagnostic(cameraDiagnosticCode(message))
                             fullScreenPreviewReady = false
-                            scope.launch {
-                                kotlinx.coroutines.delay(250)
-                                fullScreenPreview = false
-                            }
-                        }
+                        },
+                        onClosed = { if (fullScreenPreview && !fullScreenPreviewReady) fullScreenPreview = false },
+                        onLensSelected = { lens = it }
                     )
                 }
                 Row(
