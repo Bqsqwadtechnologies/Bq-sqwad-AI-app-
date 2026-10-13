@@ -1623,6 +1623,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
     }
 
+    var failedImagePrompt by remember { mutableStateOf<String?>(null) }
+    var isListening by remember { mutableStateOf(false) }
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     cancelActiveWorkOnSignOut = {
         streamJob?.cancel()
@@ -1644,8 +1646,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         privateMessageIds.clear()
         historyId = null
     }
-    var failedImagePrompt by remember { mutableStateOf<String?>(null) }
-    var isListening by remember { mutableStateOf(false) }
     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         isListening = false
         if (result.resultCode == android.app.Activity.RESULT_OK) {
