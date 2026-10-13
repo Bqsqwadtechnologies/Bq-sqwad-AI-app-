@@ -10,7 +10,7 @@ export function dailyCreditDateKey(date = new Date(), timeZone = DEFAULT_FREE_CR
     const part = (type) => parts.find((item) => item.type === type)?.value || "";
     let year = Number(part("year")), month = Number(part("month")), day = Number(part("day"));
     const localMinutes = Number(part("hour")) * 60 + Number(part("minute"));
-    const match = /^(\\d{1,2}):(\\d{2})$/.exec(String(renewalTime || "00:00"));
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(renewalTime || "00:00"));
     const renewalMinutes = match ? Math.min(1439, Number(match[1]) * 60 + Number(match[2])) : 0;
     if (localMinutes < renewalMinutes) {
       const previous = new Date(Date.UTC(year, month - 1, day) - 86400000);
