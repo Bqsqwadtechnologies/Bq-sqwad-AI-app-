@@ -210,7 +210,7 @@ fun MarkdownText(
                     block.items.forEachIndexed { index, item ->
                         Row(verticalAlignment = Alignment.Top) {
                             Text((index + 1).toString() + ".  ", color = color)
-                            Text(inline(item), color = color)
+                            InlineMarkdownText(item, sources, color = color)
                         }
                     }
                 }
