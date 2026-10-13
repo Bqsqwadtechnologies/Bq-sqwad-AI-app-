@@ -4428,7 +4428,7 @@ fun CameraWorkspace() {
                     color = Color.Black.copy(alpha = 0.62f)
                 ) {
                     Text(
-                        if (streamOnline) "● STREAMING ONLINE" else if (previewEnabled && granted) "● CAMERA ACTIVE · " + if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) "FRONT" else "REAR" else "Connecting…",
+                        if (streamOnline) "● STREAMING ONLINE" else if (previewEnabled && granted) "● CAMERA ACTIVE · " + (if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) "FRONT" else "REAR") else "Connecting…",
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium
