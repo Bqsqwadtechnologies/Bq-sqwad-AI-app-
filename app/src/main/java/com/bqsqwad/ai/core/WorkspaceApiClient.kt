@@ -144,6 +144,47 @@ class WorkspaceApiClient {
 
     suspend fun livePricing(): JSONObject = request("/live/pricing", "GET")
 
+    suspend fun transcribeAudioWav(wavBytes: ByteArray, durationSeconds: Int): String = withContext(Dispatchers.IO) {
+        require(wavBytes.size in 44..4_000_000) { "The recording is empty or too large. Record a shorter message and retry." }
+        val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to transcribe audio.")
+        val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable. Sign in again.")
+        val connection = (URL(baseUrl + "/ai/transcribe").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 120_000
+            doInput = true
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "audio/wav")
+            setRequestProperty("X-BQ-Audio-Duration-Seconds", durationSeconds.coerceIn(1, 120).toString())
+        }
+        val statusAndBody = try {
+            connection.outputStream.use { it.write(wavBytes) }
+            val status = connection.responseCode
+            val raw = (if (status in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            status to raw
+        } finally {
+            connection.disconnect()
+        }
+        val (status, raw) = statusAndBody
+        val body = runCatching { JSONObject(raw) }.getOrNull()
+        if (status !in 200..299) {
+            val code = body?.optString("error").orEmpty().lowercase()
+            error(when {
+                code == "out_of_credits" || code == "insufficient_credits" || status == 402 -> "You need credits to use dictation. Open Plans & Credits and choose Buy credits."
+                code == "consent_required" -> "Please review and accept the required BQ Sqwad AI terms to use dictation."
+                code == "dictation_disabled" -> "Dictation is temporarily unavailable. Try again later."
+                status >= 500 -> "Transcription is temporarily unavailable. Check your internet connection and retry."
+                status == 401 -> "Please sign in again to transcribe your recording."
+                else -> "The recording could not be transcribed. Try again."
+            })
+        }
+        val transcript = body?.optString("text").orEmpty().trim()
+        if (transcript.isBlank()) error("No speech was heard. Speak clearly and try again.")
+        transcript
+    }
+
     suspend fun adminLivePricing(feature: String): JSONObject {
         val path = when (feature.lowercase()) {
             "voice", "live_voice", "live-voice" -> "/admin/live-voice-pricing"
