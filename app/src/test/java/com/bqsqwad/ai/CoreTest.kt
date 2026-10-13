@@ -24,6 +24,15 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun imageGenerationRequestsAreDetectedWithoutModeChips() {
+        assertTrue(isImageGenerationRequest("Generate a picture of a blue whale"))
+        assertTrue(isImageGenerationRequest("Please create an image of a cozy reading room"))
+        assertTrue(isImageGenerationRequest("Make a logo for my tailoring brand"))
+        assertTrue(isImageGenerationRequest("Draw a superhero with lightning powers"))
+        assertFalse(isImageGenerationRequest("How do I create an image in Blender?"))
+        assertFalse(isImageGenerationRequest("What is image generation?"))
+    }
+
     @Test fun adminTestModeBypassesWorkspacePlanGatesWithoutGrantingEntitlements() {
         val catalog = org.json.JSONObject().put("plans", org.json.JSONArray().put(
             org.json.JSONObject()
