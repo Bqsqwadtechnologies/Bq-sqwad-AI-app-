@@ -20,6 +20,7 @@ import com.bqsqwad.ai.ui.parseBlocks
 import com.bqsqwad.ai.ui.isImageGenerationRequest
 import com.bqsqwad.ai.ui.sanitizeWebAnswer
 import com.bqsqwad.ai.ui.orderCanonicalCreditPackIds
+import com.bqsqwad.ai.ui.catalogCategoryHeaderIndex
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,6 +51,11 @@ class CoreTest {
             listOf("credit100", "credit250", "credit500", "credit1000"),
             orderCanonicalCreditPackIds(listOf("credit1000", "other", "credit500", "credit100", "credit250"))
         )
+    }
+
+    @Test fun catalogCategoryChipsScrollToTheFilteredSectionHeader() {
+        assertEquals(28, catalogCategoryHeaderIndex(totalItemCount = 42, trailingItemCount = 5, planCount = 8))
+        assertEquals(0, catalogCategoryHeaderIndex(totalItemCount = 2, trailingItemCount = 8, planCount = 5))
     }
 
     @Test fun cameraSelectionTriesRequestedLensThenOtherThenFirstAvailable() {

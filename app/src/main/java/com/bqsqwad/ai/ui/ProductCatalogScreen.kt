@@ -59,6 +59,9 @@ internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
     return listOf("credit100", "credit250", "credit500", "credit1000").filter { it in available }
 }
 
+internal fun catalogCategoryHeaderIndex(totalItemCount: Int, trailingItemCount: Int, planCount: Int): Int =
+    (totalItemCount - trailingItemCount - planCount - 1).coerceAtLeast(0)
+
 private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
 
 @Composable
@@ -211,14 +214,14 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val nonCreditCustomerPlans = customerPlanModules.filter { it.module.lowercase(java.util.Locale.ROOT) != "credits" }
     val categorySpecs = listOf(
         Triple("business", "Business AI", setOf("business", "business-addon")),
-        Triple("truthguard", "TruthGuard", setOf("truthguard")),
-        Triple("learning", "Learning", setOf("learning", "learning-exam-addon")),
-        Triple("companion", "Companion", setOf("companion")),
+        Triple("learning", "Learning Studio", setOf("learning", "learning-exam-addon")),
+        Triple("organization", "Organization Studio", setOf("organization", "organization-studio")),
+        Triple("truthguard", "TruthGuard AI", setOf("truthguard")),
+        Triple("life-mathis", "Life Mathis", setOf("life-mathis")),
+        Triple("companion", "AI Companion", setOf("companion")),
         Triple("personal-intelligence", "Personal Intelligence", setOf("personal-intelligence")),
-        Triple("life-mathis", "Life Matters", setOf("life-mathis")),
         Triple("frontier", "Frontier Lab", setOf("frontier")),
-        Triple("data-analysis", "Data Analyst", setOf("data-analysis", "data-analyst")),
-        Triple("organization", "Organization Studio", setOf("organization", "organization-studio"))
+        Triple("data-analysis", "Data Analyst", setOf("data-analysis", "data-analyst"))
     ).filter { spec -> nonCreditCustomerPlans.any { it.module.equalsAnyCatalogModule(spec.third) } }
     val normalizedSearch = planSearch.trim().lowercase(java.util.Locale.ROOT)
     val compactSearch = normalizedSearch.filter { it.isLetterOrDigit() }
@@ -244,6 +247,20 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             if (!loading && error == null && initialSection.equals("credits", ignoreCase = true)) {
                 kotlinx.coroutines.delay(50)
                 if (listState.layoutInfo.totalItemsCount > 1) listState.animateScrollToItem(1)
+            }
+        }
+        LaunchedEffect(selectedCategory, filteredCustomerPlans.size, showAllCapabilities, contactOptions.size) {
+            if (selectedCategory != "all" && selectedCategory != "credits" && filteredCustomerPlans.isNotEmpty()) {
+                kotlinx.coroutines.delay(80)
+                val trailingItems = 1 +
+                    (if (showAllCapabilities) 2 + NativeFeatureRegistry.core.size + NativeFeatureRegistry.advanced.size else 0) +
+                    (if (contactOptions.isNotEmpty()) 1 + contactOptions.size else 0)
+                val target = catalogCategoryHeaderIndex(
+                    listState.layoutInfo.totalItemsCount,
+                    trailingItems,
+                    filteredCustomerPlans.size
+                )
+                listState.animateScrollToItem(target)
             }
         }
         when{
@@ -330,7 +347,12 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                 FilterChip(selected=selectedCategory=="all", onClick={selectedCategory="all"}, label={Text("All")})
                             }
                             items(categorySpecs, key={it.first}) { category ->
-                                FilterChip(selected=selectedCategory==category.first, onClick={selectedCategory=category.first}, colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Color(0xFF1565C0), selectedLabelColor=Color.White), label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)})
+                                FilterChip(
+                                    selected=selectedCategory==category.first,
+                                    onClick={ planSearch = ""; selectedCategory = category.first },
+                                    colors=FilterChipDefaults.filterChipColors(selectedContainerColor=Color(0xFF1565C0), selectedLabelColor=Color.White),
+                                    label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)}
+                                )
                             }
                         }
                     }
