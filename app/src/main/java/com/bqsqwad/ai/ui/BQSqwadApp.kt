@@ -1667,6 +1667,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             if (spoken.isNotBlank()) {
                 message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
                 micError = null
+                dictationError = null
+                dictationNeedsCredits = false
             } else {
                 micError = "No speech was detected. Try again."
             }
@@ -1702,6 +1704,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     if (spoken.isNotBlank()) {
                         message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
                         micError = null
+                        dictationError = null
+                        dictationNeedsCredits = false
                     } else micError = "No speech was detected. Try again."
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
@@ -1786,6 +1790,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 dictationError = reason
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
                 if (!dictationNeedsCredits) {
+                    dictationError = null
                     micError = "Server transcription failed; trying your phone's speech service."
                     startSpeechRecognition()
                 }
@@ -1817,6 +1822,26 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             val recorder = dictationRecorder
             if (recorder != null) Thread { runCatching { recorder.cancel() } }.start()
         }
+    }
+    val dictationBackgroundCallback = remember(context) {
+        object : android.content.ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) {
+                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && dictationRecording) {
+                    val recorder = dictationRecorder
+                    dictationRecording = false
+                    dictationTranscribing = false
+                    dictationLevel = 0f
+                    dictationRecorder = null
+                    if (recorder != null) Thread { runCatching { recorder.cancel() } }.start()
+                }
+            }
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
+            override fun onLowMemory() = Unit
+        }
+    }
+    DisposableEffect(context, dictationBackgroundCallback) {
+        context.registerComponentCallbacks(dictationBackgroundCallback)
+        onDispose { context.unregisterComponentCallbacks(dictationBackgroundCallback) }
     }
 
     val speechPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
