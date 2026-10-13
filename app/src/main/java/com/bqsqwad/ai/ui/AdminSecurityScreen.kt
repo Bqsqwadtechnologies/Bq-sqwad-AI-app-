@@ -76,6 +76,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var biometricConfigured by remember { mutableStateOf(false) }
+    var passwordConfigured by remember { mutableStateOf(false) }
+    var totpConfigured by remember { mutableStateOf(false) }
     var sessionRemainingSeconds by remember { mutableIntStateOf(0) }
     var sessionExpiry by remember { mutableStateOf<String?>(null) }
 
@@ -93,6 +95,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
         runCatching { client.status() }
             .onSuccess {
                 biometricConfigured = it.biometricConfigured
+                passwordConfigured = it.passwordConfigured
+                totpConfigured = it.totpConfigured
                 status = "Password: " + (if (it.passwordConfigured) "configured" else "not configured") +
                     " • Authenticator: " + (if (it.totpConfigured) "configured" else "not configured") +
                     " • Fingerprint: " + (if (it.biometricConfigured) "configured" else "not configured") +
@@ -285,7 +289,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
-                    enabled = !busy && password.isNotEmpty(),
+                    enabled = !busy && (!passwordConfigured || password.isNotEmpty()) && (!totpConfigured || code.length == 6) && (password.isNotEmpty() || code.length == 6),
                     onClick = { run({ client.unlock(password, code); val session = client.sessionStatus(); sessionRemainingSeconds = session.optInt("expiresInSeconds", 1800); sessionExpiry = session.optString("expiresAt").takeIf { it.isNotBlank() } }, "Admin session unlocked.") }
                 ) { Text("Unlock") }
             }
