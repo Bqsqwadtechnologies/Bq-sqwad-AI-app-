@@ -1,5 +1,5 @@
 import { firestoreGet, firestoreCreate } from "./firebase.js";
-function validateGeneratedImageBase64(encoded) {
+export function validateGeneratedImageBase64(encoded) {
   const value = String(encoded || "");
   if (!value || value.length > 28 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
     throw Object.assign(new Error("image_generation_invalid_image_data"), { safeError: "image_generation_invalid_image_data" });
