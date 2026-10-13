@@ -1630,7 +1630,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         busy = false
         messages.clear()
         attachments = emptyList()
-        selectedAttachments = emptyList()
         selectedImageBase64 = null
         selectedImagePrompt = ""
         selectedImageMessageId = null
