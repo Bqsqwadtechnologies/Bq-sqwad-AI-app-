@@ -456,7 +456,7 @@ async function openai(body, stream = false) {
 function outputText(result) {
   return result.output_text || result.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
 }
-function normalizeLivePricing(input = {}, existing = {}, feature = "live_voice") {
+export function normalizeLivePricing(input = {}, existing = {}, feature = "live_voice") {
   const source = input && typeof input === "object" ? input : {};
   const previous = existing && typeof existing === "object" ? existing : {};
   const number = (key, fallback, maximum) => {
@@ -480,6 +480,21 @@ function normalizeLivePricing(input = {}, existing = {}, feature = "live_voice")
     transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "gpt-4o-mini-transcribe").trim().slice(0, 100)
   };
 }
+export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = false) {
+  const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
+  const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
+  const minimum = Math.max(0, Number(pricing.minimumBalanceToStart ?? rate));
+  const free = rate === 0 && startFee === 0;
+  if (superAdmin || free) return { allowed: true, free, requiredBalance: 0, startFeeCredits: 0 };
+  const available = Number(balance);
+  return {
+    allowed: Number.isFinite(available) && available >= minimum,
+    free: false,
+    requiredBalance: minimum,
+    startFeeCredits: startFee
+  };
+}
+
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
@@ -1791,13 +1806,20 @@ export default {
          }
          const requestedRate = Math.max(0, Number(conf.creditsPerMinute || 0));
          const startFee = Math.max(0, Number(conf.startFeeCredits || 0));
-         if (!organization && !isSuperAdmin(u, env) && (requestedRate > 0 || startFee > 0)) {
+         const superAdmin = isSuperAdmin(u, env);
+         let initialBalance = 0;
+         if (!organization && !superAdmin && (requestedRate > 0 || startFee > 0)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(u.uid));
-           const minimum = Math.max(0, Number(conf.minimumBalanceToStart ?? requestedRate));
-           if (!balance || balance.total < minimum) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+           initialBalance = Number(balance?.total || 0);
+         }
+         const startPolicy = liveStartChargePolicy(conf, initialBalance, superAdmin);
+         if (!organization && !startPolicy.allowed) {
+           throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
          }
          let reservation = null;
-         if (!organization && startFee > 0) reservation = await chargeCredits(u.uid, startFee, capabilityName, u);
+         if (!organization && !superAdmin && startPolicy.startFeeCredits > 0) {
+           reservation = await chargeCredits(u.uid, startPolicy.startFeeCredits, capabilityName, u);
+         }
          try {
            let model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
            const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();

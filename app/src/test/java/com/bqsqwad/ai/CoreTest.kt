@@ -13,9 +13,12 @@ import com.bqsqwad.ai.core.ApiError
 import com.bqsqwad.ai.core.apiErrorFrom
 import com.bqsqwad.ai.core.withRetry
 import com.bqsqwad.ai.core.parseGeneratedImage
+import com.bqsqwad.ai.core.selectCameraIdForFacing
 import com.bqsqwad.ai.ui.MdBlock
 import com.bqsqwad.ai.ui.parseBlocks
 import com.bqsqwad.ai.ui.isImageGenerationRequest
+import com.bqsqwad.ai.ui.sanitizeWebAnswer
+import com.bqsqwad.ai.ui.orderCanonicalCreditPackIds
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +27,29 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun webAnswerHidesBareAndMarkdownUrlsButKeepsReadableWordsAndCitations() {
+        val answer = sanitizeWebAnswer("The report says [1]. Read [the source](https://example.com/report) or visit https://example.org/page for details.")
+        assertTrue(answer.contains("[1]"))
+        assertTrue(answer.contains("the source"))
+        assertTrue(answer.contains("for details"))
+        assertFalse(answer.contains("https://"))
+    }
+
+    @Test fun catalogCreditPacksUseCanonicalOrderAndExcludeUnknownIds() {
+        assertEquals(
+            listOf("credit100", "credit250", "credit500", "credit1000"),
+            orderCanonicalCreditPackIds(listOf("credit1000", "other", "credit500", "credit100", "credit250"))
+        )
+    }
+
+    @Test fun cameraSelectionTriesRequestedLensThenOtherThenFirstAvailable() {
+        val facings = mapOf("logical" to 2, "front" to 0, "back" to 1)
+        assertEquals("back" to 1, selectCameraIdForFacing(listOf("logical", "front", "back"), 1) { facings[it] })
+        assertEquals("front" to 0, selectCameraIdForFacing(listOf("logical", "front"), 1) { facings[it] })
+        assertEquals("logical" to 2, selectCameraIdForFacing(listOf("logical"), 1) { facings[it] })
+        assertEquals(null, selectCameraIdForFacing(emptyList(), 1) { facings[it] })
+    }
+
     @Test fun imageGenerationRequestsAreDetectedWithoutModeChips() {
         assertTrue(isImageGenerationRequest("Generate a picture of a blue whale"))
         assertTrue(isImageGenerationRequest("Please create an image of a cozy reading room"))
@@ -217,3 +243,4 @@ class CoreTest {
         assertTrue(authorizedAdminTestMode.hasVerifiedAccess(Workspace.BUSINESS))
     }
 }
+

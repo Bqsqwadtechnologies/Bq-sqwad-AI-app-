@@ -53,6 +53,11 @@ private fun livePriceLabel(price: JSONObject): String {
     }
 }
 
+internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
+    val available = ids.toSet()
+    return listOf("credit100", "credit250", "credit500", "credit1000").filter { it in available }
+}
+
 private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
 
 @Composable
@@ -199,7 +204,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             (!module.contains("addon") || module in setOf("business-addon", "learning-exam-addon")) &&
             !module.contains("capability")
     }
-    val creditPackOrder = listOf("credit100", "credit250", "credit500", "credit1000")
+    val creditPackOrder = orderCanonicalCreditPackIds(customerPlanModules.map { it.id })
     val creditPacks = customerPlanModules.filter { it.id in creditPackOrder }
         .sortedBy { creditPackOrder.indexOf(it.id) }
     val nonCreditCustomerPlans = customerPlanModules.filter { it.module.lowercase(java.util.Locale.ROOT) != "credits" }

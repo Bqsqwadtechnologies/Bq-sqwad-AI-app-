@@ -23,6 +23,22 @@ import androidx.core.content.ContextCompat
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
+internal fun selectCameraIdForFacing(
+    cameraIds: List<String>,
+    requestedFacing: Int,
+    facingForId: (String) -> Int?
+): Pair<String, Int?>? {
+    if (cameraIds.isEmpty()) return null
+    val requested = cameraIds.firstOrNull { facingForId(it) == requestedFacing }
+    val otherFacing = if (requestedFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+        CameraCharacteristics.LENS_FACING_BACK
+    } else {
+        CameraCharacteristics.LENS_FACING_FRONT
+    }
+    val selected = requested ?: cameraIds.firstOrNull { facingForId(it) == otherFacing } ?: cameraIds.first()
+    return selected to facingForId(selected)
+}
+
 /**
  * Native camera preview used by AI Live Camera.
  *
@@ -166,20 +182,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         if (closed.get() || camera != null) return
 
         val selection = runCatching {
-            val ids = cameraManager.cameraIdList
-            val requested = ids.firstOrNull { value ->
-                cameraManager.getCameraCharacteristics(value).get(CameraCharacteristics.LENS_FACING) == facing
-            }
-            val otherFacing = if (facing == CameraCharacteristics.LENS_FACING_FRONT) {
-                CameraCharacteristics.LENS_FACING_BACK
-            } else {
-                CameraCharacteristics.LENS_FACING_FRONT
-            }
-            val fallback = requested ?: ids.firstOrNull { value ->
-                cameraManager.getCameraCharacteristics(value).get(CameraCharacteristics.LENS_FACING) == otherFacing
-            } ?: ids.firstOrNull()
-            fallback?.let { id ->
-                id to cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
+            selectCameraIdForFacing(cameraManager.cameraIdList.toList(), facing) { id ->
+                cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
             }
         }.getOrNull()
         val id = selection?.first

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { isPublicCatalogPlan, isRootSuperAdmin } from "../src/index.js";
+import worker, { isPublicCatalogPlan, isRootSuperAdmin, normalizeLivePricing, liveStartChargePolicy } from "../src/index.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "../src/plan-catalog-native.js";
 import { playCatalog } from "../src/google-play.js";
 
@@ -173,4 +173,29 @@ test("admin plan catalog drives Play mappings for custom eligible plans", async 
   assert.ok(result.products.some(item =>
     item.planId === "custommonthly" && item.productId === "custommonthly" && item.basePlanId === "monthly"
   ));
+});
+
+
+test("live pricing defaults to free and validates paid rates and minimum balance", () => {
+  const free = normalizeLivePricing({}, {}, "live_voice_pricing");
+  assert.equal(free.creditsPerMinute, 0);
+  assert.equal(free.startFeeCredits, 0);
+  assert.equal(free.minimumBalanceToStart, 0);
+  const paid = normalizeLivePricing({ creditsPerMinute: 1.5, startFeeCredits: 2, minimumBalanceToStart: 4 }, {}, "live_voice_pricing");
+  assert.equal(paid.creditsPerMinute, 1.5);
+  assert.equal(paid.startFeeCredits, 2);
+  assert.equal(paid.minimumBalanceToStart, 4);
+  assert.throws(() => normalizeLivePricing({ creditsPerMinute: -1 }, {}, "live_voice_pricing"), /invalid_live_pricing_creditsPerMinute/);
+});
+
+test("live start policy permits free sessions, checks paid minimums, and exempts super-admin", () => {
+  assert.deepEqual(liveStartChargePolicy({ creditsPerMinute: 0, startFeeCredits: 0, minimumBalanceToStart: 0 }, 0, false), {
+    allowed: true, free: true, requiredBalance: 0, startFeeCredits: 0
+  });
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 1, startFeeCredits: 0, minimumBalanceToStart: 3 }, 2, false).allowed, false);
+  assert.deepEqual(liveStartChargePolicy({ creditsPerMinute: 1, startFeeCredits: 0, minimumBalanceToStart: 3 }, 3, false), {
+    allowed: true, free: false, requiredBalance: 3, startFeeCredits: 0
+  });
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 5, startFeeCredits: 2, minimumBalanceToStart: 10 }, 0, true).allowed, true);
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 5, startFeeCredits: 2, minimumBalanceToStart: 10 }, 0, true).startFeeCredits, 0);
 });
