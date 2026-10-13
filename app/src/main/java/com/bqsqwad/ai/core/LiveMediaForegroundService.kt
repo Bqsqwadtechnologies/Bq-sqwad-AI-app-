@@ -55,7 +55,6 @@ class LiveMediaForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val analyzing = AtomicBoolean(false)
-    private var cameraSession: LiveCameraCaptureSession? = null
     private var screenSession: ScreenCaptureSession? = null
     private var mode = ""
     private var prompt = "Describe what is visible."
@@ -285,7 +284,7 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun startCamera() {
-        if (organizationStreamer != null || cameraSession != null) return
+        if (organizationStreamer != null) return
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             writeError("Camera permission is required.")
             stopSelf()
@@ -532,8 +531,6 @@ class LiveMediaForegroundService : Service() {
         realtimeVoice = null
         visualVoice?.stop()
         visualVoice = null
-        cameraSession?.stop()
-        cameraSession = null
         // Always release MediaProjection/VirtualDisplay/ImageReader when the foreground
         // service stops, including notification Stop, permission revocation, and errors.
         screenSession?.stop()
