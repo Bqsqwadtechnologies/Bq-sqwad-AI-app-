@@ -144,6 +144,7 @@ private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsum
 
 @Composable
 private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
+    val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -188,14 +189,30 @@ private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
         ) { Text("Resend verification email") }
-        TextButton(onClick = { auth.signOut() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+        TextButton(onClick = { performSignOut(context) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
         notice?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 
-private fun authSignOutForConsent() {
-    FirebaseAuth.getInstance().signOut()
+private fun performSignOut(context: Context, onReset: () -> Unit = {}) {
+    val auth = FirebaseAuth.getInstance()
+    runCatching { context.stopService(Intent(context, com.bqsqwad.ai.core.LiveMediaForegroundService::class.java)) }
+    // Keep only device-level appearance preferences. Account settings and consent are cleared.
+    val uiPrefs = context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
+    val deviceKeys = setOf("theme_mode", "accent_palette")
+    uiPrefs.edit().apply {
+        uiPrefs.all.keys.filterNot { it in deviceKeys }.forEach { remove(it) }
+    }.apply()
+    context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE).edit().clear().apply()
+    context.getSharedPreferences("bq_live_consent", Context.MODE_PRIVATE).edit().clear().apply()
+    context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit().clear().apply()
+    auth.signOut()
+    onReset()
+}
+
+private fun authSignOutForConsent(context: Context) {
+    performSignOut(context)
 }
 
 @Composable
@@ -286,7 +303,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
             ) {
                 OutlinedButton(
                     onClick = {
-                        authSignOutForConsent()
+                        authSignOutForConsent(context)
                     },
                     enabled = !saving,
                     modifier = Modifier.weight(1f)
@@ -775,6 +792,39 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var consentRequired by remember { mutableStateOf(false) }
     var consentLoading by remember { mutableStateOf(false) }
 
+    fun resetShellAfterSignOut() {
+        workspace = null
+        drawerOpen = false
+        plans = false
+        settings = false
+        brandingSettings = false
+        accountProtection = false
+        legalCenter = false
+        history = false
+        restoredChat = null
+        featureInfo = null
+        featurePrivacy = null
+        featureHub = false
+        featureSettings = null
+        advancedFeature = null
+        adminAuthorized = false
+        workspaceAccess = WorkspaceAccessSnapshot.empty()
+        accessLoading = false
+        paywallWorkspace = null
+        signInRequired = true
+        signUpRequired = false
+        appLayoutOrder = emptyList()
+        appLayoutEnabled = emptyMap()
+        consentRequired = false
+        consentLoading = false
+        notificationsEnabled = true
+        notificationStatus = null
+    }
+
+    fun signOutFromShell() {
+        performSignOut(context) { resetShellAfterSignOut() }
+    }
+
     LaunchedEffect(email) {
         if (email.isBlank()) {
             adminAuthorized = false
@@ -1019,6 +1069,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             legalCenter -> LegalCenterScreen { legalCenter = false }
             settings -> SettingsScreen(
                 onBack = { settings = false },
+                onSignOut = { signOutFromShell() },
                 onOpenAccountProtection = { accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
                 onOpenBranding = { brandingSettings = true },
@@ -1054,7 +1105,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
             }
-            else -> MainChatScreen(
+            else -> key(firebaseUser?.uid) { MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
                 openHub = { drawerOpen = true },
                 openFeatures = { featureHub = true },
@@ -1068,7 +1119,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onRestoredChatConsumed = { restoredChat = null },
                 sharedText = sharedText,
                 onSharedTextConsumed = onSharedTextConsumed
-            )
+            ) }
         }
     }
 
@@ -4954,7 +5005,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -5118,10 +5169,7 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
             item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
             item {
                 OutlinedButton(
-                    onClick = {
-                        FirebaseAuth.getInstance().signOut()
-                        onBack()
-                    },
+                    onClick = { onSignOut() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Logout, contentDescription = null)
@@ -5339,9 +5387,8 @@ private fun SettingsScreen(onBack: () -> Unit, onOpenAccountProtection: () -> Un
                             .onSuccess { result ->
                                 val deadline = result.optString("scheduledDeletionAt").ifBlank { "in 30 days" }
                                 android.widget.Toast.makeText(context, "Account deletion scheduled for $deadline. Sign back in before then to cancel.", android.widget.Toast.LENGTH_LONG).show()
-                                FirebaseAuth.getInstance().signOut()
                                 showDeleteAccount = false
-                                onBack()
+                                onSignOut()
                             }
                             .onFailure { deleteError = it.message ?: "Account deletion failed." }
                         deletingAccount = false
