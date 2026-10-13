@@ -5055,33 +5055,34 @@ fun DeviceIntelligencePanel(featureName: String) {
 @Composable
 private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { accountPreferences(context) }
+    val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val prefs = remember(uid) { accountPreferences(context) }
     val devicePrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
 
-    var themeMode by remember { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
-    var accent by remember { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
-    var trainingConsent by remember { mutableStateOf(prefs.getBoolean("training_consent", false)) }
-    var chatHistory by remember { mutableStateOf(prefs.getBoolean("chat_history", true)) }
-    var autoSave by remember { mutableStateOf(prefs.getBoolean("auto_save", true)) }
-    var memory by remember { mutableStateOf(prefs.getBoolean("memory_enabled", true)) }
-    var webSearch by remember { mutableStateOf(prefs.getBoolean("web_search_enabled", true)) }
-    var voiceReplies by remember { mutableStateOf(prefs.getBoolean("voice_replies", true)) }
-    var cameraEnhance by remember { mutableStateOf(prefs.getBoolean("camera_enhance", true)) }
-    var companionMemory by remember { mutableStateOf(prefs.getBoolean("companion_memory", true)) }
-    var truthGuardSources by remember { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
-    var notifications by remember { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
+    var themeMode by remember(uid) { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
+    var accent by remember(uid) { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
+    var trainingConsent by remember(uid) { mutableStateOf(prefs.getBoolean("training_consent", false)) }
+    var chatHistory by remember(uid) { mutableStateOf(prefs.getBoolean("chat_history", true)) }
+    var autoSave by remember(uid) { mutableStateOf(prefs.getBoolean("auto_save", true)) }
+    var memory by remember(uid) { mutableStateOf(prefs.getBoolean("memory_enabled", true)) }
+    var webSearch by remember(uid) { mutableStateOf(prefs.getBoolean("web_search_enabled", true)) }
+    var voiceReplies by remember(uid) { mutableStateOf(prefs.getBoolean("voice_replies", true)) }
+    var cameraEnhance by remember(uid) { mutableStateOf(prefs.getBoolean("camera_enhance", true)) }
+    var companionMemory by remember(uid) { mutableStateOf(prefs.getBoolean("companion_memory", true)) }
+    var truthGuardSources by remember(uid) { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
+    var notifications by remember(uid) { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
-    var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
+    var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
     var consentStatus by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
-    var entitlements by remember { mutableStateOf(emptyList<JSONObject>()) }
-    var loadingAccount by remember { mutableStateOf(true) }
-    var showDeleteAccount by remember { mutableStateOf(false) }
-    var deletingAccount by remember { mutableStateOf(false) }
+    var entitlements by remember(uid) { mutableStateOf(emptyList<JSONObject>()) }
+    var loadingAccount by remember(uid) { mutableStateOf(true) }
+    var showDeleteAccount by remember(uid) { mutableStateOf(false) }
+    var deletingAccount by remember(uid) { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
     var scheduledDeletionAt by remember { mutableStateOf<String?>(null) }
-    var cancellingDeletion by remember { mutableStateOf(false) }
+    var cancellingDeletion by remember(uid) { mutableStateOf(false) }
     var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
     var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
@@ -5113,7 +5114,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
         (context as? android.app.Activity)?.recreate()
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(uid) {
         loadingAccount = true
         val api = WorkspaceApiClient()
         credits = runCatching { api.credits() }.getOrNull()
