@@ -804,6 +804,7 @@ async function nativeCatalog() {
     features: Array.isArray(data.features) ? data.features.map(String).slice(0, 100) : [],
     limits: data.limits && typeof data.limits === "object" ? data.limits : {},
     price: data.price && typeof data.price === "object" ? data.price : {},
+    priceNgn: data.priceNgn && typeof data.priceNgn === "object" ? data.priceNgn : {},
     trialDays: Number(data.trialDays || 0),
     trialEligible: data.trialEligible === true,
     offerId: data.offerId ? String(data.offerId) : null,
