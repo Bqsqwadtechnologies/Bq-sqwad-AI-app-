@@ -1,6 +1,9 @@
 package com.bqsqwad.ai.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +21,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.bqsqwad.ai.core.SearchSource
 import com.bqsqwad.ai.core.copyToClipboard
 
 internal sealed interface MdBlock {
@@ -105,14 +109,35 @@ internal fun parseBlocks(src: String): List<MdBlock> {
     return grouped
 }
 
-private val INLINE = Regex("""(\*\*[^*]+\*\*|(?<!\*)\*[^*]+\*(?!\*)|`[^`]+`)""")
+private val INLINE = Regex("""(\*\*[^*]+\*\*|(?<!\*)\*[^*]+\*(?!\*)|`[^`]+`|\[(\d{1,2})])""")
 
-private fun inline(s: String): AnnotatedString = buildAnnotatedString {
+internal fun sanitizeWebAnswer(raw: String): String {
+    return raw
+        .replace(Regex("""\[([^\]]+)]\((https?://[^)\s]+)\)""", RegexOption.IGNORE_CASE), "$1")
+        .replace(Regex("""(?im)^\s*(?:URL|LINK)\s*:\s*https?://\S+\s*$"""), "")
+        .replace(Regex("""https?://[^\s<>()]+""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\[[^\]]+]\([^)]*$"""), "")
+        .replace(Regex("""[ \t]{2,}"""), " ")
+        .replace(Regex("""\n{3,}"""), "\n\n")
+        .trim()
+}
+
+private fun inline(s: String, sources: List<SearchSource>): AnnotatedString = buildAnnotatedString {
     var last = 0
     INLINE.findAll(s).forEach { match ->
         append(s.substring(last, match.range.first))
         val token = match.value
-        when {
+        val citationIndex = match.groupValues.getOrNull(2)?.toIntOrNull()
+        if (token.startsWith("[") && token.endsWith("]") && citationIndex != null) {
+            val url = sources.getOrNull(citationIndex - 1)?.url
+            if (!url.isNullOrBlank() && Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
+                pushStringAnnotation("source_url", url)
+                withStyle(SpanStyle(color = Color(0xFF246BFD), background = Color(0x22246BFD), fontWeight = FontWeight.SemiBold)) { append(token) }
+                pop()
+            } else {
+                withStyle(SpanStyle(color = Color(0xFF246BFD), fontWeight = FontWeight.SemiBold)) { append(token) }
+            }
+        } else when {
             token.startsWith("**") -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
                 append(token.removeSurrounding("**"))
             }
@@ -131,31 +156,56 @@ private fun inline(s: String): AnnotatedString = buildAnnotatedString {
 }
 
 @Composable
-fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface) {
+private fun InlineMarkdownText(
+    text: String,
+    sources: List<SearchSource>,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
+    fontWeight: FontWeight? = null
+) {
+    val context = LocalContext.current
+    val annotated = remember(text, sources, color, style, fontWeight) { inline(text, sources) }
+    ClickableText(
+        text = annotated,
+        modifier = modifier,
+        style = style.copy(color = color, fontWeight = fontWeight ?: style.fontWeight),
+        onClick = { offset ->
+            annotated.getStringAnnotations("source_url", offset, offset).firstOrNull()?.item?.let { url ->
+                if (Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun MarkdownText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    sources: List<SearchSource> = emptyList()
+) {
     val blocks = remember(text) { parseBlocks(text) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Code -> CodeBlock(block.code, block.lang)
-                is MdBlock.Heading -> Text(
-                    inline(block.text),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = color
-                )
+                is MdBlock.Heading -> InlineMarkdownText(block.text, sources, style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.SemiBold)
                 is MdBlock.Bullet -> Row(verticalAlignment = Alignment.Top) {
                     Text("•  ", color = color)
-                    Text(inline(block.text), color = color)
+                    InlineMarkdownText(block.text, sources, color = color)
                 }
                 is MdBlock.BulletList -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     block.items.forEach { item ->
                         Row(verticalAlignment = Alignment.Top) {
                             Text("•  ", color = color)
-                            Text(inline(item), color = color)
+                            InlineMarkdownText(item, sources, color = color)
                         }
                     }
                 }
-                is MdBlock.Numbered -> Row(verticalAlignment = Alignment.Top) { Text("1.  ", color = color); Text(inline(block.text), color = color) }
+                is MdBlock.Numbered -> Row(verticalAlignment = Alignment.Top) { Text("1.  ", color = color); InlineMarkdownText(block.text, sources, color = color) }
                 is MdBlock.NumberedList -> Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     block.items.forEachIndexed { index, item ->
                         Row(verticalAlignment = Alignment.Top) {
@@ -169,10 +219,10 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Mat
                     shape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
-                    Text(inline(block.text), color = color, modifier = Modifier.padding(10.dp))
+                    InlineMarkdownText(block.text, sources, color = color, modifier = Modifier.padding(10.dp))
                 }
                 MdBlock.Divider -> HorizontalDivider()
-                is MdBlock.Para -> Text(inline(block.text), color = color)
+                is MdBlock.Para -> InlineMarkdownText(block.text, sources, color = color)
             }
         }
     }
