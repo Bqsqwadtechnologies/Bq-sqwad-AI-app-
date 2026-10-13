@@ -30,7 +30,7 @@ function normalizeScopeWorkspace(value) {
   return aliases[key] || null;
 }
 
-function classifyWorkspaceScope(workspace, prompt) {
+export function classifyWorkspaceScope(workspace, prompt) {
   const key = normalizeScopeWorkspace(workspace);
   if (!key) return { inScope: true };
   const text = clean(prompt, 4000).toLowerCase();
@@ -75,7 +75,9 @@ function classifyWorkspaceScope(workspace, prompt) {
       break;
   }
   if (inScope) return { inScope: true };
-  const [destination, destinationName] = taskRedirect();
+  // Learning intentionally redirects unrelated requests to Main Chat, including news,
+  // writing and general conversation, rather than acting as a general chatbot.
+  const [destination, destinationName] = key === "learning" ? ["CHAT", "Main Chat"] : taskRedirect();
   return {
     inScope: false,
     redirect: {

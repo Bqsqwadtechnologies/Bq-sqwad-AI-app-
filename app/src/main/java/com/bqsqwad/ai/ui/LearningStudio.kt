@@ -26,7 +26,7 @@ private data class LearningPlanUi(
 )
 
 @Composable
-fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
+fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var plans by remember { mutableStateOf<List<LearningPlanUi>>(emptyList()) }
     var activePlanId by remember { mutableStateOf("explorer") }
@@ -35,6 +35,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
     var goal by remember { mutableStateOf("") }
     var feature by remember { mutableStateOf<String?>(null) }
     var answer by remember { mutableStateOf<String?>(null) }
+    var workspaceRedirect by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var lessonsCompleted by remember { mutableStateOf(0) }
@@ -97,11 +98,19 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
         busy = true
         error = null
         answer = null
+        workspaceRedirect = null
         scope.launch {
             runCatching {
                 WorkspaceApiClient().learningSession(mode, subject, input, feature)
-            }.onSuccess {
-                answer = it.optString("text").ifBlank { it.optString("answer") }
+            }.onSuccess { response ->
+                val redirect = response.optJSONObject("redirect")
+                if (redirect != null) {
+                    workspaceRedirect = redirect
+                    answer = null
+                } else {
+                    workspaceRedirect = null
+                    answer = response.optString("text").ifBlank { response.optString("answer") }
+                }
                 refreshKey++
             }.onFailure {
                 error = when {
@@ -221,6 +230,31 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}) {
         }
 
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+        workspaceRedirect?.let { redirect ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(redirect.optString("message").ifBlank { "This request belongs in Main Chat." }, fontWeight = FontWeight.Medium)
+                    Button(
+                        onClick = onOpenMainChat,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Open Main Chat")
+                    }
+                }
+            }
+        }
 
         answer?.let {
             Surface(

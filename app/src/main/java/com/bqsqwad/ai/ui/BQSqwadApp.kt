@@ -1117,7 +1117,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         onSettings = { featureSettings = workspace!! },
                         onOpenAppSettings = { settings = true },
                         onOpenPlans = { plansInitialSection = "all"; plans = true },
-                        onOpenCredits = { plansInitialSection = "credits"; plans = true }
+                        onOpenCredits = { plansInitialSection = "credits"; plans = true },
+                        onOpenMainChat = { workspace = null }
                     )
                 }
             }
@@ -3619,7 +3620,8 @@ private fun WorkspaceScreen(
     onSettings: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenPlans: () -> Unit,
-    onOpenCredits: () -> Unit = onOpenPlans
+    onOpenCredits: () -> Unit = onOpenPlans,
+    onOpenMainChat: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -3676,7 +3678,7 @@ private fun WorkspaceScreen(
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
-                Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans)
+                Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans, onOpenMainChat = onOpenMainChat)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
