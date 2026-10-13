@@ -79,6 +79,7 @@ class ChatApiClient(
             }
             body.optJSONObject("redirect")?.let { redirect ->
                 WorkspaceRedirectStore.publish(redirect)
+                connection.disconnect()
                 throw WorkspaceRedirectException()
             }
             val text = body.optString("text").trim()
