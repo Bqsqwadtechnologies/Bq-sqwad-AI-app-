@@ -32,7 +32,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
-private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false,val sortOrder:Int = 0)
+private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val priceNgn:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false,val sortOrder:Int = 0)
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
@@ -168,7 +168,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             status = if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
                 "Browse the BQ Sqwad AI plans freely. Sign in before purchasing so checkout and access can be verified securely."
             } else {
-                "Your BQ Sqwad AI plans are shown above, but Google Play checkout is not ready on this device yet. Refresh the catalog and try again shortly."
+                "Your BQ Sqwad AI plans are shown above, but Google Pay checkout is not ready on this device yet. Refresh the catalog and try again shortly."
             }
         }
     }
@@ -216,12 +216,12 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             loading->ProductLoading(Modifier.padding(padding))
             error!=null->ProductError(Modifier.padding(padding),::load)
             else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
-                if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Play.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(plans.isNotEmpty())Text("${plans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Pay.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(plans.isNotEmpty())Text("${plans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
-                        "No active plans are available right now. Please refresh this screen or try again later. Google Play offers are configured separately from the BQ Sqwad AI catalog."
+                        "No active plans are available right now. Please refresh this screen or try again later. Google Pay offers are configured separately from the BQ Sqwad AI catalog."
                     )
                 }
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -230,7 +230,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                     OutlinedButton(
                         onClick = {
                             billing?.restorePurchases()
-                            status = "Checking your Google Play purchases and restoring verified access…"
+                            status = "Checking your Google Pay purchases and restoring verified access…"
                         },
                         enabled = billing?.isReady() == true,
                         modifier = Modifier.fillMaxWidth()
@@ -295,9 +295,9 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             modifier=Modifier.fillMaxWidth()
                         ) {
                             Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Text("Google Play subscription", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                Text("Google Pay subscription", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
                                 Text(
-                                    if (autoRenew) "Auto-renewal is ON. Google Play will renew this subscription unless you turn it off there."
+                                    if (autoRenew) "Auto-renewal is ON. Google Pay will renew this subscription unless you turn it off there."
                                     else "Auto-renewal is OFF. Access remains available until the current paid period ends.",
                                     color=if (autoRenew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                                     fontWeight=FontWeight.SemiBold
@@ -593,9 +593,9 @@ private fun LivePlanCard(
         isFreePlan || isContactSales || canPurchase -> null
         plan.paymentChannel == "website" -> "This plan is only purchasable through the website, not inside this Android app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
-        selectedEntry == null -> "No active Google Play product and billing period are mapped to this plan, so checkout is unavailable."
-        selectedProduct == null -> "Google Play did not return the mapped product for this device or account. Refresh the catalog before purchasing."
-        billing?.isReady() != true -> "Google Play Billing is still connecting. Refresh the catalog and try again."
+        selectedEntry == null -> "No active BQ Sqwad AI purchase option is mapped to this plan, so Google Pay checkout is unavailable."
+        selectedProduct == null -> "Google Pay did not return the mapped purchase option for this device or account. Refresh the catalog before purchasing."
+        billing?.isReady() != true -> "Google Pay checkout is still connecting. Refresh the catalog and try again."
         else -> "This plan cannot be purchased in the app right now."
     }
     val moduleLabel = when (plan.module) {
@@ -621,10 +621,12 @@ private fun LivePlanCard(
             else -> null
         }
     }
+    // Never relabel the fallback USD catalog amounts as Naira. Use Play's localized
+    // formatted price first, then an explicitly configured priceNgn value from the server.
     val displayPrices = if (plan.playEligible && supportedPeriods.isNotEmpty()) {
-        plan.price.entries.filter { it.key in supportedPeriods }
+        plan.priceNgn.entries.filter { it.key in supportedPeriods }
     } else {
-        plan.price.entries
+        plan.priceNgn.entries
     }
     val priceText = when {
         isContactSales -> "Contact Sales"
@@ -634,7 +636,9 @@ private fun LivePlanCard(
         plan.playEligible && !storePriceText.isNullOrBlank() -> storePriceText
         else -> displayPrices.joinToString(" • ") { (period, value) ->
             val numeric = value.toDoubleOrNull()
-            val shown = numeric?.let { String.format(java.util.Locale.US, "$%.2f", it) } ?: value
+            val shown = numeric?.let { String.format(java.util.Locale.US, "₦%,.2f", it) }
+                ?: value.takeIf { it.contains("₦") }
+                ?: "Price not configured"
             period.replaceFirstChar { it.uppercase() } + ": " + shown
         }.ifBlank { "Price not configured" }
     }
@@ -848,6 +852,12 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             limits,
             run {
                 val priceObject=p.optJSONObject("price") ?: JSONObject()
+                val values=mutableMapOf<String,String>()
+                priceObject.keys().forEach { key -> values[key]=priceObject.optString(key) }
+                values
+            },
+            run {
+                val priceObject=p.optJSONObject("priceNgn") ?: JSONObject()
                 val values=mutableMapOf<String,String>()
                 priceObject.keys().forEach { key -> values[key]=priceObject.optString(key) }
                 values

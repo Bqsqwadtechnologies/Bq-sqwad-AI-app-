@@ -15,6 +15,8 @@ const plan = (module, id, name, options = {}) => ({
   trialDays: options.trialDays ?? 0,
   trialEligible: options.trialEligible ?? false,
   price: options.price ?? {},
+  // Optional admin-configured Naira prices, keyed by billing period. Never derive these from USD.
+  priceNgn: options.priceNgn ?? {},
   playEligiblePeriods: options.playEligiblePeriods ?? null,
   proposalPeriods: options.proposalPeriods ?? [],
   priceStatus: options.priceStatus ?? "approved",
