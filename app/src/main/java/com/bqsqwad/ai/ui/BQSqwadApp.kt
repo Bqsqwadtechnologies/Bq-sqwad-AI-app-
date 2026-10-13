@@ -195,8 +195,19 @@ private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
     }
 }
 
+private fun accountPreferences(context: Context, baseName: String = "bq_sqwad_user"): android.content.SharedPreferences {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+    return context.getSharedPreferences(baseName + "_" + uid, Context.MODE_PRIVATE)
+}
+
 private fun performSignOut(context: Context, onReset: () -> Unit = {}) {
     val auth = FirebaseAuth.getInstance()
+    val uid = auth.currentUser?.uid
+    if (!uid.isNullOrBlank()) {
+        listOf("bq_sqwad_user", "bq_ui", "bq_live_consent", "bq_consent").forEach { base ->
+            context.getSharedPreferences(base + "_" + uid, Context.MODE_PRIVATE).edit().clear().apply()
+        }
+    }
     runCatching { context.stopService(Intent(context, com.bqsqwad.ai.core.LiveMediaForegroundService::class.java)) }
     // Keep only device-level appearance preferences. Account settings and consent are cleared.
     val uiPrefs = context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
@@ -204,9 +215,9 @@ private fun performSignOut(context: Context, onReset: () -> Unit = {}) {
     uiPrefs.edit().apply {
         uiPrefs.all.keys.filterNot { it in deviceKeys }.forEach { remove(it) }
     }.apply()
-    context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE).edit().clear().apply()
+    accountPreferences(context, "bq_ui").edit().clear().apply()
     context.getSharedPreferences("bq_live_consent", Context.MODE_PRIVATE).edit().clear().apply()
-    context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit().clear().apply()
+    accountPreferences(context, "bq_consent").edit().clear().apply()
     auth.signOut()
     onReset()
 }
@@ -321,7 +332,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
                             runCatching { WorkspaceApiClient().saveConsent("2026-09", trainingConsent) }
                                 .onSuccess {
                                     completed = true
-                                    context.getSharedPreferences("bq_consent", Context.MODE_PRIVATE).edit()
+                                    accountPreferences(context, "bq_consent").edit()
                                         .putString("policy_version", "2026-09")
                                         .putLong("required_consent_at", System.currentTimeMillis())
                                         .putBoolean("required_accepted", true)
@@ -780,7 +791,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
-    var notificationsEnabled by remember { mutableStateOf(context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("notifications_enabled", true)) }
+    var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
@@ -1454,8 +1465,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val prefs = remember { accountPreferences(context, "bq_ui") }
+    val settingsPrefs = remember { accountPreferences(context) }
     var chatHistoryEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("chat_history", true)) }
     var autoSaveEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("auto_save", true)) }
     var voiceRepliesEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("voice_replies", true)) }
@@ -1488,6 +1499,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var privateChat by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
     var creditNotice by remember { mutableStateOf<String?>(null) }
+    var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
@@ -1564,11 +1576,19 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
         creditsExhausted = available <= 0.0
+        val renewalTime = snapshot.optString("dailyFreeCreditsRenewalTime", "00:00").ifBlank { "00:00" }
+        val renewalZone = snapshot.optString("dailyFreeCreditsTimeZone", "Africa/Lagos").ifBlank { "Africa/Lagos" }
+        dailyRenewalNotice = "Free credits renew daily at " + (if (renewalTime == "00:00") "12:00 AM" else renewalTime) + " " + renewalZone + " time."
         val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
-        val creditPrefs = context.getSharedPreferences("bq_ui", Context.MODE_PRIVATE)
+        val creditPrefs = accountPreferences(context, "bq_ui")
         val baselineKey = "credit_cycle_baseline_$userKey"
+        val cycleDate = snapshot.optString("dailyFreeCreditsDate").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+        val cycleDateKey = "credit_cycle_date_$userKey"
+        val previousCycleDate = creditPrefs.getString(cycleDateKey, "").orEmpty()
         val previousBaseline = creditPrefs.getFloat(baselineKey, -1f).toDouble()
-        val baseline = if (previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
+        val newCycle = cycleDate.isNotBlank() && cycleDate != previousCycleDate
+        val baseline = if (newCycle || previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
+        creditPrefs.edit().putString(cycleDateKey, cycleDate).apply()
         if (baseline > 0.0) creditPrefs.edit().putFloat(baselineKey, baseline.toFloat()).apply()
         val used = (baseline - available).coerceAtLeast(0.0)
         val usedPercent = if (baseline > 0.0) (used / baseline).coerceIn(0.0, 1.0) else 0.0
@@ -1844,7 +1864,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         error = null
         statusText = "Connecting to BQ Sqwad AI…"
         val shouldSearchWeb = selectedAttachments.isEmpty() && needsCurrentWebSearch(text)
-        val webSearchEnabled = context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
+        val webSearchEnabled = accountPreferences(context)
             .getBoolean("web_search_enabled", true)
         streamJob = scope.launch(Dispatchers.IO) {
             var webSources = emptyList<SearchSource>()
@@ -2074,6 +2094,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request · $" + "%.4f".format(model.optDouble("priceUsd")) + " reference" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
                 }
             }
+            Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             creditNotice?.let { notice ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
@@ -3485,6 +3506,8 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpe
 
 @Composable
 private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val accountPrefs = remember { accountPreferences(context) }
     val scope = rememberCoroutineScope()
     val key = workspace.name.lowercase()
     val defaults = remember(workspace) {
@@ -3508,6 +3531,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
 
     fun saveValue(setting: String, value: Boolean) {
         values = values + (setting to value)
+        accountPrefs.edit().putBoolean("feature_" + key + "_" + setting, value).apply()
         scope.launch {
             saving = true
             runCatching {
@@ -3536,6 +3560,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
                 values = next
             }
         }.onFailure {
+            defaults.keys.forEach { setting -> if (accountPrefs.contains("feature_" + key + "_" + setting)) values = values + (setting to accountPrefs.getBoolean("feature_" + key + "_" + setting, defaults[setting] == true)) }
             error = it.message ?: "Feature settings could not be loaded."
         }
         loading = false
@@ -3623,7 +3648,7 @@ private fun AiTaskWorkspace(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { accountPreferences(context) }
     val webSearchEnabled = remember { settingsPrefs.getBoolean("web_search_enabled", true) }
     var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var prompt by remember { mutableStateOf("") }
@@ -3848,7 +3873,7 @@ private fun DataAnalysisWorkspace() {
 private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { accountPreferences(context) }
     var webSearchEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("web_search_enabled", true)) }
     var query by remember { mutableStateOf("") }
     var deep by remember { mutableStateOf(false) }
@@ -3909,7 +3934,7 @@ private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 fun CameraWorkspace() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val settingsPrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { accountPreferences(context) }
     val cameraEnhanceEnabled = remember { settingsPrefs.getBoolean("camera_enhance", true) }
     val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 1800L else 2800L
     val aiFrameIntervalMs = if (cameraEnhanceEnabled) 1600L else 2600L
@@ -3937,7 +3962,7 @@ fun CameraWorkspace() {
     var streamError by remember { mutableStateOf<String?>(null) }
     var tiktokHandoffNotice by remember { mutableStateOf<String?>(null) }
     var liveTermsAccepted by remember {
-        val consentPrefs = context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE)
+        val consentPrefs = accountPreferences(context, "bq_live_consent")
         mutableStateOf(
             consentPrefs.getBoolean("accepted", false) &&
                 consentPrefs.getString("policyVersion", "") == LIVE_MEDIA_CONSENT_VERSION
@@ -4651,7 +4676,7 @@ fun CameraWorkspace() {
             confirmButton = {
                 TextButton(onClick = {
                     liveTermsAccepted = true
-                    context.getSharedPreferences("bq_live_consent", android.content.Context.MODE_PRIVATE).edit()
+                    accountPreferences(context, "bq_live_consent").edit()
                         .putBoolean("accepted", true)
                         .putString("policyVersion", LIVE_MEDIA_CONSENT_VERSION)
                         .apply()
@@ -5007,11 +5032,12 @@ fun DeviceIntelligencePanel(featureName: String) {
 @Composable
 private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onOpenBranding: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
+    val prefs = remember { accountPreferences(context) }
+    val devicePrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
 
-    var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
-    var accent by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
+    var themeMode by remember { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
+    var accent by remember { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
     var trainingConsent by remember { mutableStateOf(prefs.getBoolean("training_consent", false)) }
     var chatHistory by remember { mutableStateOf(prefs.getBoolean("chat_history", true)) }
     var autoSave by remember { mutableStateOf(prefs.getBoolean("auto_save", true)) }
@@ -5037,15 +5063,30 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
     var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
 
-    fun putBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+    fun putBoolean(key: String, value: Boolean) {
+        prefs.edit().putBoolean(key, value).apply()
+        val serverKey = when (key) {
+            "web_search_enabled" -> "web_search"
+            "memory_enabled" -> "memory"
+            "notifications_enabled" -> "notifications"
+            "chat_history" -> "history"
+            "auto_save" -> "save_files"
+            "voice_replies" -> "voice_responses"
+            else -> key
+        }
+        scope.launch {
+            runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put(serverKey, value)) }
+                .onFailure { settingsNotice = "Saved on this device, but could not sync to your account yet." }
+        }
+    }
     fun saveTheme(value: String) {
         themeMode = value
-        prefs.edit().putString("theme_mode", value).apply()
+        devicePrefs.edit().putString("theme_mode", value).apply()
         (context as? android.app.Activity)?.recreate()
     }
     fun saveAccent(value: String) {
         accent = value
-        prefs.edit().putString("accent_palette", value).apply()
+        devicePrefs.edit().putString("accent_palette", value).apply()
         (context as? android.app.Activity)?.recreate()
     }
 
@@ -5053,6 +5094,22 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
         loadingAccount = true
         val api = WorkspaceApiClient()
         credits = runCatching { api.credits() }.getOrNull()
+        runCatching { api.featureSettings() }.onSuccess { body ->
+            val global = body.optJSONObject("settings")?.optJSONObject("global") ?: return@onSuccess
+            val mapping = mapOf("web_search" to "web_search_enabled", "memory" to "memory_enabled", "notifications" to "notifications_enabled", "history" to "chat_history", "save_files" to "auto_save", "voice_responses" to "voice_replies", "camera_enhance" to "camera_enhance", "companion_memory" to "companion_memory", "truthguard_sources" to "truthguard_sources", "auto_run" to "auto_run", "streaming" to "streaming", "personalization" to "personalization", "background_jobs" to "background_jobs")
+            mapping.forEach { (serverKey, localKey) -> if (global.has(serverKey) && global.opt(serverKey) is Boolean) prefs.edit().putBoolean(localKey, global.optBoolean(serverKey)).apply() }
+            if (global.has("text_scale") && global.opt("text_scale") is Number) prefs.edit().putFloat("text_scale", global.optDouble("text_scale").toFloat().coerceIn(0.85f, 1.4f)).apply()
+            chatHistory = prefs.getBoolean("chat_history", true)
+            autoSave = prefs.getBoolean("auto_save", true)
+            memory = prefs.getBoolean("memory_enabled", true)
+            webSearch = prefs.getBoolean("web_search_enabled", true)
+            voiceReplies = prefs.getBoolean("voice_replies", true)
+            cameraEnhance = prefs.getBoolean("camera_enhance", true)
+            companionMemory = prefs.getBoolean("companion_memory", true)
+            truthGuardSources = prefs.getBoolean("truthguard_sources", true)
+            notifications = prefs.getBoolean("notifications_enabled", true)
+            textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)
+        }
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
             val a = api.entitlements().optJSONArray("items") ?: JSONArray()

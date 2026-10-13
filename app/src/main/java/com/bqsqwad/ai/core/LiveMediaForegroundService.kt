@@ -72,7 +72,7 @@ class LiveMediaForegroundService : Service() {
     private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
-    private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
+    private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_user_" + (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"), Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
     private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null

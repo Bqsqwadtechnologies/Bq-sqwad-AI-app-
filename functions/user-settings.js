@@ -10,7 +10,8 @@ const ALLOWED_KEYS = new Set([
   "voice_responses",
   "save_files",
   "personalization",
-  "background_jobs"
+  "background_jobs",
+  "camera_enhance", "companion_memory", "truthguard_sources", "chat_history", "auto_save", "voice_replies", "notifications_enabled", "text_scale"
 ]);
 
 function cleanSettings(input = {}) {
@@ -18,6 +19,7 @@ function cleanSettings(input = {}) {
   const out = {};
   for (const key of ALLOWED_KEYS) {
     if (typeof source[key] === "boolean") out[key] = source[key];
+    else if (key === "text_scale" && Number.isFinite(Number(source[key]))) out[key] = Math.max(0.85, Math.min(1.4, Number(source[key])));
   }
   return out;
 }

@@ -3,6 +3,7 @@ const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1";
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
+import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
@@ -501,15 +502,13 @@ function canonicalUserBalance(profile) {
   const permanent = Math.max(0, Number(profile.credits || 0));
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
   const trial = trialLive ? Math.max(0, Number(profile.trialCredits || 0)) : 0;
-  const today = new Date().toISOString().slice(0, 10);
-  const dailyDate = String(profile.dailyFreeCreditsDate || "");
-  const daily = dailyDate === today ? Math.max(0, Number(profile.dailyFreeCredits || 0)) : 0;
+  const timeZone = String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
+  const daily = currentDailyFreeCredits(profile, new Date(), timeZone);
   return {
-    permanent,
-    subscription,
-    trial,
-    daily,
-    dailyDate,
+    permanent, subscription, trial, daily,
+    dailyDate: String(profile.dailyFreeCreditsDate || ""),
+    dailyFreeCreditsTimeZone: timeZone,
+    dailyFreeCreditsRenewalTime: String(profile.dailyFreeCreditsRenewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00"),
     total: permanent + subscription + trial + daily,
     subscriptionExpiresAt: subscriptionLive ? expiresAt : null,
     trialExpiresAt: trialLive ? trialExpiresAt : null,
@@ -544,14 +543,17 @@ async function applyConfiguredDailyFreeCredits(uid) {
   if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
-  const today = new Date().toISOString().slice(0, 10);
-  if (String(profile.dailyFreeCreditsDate || "") === today) return;
   const now = new Date();
+  const timeZone = String(config?.timeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
+  const renewalTime = String(config?.renewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00");
+  const today = dailyCreditDateKey(now, timeZone);
+  if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
+  const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
   try {
     await firestoreCommit([
-      { path: "users/" + uid, data: { dailyFreeCredits: credits, dailyFreeCreditsDate: today, dailyFreeCreditsGrantedAt: now, updatedAt: now }, updateTime: profile.__updateTime },
-      { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
+      { path: "users/" + uid, data: { ...grant, updatedAt: now }, updateTime: profile.__updateTime },
+      { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, timeZone, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
       { path: "creditLedger/daily_" + grantId, data: { uid, capability: "daily_free_credits", amount: credits, kind: "daily_free_grant", reason: "Admin-configured daily allowance", createdAt: now }, exists: false }
     ]);
   } catch {
@@ -609,6 +611,8 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
             trialCredits: Math.max(0, balance.trial - fromTrial),
             dailyFreeCredits: Math.max(0, balance.daily - fromDaily),
             dailyFreeCreditsDate: balance.dailyDate,
+          dailyFreeCreditsTimeZone: balance.dailyFreeCreditsTimeZone,
+          dailyFreeCreditsRenewalTime: balance.dailyFreeCreditsRenewalTime,
             updatedAt: new Date()
           },
           updateTime: profile.__updateTime
@@ -621,6 +625,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
             amount: charge,
             fromDaily,
             dailyFreeCreditsDate: balance.dailyDate,
+            dailyFreeCreditsTimeZone: balance.dailyFreeCreditsTimeZone,
             fromTrial,
             fromSubscription,
             fromPermanent,
@@ -698,8 +703,7 @@ async function reverseCredits(uid, reservationId) {
             credits: Number(profile.credits || 0) + Number(reservation.fromPermanent || 0),
             subCredits: Number(profile.subCredits || 0) + Number(reservation.fromSubscription || 0),
             trialCredits: Number(profile.trialCredits || 0) + Number(reservation.fromTrial || 0),
-            dailyFreeCredits: String(profile.dailyFreeCreditsDate || "") === new Date().toISOString().slice(0, 10)
-              && String(reservation.dailyFreeCreditsDate || "") === new Date().toISOString().slice(0, 10)
+            dailyFreeCredits: shouldRestoreDailyFreeCredits(profile, reservation, new Date(), globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE)
               ? Number(profile.dailyFreeCredits || 0) + Number(reservation.fromDaily || 0)
               : Number(profile.dailyFreeCredits || 0),
             updatedAt: new Date()
@@ -1294,6 +1298,8 @@ export default {
           trial: balance.trial,
           dailyFreeCredits: balance.daily,
           dailyFreeCreditsDate: balance.dailyDate,
+          dailyFreeCreditsTimeZone: balance.dailyFreeCreditsTimeZone,
+          dailyFreeCreditsRenewalTime: balance.dailyFreeCreditsRenewalTime,
           plan: balance.plan,
           subscriptionExpiresAt: balance.subscriptionExpiresAt,
           trialExpiresAt: balance.trialExpiresAt,
@@ -1432,10 +1438,10 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const workspace = String(body.workspaceId || "global").slice(0,80);
-        const allowed = new Set(["web_search","memory","notifications","history","auto_run","streaming","voice_responses","save_files","personalization","background_jobs"]);
+        const allowed = new Set(["web_search","memory","notifications","history","auto_run","streaming","voice_responses","save_files","personalization","background_jobs","camera_enhance","companion_memory","truthguard_sources","chat_history","auto_save","voice_replies","notifications_enabled","text_scale"]);
         const incoming = body.settings && typeof body.settings === "object" ? body.settings : {};
         const cleaned = {};
-        for (const key of allowed) if (typeof incoming[key] === "boolean") cleaned[key] = incoming[key];
+        for (const key of allowed) { if (typeof incoming[key] === "boolean") cleaned[key] = incoming[key]; else if (key === "text_scale" && Number.isFinite(Number(incoming[key]))) cleaned[key] = Math.max(0.85, Math.min(1.4, Number(incoming[key]))); }
         const snap = await firestoreGet("userFeatureSettings/" + user.uid);
         const current = snap?.settings || {};
         const next = { ...current, [workspace]: { ...(current[workspace] || {}), ...cleaned } };
@@ -1839,6 +1845,7 @@ export default {
         return json({
           available: balance.total, permanent: balance.permanent, subscription: balance.subscription,
           trial: balance.trial, dailyFreeCredits: balance.daily, dailyFreeCreditsDate: balance.dailyDate,
+          dailyFreeCreditsTimeZone: balance.dailyFreeCreditsTimeZone, dailyFreeCreditsRenewalTime: balance.dailyFreeCreditsRenewalTime,
           reserved: 0, plan: balance.plan, updatedAt: profile.updatedAt || null, source: "firebase_users"
         });
       }
