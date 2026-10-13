@@ -27,16 +27,32 @@ private val BQRose = BQBlue
 private val BQAmber = Color(0xFFFFA000)
 private val BQGraphite = Color(0xFF78909C)
 
-private fun accent(name: String): Color = when (name.lowercase()) {
-    "blue" -> BQBlue
-    "indigo" -> BQIndigo
-    "violet" -> BQViolet
-    "teal" -> BQTeal
-    "emerald" -> BQEmeraId
-    "rose" -> BQBlue
-    "amber" -> BQAmber
-    "graphite" -> BQGraphite
-    else -> BQSignature
+private fun accentForTheme(name: String, dark: Boolean): Color {
+    val key = name.lowercase()
+    return if (dark) {
+        when (key) {
+            "blue" -> Color(0xFF64B5F6)
+            "indigo" -> Color(0xFF9FA8DA)
+            "violet" -> Color(0xFFCE93D8)
+            "teal" -> Color(0xFF80CBC4)
+            "emerald" -> Color(0xFFA5D6A7)
+            "rose" -> BQSignature
+            "amber" -> Color(0xFFFFD180)
+            "graphite" -> Color(0xFFB0BEC5)
+            else -> BQSignature
+        }
+    } else {
+        when (key) {
+            "blue", "rose" -> Color(0xFF1565C0)
+            "indigo" -> Color(0xFF3949AB)
+            "violet" -> Color(0xFF6A1B9A)
+            "teal" -> Color(0xFF00695C)
+            "emerald" -> Color(0xFF2E7D32)
+            "amber" -> Color(0xFF8A4B00)
+            "graphite" -> Color(0xFF455A64)
+            else -> Color(0xFF1565C0)
+        }
+    }
 }
 
 private data class ThemePalette(
@@ -114,7 +130,7 @@ private fun lightPalette(primary: Color, mode: String): ThemePalette {
 
 private fun paletteScheme(p: ThemePalette, dark: Boolean) =
     if (dark) darkColorScheme(
-        primary = p.primary, onPrimary = p.onPrimary,
+        primary = p.primary, onPrimary = if (p.primary.luminance() > 0.179f) Color(0xFF06142C) else Color.White,
         primaryContainer = p.primary.copy(alpha = .30f), onPrimaryContainer = Color(0xFFEAF3FF),
         secondary = p.secondary, tertiary = p.tertiary,
         background = p.background, onBackground = p.onSurface,
@@ -169,7 +185,7 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
         paletteMode == "system" -> if (dark) "dark" else "light"
         else -> paletteMode
     }
-    val primary = accent(accentName)
+    val primary = accentForTheme(accentName, dark)
     val palette = if (dark) darkPalette(primary, schemeMode) else lightPalette(primary, schemeMode)
 
     val systemDensity = LocalDensity.current
