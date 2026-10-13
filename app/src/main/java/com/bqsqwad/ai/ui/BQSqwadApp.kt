@@ -2280,7 +2280,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     )
                 }
             }
-            micError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            micError?.let { micMessage ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(micMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
+                    if (micMessage.contains("permission", ignoreCase = true)) {
+                        TextButton(onClick = {
+                            runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
+                        }) { Text("Open settings") }
+                    }
+                }
+            }
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (messages.isEmpty()) {
                     item {
@@ -2618,12 +2628,67 @@ val composerShape = RoundedCornerShape(26.dp)
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     shadowElevation = 10.dp
                 ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        if (dictationRecording) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth().height(30.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val normalizedLevel = (dictationLevel * 5f).coerceIn(0f, 1f)
+                                    repeat(24) { index ->
+                                        val profile = 0.35f + (index % 6) * 0.11f
+                                        Box(
+                                            Modifier.width(3.dp)
+                                                .height((4f + normalizedLevel * 22f * profile).dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                        )
+                                    }
+                                }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "Recording %02d:%02d".format(java.util.Locale.US, dictationSeconds / 60, dictationSeconds % 60),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = { stopDictation() }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.Stop, contentDescription = "Stop recording and transcribe", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(onClick = { cancelDictation() }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = "Cancel dictation", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        } else if (dictationTranscribing) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                                Text("Transcribing…", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        dictationError?.let { dictationMessage ->
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
+                                    if (dictationNeedsCredits) {
+                                        Button(onClick = { openPlans() }) { Text("Buy credits") }
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
                         Column(
                             modifier = Modifier.width(44.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -2631,18 +2696,22 @@ val composerShape = RoundedCornerShape(26.dp)
                             IconButton(
                                 onClick = {
                                     micError = null
-                                    if (isListening) {
-                                        speechRecognizer?.stopListening()
-                                    } else {
-                                        speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    when {
+                                        dictationRecording -> stopDictation()
+                                        isListening -> speechRecognizer?.stopListening()
+                                        else -> speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                     }
                                 },
-                                enabled = !busy && !creditsExhausted
+                                enabled = !busy && !creditsExhausted && !dictationTranscribing
                             ) {
                                 Icon(
-                                    if (isListening) Icons.Default.Stop else Icons.Default.Mic,
-                                    contentDescription = if (isListening) "Stop voice input" else "Start voice input",
-                                    tint = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                    if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
+                                    contentDescription = when {
+                                        dictationRecording -> "Stop recording and transcribe"
+                                        isListening -> "Stop phone speech recognition"
+                                        else -> "Start voice dictation"
+                                    },
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                             IconButton(onClick = { if (!creditsExhausted) picker.launch(arrayOf("*/*")) }, enabled = !creditsExhausted) {
@@ -2715,6 +2784,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(25.dp)
                             )
+                        }
                         }
                     }
                 }
