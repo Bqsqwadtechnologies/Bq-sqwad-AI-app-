@@ -2037,9 +2037,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 val requestPrompt = buildString {
                     append(actualPrompt)
                     if (webSources.isNotEmpty()) {
-                        append("\n\nCURRENT WEB SEARCH SOURCES (answer from these; cite using [1], [2], etc.):\n")
+                        append("\n\nCURRENT WEB SEARCH SOURCES (use for facts; cite only with [1], [2], etc.; never reproduce URLs or Markdown links):\n")
                         append(webSources.mapIndexed { index, source ->
-                            "[${index + 1}] ${source.title}\nURL: ${source.url}\n${source.snippet.orEmpty()}"
+                            "[${index + 1}] Title: ${source.title}\nSource URL for reference only (never output it): ${source.url}\nSnippet: ${source.snippet.orEmpty()}"
                         }.joinToString("\n\n"))
                     } else if (webSearchNotice != null) {
                         append("\n\nCurrent-information status: ").append(webSearchNotice)
@@ -2047,9 +2047,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
                 val requestSystem = listOf(
                     activeSystem.takeIf { it.isNotBlank() },
-                    if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. If sources conflict or do not answer the question, say so and cite only supplied links." else null,
+                    if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
                 ).filterNotNull().joinToString("\n\n")
+                var rawStreamText = ""
                 val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
                     val firstImage = imageParts.firstOrNull()
                     ChatApiClient().analyzeCameraFrame(
@@ -2064,14 +2065,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 } else {
                     ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = selectedTextModelId.takeIf { activeCapability == "chat" && it.isNotBlank() }, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
+                            rawStreamText += delta
                             val current = messages.getOrNull(aiIndex)
-                            if (current != null) messages[aiIndex] = current.copy(text = current.text + delta)
+                            if (current != null) messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(rawStreamText) else rawStreamText)
                         }
                     })
                 }
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
-                    if (current != null) messages[aiIndex] = current.copy(text = (webSearchNotice?.let { "$it\n\n" } ?: "") + reply.text, sources = webSources)
+                    if (current != null) {
+                        val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(reply.text) else reply.text
+                        messages[aiIndex] = current.copy(text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply, sources = webSources)
+                    }
                     busy = false
                     streamJob = null
                     statusText = "Done."
@@ -2394,7 +2399,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                             if (m.mine || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
                                                 Text(m.text, color = MaterialTheme.colorScheme.onSurface)
                                             } else {
-                                                MarkdownText(m.text)
+                                                MarkdownText(m.text, sources = m.sources)
                                             }
                                         }
                                         m.attachments.forEach { attachment ->
@@ -2425,22 +2430,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             }
                         }
                         if (!m.mine && m.sources.isNotEmpty()) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
+                            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Sources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                                m.sources.forEachIndexed { sourceIndex, source ->
-                                    TextButton(
-                                        onClick = {
-                                            if (source.url.startsWith("https://", ignoreCase = true)) {
-                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(source.url))) }
-                                                    .onFailure { error = "Could not open this source link." }
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                                    items(m.sources) { source ->
+                                        WebSourceChip(source, onOpen = { url ->
+                                            if (Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
+                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                                    .onFailure { error = "Could not open this source." }
                                             }
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                    ) {
-                                        Text("[${sourceIndex + 1}] " + source.title.ifBlank { source.url })
+                                        })
                                     }
                                 }
                             }
@@ -4140,18 +4139,24 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
         }) { Text(if (busy) "Searching…" else "Search") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        answer?.let { SurfaceCard(if (deep) "Deep Research Answer" else "Answer", it) }
-        LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(results) { r ->
-                Card(Modifier.fillMaxWidth().clickable {
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(r.url))) }
-                        .onFailure { error = "No browser is available to open this result." }
-                }) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(r.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        r.snippet?.takeIf { it.isNotBlank() }?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Text(r.url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    }
+        answer?.let { answerText ->
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (deep) "Deep Research Answer" else "Answer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    MarkdownText(sanitizeWebAnswer(answerText), sources = results.toList())
+                }
+            }
+        }
+        if (results.isNotEmpty()) {
+            Text("Sources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            LazyRow(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                items(results) { source ->
+                    WebSourceChip(source, onOpen = { url ->
+                        if (Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                .onFailure { error = "No browser is available to open this source." }
+                        }
+                    })
                 }
             }
         }
