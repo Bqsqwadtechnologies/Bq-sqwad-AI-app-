@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.bqsqwad.ai.ui
 
@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -43,7 +44,7 @@ private data class UserEntitlement(val id:String,val planId:String,val productId
 private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
 
 @Composable
-fun ProductCatalogScreen(onBack:()->Unit) {
+fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val context=androidx.compose.ui.platform.LocalContext.current
     val activity=context as? Activity
     val scope=rememberCoroutineScope()
@@ -52,7 +53,8 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var planSearch by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("all") }
+    var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else "all") }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = if (initialSection.equals("credits", ignoreCase = true)) 1 else 0)
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
     var showAllCapabilities by remember { mutableStateOf(true) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
@@ -65,6 +67,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     var contactPlan by remember { mutableStateOf<ContactSelection?>(null) }
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var credits by remember { mutableStateOf<JSONObject?>(null) }
+    var livePricing by remember { mutableStateOf<JSONObject?>(null) }
     var contactOptions by remember { mutableStateOf(emptyList<PublicContactOption>()) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
@@ -123,6 +126,7 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                 entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 credits=runCatching{api.credits()}.getOrNull()
+                livePricing=runCatching{api.livePricing()}.getOrNull()
                 playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
@@ -179,9 +183,13 @@ fun ProductCatalogScreen(onBack:()->Unit) {
     // capability-only products stay out of the general plan browser until configured.
     val customerPlanModules = plans.filter { plan ->
         val module = plan.module.lowercase(java.util.Locale.ROOT)
-        module !in setOf("business-addon", "learning-exam-addon", "learning-capability", "credits") &&
+        module !in setOf("business-addon", "learning-exam-addon", "learning-capability") &&
             !module.contains("addon") && !module.contains("capability")
     }
+    val creditPackOrder = listOf("credit100", "credit250", "credit500", "credit1000")
+    val creditPacks = customerPlanModules.filter { it.id in creditPackOrder }
+        .sortedBy { creditPackOrder.indexOf(it.id) }
+    val nonCreditCustomerPlans = customerPlanModules.filter { it.module.lowercase(java.util.Locale.ROOT) != "credits" }
     val categorySpecs = listOf(
         Triple("business", "Business", setOf("business")),
         Triple("truthguard", "TruthGuard", setOf("truthguard")),
@@ -192,10 +200,10 @@ fun ProductCatalogScreen(onBack:()->Unit) {
         Triple("frontier", "Frontier Lab", setOf("frontier")),
         Triple("data-analysis", "Data Analyst", setOf("data-analysis", "data-analyst")),
         Triple("organization", "Organization Studio", setOf("organization", "organization-studio"))
-    ).filter { spec -> customerPlanModules.any { it.module.equalsAnyCatalogModule(spec.third) } }
+    ).filter { spec -> nonCreditCustomerPlans.any { it.module.equalsAnyCatalogModule(spec.third) } }
     val normalizedSearch = planSearch.trim().lowercase(java.util.Locale.ROOT)
     val compactSearch = normalizedSearch.filter { it.isLetterOrDigit() }
-    val filteredCustomerPlans = customerPlanModules.filter { plan ->
+    val filteredCustomerPlans = nonCreditCustomerPlans.filter { plan ->
         val categoryMatch = selectedCategory == "all" ||
             categorySpecs.firstOrNull { it.first == selectedCategory }?.third?.contains(plan.module.lowercase(java.util.Locale.ROOT)) == true
         val searchText = (plan.id + " " + plan.name + " " + plan.module)
@@ -213,10 +221,101 @@ fun ProductCatalogScreen(onBack:()->Unit) {
             actions={IconButton(onClick={::load},enabled=!loading){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
         )
     }){padding->
+        LaunchedEffect(initialSection) {
+            if (initialSection.equals("credits", ignoreCase = true)) {
+                kotlinx.coroutines.delay(100)
+                listState.animateScrollToItem(1)
+            }
+        }
         when{
             loading->ProductLoading(Modifier.padding(padding))
             error!=null->ProductError(Modifier.padding(padding),::load)
-            else->LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+            else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+                credits?.let { balance ->
+                    item {
+                        Surface(shape=RoundedCornerShape(24.dp), tonalElevation=6.dp, modifier=Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                    Surface(Modifier.size(48.dp), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment=Alignment.Center) { BqLogo(34.dp) } }
+                                    Column(Modifier.weight(1f), verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                                        Text("Your credits", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                        Text("One balance for every AI feature", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
+                                    }
+                                    BqStatusBadge("LIVE")
+                                }
+                                Text(formatCredits(balance.optDouble("available", 0.0)), style=MaterialTheme.typography.displaySmall, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("Available", style=MaterialTheme.typography.labelLarge)
+                                            Text(formatCredits(balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
+                                        }
+                                    }
+                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("Trial credits", style=MaterialTheme.typography.labelLarge)
+                                            Text(formatCredits(balance.optDouble("trial", 0.0)), fontWeight=FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                balance.optString("trialExpiresAt").takeIf { it.isNotBlank() }?.let {
+                                    Text("Trial expiry: " + it.take(10), color=MaterialTheme.colorScheme.onSurface)
+                                }
+                                val voicePrice = livePricing?.optJSONObject("liveVoice")
+                                val cameraPrice = livePricing?.optJSONObject("liveCamera")
+                                if (voicePrice != null) Text("Live Voice: " + livePriceLabel(voicePrice), color=MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.bodyMedium)
+                                if (cameraPrice != null) Text("Live Camera: " + livePriceLabel(cameraPrice), color=MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                } ?: item {
+                    ProductNotice("Your credits", "Sign in to see your shared BQ Sqwad AI balance, trial credits and expiry.")
+                }
+                item {
+                    Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
+                        Text("Buy credits for eligible AI features. Store prices are localized by Google Play.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (creditPacks.isEmpty()) {
+                    item {
+                        Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(18.dp)) {
+                            Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                                Text("Credit packs are loading, tap to retry", fontWeight=FontWeight.SemiBold)
+                                Button(onClick=::load, modifier=Modifier.fillMaxWidth()) { Text("Retry credit packs") }
+                            }
+                        }
+                    }
+                } else {
+                    items(creditPacks, key={ "credit-pack:" + it.id }) { plan ->
+                        LivePlanCard(
+                            plan,
+                            catalog.filter { it.planId == plan.id && it.enabled },
+                            playProducts,
+                            billing,
+                            onContact = { contactPlan = ContactSelection(plan.id, plan.name, "custom", plan.features) },
+                            onStatus = { status = it }
+                        )
+                    }
+                }
+                stickyHeader(key="catalog-categories") {
+                    Surface(color=MaterialTheme.colorScheme.surface, tonalElevation=4.dp, modifier=Modifier.fillMaxWidth()) {
+                        LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp), contentPadding=PaddingValues(vertical=8.dp)) {
+                            item {
+                                FilterChip(selected=selectedCategory=="credits", onClick={
+                                    selectedCategory="credits"
+                                    scope.launch { listState.animateScrollToItem(1) }
+                                }, label={Text("Credits")})
+                            }
+                            item {
+                                FilterChip(selected=selectedCategory=="all", onClick={selectedCategory="all"}, label={Text("All")})
+                            }
+                            items(categorySpecs, key={it.first}) { category ->
+                                FilterChip(selected=selectedCategory==category.first, onClick={selectedCategory=category.first}, label={Text(if(category.first=="business") "Business AI" else category.second, maxLines=1)})
+                            }
+                        }
+                    }
+                }
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Pay.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(plans.isNotEmpty())Text("${plans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
@@ -236,55 +335,6 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                         enabled = billing?.isReady() == true,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Restore purchases") }
-                }
-                credits?.let { balance ->
-                    item {
-                        Surface(
-                            shape=RoundedCornerShape(24.dp),
-                            tonalElevation=6.dp,
-                            modifier=Modifier.fillMaxWidth()
-                        ) {
-                            Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    Surface(
-                                        modifier = Modifier.size(48.dp),
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            BqLogo(34.dp)
-                                        }
-                                    }
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("BQ Sqwad Credits", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
-                                        Text("One shared balance across eligible AI features", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
-                                    }
-                                    BqStatusBadge("LIVE")
-                                }
-                                Text(
-                                    formatCredits(balance.optDouble("available", 0.0)),
-                                    style=MaterialTheme.typography.displaySmall,
-                                    fontWeight=FontWeight.Bold,
-                                    color=MaterialTheme.colorScheme.primary
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                        Column(Modifier.padding(14.dp)) {
-                                            Text("Available", style=MaterialTheme.typography.labelLarge)
-                                            Text(formatCredits(balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
-                                        }
-                                    }
-                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                        Column(Modifier.padding(14.dp)) {
-                                            Text("Reserved", style=MaterialTheme.typography.labelLarge)
-                                            Text(formatCredits(balance.optDouble("reserved", 0.0)), fontWeight=FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                                Text("The backend is authoritative for balance, reservations and credit deductions.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
                 }
 
                 if (playManagement?.optBoolean("hasSubscription", false) == true) {
@@ -426,21 +476,14 @@ fun ProductCatalogScreen(onBack:()->Unit) {
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                         )
                     }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                            item {
-                                FilterChip(
-                                    selected = selectedCategory == "all",
-                                    onClick = { selectedCategory = "all" },
-                                    label = { Text("All plans") }
-                                )
-                            }
-                            items(categorySpecs, key = { it.first }) { category ->
-                                FilterChip(
-                                    selected = selectedCategory == category.first,
-                                    onClick = { selectedCategory = category.first },
-                                    label = { Text(category.second, maxLines = 1) }
-                                )
+                    stickyHeader(key = "catalog-category-filter") {
+                        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+                                item { FilterChip(selected = selectedCategory == "credits", onClick = { selectedCategory = "credits"; scope.launch { listState.animateScrollToItem(1) } }, label = { Text("Credits") }) }
+                                item { FilterChip(selected = selectedCategory == "all", onClick = { selectedCategory = "all" }, label = { Text("All plans") }) }
+                                items(categorySpecs, key = { it.first }) { category ->
+                                    FilterChip(selected = selectedCategory == category.first, onClick = { selectedCategory = category.first }, label = { Text(if (category.first == "business") "Business AI" else category.second, maxLines = 1) })
+                                }
                             }
                         }
                     }
