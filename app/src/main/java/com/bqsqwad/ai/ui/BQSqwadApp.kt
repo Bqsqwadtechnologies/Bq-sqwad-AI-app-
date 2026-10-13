@@ -1494,6 +1494,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var feedbackReason by remember { mutableStateOf("inaccurate") }
     var feedbackComment by remember { mutableStateOf("") }
     var micError by remember { mutableStateOf<String?>(null) }
+    var dictationError by remember { mutableStateOf<String?>(null) }
+    var dictationNeedsCredits by remember { mutableStateOf(false) }
+    var dictationRecording by remember { mutableStateOf(false) }
+    var dictationTranscribing by remember { mutableStateOf(false) }
+    var dictationLevel by remember { mutableFloatStateOf(0f) }
+    var dictationSeconds by remember { mutableIntStateOf(0) }
+    var dictationStartedAt by remember { mutableLongStateOf(0L) }
+    var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
+    var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -1652,10 +1661,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         isListening = false
+        dictationLevel = 0f
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
             if (spoken.isNotBlank()) {
-                message = if (message.isBlank()) spoken else "$message $spoken"
+                message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
                 micError = null
             } else {
                 micError = "No speech was detected. Try again."
@@ -1671,11 +1681,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val recognizer = speechRecognizer
         if (recognizer != null) {
             recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { isListening = true; micError = null }
+                override fun onReadyForSpeech(params: Bundle?) { isListening = true; dictationLevel = 0f; micError = null }
                 override fun onBeginningOfSpeech() { isListening = true }
-                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onRmsChanged(rmsdB: Float) { dictationLevel = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f) }
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
-                override fun onEndOfSpeech() { isListening = false }
+                override fun onEndOfSpeech() { isListening = false; dictationLevel = 0f }
                 override fun onError(errorCode: Int) {
                     isListening = false
                     micError = when (errorCode) {
@@ -1687,13 +1697,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
                 override fun onResults(results: Bundle?) {
                     isListening = false
+                    dictationLevel = 0f
                     val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                     if (spoken.isNotBlank()) {
-                        message = if (message.isBlank()) spoken else "$message $spoken"
+                        message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
                         micError = null
                     } else micError = "No speech was detected. Try again."
                 }
-                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val spoken = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (spoken.isNotBlank()) message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                }
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
             })
         }
@@ -1703,9 +1717,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
     }
     val startSpeechRecognition: () -> Unit = {
+        speechBaseMessage = message
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to BQ Sqwad AI")
         }
         val recognizer = speechRecognizer
@@ -1724,9 +1739,89 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             }
         }
     }
+    var stopDictationAction: (() -> Unit)? = null
+    val startDictationRecording: () -> Unit = {
+        micError = null
+        dictationError = null
+        dictationNeedsCredits = false
+        speechBaseMessage = message
+        try {
+            val recorder = DictationRecorder(context)
+            dictationRecorder = recorder
+            dictationSeconds = 0
+            dictationStartedAt = System.currentTimeMillis()
+            dictationRecording = true
+            recorder.start(
+                onLevel = { dictationLevel = it },
+                onLimitReached = { stopDictationAction?.invoke() }
+            )
+        } catch (failure: Throwable) {
+            dictationRecording = false
+            dictationLevel = 0f
+            dictationRecorder = null
+            micError = "Phone recording could not start. Switching to the installed speech service."
+            startSpeechRecognition()
+        }
+    }
+
+    fun stopDictation() {
+        if (!dictationRecording) return
+        dictationRecording = false
+        dictationTranscribing = true
+        dictationLevel = 0f
+        val recorder = dictationRecorder
+        dictationRecorder = null
+        val duration = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(1, 120)
+        scope.launch {
+            try {
+                val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
+                if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
+                val transcript = WorkspaceApiClient().transcribeAudioWav(wav, duration)
+                message = listOf(speechBaseMessage.trim(), transcript.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                micError = null
+                dictationError = null
+                dictationNeedsCredits = false
+            } catch (failure: Throwable) {
+                val reason = failure.message ?: "Transcription failed. Check your internet connection and retry."
+                dictationError = reason
+                dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
+                if (!dictationNeedsCredits) {
+                    micError = "Server transcription failed; trying your phone's speech service."
+                    startSpeechRecognition()
+                }
+            } finally {
+                dictationTranscribing = false
+            }
+        }
+    }
+    stopDictationAction = { stopDictation() }
+
+    fun cancelDictation() {
+        dictationRecording = false
+        dictationTranscribing = false
+        dictationLevel = 0f
+        dictationSeconds = 0
+        val recorder = dictationRecorder
+        dictationRecorder = null
+        scope.launch(Dispatchers.IO) { runCatching { recorder?.cancel() } }
+    }
+
+    LaunchedEffect(dictationRecording) {
+        while (dictationRecording) {
+            delay(250)
+            dictationSeconds = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(0, 120)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val recorder = dictationRecorder
+            if (recorder != null) Thread { runCatching { recorder.cancel() } }.start()
+        }
+    }
+
     val speechPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startSpeechRecognition()
-        else micError = "Allow microphone access to use voice input."
+        if (granted) startDictationRecording()
+        else micError = "Microphone permission is required. Open settings to allow it."
     }
 
     fun shouldAutoSaveHistory(): Boolean = com.bqsqwad.ai.core.shouldAutoSaveChat(privateChat, chatHistoryEnabled, autoSaveEnabled)
