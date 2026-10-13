@@ -21,8 +21,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.IOException
 
 class CoreTest {
@@ -169,19 +167,21 @@ class CoreTest {
     }
 
     @Test fun testModeBypassesWorkspacePlanGateOnlyForAuthorizedAdmin() {
-        val catalog = JSONObject().put(
-            "plans",
-            JSONArray().put(
-                JSONObject()
-                    .put("id", "businesspro")
-                    .put("module", "business")
-                    .put("price", JSONObject().put("monthly", 19.99))
-            )
+        // Keep this policy test independent of Android's mocked org.json methods.
+        // Catalog parsing has separate integration coverage; this test focuses on
+        // the access decision once the verified catalog snapshot has been loaded.
+        fun snapshot(admin: Boolean, testMode: Boolean) = WorkspaceAccessSnapshot(
+            admin = admin,
+            adminTestMode = testMode,
+            entitlements = emptySet(),
+            entitlementModules = emptySet(),
+            planModules = mapOf("business" to listOf("businesspro:paid")),
+            loaded = true
         )
-        val noEntitlements = JSONObject().put("items", JSONArray())
-        val normalUser = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = false, testMode = true)
-        val adminWithoutTestMode = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = false)
-        val authorizedAdminTestMode = WorkspaceAccessSnapshot.fromCatalog(catalog, noEntitlements, admin = true, testMode = true)
+
+        val normalUser = snapshot(admin = false, testMode = true)
+        val adminWithoutTestMode = snapshot(admin = true, testMode = false)
+        val authorizedAdminTestMode = snapshot(admin = true, testMode = true)
 
         assertFalse(normalUser.hasVerifiedAccess(Workspace.BUSINESS))
         assertFalse(adminWithoutTestMode.hasVerifiedAccess(Workspace.BUSINESS))
