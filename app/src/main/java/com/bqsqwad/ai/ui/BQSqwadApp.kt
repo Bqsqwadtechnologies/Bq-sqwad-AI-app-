@@ -2654,7 +2654,7 @@ val composerShape = RoundedCornerShape(26.dp)
                     shadowElevation = 10.dp
                 ) {
                     Column(Modifier.fillMaxWidth()) {
-                        if (dictationRecording) {
+                        if (dictationRecording || isListening) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(
                                     Modifier.fillMaxWidth().height(30.dp),
@@ -2674,15 +2674,23 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        "Recording %02d:%02d".format(java.util.Locale.US, dictationSeconds / 60, dictationSeconds % 60),
+                                        if (dictationRecording) "Recording %02d:%02d".format(java.util.Locale.US, dictationSeconds / 60, dictationSeconds % 60) else "Listening…",
                                         color = MaterialTheme.colorScheme.primary,
                                         style = MaterialTheme.typography.labelLarge,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    IconButton(onClick = { stopDictation() }, modifier = Modifier.size(40.dp)) {
-                                        Icon(Icons.Default.Stop, contentDescription = "Stop recording and transcribe", tint = MaterialTheme.colorScheme.primary)
+                                    IconButton(onClick = {
+                                        if (dictationRecording) stopDictation() else speechRecognizer?.stopListening()
+                                    }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.Stop, contentDescription = "Stop recording or listening", tint = MaterialTheme.colorScheme.primary)
                                     }
-                                    IconButton(onClick = { cancelDictation() }, modifier = Modifier.size(40.dp)) {
+                                    IconButton(onClick = {
+                                        if (dictationRecording) cancelDictation() else {
+                                            speechRecognizer?.cancel()
+                                            isListening = false
+                                            dictationLevel = 0f
+                                        }
+                                    }, modifier = Modifier.size(40.dp)) {
                                         Icon(Icons.Default.Close, contentDescription = "Cancel dictation", tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
@@ -2727,7 +2735,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         else -> speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                     }
                                 },
-                                enabled = !busy && !creditsExhausted && !dictationTranscribing
+                                enabled = !busy && !dictationTranscribing
                             ) {
                                 Icon(
                                     if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
