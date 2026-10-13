@@ -51,6 +51,7 @@ fun AdminControlCenter() {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var showPlanCatalog by remember { mutableStateOf(false) }
+    var showLivePricing by remember { mutableStateOf(false) }
     var showModelManagement by remember { mutableStateOf(false) }
     var showContactSales by remember { mutableStateOf(false) }
     var showProviderSecrets by remember { mutableStateOf(false) }
@@ -147,6 +148,10 @@ fun AdminControlCenter() {
     )
 
 
+    if (showLivePricing) {
+        AdminLivePricingScreen { showLivePricing = false }
+        return
+    }
     if (showPlanCatalog) {
         AdminPlanCatalogScreen { showPlanCatalog = false }
         return
@@ -255,6 +260,7 @@ fun AdminControlCenter() {
         }
         OutlinedButton(onClick = { showModelManagement = true }, modifier = Modifier.fillMaxWidth()) { Text("Open AI Model Management") }
         OutlinedButton(onClick = { showPlanCatalog = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Plan & Product ID Catalog") }
+        OutlinedButton(onClick = { showLivePricing = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Live Voice, Camera & Dictation Pricing") }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Admin Diagnostics & Self-test", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
