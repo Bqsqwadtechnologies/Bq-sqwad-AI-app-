@@ -39,16 +39,22 @@ fun NativeCameraPreview(
     captureEveryMs: Long = 1800L,
     torchEnabled: Boolean = false,
     onFrame: (ByteArray) -> Unit = {},
-    onError: (String) -> Unit = {}
+    onError: (String) -> Unit = {},
+    onClosed: () -> Unit = {},
+    onLensSelected: (Int) -> Unit = {}
 ) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
             LiveCameraTextureView(context).apply {
+                closedListener = onClosed
+                lensListener = onLensSelected
                 updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
             }
         },
         update = { view ->
+            view.closedListener = onClosed
+            view.lensListener = onLensSelected
             view.updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
         }
     )
@@ -63,6 +69,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         private set
     var frameListener: (ByteArray) -> Unit = {}
     var errorListener: (String) -> Unit = {}
+    var closedListener: () -> Unit = {}
+    var lensListener: (Int) -> Unit = {}
     private var lastErrorMessage: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -77,6 +85,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     private val handler = Handler(thread.looper)
 
     private var camera: CameraDevice? = null
+    private var closingCamera: CameraDevice? = null
+    private val pendingCloseCallbacks = mutableListOf<() -> Unit>()
     private var session: CameraCaptureSession? = null
     private var cameraId: String? = null
     private var previewSurface: Surface? = null
@@ -104,8 +114,9 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             facing = newFacing
             handler.post {
                 if (!closed.get()) {
-                    closeCamera()
-                    if (isAvailable) openCamera()
+                    closeCamera {
+                        if (!closed.get() && isAvailable) openCamera()
+                    }
                 }
             }
         } else {
@@ -177,7 +188,10 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             return
         }
         // Track the actual camera selected when the requested lens is unavailable.
-        selection.second?.let { actualFacing -> facing = actualFacing }
+        selection.second?.let { actualFacing ->
+            facing = actualFacing
+            mainHandler.post { if (!closed.get()) lensListener(actualFacing) }
+        }
 
         cameraId = id
         runCatching {
@@ -194,8 +208,18 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
                 override fun onDisconnected(device: CameraDevice) {
                     if (camera === device) camera = null
+                    if (closingCamera == null) closingCamera = device
                     device.close()
                     reportCameraError("The camera disconnected. Reopen AI Live Camera and try again.")
+                }
+
+                override fun onClosed(device: CameraDevice) {
+                    if (closingCamera === device) closingCamera = null
+                    if (pendingCloseCallbacks.isNotEmpty()) {
+                        val callbacks = pendingCloseCallbacks.toList()
+                        pendingCloseCallbacks.clear()
+                        callbacks.forEach { callback -> runCatching { callback() } }
+                    }
                 }
 
                 override fun onError(device: CameraDevice, error: Int) {
@@ -315,15 +339,24 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         }.getOrNull()
     }
 
-    private fun closeCamera() {
+    private fun closeCamera(afterClosed: (() -> Unit)? = null) {
         frameTaskPosted = false
+        if (afterClosed != null) pendingCloseCallbacks.add(afterClosed)
         session?.close()
         session = null
-        camera?.close()
+        val device = camera
         camera = null
         previewSurface?.release()
         previewSurface = null
         cameraId = null
+        if (device != null) {
+            closingCamera = device
+            device.close()
+        } else if (closingCamera == null && pendingCloseCallbacks.isNotEmpty()) {
+            val callbacks = pendingCloseCallbacks.toList()
+            pendingCloseCallbacks.clear()
+            callbacks.forEach { callback -> runCatching { callback() } }
+        }
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
@@ -334,8 +367,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         if (camera != null) {
             handler.post {
                 if (!closed.get()) {
-                    closeCamera()
-                    openCamera()
+                    closeCamera { if (!closed.get() && isAvailable) openCamera() }
                 }
             }
         }
@@ -350,8 +382,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     override fun onDetachedFromWindow() {
         if (!closed.compareAndSet(false, true)) return
-        handler.post { closeCamera() }
-        thread.quitSafely()
+        handler.post {
+            closeCamera {
+                mainHandler.post { closedListener() }
+                thread.quitSafely()
+            }
+        }
         super.onDetachedFromWindow()
     }
 }
