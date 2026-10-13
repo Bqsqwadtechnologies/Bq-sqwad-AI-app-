@@ -145,7 +145,7 @@ export async function companionCheckin(env,user,b,charge,commit,reverse){
   const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
   const r=await charge(user.uid,Number(b.creditCost||0),"companion_checkin",user);
   try{
-    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:p,system:"Give a brief reflective check-in prompt. Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:DEFAULT_MODELS.openai,fallbackProviderIds:["gemini"]},{message:p,system:"Give a brief reflective check-in prompt. "+workspaceScopeSystemPrompt("companion")+" Personality: "+personality+". Be supportive and respectful. Do not present yourself as a human."});
     const settings=await firestoreGet("companionSettings/"+user.uid)||{};
     if(settings.saveHistory!==false){
       const id=crypto.randomUUID();

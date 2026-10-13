@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { classifyWorkspaceScope, workspaceScopeSystemPrompt } from "../src/legacy-native.js";
 
 test("TruthGuard accepts explicit checks and clear claim statements but not general questions", () => {
@@ -43,4 +44,32 @@ test("dedicated workspace system prompts keep the model inside its job", () => {
     assert.match(prompt, /Do not act as Main Chat/);
   }
   assert.equal(workspaceScopeSystemPrompt("chat"), "");
+});
+
+
+test("out-of-scope redirects are checked before direct workspace credit charging", async () => {
+  const source = await readFile(new URL("../src/legacy-native.js", import.meta.url), "utf8");
+  for (const [name, guard, charge] of [
+    ["learningSession", 'workspaceScopeRedirect("learning",goal)', 'charge(user.uid'],
+    ["truthguardCheck", 'workspaceScopeRedirect("truthguard",claim)', 'charge(user.uid'],
+    ["companionChat", 'workspaceScopeRedirect("companion", m)', 'charge(user.uid'],
+    ["companionCheckin", 'workspaceScopeRedirect("companion", p)', 'charge(user.uid']
+  ]) {
+    const start = source.indexOf("export async function " + name);
+    assert.notEqual(start, -1, name + " handler must exist");
+    const next = source.indexOf("\nexport async function ", start + 1);
+    const body = source.slice(start, next < 0 ? source.length : next);
+    const guardIndex = body.indexOf(guard);
+    const chargeIndex = body.indexOf(charge);
+    assert.ok(guardIndex >= 0 && chargeIndex > guardIndex, name + " must guard before charging");
+  }
+  const indexSource = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  const aiStart = indexSource.indexOf("async function ai(");
+  const aiGuard = indexSource.indexOf("workspaceScopeRedirect(capabilityName, userMessage)", aiStart);
+  const aiCharge = indexSource.indexOf("chargeCredits(user.uid", aiStart);
+  assert.ok(aiGuard >= 0 && aiCharge > aiGuard, "generic AI route must guard before charging");
+  const videoStart = indexSource.indexOf('url.pathname === "/video/generate"');
+  const videoGuard = indexSource.indexOf('workspaceScopeRedirect("video",videoPrompt)', videoStart);
+  const videoCreate = indexSource.indexOf("createVideoNative(", videoStart);
+  assert.ok(videoGuard >= 0 && videoCreate > videoGuard, "video route must guard before generation/charging");
 });
