@@ -456,6 +456,30 @@ async function openai(body, stream = false) {
 function outputText(result) {
   return result.output_text || result.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "";
 }
+function normalizeLivePricing(input = {}, existing = {}, feature = "live_voice") {
+  const source = input && typeof input === "object" ? input : {};
+  const previous = existing && typeof existing === "object" ? existing : {};
+  const number = (key, fallback, maximum) => {
+    const raw = source[key] == null ? previous[key] : source[key];
+    const value = raw == null ? fallback : Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
+    return value;
+  };
+  const creditsPerMinute = number("creditsPerMinute", 0, 10000);
+  const defaultVoice = String(source.defaultVoice ?? previous.defaultVoice ?? "marin").toLowerCase();
+  const allowedVoices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
+  return {
+    enabled: source.enabled == null ? previous.enabled !== false : source.enabled === true,
+    killSwitch: source.killSwitch == null ? previous.killSwitch === true : source.killSwitch === true,
+    creditsPerMinute,
+    startFeeCredits: number("startFeeCredits", 0, 10000),
+    minimumBalanceToStart: number("minimumBalanceToStart", creditsPerMinute, 100000),
+    maxSessionMinutes: Math.trunc(number("maxSessionMinutes", 120, 1440)),
+    modelId: String(source.modelId ?? previous.modelId ?? "").trim().slice(0, 100),
+    defaultVoice: allowedVoices.includes(defaultVoice) ? defaultVoice : "marin",
+    transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "gpt-4o-mini-transcribe").trim().slice(0, 100)
+  };
+}
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
@@ -477,7 +501,9 @@ async function capability(uid, name) {
     enabled: value.enabled !== false,
     providerId: value.providerId || d.providerId,
     modelId: value.modelId || d.modelId,
-    creditCost: Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" ? 2 : 1)) : value.creditCost)),
+    creditCost: (name === "live_voice" || name === "live_camera")
+      ? Math.max(0, Number(value.creditCost == null ? 0 : value.creditCost))
+      : Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" ? 2 : 1)) : value.creditCost)),
     config: {
       ...(value.config || {}),
       fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
@@ -1632,38 +1658,35 @@ export default {
          await requireConsent(user.uid);
          const heartbeatBody = await readBody(request);
          const heartbeatMode = String(heartbeatBody.mode || "voice").toLowerCase();
-         const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
-         const pricing = config?.config || {};
-         if (heartbeatMode === "voice" && config?.enabled === false) throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403 });
-         const capabilityName = heartbeatMode === "camera" || heartbeatMode === "screen" ? "live_camera" : "live_voice";
-         let control = await capability(user.uid, capabilityName);
-         if (heartbeatBody.modelRegistryId) {
-           const expectedFeature = heartbeatMode === "camera" || heartbeatMode === "screen" ? "live-camera" : "live-voice";
-           const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, expectedFeature);
-           control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditsPerMinute: selected.creditsPerMinute };
+         const isCameraMode = heartbeatMode === "camera" || heartbeatMode === "screen";
+         const capabilityName = isCameraMode ? "live_camera" : "live_voice";
+         const config = await firestoreGet("adminAdvancedOptions/" + (isCameraMode ? "live_camera_pricing" : "live_voice_pricing")) || {};
+         const pricing = normalizeLivePricing(config.config || config, {}, capabilityName);
+         if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
+           throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403 });
          }
-         const profile = await readCanonicalUserBalance(user.uid);
-         const balance = canonicalUserBalance(profile);
-         if (!isSuperAdmin(user, env) && (!balance || balance.total <= 0)) throw Object.assign(new Error("Insufficient credits"), { httpStatus: 402 });
-         const rate = Math.max(0, Number(control.creditsPerMinute == null ? (pricing.creditsPerMinute == null ? 1 : pricing.creditsPerMinute) : control.creditsPerMinute));
-         const charge = await chargeCredits(user.uid, rate, "live_session_minute", user);
+         let rate = pricing.creditsPerMinute;
+         if (heartbeatBody.modelRegistryId) {
+           const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, isCameraMode ? "live-camera" : "live-voice");
+           if (selected.creditsPerMinute != null) rate = Math.max(0, Number(selected.creditsPerMinute));
+         }
+         if (rate > 0 && !isSuperAdmin(user, env)) {
+           const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
+           if (!balance || balance.total < rate) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+         }
+         let charge = { reservationId: null, amount: 0 };
+         if (rate > 0) charge = await chargeCredits(user.uid, rate, "live_session_minute", user);
          try {
            if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "openai_realtime_minute");
          } catch (error) {
            if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
            throw error;
          }
-         const updatedProfile = await readCanonicalUserBalance(user.uid);
-         const updatedBalance = canonicalUserBalance(updatedProfile);
-         return json({
-           ok: true,
-           available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0),
-           charged: Number(charge.amount || 0),
-           billingIntervalSeconds: 60
-         });
+         const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
+         return json({ ok: true, available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0), charged: Number(charge.amount || 0), free: rate === 0, billingIntervalSeconds: 60 });
        }
-
-      if (url.pathname === "/realtime/session" && request.method === "POST") {
+       
+       if (url.pathname === "/realtime/session" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         enforceRateLimit(u.uid);
         try {
@@ -1681,18 +1704,27 @@ export default {
           const selected = await resolvePublishedModel(b.modelRegistryId, expectedFeature);
           control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost, creditsPerMinute: selected.creditsPerMinute };
         }
-        // Reserve before contacting OpenAI; every post-reservation failure reverses it below.
-        const reservation = organization ? null : await chargeCredits(u.uid, control.creditCost || 0, capabilityName, u);
-        try {
-          const cfg = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
-          const conf = cfg?.config || {};
-          const model = String(b.modelRegistryId ? control.modelId : (cfg?.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
-          const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
+        const isCameraMode = mode === "camera" || mode === "screen";
+         const pricingKey = isCameraMode ? "live_camera_pricing" : "live_voice_pricing";
+         const cfg = await firestoreGet("adminAdvancedOptions/" + pricingKey) || {};
+         const conf = normalizeLivePricing(cfg.config || cfg, {}, pricingKey);
+         if (!organization && (cfg.enabled === false || cfg.killSwitch === true || conf.enabled === false || conf.killSwitch === true)) {
+           throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403, safeError: isCameraMode ? "live_camera_disabled" : "live_voice_disabled" });
+         }
+         const requestedRate = Math.max(0, Number(conf.creditsPerMinute || 0));
+         const startFee = Math.max(0, Number(conf.startFeeCredits || 0));
+         if (!organization && !isSuperAdmin(u, env) && (requestedRate > 0 || startFee > 0)) {
+           const balance = canonicalUserBalance(await readCanonicalUserBalance(u.uid));
+           const minimum = Math.max(0, Number(conf.minimumBalanceToStart ?? requestedRate));
+           if (!balance || balance.total < minimum) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+         }
+         let reservation = null;
+         if (!organization && startFee > 0) reservation = await chargeCredits(u.uid, startFee, capabilityName, u);
+         try {
+           const model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
+           const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
           const voice = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].includes(voice0)
             ? voice0 : String(conf.defaultVoice || "marin");
-          if (mode === "voice" && (cfg?.enabled === false || cfg?.killSwitch === true)) {
-            throw Object.assign(new Error("live_voice_disabled"), { httpStatus: 403, safeError: "live_voice_disabled" });
-          }
           if (!env?.OPENAI_API_KEY) {
             throw Object.assign(new Error("openai_provider_not_configured"), { httpStatus: 503, safeError: "openai_provider_not_configured" });
           }
@@ -1740,11 +1772,7 @@ export default {
           }
           return json({
             clientSecret: String(secret), model, voice,
-            pricing: {
-              creditsPerMinute: control.creditsPerMinute == null ? (conf.creditsPerMinute == null ? null : Number(conf.creditsPerMinute)) : Number(control.creditsPerMinute),
-              minimumMinutes: conf.minimumMinutes == null ? null : Number(conf.minimumMinutes),
-              maxSessionMinutes: conf.maxSessionMinutes == null ? null : Number(conf.maxSessionMinutes)
-            }
+            pricing: { enabled: true, free: requestedRate === 0 && startFee === 0, creditsPerMinute: requestedRate, startFeeCredits: startFee, minimumBalanceToStart: Number(conf.minimumBalanceToStart || 0), maxSessionMinutes: Number(conf.maxSessionMinutes || 120) }
           });
         } catch (error) {
           if (!organization) await reverseCredits(u.uid, reservation?.reservationId);
@@ -2055,8 +2083,43 @@ export default {
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
       if (url.pathname === "/admin/route" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),id=String(b.id||b.capability||"");if(!id)throw new Error("capability_required");const key=id.startsWith("capability_")?id:"capability_"+id;await firestoreSet("adminAdvancedOptions/"+key,{...b,id:key,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/"+key)); }
-      if (url.pathname === "/admin/live-voice-pricing" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("adminAdvancedOptions/live_voice_pricing")||{}); }
-      if (url.pathname === "/admin/live-voice-pricing" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("adminAdvancedOptions/live_voice_pricing",{enabled:b.enabled!==false,config:b.config&&typeof b.config==="object"?b.config:{},updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/live_voice_pricing")); }
+      const livePricingAdminKeys = {
+        "/admin/live-voice-pricing": "live_voice_pricing",
+        "/admin/live-camera-pricing": "live_camera_pricing",
+        "/admin/dictation-pricing": "dictation_pricing"
+      };
+      const livePricingAdminKey = livePricingAdminKeys[url.pathname];
+      if (livePricingAdminKey && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const stored = await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey) || {};
+        const config = normalizeLivePricing(stored.config || stored, {}, livePricingAdminKey);
+        return json({ enabled: stored.enabled !== false && config.enabled !== false, killSwitch: stored.killSwitch === true || config.killSwitch === true, config });
+      }
+      if (livePricingAdminKey && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const b = await readBody(request);
+        const current = await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey) || {};
+        const incoming = b.config && typeof b.config === "object" ? b.config : b;
+        const config = normalizeLivePricing(incoming, current.config || current, livePricingAdminKey);
+        const enabled = b.enabled == null ? config.enabled : b.enabled === true;
+        const killSwitch = b.killSwitch == null ? config.killSwitch : b.killSwitch === true;
+        await firestoreSet("adminAdvancedOptions/" + livePricingAdminKey, { enabled, killSwitch, config: { ...config, enabled, killSwitch }, updatedBy: u.uid, updatedAt: new Date() }, true);
+        return json(await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey));
+      }
+      if (url.pathname === "/live/pricing" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid);
+        const readPublicPricing = async (key) => {
+          const stored = await firestoreGet("adminAdvancedOptions/" + key) || {};
+          const conf = normalizeLivePricing(stored.config || stored, {}, key);
+          const enabled = stored.enabled !== false && stored.killSwitch !== true && conf.enabled !== false && conf.killSwitch !== true;
+          return { enabled, free: enabled && conf.creditsPerMinute === 0 && conf.startFeeCredits === 0, creditsPerMinute: conf.creditsPerMinute, startFeeCredits: conf.startFeeCredits };
+        };
+        return json({ liveVoice: await readPublicPricing("live_voice_pricing"), liveCamera: await readPublicPricing("live_camera_pricing"), dictation: await readPublicPricing("dictation_pricing") });
+      }
+      
       if (url.pathname === "/admin/web-search-pricing" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")||{}); }
       if (url.pathname === "/admin/web-search-pricing" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("adminAdvancedOptions/web_search_pricing",{enabled:b.enabled!==false,config:b.config&&typeof b.config==="object"?b.config:{},updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")); }
       if (url.pathname === "/admin/auth-background-video" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),enabled=b.enabled===true,urlValue=String(b.url||"").trim();if(enabled&&!/^https:\/\//i.test(urlValue))throw new Error("auth_background_video_url_required");await firestoreSet("publicAppConfig/app",{authBackgroundVideoUrl:enabled?urlValue:null,authBackgroundVideoEnabled:enabled,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("publicAppConfig/app")); }
