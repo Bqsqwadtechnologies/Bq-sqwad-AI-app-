@@ -79,12 +79,29 @@ fun VideoGenerationWorkspace() {
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            Text("AI Video Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("Prompt → render job → progress → output. Designed as a production workspace rather than a generic chat screen.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                "Dedicated render workspace. Video jobs consume the centrally configured video-generation credit cost.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                tonalElevation = 3.dp
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    BqLogo(52.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
+                        Text("AI Video Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Prompt → render job → progress → output.", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            "A dedicated render workspace. Video jobs use the centrally configured credit cost.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                        )
+                    }
+                }
+            }
         }
         item {
             val selectedName = publishedVideoModels.firstOrNull { it.optString("id") == selectedVideoModelId }?.optString("name")
