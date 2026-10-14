@@ -798,7 +798,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
-    LaunchedEffect(Unit) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
+    LaunchedEffect(notificationsEnabled) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
