@@ -1295,7 +1295,11 @@ export default {
           "POST /admin/security/totp/start",
           "POST /admin/security/totp/confirm"
         ].includes(routeKey);
-        if (!adminBootstrapRoutes.has(routeKey) && !initialSetupRoute) await requireAdminSessionNative(adminIdentity.uid);
+        const adminPolicy = await firestoreGet("adminAdvancedOptions/admin_security_policy").catch(() => null);
+        const unlockRequired = adminPolicy?.unlockRequired === true;
+        if (unlockRequired && !adminBootstrapRoutes.has(routeKey) && !initialSetupRoute) {
+          await requireAdminSessionNative(adminIdentity.uid);
+        }
         // Record admin API actions without request bodies, credentials, or provider secrets.
         const auditExclusions = new Set([
           "GET /admin/access",
