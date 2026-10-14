@@ -22,6 +22,7 @@ import android.os.Environment
 import android.speech.tts.TextToSpeech
 import android.widget.VideoView
 import java.util.UUID
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -777,6 +778,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val email = firebaseUser?.email.orEmpty()
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    BackHandler(enabled = drawerState.isOpen) { shellScope.launch { drawerState.close() } }
     var chatSessionNonce by remember { mutableIntStateOf(0) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
