@@ -152,7 +152,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                         Text("A complete learning workspace for tutoring, lessons, revision, quizzes and exam preparation.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    BqLogo(46.dp)
                 }
                 Text(
                     if (isAdminBypass) "Full access" else (activePlan?.name ?: "Explorer"),
