@@ -1314,7 +1314,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("privateSession", message.privateSession)
                 put("attachments", JSONArray().apply {
                     message.attachments.take(4).forEach { attachment ->
-                        put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)))
+                        put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId))
                     }
                 })
             }.toString()
@@ -1330,7 +1330,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                         attachmentsJson.optJSONObject(index)?.let { attachment ->
                             ChatMessageAttachment(
                                 name = attachment.optString("name").take(160),
-                                mimeType = attachment.optString("mimeType").take(100)
+                                mimeType = attachment.optString("mimeType").take(100),
+                                imageLocalId = attachment.optString("imageLocalId").takeIf { it.matches(Regex("[a-fA-F0-9-]{36}")) }
                             )
                         } ?: ChatMessageAttachment("Attachment", "application/octet-stream")
                     }
