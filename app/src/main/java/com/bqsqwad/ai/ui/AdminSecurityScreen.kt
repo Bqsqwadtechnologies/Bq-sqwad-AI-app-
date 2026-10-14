@@ -191,7 +191,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
             }
             item {
                 Text("Admin passkeys", style = MaterialTheme.typography.titleLarge)
-                Text("Manage passkeys for account sign-in. Passkeys do not replace the separate 30-minute Admin Control Center unlock session; use the admin password/authenticator or enrolled biometric to unlock sensitive admin actions.")
+                Text("Manage passkeys for account sign-in. Passkeys are available for the administrator account. Sensitive actions remain subject to the server-side administrator policy.")
                 Button(
                     enabled = !busy,
                     onClick = {
@@ -236,6 +236,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     }
                 ) { Text("Enroll fingerprint / biometric") }
                 if (biometricConfigured) {
+                    if (false) {
                     Button(
                         enabled = !busy,
                         onClick = {
@@ -256,6 +257,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                             }
                         }
                     ) { Text("Unlock with fingerprint") }
+                    }
                     OutlinedButton(
                         enabled = !busy,
                         onClick = { run({ biometricClient.remove(); biometricConfigured = false }, "Admin biometric disconnected.") }
@@ -263,6 +265,9 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 }
             }
 
+            // Retained for future server-controlled reactivation. The current policy keeps
+            // the Admin Control Center step-up timer and unlock UI hidden.
+            if (false) {
             item {
                 HorizontalDivider()
                 Text("Unlock Admin Control Center", style = MaterialTheme.typography.titleLarge)
@@ -292,6 +297,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     enabled = !busy && (!passwordConfigured || password.isNotEmpty()) && (!totpConfigured || code.length == 6) && (password.isNotEmpty() || code.length == 6),
                     onClick = { run({ client.unlock(password, code); val session = client.sessionStatus(); sessionRemainingSeconds = session.optInt("expiresInSeconds", 1800); sessionExpiry = session.optString("expiresAt").takeIf { it.isNotBlank() } }, "Admin session unlocked.") }
                 ) { Text("Unlock") }
+            }
             }
             status?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
