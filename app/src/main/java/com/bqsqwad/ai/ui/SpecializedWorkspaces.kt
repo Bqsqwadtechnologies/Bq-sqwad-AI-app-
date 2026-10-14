@@ -690,7 +690,41 @@ private fun WorkspaceFrame(
                                 )
                             }
                         }
-                        Divider(color = onContainer.copy(alpha = 0.14f))
+                        Divider(color = onContainer.copy(alpha = 0.18f))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = onContainer.copy(alpha = 0.10f)
+                            ) {
+                                Text(
+                                    when (style) {
+                                        WorkspaceVisualStyle.TRUTH_GUARD -> "EVIDENCE FIRST"
+                                        WorkspaceVisualStyle.LEARNING -> "LEARNING PATH"
+                                        WorkspaceVisualStyle.LIFE -> "DAILY PROGRESS"
+                                        WorkspaceVisualStyle.PERSONAL -> "YOUR WORKSPACE"
+                                        WorkspaceVisualStyle.FRONTIER -> "EXPERIMENT LAB"
+                                    },
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = onContainer
+                                )
+                            }
+                            Text(
+                                when (style) {
+                                    WorkspaceVisualStyle.TRUTH_GUARD -> "Check sources before conclusions"
+                                    WorkspaceVisualStyle.LEARNING -> "Build understanding step by step"
+                                    WorkspaceVisualStyle.LIFE -> "Small steps, clear priorities"
+                                    WorkspaceVisualStyle.PERSONAL -> "Keep important work in one place"
+                                    WorkspaceVisualStyle.FRONTIER -> "Explore ideas methodically"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = onContainer.copy(alpha = 0.86f)
+                            )
+                        }
                         Text(
                             when (style) {
                                 WorkspaceVisualStyle.TRUTH_GUARD -> "Claims → research → sources → analysis"
@@ -700,6 +734,7 @@ private fun WorkspaceFrame(
                                 WorkspaceVisualStyle.FRONTIER -> "Experiments → prototypes → research → architecture"
                             },
                             style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = onContainer
                         )
                     }
