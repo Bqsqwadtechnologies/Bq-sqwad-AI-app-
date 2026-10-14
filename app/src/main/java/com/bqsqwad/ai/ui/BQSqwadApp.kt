@@ -1313,7 +1313,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("imageUrl", message.imageUrl)
                 put("privateSession", message.privateSession)
                 put("attachments", JSONArray().apply {
-                    message.attachments.take(4).forEach { attachment ->
+                    message.attachments.forEach { attachment ->
                         put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId))
                     }
                 })
