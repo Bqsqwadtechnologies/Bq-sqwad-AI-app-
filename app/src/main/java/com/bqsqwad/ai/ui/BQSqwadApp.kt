@@ -5701,9 +5701,9 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
                         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Google Pay billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Google Play billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(if (billing.optBoolean("autoRenewEnabled", false)) "Auto-renewal is on" else "Auto-renewal is off", fontWeight = FontWeight.Bold)
-                                Text("Google Pay handles in-app purchases. Subscription changes and cancellations open the Play subscriptions page.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("In-app purchases use Google Play Billing. Subscription changes and cancellations are managed on the Google Play subscriptions page.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("managementUrl")))) }, Modifier.weight(1f)) { Text("Manage") }
                                     OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("paymentMethodManagementUrl")))) }, Modifier.weight(1f)) { Text("Payment") }
