@@ -1055,7 +1055,7 @@ async function vision(request, user, body) {
     ? body.images
     : (body.imageBase64 ? [{ imageBase64: body.imageBase64, mimeType: body.mimeType }] : []);
   const rawFiles = Array.isArray(body.files) ? body.files : [];
-  if (rawImages.length > 4 || rawFiles.length > 4 || rawImages.length + rawFiles.length < 1) {
+  if (rawImages.length > 8 || rawFiles.length > 4 || rawImages.length + rawFiles.length < 1) {
     throw new Error("attachment_count_invalid");
   }
   const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
