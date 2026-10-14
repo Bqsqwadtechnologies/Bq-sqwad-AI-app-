@@ -45,6 +45,10 @@
             android:name=".core.LiveMediaForegroundService"
             android:exported="false"
             android:foregroundServiceType="camera|microphone|mediaProjection|connectedDevice" />
+        <receiver
+            android:name=".core.BqInactivityReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
