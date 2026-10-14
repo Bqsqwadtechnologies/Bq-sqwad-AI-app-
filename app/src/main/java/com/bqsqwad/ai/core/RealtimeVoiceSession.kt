@@ -2,6 +2,9 @@ package com.bqsqwad.ai.core
 
 import android.content.Context
 import android.media.*
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.util.Base64
 import kotlinx.coroutines.*
