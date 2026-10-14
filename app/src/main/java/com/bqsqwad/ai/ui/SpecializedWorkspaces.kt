@@ -295,16 +295,21 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
             val id = active?.optString("planId").orEmpty().ifBlank { "frontierexplorer" }
             val plan = (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
             planName = plan?.optString("name").orEmpty().ifBlank { "Frontier plan" }
-            val price = plan?.optJSONObject("price")
+            val price = plan?.optJSONObject("priceNgn")
             if (price != null) {
                 val keys = price.keys()
                 val values = mutableListOf<String>()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    values += key.replaceFirstChar { it.uppercase() } + ": $" + price.opt(key)
+                    val raw = price.opt(key).toString()
+                    val shown = if (raw.contains("₦")) raw else raw.toDoubleOrNull()?.let {
+                        String.format(java.util.Locale.US, "₦%,.2f", it)
+                    } ?: raw
+                    values += key.replaceFirstChar { it.uppercase() } + ": " + shown
                 }
                 planPrice = values.joinToString(" • ")
             }
+            if (planPrice.isBlank()) planPrice = "View localized price in Plans & Credits"
             val features = plan?.optJSONArray("features") ?: org.json.JSONArray()
             planFeatures = List(features.length()) { features.optString(it) }
             if (plan?.optBoolean("trialEligible", false) == true) {
