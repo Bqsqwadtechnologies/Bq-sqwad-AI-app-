@@ -1,9 +1,13 @@
 package com.bqsqwad.ai.core
 
 import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -20,9 +24,13 @@ object BqLifecycleNotifications {
     private const val LAST_OPEN = "last_open_at"
     private const val SENT_MILESTONES = "sent_age_milestones"
     private const val NEXT_ID = "next_notification_id"
+    private const val INACTIVITY_REQUEST_CODE = 4012
 
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
-        if (!notificationsEnabled) return
+        if (!notificationsEnabled) {
+            cancelInactivityReminder(context)
+            return
+        }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val firstOpen = prefs.getLong(FIRST_OPEN, 0L).let { saved ->
@@ -33,6 +41,7 @@ object BqLifecycleNotifications {
             post(context, "Your project is waiting", "Come back to BQ Sqwad AI and continue your project or pick up where you left off.")
         }
         prefs.edit().putLong(LAST_OPEN, now).apply()
+        scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(7))
 
         val ageDays = TimeUnit.MILLISECONDS.toDays((now - firstOpen).coerceAtLeast(0L))
         val milestones = listOf(
@@ -59,6 +68,45 @@ object BqLifecycleNotifications {
 
     fun notifyResponseFinished(context: Context, notificationsEnabled: Boolean) {
         if (notificationsEnabled) post(context, "BQ Sqwad AI has replied", "Your response is ready. Return to the app to continue.")
+    }
+
+    fun onInactivityAlarm(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val lastOpen = prefs.getLong(LAST_OPEN, 0L)
+        val now = System.currentTimeMillis()
+        if (lastOpen > 0L && now - lastOpen >= TimeUnit.DAYS.toMillis(7)) {
+            post(context, "Your project is waiting", "Come back to BQ Sqwad AI and continue your project or pick up where you left off.")
+            scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(7))
+        } else if (lastOpen > 0L) {
+            scheduleInactivityReminder(context, lastOpen + TimeUnit.DAYS.toMillis(7))
+        }
+    }
+
+    private fun scheduleInactivityReminder(context: Context, triggerAtMillis: Long) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, BqInactivityReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+            context, INACTIVITY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pending)
+            }
+        }
+    }
+
+    private fun cancelInactivityReminder(context: Context) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, BqInactivityReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+            context, INACTIVITY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_NO_CREATE or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        ) ?: return
+        alarmManager.cancel(pending)
+        pending.cancel()
     }
 
     private fun post(context: Context, title: String, body: String) {
