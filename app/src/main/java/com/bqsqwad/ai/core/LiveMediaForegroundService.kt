@@ -554,6 +554,7 @@ class LiveMediaForegroundService : Service() {
                 mode == MODE_SCREEN -> "screen_share_runtime_error"
                 else -> "live_voice_runtime_error"
             }
+            appendLog("Diagnostic code: $diagnosticCode")
             serviceScope.launch {
                 runCatching { WorkspaceApiClient().reportIssue(issueRoute, diagnosticCode) }
             }
