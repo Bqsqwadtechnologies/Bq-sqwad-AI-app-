@@ -172,6 +172,7 @@ class LiveMediaForegroundService : Service() {
         liveSessionStartedAt = 0L
         liveSessionFailureReported = false
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            reportTimelineFailure("voice", "microphone_permission_missing")
             writeError("Microphone permission is required.")
             stopSelf()
             return
@@ -334,6 +335,7 @@ class LiveMediaForegroundService : Service() {
     private fun startCamera() {
         if (organizationStreamer != null) return
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            reportTimelineFailure("camera", "camera_permission_missing")
             writeError("Camera permission is required.")
             stopSelf()
             return
@@ -427,6 +429,7 @@ class LiveMediaForegroundService : Service() {
         val data = if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra(EXTRA_PROJECTION_DATA, Intent::class.java)
             else @Suppress("DEPRECATION") intent?.getParcelableExtra(EXTRA_PROJECTION_DATA)
         if (data == null) {
+            reportTimelineFailure("screen", "screen_capture_permission_missing")
             writeError("Android screen-capture permission data is missing.")
             stopSelf()
             return
@@ -447,6 +450,7 @@ class LiveMediaForegroundService : Service() {
                 stopSelf()
             }).also { it.start(data, width, height, density) }
         }.onFailure {
+            reportTimelineFailure("screen", "screen_share_runtime_error")
             writeError(it.message ?: "Screen sharing could not start.")
             stopSelf()
         }.getOrNull()
