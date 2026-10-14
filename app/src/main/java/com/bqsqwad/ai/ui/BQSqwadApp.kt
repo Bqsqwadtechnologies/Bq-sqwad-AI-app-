@@ -1297,12 +1297,13 @@ private data class ChatMessage(
     val prompt: String? = null,
     val attachments: List<ChatMessageAttachment> = emptyList(),
     val imageUrl: String? = null,
-    val sources: List<SearchSource> = emptyList()
+    val sources: List<SearchSource> = emptyList(),
+    val privateSession: Boolean = false
 )
 
 private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<ChatMessage>, String>(
     save = { messages ->
-        messages.takeLast(30).map { message ->
+        messages.filterNot { it.privateSession }.takeLast(30).map { message ->
             JSONObject().apply {
                 put("mine", message.mine)
                 put("text", message.text.take(4000))
@@ -1635,8 +1636,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
     val privateMessageIds = remember { mutableStateListOf<String>() }
     fun appendChatMessage(chatMessage: ChatMessage) {
-        messages.add(chatMessage)
-        if (privateChat) privateMessageIds.add(chatMessage.id)
+        val messageForSession = if (privateChat) chatMessage.copy(privateSession = true) else chatMessage
+        messages.add(messageForSession)
+        if (privateChat) privateMessageIds.add(messageForSession.id)
     }
     var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
     var selectedImageMimeType by remember { mutableStateOf("image/png") }
