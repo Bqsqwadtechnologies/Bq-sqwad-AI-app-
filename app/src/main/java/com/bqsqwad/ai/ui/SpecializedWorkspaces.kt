@@ -674,17 +674,7 @@ private fun WorkspaceFrame(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = onContainer.copy(alpha = 0.10f)
-                            ) {
-                                Icon(
-                                    icon,
-                                    contentDescription = null,
-                                    tint = onContainer,
-                                    modifier = Modifier.padding(12.dp).size(28.dp)
-                                )
-                            }
+                            BqLogo(52.dp)
                             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = onContainer)
                                 Text(
