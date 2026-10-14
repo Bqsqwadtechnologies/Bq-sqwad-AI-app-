@@ -1809,7 +1809,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             .minOrNull()
         val daysToExpiry = expiryMillis?.let { kotlin.math.ceil((it - System.currentTimeMillis()) / 86_400_000.0).toInt() }
         creditNotice = when {
-            available <= 0.0 -> "You've run out of BQ Sqwad AI credits. AI chat, live camera, live voice and other AI features are paused. Buy credits to continue."
+            available <= 0.0 -> "You've run out of BQ Sqwad AI credits. Credit-consuming AI actions are paused until you add credits or free credits renew. Your active plan remains active."
             baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of your credits (${String.format(java.util.Locale.US, "%.1f", used)} of ${String.format(java.util.Locale.US, "%.1f", baseline)} used). ${String.format(java.util.Locale.US, "%.1f", available)} remain."
             daysToExpiry != null && daysToExpiry <= 5 -> "Your plan or free-credit period expires in ${daysToExpiry.coerceAtLeast(1)} day(s). Renew or buy credits to keep using BQ Sqwad AI."
             else -> null
