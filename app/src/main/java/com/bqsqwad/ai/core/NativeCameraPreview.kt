@@ -285,9 +285,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 ratioPenalty + abs(size.width - 960) + abs(size.height - 540)
             }
         }.getOrNull()
-        val bufferWidth = supportedSize?.width ?: width.coerceIn(320, 1280)
-        val bufferHeight = supportedSize?.height ?: height.coerceIn(240, 720)
-        runCatching { texture.setDefaultBufferSize(bufferWidth, bufferHeight) }
+        if (supportedSize == null) {
+            reportCameraError("Android did not report a supported preview size for this camera. Switch cameras or retry.")
+            return
+        }
+        runCatching { texture.setDefaultBufferSize(supportedSize.width, supportedSize.height) }
             .onFailure { reportCameraError("The camera could not configure a supported preview size. Switch cameras or retry.") }
 
         previewSurface?.release()
