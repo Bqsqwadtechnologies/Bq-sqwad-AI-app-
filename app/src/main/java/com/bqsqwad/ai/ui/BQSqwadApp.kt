@@ -5176,6 +5176,24 @@ private fun BqLiveAudioOrb(
             radius = baseRadius * 0.13f,
             center = androidx.compose.ui.geometry.Offset(centerX, centerY)
         )
+        // 56 radial bars create a compact audio spectrum without allocating per-frame collections.
+        val barPhase = if (active && animationsEnabled) level * 6f else 0f
+        val barStroke = (baseRadius * 0.025f).coerceAtLeast(1.5f)
+        for (index in 0 until 56) {
+            val angle = (index.toFloat() / 56f) * (2f * Math.PI.toFloat())
+            val wave = (0.5f + 0.5f * kotlin.math.sin(angle * 3f + barPhase)).coerceIn(0f, 1f)
+            val inner = baseRadius * (0.79f + wave * 0.04f)
+            val outer = baseRadius * (0.86f + wave * (0.08f + level * 0.06f))
+            val cos = kotlin.math.cos(angle)
+            val sin = kotlin.math.sin(angle)
+            drawLine(
+                color = Color(0xFF78BCFF).copy(alpha = (0.55f + level * 0.4f).coerceIn(0f, 1f)),
+                start = androidx.compose.ui.geometry.Offset(centerX + cos * inner, centerY + sin * inner),
+                end = androidx.compose.ui.geometry.Offset(centerX + cos * outer, centerY + sin * outer),
+                strokeWidth = barStroke,
+                cap = StrokeCap.Round
+            )
+        }
     }
 }
 
