@@ -1290,7 +1290,7 @@ internal fun needsCurrentWebSearch(text: String): Boolean {
         .containsMatchIn(query)
 }
 
-private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null)
+private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null, val imageLocalId: String? = null)
 private data class ChatMessage(
     val mine: Boolean,
     val text: String,
