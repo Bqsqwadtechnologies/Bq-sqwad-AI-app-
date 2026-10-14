@@ -2165,7 +2165,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         if (shouldAutoSaveHistory()) {
                             runCatching {
                                 val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
-                                    HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                    HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl)
                                 }
                                 withContext(Dispatchers.IO) {
                                     HistoryApiClient().save(historyId, promptText, snapshot)
@@ -2301,7 +2301,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                     if (shouldAutoSaveHistory()) {
-                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl) }
+                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
                         }.onFailure { error = safeUserFacingIssue(it, "The response was generated, but chat history could not be saved.") }
@@ -3180,7 +3180,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 if (shouldAutoSaveHistory()) {
                                     runCatching {
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
-                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
@@ -3222,7 +3222,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 if (shouldAutoSaveHistory()) {
                                     runCatching {
                                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
-                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+                                            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl)
                                         }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
