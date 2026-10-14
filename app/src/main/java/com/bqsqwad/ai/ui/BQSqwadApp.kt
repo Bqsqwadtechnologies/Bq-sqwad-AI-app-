@@ -2590,23 +2590,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            IconButton(modifier = Modifier.size(36.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
+                            IconButton(modifier = Modifier.size(28.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
                             }
-                            IconButton(modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), onClick = { shareText(context, m.text) }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.primary)
+                            IconButton(modifier = Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), onClick = { shareText(context, m.text) }) {
+                                Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             }
                             if (voiceRepliesEnabled) {
-                                IconButton(modifier = Modifier.size(36.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
-                                    Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
+                                IconButton(modifier = Modifier.size(28.dp), onClick = { speakTextWhenReady(context, m.text) { error = it } }) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
                                 }
                             }
                             Box {
                                 IconButton(
-                                    modifier = Modifier.size(36.dp),
+                                    modifier = Modifier.size(28.dp),
                                     onClick = { replyOverflowMessageId = m.id }
                                 ) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "More response actions", tint = MaterialTheme.colorScheme.onSurface)
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More response actions", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
                                 }
                                 DropdownMenu(
                                     expanded = replyOverflowMessageId == m.id,
