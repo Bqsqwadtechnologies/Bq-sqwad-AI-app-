@@ -253,7 +253,7 @@ class LiveMediaForegroundService : Service() {
                         visualVoiceConnectionWatchdog = null
                     }
                 },
-                onError = { error -> writeError(error); stopSelf() },
+                onError = { error -> reportTimelineFailure(sessionMode, if (sessionMode == "camera") "live_camera_runtime_error" else "screen_share_runtime_error"); writeError(error); stopSelf() },
                 onAudioLevel = { level -> updateAudioLevel(level) },
                 onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
                 // Keep voice replies visible as well as audible so camera/screen sessions
@@ -268,6 +268,7 @@ class LiveMediaForegroundService : Service() {
             visualVoiceConnectionWatchdog = serviceScope.launch {
                 delay(25_000L)
                 if (visualVoice != null && !visualVoiceReady.get()) {
+                    reportTimelineFailure(sessionMode, "live_session_timeout")
                     writeError("The live camera AI connection timed out. Check your connection and try again.")
                     stopSelf()
                 }
@@ -359,6 +360,7 @@ class LiveMediaForegroundService : Service() {
                     writeState(true, "live")
                 } catch (t: Throwable) {
                     organizationStreamer = null
+                    reportTimelineFailure("camera", "live_camera_runtime_error")
                     writeError(t.message ?: "Live broadcaster could not start.")
                     stopSelf()
                 }
@@ -439,7 +441,7 @@ class LiveMediaForegroundService : Service() {
         if (screenSession != null) {
             serviceScope.launch {
                 runCatching { startVisualVoice() }
-                    .onFailure { writeError(it.message ?: "Screen voice could not start."); stopSelf() }
+                    .onFailure { reportTimelineFailure("screen", "screen_share_runtime_error"); writeError(it.message ?: "Screen voice could not start."); stopSelf() }
             }
             writeState(true, "listening")
         }
