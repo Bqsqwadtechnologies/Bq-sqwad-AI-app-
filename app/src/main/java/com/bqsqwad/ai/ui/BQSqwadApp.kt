@@ -5265,6 +5265,19 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             active = active,
             audioLevel = liveUiState.audioLevel
         )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Mic " + (liveUiState.microphoneLevel * 100).toInt() + "%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LinearProgressIndicator(progress = liveUiState.microphoneLevel, modifier = Modifier.fillMaxWidth())
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("AI output " + (liveUiState.outputAudioLevel * 100).toInt() + "%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LinearProgressIndicator(progress = liveUiState.outputAudioLevel, modifier = Modifier.fillMaxWidth())
+            }
+        }
 
         Text(liveVoiceRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Text(
