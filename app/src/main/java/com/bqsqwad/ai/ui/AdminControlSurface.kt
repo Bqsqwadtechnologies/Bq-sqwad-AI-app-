@@ -271,7 +271,7 @@ fun AdminControlCenter() {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Admin Diagnostics & Self-test", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Last 50 server-side failures per feature. Only route, status, sanitized error code and time are stored—never prompts, message content, tokens or secrets.",
+                    "Last 50 server-side failures per feature. Diagnostics include sanitized provider error details and time—never prompts, message content, audio, tokens or secrets.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -353,6 +353,13 @@ fun AdminControlCenter() {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            item.optString("providerMessage").takeIf { it.isNotBlank() }?.let { safeMessage ->
+                                Text(
+                                    safeMessage.take(180),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     val features = snapshot.optJSONObject("features")
