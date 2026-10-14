@@ -144,7 +144,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                     it.message?.contains("monthly_capability_limit_reached") == true -> "You have reached this plan's monthly TruthGuard limit."
                     it.message?.contains("plan_not_entitled") == true -> "This TruthGuard capability is not included in your verified plan."
                     it.message?.contains("plan_expired") == true -> "Your TruthGuard plan is no longer active. Open Plans to renew or choose another plan."
-                    else -> it.message ?: "TruthGuard could not complete the check."
+                    else -> safeUserFacingIssue(it, "TruthGuard could not complete the check. Please try again.")
                 }
             }
             busy = false
