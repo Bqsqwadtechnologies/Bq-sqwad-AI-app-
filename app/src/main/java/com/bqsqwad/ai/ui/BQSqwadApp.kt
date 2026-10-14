@@ -126,10 +126,10 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (lower.contains("consent_required")) return "Accept the required consent in Settings before using AI features."
     if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Credits to review access."
     if (lower.contains("rate limit") || lower.contains("rate_limited") || lower.contains("http 429")) return "You are sending requests too quickly. Wait a moment and try again."
-    val technical = Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|UnknownHostException|SocketTimeoutException|java\\.|com\\.bqsqwad|CLEARTEXT|Exception:|provider_http|provider_not_configured|not_configured|client_secret_missing|realtime_session_failed|image_generation_|image_edit_|firebase|firestore|storage/|stack trace|internal server|\\bstatus code\\b|\\b(?:401|403|404|429|500|501|502|503)\\b", RegexOption.IGNORE_CASE)
-    return if (technical.containsMatchIn(message)) {
-        "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
-    } else message.take(240)
+    // Never echo raw exception text to a normal user. It can contain account
+    // email addresses, worker/repository URLs, provider responses, or file paths.
+    // Detailed diagnostics belong only in the authenticated admin dashboard.
+    return "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
 }
 
 @Composable
@@ -256,8 +256,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
                     error = when (it) {
                         is TimeoutCancellationException ->
                             "BQ Sqwad AI could not reach its secure service in time. Please check your connection and try again."
-                        else -> it.message?.takeIf { message -> message.isNotBlank() }
-                            ?: "BQ Sqwad AI could not verify your consent right now. Please try again."
+                        else -> safeUserFacingIssue(it, "BQ Sqwad AI could not verify your consent right now. Please try again.")
                     }
                 }
             loading = false
