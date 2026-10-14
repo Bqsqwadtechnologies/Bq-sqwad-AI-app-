@@ -1565,20 +1565,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var dictationStartedAt by remember { mutableLongStateOf(0L) }
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
-    LaunchedEffect(dictationRecording, isListening) {
-        if (dictationRecording || isListening) {
-            while (dictationRecording || isListening) {
-                val raw = dictationLevel.coerceIn(0f, 1f)
-                val db = if (raw > 0.00001f) 20f * kotlin.math.log10(raw) else -100f
-                val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
-                if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
-                dictationWaveform.add(gained)
-                delay(65L)
-            }
-        } else {
-            dictationWaveform.indices.forEach { dictationWaveform[it] = 0f }
-        }
-    }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -1711,6 +1697,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     var failedImagePrompt by remember { mutableStateOf<String?>(null) }
     var isListening by remember { mutableStateOf(false) }
+    LaunchedEffect(dictationRecording, isListening) {
+        if (dictationRecording || isListening) {
+            while (dictationRecording || isListening) {
+                val raw = dictationLevel.coerceIn(0f, 1f)
+                val db = if (raw > 0.00001f) 20f * kotlin.math.log10(raw) else -100f
+                val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
+                if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
+                dictationWaveform.add(gained)
+                delay(65L)
+            }
+        } else {
+            dictationWaveform.indices.forEach { dictationWaveform[it] = 0f }
+        }
+    }
+
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     DisposableEffect(Unit) {
         onRegisterCancelActiveWork {
