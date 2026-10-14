@@ -1479,18 +1479,6 @@ private fun PendingImageThumbnail(
         } else {
             Icon(Icons.Default.Image, contentDescription = "Selected image", modifier = Modifier.align(Alignment.Center))
         }
-        Surface(
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
-            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f)
-        ) {
-            Text(
-                attachment.name,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1
-            )
-        }
         IconButton(
             onClick = onRemove,
             modifier = Modifier.align(Alignment.TopEnd).size(25.dp)
@@ -1527,9 +1515,8 @@ private fun ChatAttachmentPreview(
                 bitmap = image!!,
                 contentDescription = attachment.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.widthIn(max = 280.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(12.dp)).then(if (onImageClick != null) Modifier.clickable(onClick = onImageClick) else Modifier)
+                modifier = Modifier.widthIn(max = 220.dp).heightIn(max = 180.dp).clip(RoundedCornerShape(12.dp)).then(if (onImageClick != null) Modifier.clickable(onClick = onImageClick) else Modifier)
             )
-            Text(attachment.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else if (decoding) {
         Text("Loading " + attachment.name + "…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
