@@ -78,6 +78,13 @@ function isSuperAdmin(user, env) {
   );
 }
 
+export function assertSuperAdminIdentity(user, env) {
+  if (!isSuperAdmin(user, env)) {
+    throw Object.assign(new Error("Admin access required"), { httpStatus: 403, safeError: "admin_access_required" });
+  }
+  return user;
+}
+
 export function isRootSuperAdmin(user, env) {
   const claims = user?.customAttributes || {};
   const email = String(user?.email || "").toLowerCase();
@@ -1286,7 +1293,7 @@ export default {
       ]);
       if (url.pathname.startsWith("/admin/")) {
         const adminIdentity = await verifyFirebaseUser(request);
-        if (!isSuperAdmin(adminIdentity, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        assertSuperAdminIdentity(adminIdentity, env);
         const routeKey = request.method + " " + url.pathname;
         const securityConfig = await securityStatusNative();
         const initialSecuritySetup = !securityConfig.passwordConfigured && !securityConfig.totpConfigured;
