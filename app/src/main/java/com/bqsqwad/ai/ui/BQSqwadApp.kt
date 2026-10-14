@@ -167,7 +167,7 @@ private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
             } else if (task.isSuccessful) {
                 error = "Your email is not verified yet. Open the verification email, then tap Check again."
             } else {
-                error = task.exception?.message ?: "Could not refresh your account status."
+                error = "Could not refresh your account status. Please try again."
             }
         }
     }
@@ -187,7 +187,7 @@ private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
                 current.sendEmailVerification().addOnCompleteListener { task ->
                     busy = false
                     if (task.isSuccessful) notice = "A new verification email was sent."
-                    else error = task.exception?.message ?: "Could not send the verification email."
+                    else error = "Could not send the verification email. Please try again."
                 }
             },
             enabled = !busy,
@@ -344,7 +344,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
                                 }
                                 .onFailure {
                                     accepted = false
-                                    error = it.message ?: "Consent could not be saved."
+                                    error = safeUserFacingIssue(it, "Consent could not be saved.")
                                 }
                             saving = false
                         }
@@ -688,7 +688,7 @@ private fun friendlyAuthError(error: Exception?): String {
         is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "No account was found for that email."
         is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with a different sign-in provider. Try the provider originally used."
         is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
-        else -> error?.message ?: "Authentication failed. Please try again."
+        else -> "Sign-in could not be completed. Please try again."
     }
 }
 
@@ -741,8 +741,7 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
         is TimeoutCancellationException -> "Google sign-in timed out. Please try again."
         is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "This Google account is already linked to another sign-in method."
         is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
-        else -> error.message?.takeIf { it.isNotBlank() }
-            ?: "Google sign-in could not be completed. Please try again."
+        else -> "Google sign-in could not be completed. Please try again."
     }
 }
 
@@ -1867,7 +1866,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val recognizer = speechRecognizer
         if (recognizer != null) {
             runCatching { recognizer.startListening(intent); isListening = true; micError = null }
-                .onFailure { isListening = false; micError = it.message ?: "Could not start voice input." }
+                .onFailure { isListening = false; micError = "Voice input could not start. Please try again." }
         } else {
             val canHandle = runCatching {
                 context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
@@ -1923,8 +1922,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 dictationError = null
                 dictationNeedsCredits = false
             } catch (failure: Throwable) {
-                val reason = failure.message ?: "Transcription failed. Check your internet connection and retry."
-                dictationError = reason
+                dictationError = safeUserFacingIssue(failure, "Transcription could not be completed. Please try again.")
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
                 if (!dictationNeedsCredits) {
                     dictationError = null
@@ -2275,16 +2273,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     runCatching { ChatAttachmentReader.read(context, uri) }
                         .onSuccess { prepared += it }
                         .onFailure { failure ->
-                            failures += (failure.message ?: "Could not read an attachment.")
+                            failures += "An attachment could not be prepared. Remove it and try again."
                         }
                 }
                 scope.launch(Dispatchers.Main) {
                     if (failures.isNotEmpty()) {
                         // Do not silently send only the subset of files that happened
                         // to parse successfully; keep the previous selection unchanged.
-                        error = "Could not prepare all selected files:\n" +
-                            failures.distinct().take(3).joinToString("\n") +
-                            if (failures.size > 3) "\n…and ${failures.size - 3} more." else ""
+                        error = "Some selected files could not be prepared. Check the files and try again. No file details are shown for your privacy."
                     } else {
                         attachments = prepared
                         error = null
@@ -3000,10 +2996,10 @@ val composerShape = RoundedCornerShape(26.dp)
                         }
                         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (fullImage != null) Image(bitmap = fullImage!!, contentDescription = "Generated image full screen", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) else CircularProgressIndicator() }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { saveGeneratedImage(context, encodedImage) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." } }) { Icon(Icons.Default.Download, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Save") }
+                            OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { saveGeneratedImage(context, encodedImage) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = safeUserFacingIssue(it, "Could not save image. Please try again.") } }) { Icon(Icons.Default.Download, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Save") }
                             Button(
                                 modifier = Modifier.weight(1f),
-                                onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = it.message ?: "Could not share image." } },
+                                onClick = { runCatching { shareGeneratedImage(context, encodedImage) }.onFailure { error = safeUserFacingIssue(it, "Could not share image. Please try again.") } },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White)
                             ) { Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Share") }
                             Button(modifier = Modifier.weight(1f), onClick = { showImageViewer = false; showImageActions = true }) { Icon(Icons.Default.MoreVert, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("More") }
@@ -3184,7 +3180,7 @@ val composerShape = RoundedCornerShape(26.dp)
                             }.onSuccess {
                                 error = "Thanks for the feedback."
                             }.onFailure {
-                                error = it.message ?: "Feedback failed."
+                                error = safeUserFacingIssue(it, "Feedback could not be sent. Please try again.")
                             }
                             feedbackTarget = null
                             feedbackComment = ""
@@ -3934,7 +3930,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
                     org.json.JSONObject().put(setting, value)
                 )
             }.onFailure {
-                error = it.message ?: "Setting could not be saved."
+                error = safeUserFacingIssue(it, "Setting could not be saved. Please try again.")
             }
             saving = false
         }
@@ -3955,7 +3951,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
             }
         }.onFailure {
             defaults.keys.forEach { setting -> if (accountPrefs.contains("feature_" + key + "_" + setting)) values = values + (setting to accountPrefs.getBoolean("feature_" + key + "_" + setting, defaults[setting] == true)) }
-            error = it.message ?: "Feature settings could not be loaded."
+            error = safeUserFacingIssue(it, "Feature settings could not be loaded. Please try again.")
         }
         loading = false
     }
@@ -4156,7 +4152,7 @@ private fun AiTaskWorkspace(
                     scope.launch {
                         runCatching { WorkspaceApiClient().setMemoryEnabled(!memoryEnabled) }
                             .onSuccess { memoryEnabled = it.optBoolean("enabled", !memoryEnabled) }
-                            .onFailure { error = it.message ?: "Memory setting could not be updated." }
+                            .onFailure { error = safeUserFacingIssue(it, "Memory setting could not be updated. Please try again.") }
                     }
                 }) { Text(if (memoryEnabled) "Memory on" else "Memory off") }
             }
@@ -4550,7 +4546,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
         }.onFailure { t ->
             context.stopService(Intent(context, LiveMediaForegroundService::class.java))
             screenActive = false
-            screenAnswer = t.message ?: "Could not start screen sharing."
+            screenAnswer = safeUserFacingIssue(t, "Could not start screen sharing. Please try again.")
         }
     }
 
@@ -5484,7 +5480,7 @@ fun DeviceIntelligencePanel(featureName: String) {
                 }.onFailure {
                     scope.launch(Dispatchers.Main) {
                         busy = false
-                        status = it.message ?: "Device intelligence failed."
+                        status = safeUserFacingIssue(it, "Device intelligence could not complete the request. Please try again.")
                     }
                 }
             }
@@ -5629,7 +5625,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                                                 scheduledDeletionAt = null
                                                 deletionNotice = "Account deletion cancelled. Your account remains active."
                                             }
-                                            .onFailure { deletionNotice = it.message ?: "Could not cancel scheduled deletion." }
+                                            .onFailure { deletionNotice = safeUserFacingIssue(it, "Could not cancel scheduled deletion. Please try again.") }
                                         cancellingDeletion = false
                                     }
                                 }
@@ -5920,7 +5916,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                                 showDeleteAccount = false
                                 onSignOut()
                             }
-                            .onFailure { deleteError = it.message ?: "Account deletion failed." }
+                            .onFailure { deleteError = safeUserFacingIssue(it, "Account deletion failed. Please try again.") }
                         deletingAccount = false
                     }
                 }) { Text(if (deletingAccount) "Scheduling…" else "Schedule deletion") }
