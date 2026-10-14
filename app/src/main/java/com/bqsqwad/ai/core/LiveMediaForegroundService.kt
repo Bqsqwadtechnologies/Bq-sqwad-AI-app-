@@ -280,6 +280,14 @@ class LiveMediaForegroundService : Service() {
                     return@launch
                 }
                 if (!result.optBoolean("ok", false)) {
+                    // A server-authoritative zero-charge/free session must not be stopped
+                    // merely because the balance gate reports no debit to perform.
+                    val explicitlyFree = result.optBoolean("free", false) ||
+                        result.optBoolean("noCharge", false) ||
+                        (result.has("chargeAmount") && result.optDouble("chargeAmount", -1.0) == 0.0) ||
+                        (result.has("creditsPerMinute") && result.optDouble("creditsPerMinute", -1.0) == 0.0 &&
+                            result.optDouble("chargedCredits", 0.0) == 0.0)
+                    if (explicitlyFree) continue
                     val code = result.optString("code").lowercase()
                     val message = result.optString("error").lowercase()
                     val insufficient = code.contains("insufficient") || code.contains("out_of_credits") ||
