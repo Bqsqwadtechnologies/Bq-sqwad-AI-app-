@@ -27,12 +27,15 @@ object BqLifecycleNotifications {
     private const val INACTIVITY_REQUEST_CODE = 4012
 
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
         if (!notificationsEnabled) {
+            prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
+                ?: prefs.edit().putLong(FIRST_OPEN, now).apply()
+            prefs.edit().putLong(LAST_OPEN, now).apply()
             cancelInactivityReminder(context)
             return
         }
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
         val firstOpen = prefs.getLong(FIRST_OPEN, 0L).let { saved ->
             if (saved > 0L) saved else now.also { prefs.edit().putLong(FIRST_OPEN, it).apply() }
         }
