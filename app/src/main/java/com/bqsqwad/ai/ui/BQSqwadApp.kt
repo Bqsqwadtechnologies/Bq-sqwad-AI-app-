@@ -1733,8 +1733,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         historyId = saved.first
         messages.clear()
         privateMessageIds.clear()
-        messages.addAll(saved.second.map { item ->
-            ChatMessage(
+        val restoredMessages = withContext(Dispatchers.IO) {
+            saved.second.map { item ->
+                ChatMessage(
                 mine = item.mine,
                 text = item.text,
                 id = item.id,
@@ -1753,7 +1754,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     } else ChatMessageAttachment(encoded, "application/octet-stream")
                 }
             )
-        })
+            }
+        }
+        messages.addAll(restoredMessages)
         attachments = emptyList()
         privateChat = false
         error = null
