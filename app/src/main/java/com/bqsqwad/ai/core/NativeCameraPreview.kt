@@ -278,12 +278,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 cameraManager.getCameraCharacteristics(id)
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
             }
-            map?.getOutputSizes(SurfaceTexture::class.java)
-                ?.filter { it.width <= 1280 && it.height <= 720 }
-                ?.minByOrNull { size ->
-                    val ratioPenalty = abs(size.width.toFloat() / size.height.coerceAtLeast(1) - (16f / 9f)) * 10000f
-                    ratioPenalty + abs(size.width - 960) + abs(size.height - 540)
-                }
+            val supportedSizes = map?.getOutputSizes(SurfaceTexture::class.java)?.toList().orEmpty()
+            val preferredSizes = supportedSizes.filter { it.width <= 1280 && it.height <= 720 }
+            (preferredSizes.ifEmpty { supportedSizes }).minByOrNull { size ->
+                val ratioPenalty = abs(size.width.toFloat() / size.height.coerceAtLeast(1) - (16f / 9f)) * 10000f
+                ratioPenalty + abs(size.width - 960) + abs(size.height - 540)
+            }
         }.getOrNull()
         val bufferWidth = supportedSize?.width ?: width.coerceIn(320, 1280)
         val bufferHeight = supportedSize?.height ?: height.coerceIn(240, 720)
@@ -414,7 +414,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-        handler.post { closeCamera() }
+        handler.post { closeCamera { releaseCameraOwnership() } }
         return true
     }
 
