@@ -417,9 +417,11 @@ async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage
         status: Number(status || 500),
         code: safeDiagnosticCode(errorCode),
         ...(safeMessage ? { providerMessage: safeMessage } : {}),
+        ...(timelineStatus ? { timelineStatus: String(timelineStatus).slice(0, 24), source: "client_timeline" } : {}),
         createdAt: new Date()
       });
     }
+    if (!opensIssue) return;
     const ownerRaw = String(env?.SUPER_ADMIN_EMAIL || "").trim();
     const owner = ownerRaw.toLowerCase();
     if (!owner || !env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON) return;
