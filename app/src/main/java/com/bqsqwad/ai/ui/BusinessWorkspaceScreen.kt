@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BusinessCenter
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
@@ -84,7 +86,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val planContext = data.optJSONObject("planContext") ?: JSONObject()
                 val planId = data.optString("planId").ifBlank { planContext.optString("id") }
                 val planName = planContext.optString("name").ifBlank { "Business Workspace" }
@@ -98,11 +100,32 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     "businessenterprise" -> "A custom enterprise workspace configured around your organization."
                     else -> "AI, customers, team, knowledge, channels and automation in one connected workspace."
                 }
-                Text(
-                    planName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f)
+                    ) {
+                        Icon(
+                            Icons.Default.BusinessCenter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(12.dp).size(28.dp)
+                        )
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            "BUSINESS WORKSPACE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                        )
+                        Text(planName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Text(
                     data.optString("name").ifBlank { "My Business" },
                     style = MaterialTheme.typography.titleMedium,
