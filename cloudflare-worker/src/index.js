@@ -126,6 +126,9 @@ function safeDiagnosticCode(errorCode) {
   if (value.includes("live_camera_runtime_error")) return "live_camera_runtime_error";
   if (value.includes("screen_share_runtime_error")) return "screen_share_runtime_error";
   if (value.includes("live_voice_runtime_error")) return "live_voice_runtime_error";
+  if (value.includes("realtime_session_create_failed")) return "realtime_session_create_failed";
+  if (value.includes("realtime_fallback_rejected")) return "realtime_fallback_rejected";
+  if (value.includes("realtime_session_failed")) return "realtime_session_failed";
   if (value.includes("live_session_timeout")) return "live_session_timeout";
   if (value.includes("insufficient_credits") || value.includes("credit_balance")) return "insufficient_credits";
   if (value.includes("provider_not_configured")) return "provider_not_configured";
@@ -156,6 +159,7 @@ async function adminDiagnosticSnapshot() {
       route: String(x.route || "/").slice(0, 120),
       status: Number(x.status || 500),
       code: String(x.code || "server_request_failed").slice(0, 80),
+      providerMessage: sanitizeProviderMessage(x.providerMessage || ""),
       createdAt: x.createdAt || null
     }))];
   }));
@@ -376,14 +380,28 @@ async function adminReadinessSelfTest(env, adminUser) {
   return { checkedAt: new Date().toISOString(), mode: "readiness_no_audio_or_generated_output", checks: [...systemChecks, chat, image, vision, voice, catalog] };
 }
 
-async function notifyAdminOfIssue(env, route, status, errorCode) {
+function sanitizeProviderMessage(message) {
+  return String(message || "")
+    .replace(/https?:\/\/\S+/gi, "[redacted-url]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[redacted-key]")
+    .replace(/(?:api[_ -]?key|authorization|token|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage = "") {
   try {
     const issueId = crypto.randomUUID();
+    const safeMessage = sanitizeProviderMessage(providerMessage);
     await firestoreCreate("adminIssues/" + issueId, {
       id: issueId,
       route: String(route || "/").slice(0, 160),
       status: Number(status || 500),
       code: String(errorCode || "backend_unavailable").replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 160),
+      ...(safeMessage ? { providerMessage: safeMessage } : {}),
       state: "open",
       createdAt: new Date()
     });
@@ -395,6 +413,7 @@ async function notifyAdminOfIssue(env, route, status, errorCode) {
         route: String(route || "/").split("?")[0].slice(0, 120),
         status: Number(status || 500),
         code: safeDiagnosticCode(errorCode),
+        ...(safeMessage ? { providerMessage: safeMessage } : {}),
         createdAt: new Date()
       });
     }
@@ -1711,6 +1730,7 @@ export default {
             route: String(item.route || "/").slice(0, 120),
             status: Number(item.status || 500),
             code: String(item.code || "server_request_failed").slice(0, 80),
+            providerMessage: sanitizeProviderMessage(item.providerMessage || ""),
             createdAt: item.createdAt || null
           }));
         return json({ features, timeline, checkedAt: new Date().toISOString() });
@@ -1916,7 +1936,7 @@ export default {
            if (!response.ok && [400, 404, 422].includes(response.status) && model !== "gpt-realtime") {
              const rejectedModel = model;
              const providerCode = String(out?.error?.code || out?.error?.type || "model_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
-             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_model_rejected:" + rejectedModel + ":" + providerCode);
+             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_model_rejected:" + rejectedModel + ":" + providerCode, out?.error?.message);
              const fallbackModel = "gpt-realtime";
              const fallbackResponse = await createRealtimeSecret(fallbackModel);
              const fallbackRaw = await fallbackResponse.text();
@@ -1929,13 +1949,13 @@ export default {
                out = fallbackOut;
              } else {
                const fallbackCode = String(fallbackOut?.error?.code || fallbackOut?.error?.type || "fallback_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
-               await notifyAdminOfIssue(env, url.pathname, 502, "realtime_fallback_rejected:" + fallbackCode);
+               await notifyAdminOfIssue(env, url.pathname, 502, "realtime_fallback_rejected:" + fallbackCode, fallbackOut?.error?.message);
                throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: fallbackResponse.status });
              }
            }
            if (!response.ok) {
              const providerCode = String(out?.error?.code || out?.error?.type || "provider_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
-             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_session_failed:" + response.status + ":" + providerCode);
+             await notifyAdminOfIssue(env, url.pathname, 502, "realtime_session_failed:" + response.status + ":" + providerCode, out?.error?.message);
              throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: response.status });
            }
           const secret = out?.value || out?.client_secret?.value;
