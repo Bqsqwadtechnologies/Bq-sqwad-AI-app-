@@ -1691,9 +1691,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 prompt = item.prompt,
                 imageUrl = item.imageUrl,
                 attachments = item.attachmentNames.map { encoded ->
-                    val split = encoded.indexOf('|')
-                    if (split > 0) ChatMessageAttachment(encoded.substring(split + 1), encoded.substring(0, split))
-                    else ChatMessageAttachment(encoded, "application/octet-stream")
+                    val parts = encoded.split('|', limit = 3)
+                    if (parts.size >= 2) {
+                        val localId = parts.getOrNull(2)?.takeIf { it.matches(Regex("[a-fA-F0-9-]{36}")) }
+                        ChatMessageAttachment(
+                            name = parts[1],
+                            mimeType = parts[0],
+                            imageBase64 = if (localId != null) ChatImageStore.readBase64(context, localId) else null,
+                            imageLocalId = localId
+                        )
+                    } else ChatMessageAttachment(encoded, "application/octet-stream")
                 }
             )
         })
