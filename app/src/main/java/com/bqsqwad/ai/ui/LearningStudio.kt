@@ -85,7 +85,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                 val progress = api.learningProgress()
                 lessonsCompleted = progress.optInt("lessonsCompleted", 0)
                 quizzesCompleted = progress.optInt("quizzesCompleted", 0)
-            }.onFailure { error = it.message ?: "Learning data could not be loaded." }
+            }.onFailure { error = safeUserFacingIssue(it, "Learning data could not be loaded.") }
         }
     }
 
