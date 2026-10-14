@@ -392,19 +392,22 @@ function sanitizeProviderMessage(message) {
     .slice(0, 180);
 }
 
-async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage = "") {
+async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage = "", timelineStatus = "") {
   try {
     const issueId = crypto.randomUUID();
     const safeMessage = sanitizeProviderMessage(providerMessage);
-    await firestoreCreate("adminIssues/" + issueId, {
-      id: issueId,
-      route: String(route || "/").slice(0, 160),
-      status: Number(status || 500),
-      code: String(errorCode || "backend_unavailable").replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 160),
-      ...(safeMessage ? { providerMessage: safeMessage } : {}),
-      state: "open",
-      createdAt: new Date()
-    });
+    const opensIssue = Number(status || 500) >= 400;
+    if (opensIssue) {
+      await firestoreCreate("adminIssues/" + issueId, {
+        id: issueId,
+        route: String(route || "/").slice(0, 160),
+        status: Number(status || 500),
+        code: String(errorCode || "backend_unavailable").replace(/https?:\/\/\S+/gi, "[redacted-url]").slice(0, 160),
+        ...(safeMessage ? { providerMessage: safeMessage } : {}),
+        state: "open",
+        createdAt: new Date()
+      });
+    }
     const feature = diagnosticFeatureForRoute(route);
     if (["chat", "image", "vision", "live_camera", "screen_share", "voice_session", "catalog"].includes(feature)) {
       await firestoreCreate("adminDiagnostics/" + issueId, {
