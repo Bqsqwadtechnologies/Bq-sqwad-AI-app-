@@ -1551,6 +1551,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var showAuth by remember { mutableStateOf(false) }
     var showSignUp by remember { mutableStateOf(false) }
     var feedbackTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var replyOverflowMessageId by remember { mutableStateOf<String?>(null) }
     var feedbackReason by remember { mutableStateOf("inaccurate") }
     var feedbackComment by remember { mutableStateOf("") }
     var micError by remember { mutableStateOf<String?>(null) }
@@ -2561,39 +2562,60 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     Icon(Icons.Default.VolumeUp, contentDescription = "Read response aloud", tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = { message = m.prompt ?: m.text }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Resend prompt", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = {
-                                scope.launch {
-                                    runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
-                                        .onSuccess { error = "Report submitted for review." }
-                                        .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
+                            Box {
+                                IconButton(
+                                    modifier = Modifier.size(36.dp),
+                                    onClick = { replyOverflowMessageId = m.id }
+                                ) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More response actions", tint = MaterialTheme.colorScheme.onSurface)
                                 }
-                            }) {
-                                Icon(Icons.Default.Flag, contentDescription = "Report response", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = {
-                                scope.launch {
-                                    runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
-                                        .onSuccess { error = "Thanks for the feedback." }
-                                        .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
-                                }
-                            }) {
-                                Icon(Icons.Default.ThumbUp, contentDescription = "Helpful response", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            IconButton(modifier = Modifier.size(36.dp), onClick = { feedbackTarget = m }) {
-                                Icon(Icons.Default.ThumbDown, contentDescription = "Not helpful", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            if (m.prompt != null) {
-                                IconButton(modifier = Modifier.size(36.dp), onClick = {
-                                    message = m.prompt
-                                    val text = m.prompt
-                                    if (FirebaseAuth.getInstance().currentUser != null && !busy) {
-                                        sendAuthenticatedMessage(text)
+                                DropdownMenu(
+                                    expanded = replyOverflowMessageId == m.id,
+                                    onDismissRequest = { replyOverflowMessageId = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Report response") },
+                                        leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
+                                        onClick = {
+                                            replyOverflowMessageId = null
+                                            scope.launch {
+                                                runCatching { WorkspaceApiClient().reportMessage(m.text, "report", m.id, "report") }
+                                                    .onSuccess { error = "Report submitted for review." }
+                                                    .onFailure { error = safeUserFacingIssue(it, "Your report could not be submitted. Please try again shortly.") }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Helpful") },
+                                        leadingIcon = { Icon(Icons.Default.ThumbUp, contentDescription = null) },
+                                        onClick = {
+                                            replyOverflowMessageId = null
+                                            scope.launch {
+                                                runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
+                                                    .onSuccess { error = "Thanks for the feedback." }
+                                                    .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Not helpful") },
+                                        leadingIcon = { Icon(Icons.Default.ThumbDown, contentDescription = null) },
+                                        onClick = { replyOverflowMessageId = null; feedbackTarget = m }
+                                    )
+                                    if (m.prompt != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Regenerate response") },
+                                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                                            onClick = {
+                                                replyOverflowMessageId = null
+                                                val promptToSend = m.prompt.orEmpty()
+                                                message = promptToSend
+                                                if (FirebaseAuth.getInstance().currentUser != null && !busy) {
+                                                    sendAuthenticatedMessage(promptToSend)
+                                                }
+                                            }
+                                        )
                                     }
-                                }) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = "Regenerate response", tint = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
