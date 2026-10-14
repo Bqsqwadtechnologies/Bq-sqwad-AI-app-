@@ -2009,7 +2009,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             return
         }
         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
-            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name }, m.imageUrl)
+            HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl)
         }
         if (snapshot.isEmpty()) {
             error = "There are no non-private messages to save."
@@ -3052,7 +3052,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     selectedImageMimeType = "image/png"
                                     error = if (durableUrl == null) "The image was regenerated, but secure storage is unavailable; it may not appear when you reopen this chat." else null
                                     if (shouldAutoSaveHistory()) runCatching {
-                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name }, item.imageUrl) }
+                                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { item -> HistoryMessage(item.mine, item.text, item.id, item.prompt, item.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, item.imageUrl) }
                                         withContext(Dispatchers.IO) { HistoryApiClient().save(historyId, prompt, snapshot) }
                                     }.onSuccess { savedId -> historyId = savedId }
                                         .onFailure { error = safeUserFacingIssue(it, "The image was regenerated, but this conversation could not be saved.") }
