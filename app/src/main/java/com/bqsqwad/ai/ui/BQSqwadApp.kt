@@ -1056,7 +1056,31 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     consentRequired = false
                 }
             }
-        } else when {
+        } else {
+            val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
+                !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
+                !legalCenter && !settings && !history && workspace == null
+            Box(Modifier.fillMaxSize()) {
+                key(firebaseUser?.uid) {
+                    MainChatScreen(
+                        modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),
+                        openHub = { shellScope.launch { drawerState.open() } },
+                        openFeatures = { featureHub = true },
+                        openSettings = { settings = true },
+                        openPlans = { plansInitialSection = "all"; plans = true },
+                        openCredits = { plansInitialSection = "credits"; plans = true },
+                        openHistory = { history = true },
+                        openPlugins = { featureHub = true },
+                        onLearnMore = { featureInfo = Workspace.CHAT },
+                        onPrivacy = { featurePrivacy = Workspace.CHAT },
+                        restoredChat = restoredChat,
+                        onRestoredChatConsumed = { restoredChat = null },
+                        sharedText = sharedText,
+                        onSharedTextConsumed = onSharedTextConsumed,
+                        onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it }
+                    )
+                }
+                if (!showMainChat) when {
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
                 onPlans = { featureHub = false; plansInitialSection = "all"; plans = true },
@@ -1117,23 +1141,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
             }
-            else -> key(firebaseUser?.uid) { MainChatScreen(
-                modifier = Modifier.fillMaxSize(),
-                openHub = { shellScope.launch { drawerState.open() } },
-                openFeatures = { featureHub = true },
-                openSettings = { settings = true },
-                openPlans = { plansInitialSection = "all"; plans = true },
-                openCredits = { plansInitialSection = "credits"; plans = true },
-                openHistory = { history = true },
-                openPlugins = { featureHub = true },
-                onLearnMore = { featureInfo = Workspace.CHAT },
-                onPrivacy = { featurePrivacy = Workspace.CHAT },
-                restoredChat = restoredChat,
-                onRestoredChatConsumed = { restoredChat = null },
-                sharedText = sharedText,
-                onSharedTextConsumed = onSharedTextConsumed,
-                onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it }
-            ) }
+                }
+            }
         }
     }
 
