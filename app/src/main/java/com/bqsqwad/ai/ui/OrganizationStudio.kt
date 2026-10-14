@@ -274,8 +274,17 @@ fun OrganizationStudioWorkspace() {
                         "orgenterprise" -> "Enterprise workspace for full governance, production and broadcast controls."
                         else -> "An activated Organization profile is required. Usage is billed from the separate Organization USD balance."
                     }
-                    Text("Organization AI / Studio", style = MaterialTheme.typography.headlineSmall)
-                    Text(planName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        BqLogo(48.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Organization AI / Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(planName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     Text(planDescription, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         if (organizationAccess?.optBoolean("activated", false) == true) "Organization profile active • Pay-as-you-go • No subscription price"
