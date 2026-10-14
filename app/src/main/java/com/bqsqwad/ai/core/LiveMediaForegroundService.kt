@@ -151,7 +151,7 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun reportTimelineFailure(sessionMode: String, code: String) {
-        serviceScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 WorkspaceApiClient().reportLiveSessionTimeline(
                     mode = sessionMode,
