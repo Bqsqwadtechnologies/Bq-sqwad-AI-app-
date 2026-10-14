@@ -2586,42 +2586,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            BqLogo(20.dp)
-                            if (m.attachments.any { !it.imageBase64.isNullOrBlank() } || !m.imageUrl.isNullOrBlank()) {
-                                IconButton(
-                                    modifier = Modifier.size(36.dp),
-                                    enabled = !imageActionLoading,
-                                    onClick = {
-                                        val image = m.attachments.firstOrNull { !it.imageBase64.isNullOrBlank() }
-                                        selectedImageMimeType = image?.mimeType ?: "image/png"
-                                        selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
-                                        selectedImageMessageId = m.id
-                                        if (!image?.imageBase64.isNullOrBlank()) {
-                                            selectedImageBase64 = image?.imageBase64
-                                            showImageActions = true
-                                        } else {
-                                            val savedUrl = m.imageUrl.orEmpty()
-                                            if (!savedUrl.startsWith("https://", ignoreCase = true)) {
-                                                error = "This saved image has no secure download link."
-                                            } else {
-                                                imageActionLoading = true
-                                                scope.launch(Dispatchers.IO) {
-                                                    val loaded = runCatching { downloadGeneratedImageBase64(savedUrl) }
-                                                    withContext(Dispatchers.Main) {
-                                                        loaded.onSuccess {
-                                                            selectedImageBase64 = it
-                                                            showImageActions = true
-                                                        }.onFailure {
-                                                            error = "The saved image could not be loaded. Check your connection and try again."
-                                                        }
-                                                        imageActionLoading = false
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                ) { Icon(Icons.Default.MoreVert, contentDescription = if (imageActionLoading) "Loading saved image" else "Image actions") }
-                            }
                             IconButton(modifier = Modifier.size(36.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface)
                             }
@@ -2644,6 +2608,43 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     expanded = replyOverflowMessageId == m.id,
                                     onDismissRequest = { replyOverflowMessageId = null }
                                 ) {
+                                    if (m.attachments.any { !it.imageBase64.isNullOrBlank() } || !m.imageUrl.isNullOrBlank()) {
+                                        DropdownMenuItem(
+                                            enabled = !imageActionLoading,
+                                            text = { Text(if (imageActionLoading) "Loading image…" else "Image actions") },
+                                            leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                                            onClick = {
+                                                replyOverflowMessageId = null
+                                                val image = m.attachments.firstOrNull { !it.imageBase64.isNullOrBlank() }
+                                                selectedImageMimeType = image?.mimeType ?: "image/png"
+                                                selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
+                                                selectedImageMessageId = m.id
+                                                if (!image?.imageBase64.isNullOrBlank()) {
+                                                    selectedImageBase64 = image?.imageBase64
+                                                    showImageActions = true
+                                                } else {
+                                                    val savedUrl = m.imageUrl.orEmpty()
+                                                    if (!savedUrl.startsWith("https://", ignoreCase = true)) {
+                                                        error = "This saved image has no secure download link."
+                                                    } else {
+                                                        imageActionLoading = true
+                                                        scope.launch(Dispatchers.IO) {
+                                                            val loaded = runCatching { downloadGeneratedImageBase64(savedUrl) }
+                                                            withContext(Dispatchers.Main) {
+                                                                loaded.onSuccess {
+                                                                    selectedImageBase64 = it
+                                                                    showImageActions = true
+                                                                }.onFailure {
+                                                                    error = "The saved image could not be loaded. Check your connection and try again."
+                                                                }
+                                                                imageActionLoading = false
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = { Text("Report response") },
                                         leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },
