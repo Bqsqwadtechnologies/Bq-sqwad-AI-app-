@@ -168,6 +168,9 @@ class LiveMediaForegroundService : Service() {
 
     private fun startVoice() {
         if (realtimeVoice != null) return
+        liveSessionMode = "voice"
+        liveSessionStartedAt = 0L
+        liveSessionFailureReported = false
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             writeError("Microphone permission is required.")
             stopSelf()
@@ -192,6 +195,7 @@ class LiveMediaForegroundService : Service() {
                         onState = { state ->
                             writeState(true, state)
                             if (state.lowercase() in setOf("connected", "listening", "speaking")) {
+                                if (liveSessionStartedAt == 0L) liveSessionStartedAt = System.currentTimeMillis()
                                 voiceConnectionWatchdog?.cancel()
                                 voiceConnectionWatchdog = null
                             }
@@ -235,6 +239,9 @@ class LiveMediaForegroundService : Service() {
         visualVoiceReady.set(false)
         visualVoiceConnectionWatchdog?.cancel()
         val sessionMode = when (mode) { MODE_CAMERA -> "camera"; MODE_SCREEN -> "screen"; else -> "voice" }
+        liveSessionMode = sessionMode
+        liveSessionStartedAt = 0L
+        liveSessionFailureReported = false
         val config = WorkspaceApiClient().realtimeSession(voice, organization = organizationMode, mode = sessionMode, modelRegistryId = modelRegistryId)
         val secret = config.optString("clientSecret").takeIf { it.isNotBlank() }
             ?: throw IllegalStateException(config.optString("error", "AI voice session could not be created."))
@@ -252,6 +259,7 @@ class LiveMediaForegroundService : Service() {
                 onState = { state ->
                     writeState(true, state)
                     if (state.lowercase() in setOf("connected", "listening", "speaking")) {
+                        if (liveSessionStartedAt == 0L) liveSessionStartedAt = System.currentTimeMillis()
                         visualVoiceReady.set(true)
                         visualVoiceConnectionWatchdog?.cancel()
                         visualVoiceConnectionWatchdog = null
@@ -588,6 +596,10 @@ class LiveMediaForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        val startedAt = liveSessionStartedAt
+        if (startedAt > 0L && System.currentTimeMillis() - startedAt < 15_000L && !liveSessionFailureReported) {
+            reportTimelineFailure(liveSessionMode, "short_live_session", "short")
+        }
         realtimeVoice?.stop()
         realtimeVoice = null
         visualVoice?.stop()
