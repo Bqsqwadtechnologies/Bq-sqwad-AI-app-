@@ -79,6 +79,11 @@ fun NativeCameraPreview(
 }
 
 private class LiveCameraTextureView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
+    companion object {
+        private val ownerLock = Any()
+        private var activeCameraOwner: LiveCameraTextureView? = null
+    }
+
     var facing: Int = CameraCharacteristics.LENS_FACING_BACK
         private set
     var intervalMs: Long = 1800L
@@ -172,6 +177,20 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     fun startIfReady() {
         if (closed.get() || !isAvailable || camera != null) return
+        val ownsCamera = synchronized(ownerLock) {
+            if (activeCameraOwner == null || activeCameraOwner === this) {
+                activeCameraOwner = this
+                true
+            } else false
+        }
+        if (!ownsCamera) {
+            // During rotation/recomposition the previous TextureView may still be closing.
+            // Retry after its close callback releases ownership rather than racing openCamera().
+            handler.postDelayed({
+                if (!closed.get() && isAvailable && camera == null) startIfReady()
+            }, 400L)
+            return
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             reportCameraError("Camera permission is required. Allow Camera in Android settings, then retry AI Live Camera.")
             return
@@ -401,10 +420,17 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
 
+    private fun releaseCameraOwnership() {
+        synchronized(ownerLock) {
+            if (activeCameraOwner === this) activeCameraOwner = null
+        }
+    }
+
     override fun onDetachedFromWindow() {
         if (!closed.compareAndSet(false, true)) return
         handler.post {
             closeCamera {
+                releaseCameraOwnership()
                 mainHandler.post { closedListener() }
                 thread.quitSafely()
             }
