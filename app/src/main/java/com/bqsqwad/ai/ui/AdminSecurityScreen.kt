@@ -239,7 +239,6 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     }
                 ) { Text("Enroll fingerprint / biometric") }
                 if (biometricConfigured) {
-                    if (unlockRequired) {
                     Button(
                         enabled = !busy,
                         onClick = {
@@ -260,7 +259,6 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                             }
                         }
                     ) { Text("Unlock with fingerprint") }
-                    }
                     OutlinedButton(
                         enabled = !busy,
                         onClick = { run({ biometricClient.remove(); biometricConfigured = false }, "Admin biometric disconnected.") }
@@ -269,8 +267,8 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
             }
 
             }
-            // Retained for future server-controlled reactivation. The current policy keeps
-            // the Admin Control Center step-up timer and unlock UI hidden.
+            // Retained for server-controlled reactivation. The default policy hides the
+            // step-up timer and unlock UI; setting unlockRequired=true reveals these controls.
             if (unlockRequired) {
             item {
                 HorizontalDivider()
