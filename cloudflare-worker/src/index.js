@@ -1818,7 +1818,30 @@ export default {
          return json({ ok: true, available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0), charged: Number(charge.amount || 0), free: rate === 0, billingIntervalSeconds: 60 });
        }
        
-       if (url.pathname === "/realtime/session" && request.method === "POST") {
+       if (url.pathname === "/live/session-timeline" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 20);
+        const body = await readBody(request);
+        const mode = ["voice", "camera", "screen"].includes(String(body.mode || "").toLowerCase())
+          ? String(body.mode).toLowerCase() : "voice";
+        const status = ["failed", "short", "error", "stopped"].includes(String(body.status || "").toLowerCase())
+          ? String(body.status).toLowerCase() : "failed";
+        const code = String(body.code || "live_session_failed")
+          .toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 80) || "live_session_failed";
+        // Persist only sanitized lifecycle metadata, never transcripts, audio, arbitrary messages, or credentials.
+        const id = "live_" + Date.now().toString(36) + "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+        await firestoreSet("adminDiagnostics/" + id, {
+          id, uid: user.uid,
+          feature: mode === "camera" ? "live_camera" : mode === "screen" ? "screen_share" : "voice_session",
+          route: "/live/session-timeline",
+          status: status === "failed" || status === "error" ? 500 : 200,
+          code: safeDiagnosticCode(code), createdAt: new Date().toISOString(), source: "client_timeline",
+          timelineStatus: status
+        }, false);
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/realtime/session" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         enforceRateLimit(u.uid);
         try {
