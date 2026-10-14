@@ -160,6 +160,7 @@ async function adminDiagnosticSnapshot() {
       status: Number(x.status || 500),
       code: String(x.code || "server_request_failed").slice(0, 80),
       providerMessage: sanitizeProviderMessage(x.providerMessage || ""),
+      timelineStatus: String(x.timelineStatus || "").slice(0, 24),
       createdAt: x.createdAt || null
     }))];
   }));
@@ -1740,6 +1741,7 @@ export default {
             status: Number(item.status || 500),
             code: String(item.code || "server_request_failed").slice(0, 80),
             providerMessage: sanitizeProviderMessage(item.providerMessage || ""),
+            timelineStatus: String(item.timelineStatus || "").slice(0, 24),
             createdAt: item.createdAt || null
           }));
         return json({ features, timeline, checkedAt: new Date().toISOString() });
