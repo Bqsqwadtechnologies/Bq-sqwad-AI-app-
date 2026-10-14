@@ -205,7 +205,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val customerPlanModules = plans.filter { plan ->
         val module = plan.module.lowercase(java.util.Locale.ROOT)
         module !in setOf("learning-capability") &&
-            (!module.contains("addon") || module in setOf("business-addon", "learning-exam-addon")) &&
+            !module.contains("addon") &&
             !module.contains("capability")
     }
     val creditPackOrder = orderCanonicalCreditPackIds(customerPlanModules.map { it.id })
@@ -213,8 +213,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         .sortedBy { creditPackOrder.indexOf(it.id) }
     val nonCreditCustomerPlans = customerPlanModules.filter { it.module.lowercase(java.util.Locale.ROOT) != "credits" }
     val categorySpecs = listOf(
-        Triple("business", "Business AI", setOf("business", "business-addon")),
-        Triple("learning", "Learning Studio", setOf("learning", "learning-exam-addon")),
+        Triple("business", "Business AI", setOf("business")),
+        Triple("learning", "Learning Studio", setOf("learning")),
         Triple("organization", "Organization Studio", setOf("organization", "organization-studio")),
         Triple("truthguard", "TruthGuard AI", setOf("truthguard")),
         Triple("life-mathis", "Life Mathis", setOf("life-mathis")),
