@@ -4,6 +4,7 @@ service firebase.storage {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email == 'isaacoshiomole0@gmail.com'
+        && request.auth.token.email_verified == true
         && (request.auth.token.admin == true
           || request.auth.token.superAdmin == true
           || request.auth.token.role == 'admin'
