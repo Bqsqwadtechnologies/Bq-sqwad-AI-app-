@@ -306,8 +306,29 @@ class RealtimeVoiceSession(
                 if (!toolCallInProgress.get()) sendPendingVisualFrameIfIdle(ws)
             }
             "error" -> {
-                responseInProgress.set(false)
-                onError(event.optJSONObject("error")?.optString("message") ?: "Realtime voice error")
+                val realtimeError = event.optJSONObject("error)
+                val code = realtimeError?.optString("code").orEmpty().lowercase()
+                val message = realtimeError?.optString("message").orEmpty()
+                // Empty commits, cancellations, and response conflicts are recoverable.
+                val fatal = code.contains("auth") ||
+                    code.contains("expired") ||
+                    code.contains("quota") ||
+                    code.contains("billing") ||
+                    code.contains("model_not_found") ||
+                    code.contains("invalid_session") ||
+                    code.contains("session_configuration") ||
+                    code.contains("connection_closed") ||
+                    message.contains("unauthorized", ignoreCase = true) ||
+                    message.contains("invalid api key", ignoreCase = true) ||
+                    message.contains("insufficient_quota", ignoreCase = true) ||
+                    message.contains("model not found", ignoreCase = true)
+                if (fatal) {
+                    responseInProgress.set(false)
+                    onError("Realtime session error (" + (code.ifBlank { "fatal_provider_error" }) + "). Retry the session.")
+                } else {
+                    if (!playing.get()) responseInProgress.set(false)
+                    onState(if (playing.get()) "speaking" else "listening")
+                }
             }
         }
     }
