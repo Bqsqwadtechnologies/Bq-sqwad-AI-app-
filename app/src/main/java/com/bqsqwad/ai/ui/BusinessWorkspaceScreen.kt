@@ -38,7 +38,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
         scope.launch {
             runCatching { api.businessWorkspace() }
                 .onSuccess { data = it }
-                .onFailure { error = it.message ?: "Business workspace could not be loaded." }
+                .onFailure { error = safeUserFacingIssue(it, "Business workspace could not be loaded.") }
             loading = false
         }
     }
@@ -291,7 +291,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("assistant", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("instructions", values[1])) }
-                            .onFailure { error = it.message ?: "Assistant could not be created." }
+                            .onFailure { error = safeUserFacingIssue(it, "Assistant could not be created.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -303,7 +303,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("knowledge", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("content", values[1]).put("type","note")) }
-                            .onFailure { error = it.message ?: "Knowledge could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Knowledge could not be saved.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -315,7 +315,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessExtended("faq", JSONObject().put("workspaceId", data.optString("workspaceId")).put("question", values[0]).put("answer", values[1])) }
-                            .onFailure { error = it.message ?: "FAQ could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "FAQ could not be saved.") }
                             .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
                         saving = false
                     }
@@ -327,7 +327,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessExtended("vault", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("content", values[1])) }
-                            .onFailure { error = it.message ?: "Vault item could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Vault item could not be saved.") }
                             .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
                         saving = false
                     }
@@ -339,7 +339,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessExtended("inbox", JSONObject().put("workspaceId", data.optString("workspaceId")).put("sender", values[0]).put("channel", values[1]).put("message", values[2])) }
-                            .onFailure { error = it.message ?: "Inbox message could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Inbox message could not be saved.") }
                             .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
                         saving = false
                     }
@@ -351,7 +351,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessExtended("automation", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("enabled", true)) }
-                            .onFailure { error = it.message ?: "Automation could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Automation could not be saved.") }
                             .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
                         saving = false
                     }
@@ -363,7 +363,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         val id = automations.optJSONObject(0)?.optString("id").orEmpty()
                         if (id.isNotBlank()) {
                             scope.launch { runCatching { api.runBusinessAutomation(id, JSONObject().put("source", "native_test").put("workspaceId", data.optString("workspaceId"))) }
-                                .onFailure { error = it.message ?: "Automation could not run." } }
+                                .onFailure { error = safeUserFacingIssue(it, "Automation could not run.") } }
                         }
                     }) { Text("Run selected automation") }
                 }
@@ -398,16 +398,16 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                         scope.launch {
                             runCatching { api.updateBusinessSettings(data.optString("workspaceId"), timezone = timezone) }
                                 .onSuccess { data = it }
-                                .onFailure { error = it.message ?: "Timezone could not be saved." }
+                                .onFailure { error = safeUserFacingIssue(it, "Timezone could not be saved.") }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Save timezone") }
                 listOf(
-                    Triple("Business AI enabled", assistantEnabled) { next: Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
-                    Triple("Automation enabled", automationEnabled) { next: Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
-                    Triple("Notifications enabled", notificationsEnabled) { next: Boolean -> notificationsEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), notificationsEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit },
-                    Triple("Web Search for business workflows", webSearchEnabled) { next: Boolean -> webSearchEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), webSearchEnabled = next) }.onSuccess { data = it }.onFailure { error = it.message } }; Unit }
+                    Triple("Business AI enabled", assistantEnabled) { next: Boolean -> assistantEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), assistantEnabled = next) }.onSuccess { data = it }.onFailure { error = "The business workspace request could not be completed. Please try again." } }; Unit },
+                    Triple("Automation enabled", automationEnabled) { next: Boolean -> automationEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), automationEnabled = next) }.onSuccess { data = it }.onFailure { error = "The business workspace request could not be completed. Please try again." } }; Unit },
+                    Triple("Notifications enabled", notificationsEnabled) { next: Boolean -> notificationsEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), notificationsEnabled = next) }.onSuccess { data = it }.onFailure { error = "The business workspace request could not be completed. Please try again." } }; Unit },
+                    Triple("Web Search for business workflows", webSearchEnabled) { next: Boolean -> webSearchEnabled = next; scope.launch { runCatching { api.updateBusinessSettings(data.optString("workspaceId"), webSearchEnabled = next) }.onSuccess { data = it }.onFailure { error = "The business workspace request could not be completed. Please try again." } }; Unit }
                 ).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(row.first)
@@ -423,7 +423,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessExtended("leadCapture", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("source", values[1])) }
-                            .onFailure { error = it.message ?: "Lead capture form could not be created." }
+                            .onFailure { error = safeUserFacingIssue(it, "Lead capture form could not be created.") }
                             .onSuccess { extended = api.businessExtended(data.optString("workspaceId")) }
                         saving = false
                     }
@@ -435,7 +435,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("contact", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("email", values[1]).put("phone", values[2]).put("company", values[3])) }
-                            .onFailure { error = it.message ?: "Contact could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Contact could not be saved.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -447,7 +447,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("lead", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0]).put("email", values[1]).put("phone", values[2]).put("notes", values[3]).put("status","new")) }
-                            .onFailure { error = it.message ?: "Lead could not be saved." }
+                            .onFailure { error = safeUserFacingIssue(it, "Lead could not be saved.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -459,7 +459,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("pipeline", JSONObject().put("workspaceId", data.optString("workspaceId")).put("name", values[0])) }
-                            .onFailure { error = it.message ?: "Pipeline could not be created." }
+                            .onFailure { error = safeUserFacingIssue(it, "Pipeline could not be created.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -471,7 +471,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     saving = true
                     scope.launch {
                         runCatching { api.createBusinessRecord("appointment", JSONObject().put("workspaceId", data.optString("workspaceId")).put("title", values[0]).put("contactId", values[1]).put("startAt", values[2]).put("endAt", values[3]).put("notes", values[4]).put("status","scheduled")) }
-                            .onFailure { error = it.message ?: "Appointment could not be created." }
+                            .onFailure { error = safeUserFacingIssue(it, "Appointment could not be created.") }
                             .onSuccess { load() }
                         saving = false
                     }
@@ -493,7 +493,7 @@ private fun MemberForm(api: WorkspaceApiClient, workspaceId: String, saving: Boo
         setSaving(true)
         scope.launch {
             runCatching { api.addBusinessMember(workspaceId, uid.trim(), role.trim()) }
-                .onFailure { setError(it.message ?: "Member could not be added.") }
+                .onFailure { setError(safeUserFacingIssue(it, "Member could not be added.")) }
                 .onSuccess { uid = ""; reload() }
             setSaving(false)
         }
@@ -539,7 +539,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                     accountId = ""
                 }
             }
-            .onFailure { error(it.message ?: "Social channels could not be loaded.") }
+            .onFailure { error(safeUserFacingIssue(it, "Social channels could not be loaded.")) }
     }
 
     LaunchedEffect(workspaceId) {
@@ -601,9 +601,9 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                                 runCatching {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     context.startActivity(intent)
-                                }.onFailure { error(it.message ?: "Could not open YouTube sign-in.") }
+                                }.onFailure { error(safeUserFacingIssue(it, "Could not open YouTube sign-in.")) }
                             }
-                        }.onFailure { error(it.message ?: "YouTube connection failed.") }
+                        }.onFailure { error(safeUserFacingIssue(it, "YouTube connection failed.")) }
                         delay(1500)
                         repeat(20) {
                             refreshAccounts()
@@ -631,8 +631,8 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                             val url = result.optString("authorizationUrl")
                             if (url.isBlank()) error("X OAuth URL was not returned.")
                             else runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                                .onFailure { error(it.message ?: "Could not open X sign-in.") }
-                        }.onFailure { error(it.message ?: "X connection failed.") }
+                                .onFailure { error(safeUserFacingIssue(it, "Could not open X sign-in.")) }
+                        }.onFailure { error(safeUserFacingIssue(it, "X connection failed.")) }
                         delay(1500)
                         repeat(20) {
                             refreshAccounts()
@@ -660,8 +660,8 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                             val url = result.optString("authorizationUrl")
                             if (url.isBlank()) error("TikTok OAuth URL was not returned.")
                             else runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                                .onFailure { error(it.message ?: "Could not open TikTok authorization.") }
-                        }.onFailure { error(it.message ?: "TikTok connection failed.") }
+                                .onFailure { error(safeUserFacingIssue(it, "Could not open TikTok authorization.")) }
+                        }.onFailure { error(safeUserFacingIssue(it, "TikTok connection failed.")) }
                         delay(1500)
                         repeat(20) {
                             refreshAccounts()
@@ -694,7 +694,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                                     if (accountId == id) accountId = ""
                                     refreshAccounts()
                                 }
-                                .onFailure { error(it.message ?: "Social account could not be disconnected.") }
+                                .onFailure { error(safeUserFacingIssue(it, "Social account could not be disconnected.")) }
                         }
                     }) { Text("Disconnect") }
                 }
@@ -719,7 +719,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
             onClick = {
                 scope.launch {
                     runCatching { api.publishSocial(accountId, text, mediaUrl.takeIf { it.isNotBlank() }) }
-                        .onFailure { error(it.message ?: "Publishing failed.") }
+                        .onFailure { error(safeUserFacingIssue(it, "Publishing failed.")) }
                         .onSuccess { text = ""; mediaUrl = "" }
                 }
             }
@@ -739,7 +739,7 @@ private fun AdvancedAiPanel(api: WorkspaceApiClient, workspaceId: String, error:
         OutlinedTextField(prompt, { prompt = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Task / instruction") }, minLines = 3)
         Button(enabled = prompt.isNotBlank(), onClick = {
             scope.launch { runCatching { api.businessAdvancedAi(JSONObject().put("workspaceId", workspaceId).put("capability","chat").put("message",prompt)) }
-                .onSuccess { result = it.optString("text") }.onFailure { error(it.message ?: "Advanced AI failed.") } }
+                .onSuccess { result = it.optString("text") }.onFailure { error(safeUserFacingIssue(it, "Advanced AI failed.")) } }
         }) { Text("Run AI task") }
         if (result.isNotBlank()) SurfaceCard("Result", result)
     }
@@ -760,7 +760,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                     integrations = it.optJSONArray("integrations") ?: JSONArray()
                     configured = it.optJSONArray("configured") ?: JSONArray()
                 }
-                .onFailure { error(it.message ?: "Integrations could not be loaded.") }
+                .onFailure { error(safeUserFacingIssue(it, "Integrations could not be loaded.")) }
             runCatching { api.businessExtended(workspaceId) }
                 .onSuccess { automations = it.optJSONArray("automations") ?: JSONArray() }
         }
@@ -803,7 +803,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                                     val url = result.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }
-                                .onFailure { error(it.message ?: "TikTok connection could not start.") }
+                                .onFailure { error(safeUserFacingIssue(it, "TikTok connection could not start.")) }
                             tiktokBusy = false
                         }
                     }) { Text("Connect TikTok") }
@@ -818,7 +818,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                                 }
                                 tiktokAccounts = filtered
                                 if (selectedTikTok.isBlank() && filtered.length() > 0) selectedTikTok = filtered.optJSONObject(0)?.optString("id").orEmpty()
-                            }.onFailure { error(it.message ?: "TikTok accounts could not be loaded.") }
+                            }.onFailure { error(safeUserFacingIssue(it, "TikTok accounts could not be loaded.")) }
                         }
                     }) { Text("Refresh") }
                 }
@@ -836,7 +836,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                         tiktokBusy = true
                         scope.launch {
                             runCatching { api.publishTikTok(selectedTikTok, workspaceId, tiktokMediaUrl, tiktokTitle) }
-                                .onFailure { error(it.message ?: "TikTok publishing failed.") }
+                                .onFailure { error(safeUserFacingIssue(it, "TikTok publishing failed.")) }
                             tiktokBusy = false
                         }
                     }) { Text(if (tiktokBusy) "Working…" else "AI publish to TikTok") }
@@ -887,7 +887,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                                                     .put("enabled", next)
                                             )
                                         }.onSuccess { reload() }
-                                            .onFailure { error(it.message ?: "Integration could not be configured.") }
+                                            .onFailure { error(safeUserFacingIssue(it, "Integration could not be configured.")) }
                                     }
                                 }
                             )
@@ -926,7 +926,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
 @Composable
 private fun BusinessEnterprisePanel(api: WorkspaceApiClient, workspaceId: String, error: (String)->Unit) {
     var config by remember { mutableStateOf(JSONObject()) }
-    LaunchedEffect(workspaceId) { runCatching { api.businessEnterprise(workspaceId) }.onSuccess { config = it.optJSONObject("config") ?: JSONObject() }.onFailure { error(it.message ?: "Enterprise configuration could not be loaded.") } }
+    LaunchedEffect(workspaceId) { runCatching { api.businessEnterprise(workspaceId) }.onSuccess { config = it.optJSONObject("config") ?: JSONObject() }.onFailure { error(safeUserFacingIssue(it, "Enterprise configuration could not be loaded.")) } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Enterprise Controls", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         SurfaceCard("SSO", (config.optJSONObject("sso") ?: JSONObject()).optBoolean("enabled").toString())
@@ -964,7 +964,7 @@ private fun BusinessPlanBuilderPanel(api: WorkspaceApiClient, workspaceId: Strin
                 scope.launch {
                     runCatching { api.businessPlanBuilder(workspaceId, brief) }
                         .onSuccess { result = it.optString("answer") }
-                        .onFailure { error(it.message ?: "Business plan could not be generated.") }
+                        .onFailure { error(safeUserFacingIssue(it, "Business plan could not be generated.")) }
                     busy = false
                 }
             }
