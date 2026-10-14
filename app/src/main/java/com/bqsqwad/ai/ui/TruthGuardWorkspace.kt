@@ -363,12 +363,19 @@ private fun parseTruthGuardPlans(body: JSONObject): List<TruthGuardPlan> {
     val array = body.optJSONArray("plans") ?: JSONArray()
     return List(array.length()) { index ->
         val item = array.optJSONObject(index) ?: JSONObject()
-        val priceObject = item.optJSONObject("price") ?: JSONObject()
+        val priceObject = item.optJSONObject("priceNgn") ?: JSONObject()
         val price = mutableMapOf<String, String>()
         val priceKeys = priceObject.keys()
         while (priceKeys.hasNext()) {
             val key = priceKeys.next()
-            price[key] = priceObject.opt(key).toString()
+            val raw = priceObject.opt(key).toString()
+            price[key] = if (raw.contains("₦")) raw else raw.toDoubleOrNull()?.let {
+                String.format(java.util.Locale.US, "₦%,.2f", it)
+            } ?: raw
+        }
+        if (price.isEmpty()) {
+            if (item.optBoolean("free", false) || item.optString("id") == "truthguardfree") price["Plan"] = "Free"
+            else price["Price"] = "View localized price in Plans & Credits"
         }
         val featureArray = item.optJSONArray("features") ?: JSONArray()
         val limitObject = item.optJSONObject("limits") ?: JSONObject()
