@@ -289,8 +289,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             reportCameraError("Android did not report a supported preview size for this camera. Switch cameras or retry.")
             return
         }
-        runCatching { texture.setDefaultBufferSize(supportedSize.width, supportedSize.height) }
-            .onFailure { reportCameraError("The camera could not configure a supported preview size. Switch cameras or retry.") }
+        val bufferConfigured = runCatching { texture.setDefaultBufferSize(supportedSize.width, supportedSize.height) }.isSuccess
+        if (!bufferConfigured) {
+            reportCameraError("The camera could not configure a supported preview size. Switch cameras or retry.")
+            return
+        }
 
         previewSurface?.release()
         val surface = Surface(texture)
