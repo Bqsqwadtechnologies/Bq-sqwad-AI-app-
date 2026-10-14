@@ -777,6 +777,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val email = firebaseUser?.email.orEmpty()
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var chatSessionNonce by remember { mutableIntStateOf(0) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     val pendingWorkspaceRedirect by WorkspaceRedirectStore.redirect.collectAsState()
@@ -977,7 +978,14 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("New Chat") },
                             selected = workspace == null && !history && !settings,
-                            onClick = { shellScope.launch { drawerState.close(); history = false; settings = false; plans = false; featureHub = false; workspace = null } },
+                            onClick = {
+                                shellScope.launch {
+                                    drawerState.close()
+                                    history = false; settings = false; plans = false; featureHub = false; workspace = null
+                                    restoredChat = null
+                                    chatSessionNonce += 1
+                                }
+                            },
                             icon = { Icon(Icons.Default.AddComment, null) }
                         )
                     }
@@ -1063,7 +1071,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
                 !legalCenter && !settings && !history && workspace == null
             Box(Modifier.fillMaxSize()) {
-                key(firebaseUser?.uid) {
+                key(firebaseUser?.uid, chatSessionNonce) {
                     MainChatScreen(
                         modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),
                         openHub = { shellScope.launch { drawerState.open() } },
