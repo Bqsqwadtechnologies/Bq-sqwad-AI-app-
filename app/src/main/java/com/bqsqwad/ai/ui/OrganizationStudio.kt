@@ -231,7 +231,7 @@ fun OrganizationStudioWorkspace() {
                                     val answer = reply.optString("reply")
                                     if (answer.isNotBlank()) youtubeChatLog.add("BQ Sqwad AI: $answer")
                                 }.onFailure { e ->
-                                    youtubeChatLog.add("AI reply unavailable: " + (e.message ?: "unknown error"))
+                                    youtubeChatLog.add("AI reply unavailable. Please try again shortly.")
                                 }
                             }
                         }
