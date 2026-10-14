@@ -105,17 +105,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f)
-                    ) {
-                        Icon(
-                            Icons.Default.BusinessCenter,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(12.dp).size(28.dp)
-                        )
-                    }
+                    BqLogo(52.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(
                             "BUSINESS WORKSPACE",
