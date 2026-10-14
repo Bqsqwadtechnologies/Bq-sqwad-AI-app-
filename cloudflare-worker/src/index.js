@@ -1689,7 +1689,20 @@ export default {
       if (url.pathname === "/admin/diagnostics" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        return json({ features: await adminDiagnosticSnapshot(), checkedAt: new Date().toISOString() });
+        const features = await adminDiagnosticSnapshot();
+        const timeline = Object.values(features)
+          .flat()
+          .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+          .slice(0, 80)
+          .map(item => ({
+            id: String(item.id || "").slice(0, 100),
+            feature: String(item.feature || "unknown").slice(0, 40),
+            route: String(item.route || "/").slice(0, 120),
+            status: Number(item.status || 500),
+            code: String(item.code || "server_request_failed").slice(0, 80),
+            createdAt: item.createdAt || null
+          }));
+        return json({ features, timeline, checkedAt: new Date().toISOString() });
       }
 
       if (url.pathname === "/admin/self-test" && request.method === "POST") {
