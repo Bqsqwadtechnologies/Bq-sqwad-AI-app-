@@ -19,7 +19,8 @@ class RealtimeVoiceSession(
     private val onState: (String) -> Unit,
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
-    private val onTranscript: (speaker: String, text: String) -> Unit = { _, _ -> }
+    private val onTranscript: (speaker: String, text: String) -> Unit = { _, _ -> },
+    private val onOutputAudioLevel: (Float) -> Unit = {}
 ) {
     companion object {
         private const val SAMPLE_RATE = 24000
@@ -267,7 +268,7 @@ class RealtimeVoiceSession(
                     player?.play()
                     playing.set(true)
                     lastOutputStartedAt.set(System.currentTimeMillis())
-                    onAudioLevel(pcmRms(bytes))
+                    onOutputAudioLevel(pcmRms(bytes))
                     val track = player ?: return
                     val written = track.write(bytes, 0, bytes.size)
                     if (written < 0) throw IllegalStateException("Audio playback failed ($written).")
@@ -315,7 +316,7 @@ class RealtimeVoiceSession(
             }
             "response.done" -> {
                 responseInProgress.set(false)
-                onAudioLevel(0f)
+                onOutputAudioLevel(0f)
                 onState("listening")
                 if (!toolCallInProgress.get()) sendPendingVisualFrameIfIdle(ws)
             }
@@ -455,6 +456,7 @@ class RealtimeVoiceSession(
         toolScope.coroutineContext.cancelChildren()
         toolCallInProgress.set(false)
         onAudioLevel(0f)
+        onOutputAudioLevel(0f)
         inputTranscript.setLength(0)
         outputTranscript.setLength(0)
         runCatching { recorder?.stop() }
