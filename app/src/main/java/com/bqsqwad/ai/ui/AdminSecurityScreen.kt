@@ -80,6 +80,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
     var totpConfigured by remember { mutableStateOf(false) }
     var sessionRemainingSeconds by remember { mutableIntStateOf(0) }
     var sessionExpiry by remember { mutableStateOf<String?>(null) }
+    var unlockRequired by remember { mutableStateOf(false) }
 
     fun run(action: suspend () -> Unit, success: String) {
         busy = true; error = null
@@ -97,6 +98,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 biometricConfigured = it.biometricConfigured
                 passwordConfigured = it.passwordConfigured
                 totpConfigured = it.totpConfigured
+                unlockRequired = it.unlockRequired
                 status = "Password: " + (if (it.passwordConfigured) "configured" else "not configured") +
                     " • Authenticator: " + (if (it.totpConfigured) "configured" else "not configured") +
                     " • Fingerprint: " + (if (it.biometricConfigured) "configured" else "not configured") +
@@ -236,7 +238,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                     }
                 ) { Text("Enroll fingerprint / biometric") }
                 if (biometricConfigured) {
-                    if (false) {
+                    if (unlockRequired) {
                     Button(
                         enabled = !busy,
                         onClick = {
@@ -267,7 +269,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
 
             // Retained for future server-controlled reactivation. The current policy keeps
             // the Admin Control Center step-up timer and unlock UI hidden.
-            if (false) {
+            if (unlockRequired) {
             item {
                 HorizontalDivider()
                 Text("Unlock Admin Control Center", style = MaterialTheme.typography.titleLarge)
