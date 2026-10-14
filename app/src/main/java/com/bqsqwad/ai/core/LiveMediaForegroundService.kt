@@ -265,20 +265,30 @@ class LiveMediaForegroundService : Service() {
             while (isActive && (realtimeVoice != null || visualVoice != null)) {
                 delay(60_000L)
                 if (!isActive || (realtimeVoice == null && visualVoice == null)) break
-                runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
-                    .onSuccess { result ->
-                        if (!result.optBoolean("ok", false)) {
-                            writeError("You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue.")
-                            stopSelf()
-                            return@launch
-                        }
-                    }
-                    .onFailure { failure ->
-                        val message = failure.message.orEmpty()
-                        writeError(message.ifBlank { "BQ Sqwad AI could not verify the live session balance." })
-                        stopSelf()
-                        return@launch
-                    }
+                var heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
+                if (heartbeat.isFailure) {
+                    delay(1_500L)
+                    if (!isActive || (realtimeVoice == null && visualVoice == null)) break
+                    heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
+                }
+                val result = heartbeat.getOrNull()
+                if (result == null) {
+                    writeError("BQ Sqwad AI could not verify the live session balance after retry. Please retry the session.")
+                    stopSelf()
+                    return@launch
+                }
+                if (!result.optBoolean("ok", false)) {
+                    val code = result.optString("code").lowercase()
+                    val message = result.optString("error").lowercase()
+                    val insufficient = code.contains("insufficient") || code.contains("out_of_credits") ||
+                        message.contains("insufficient credits") || message.contains("out of credits")
+                    writeError(
+                        if (insufficient) "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
+                        else "BQ Sqwad AI could not verify the live session balance. Please retry the session."
+                    )
+                    stopSelf()
+                    return@launch
+                }
             }
         }
     }
