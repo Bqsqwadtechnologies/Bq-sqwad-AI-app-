@@ -656,20 +656,53 @@ private fun WorkspaceFrame(
                     shape = MaterialTheme.shapes.extraLarge
                 ) {
                     Column(
-                        Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Icon(icon, contentDescription = null, tint = onContainer)
-                            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = onContainer)
+                        Text(
+                            "BQ SQWAD AI  /  WORKSPACE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = onContainer.copy(alpha = 0.72f)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = onContainer.copy(alpha = 0.10f)
+                            ) {
+                                Icon(
+                                    icon,
+                                    contentDescription = null,
+                                    tint = onContainer,
+                                    modifier = Modifier.padding(12.dp).size(28.dp)
+                                )
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = onContainer)
+                                Text(
+                                    when (style) {
+                                        WorkspaceVisualStyle.TRUTH_GUARD -> "Verify claims with evidence"
+                                        WorkspaceVisualStyle.LEARNING -> "Learn, practise and measure progress"
+                                        WorkspaceVisualStyle.LIFE -> "Turn goals into practical next steps"
+                                        WorkspaceVisualStyle.PERSONAL -> "Keep personal projects organized"
+                                        WorkspaceVisualStyle.FRONTIER -> "Explore ideas and build prototypes"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = onContainer.copy(alpha = 0.82f)
+                                )
+                            }
                         }
+                        Divider(color = onContainer.copy(alpha = 0.14f))
                         Text(
                             when (style) {
-                                WorkspaceVisualStyle.TRUTH_GUARD -> "Evidence workspace • claims → research → sources → analysis"
-                                WorkspaceVisualStyle.LEARNING -> "Study workspace • learn → practise → revise → measure"
-                                WorkspaceVisualStyle.LIFE -> "Planning workspace • goals → routines → tasks → action"
-                                WorkspaceVisualStyle.PERSONAL -> "Private workspace • projects → notes → memory → organization"
-                                WorkspaceVisualStyle.FRONTIER -> "Lab workspace • experiments → prototypes → research → architecture"
+                                WorkspaceVisualStyle.TRUTH_GUARD -> "Claims → research → sources → analysis"
+                                WorkspaceVisualStyle.LEARNING -> "Learn → practise → revise → measure"
+                                WorkspaceVisualStyle.LIFE -> "Goals → routines → tasks → action"
+                                WorkspaceVisualStyle.PERSONAL -> "Projects → notes → memory → organization"
+                                WorkspaceVisualStyle.FRONTIER -> "Experiments → prototypes → research → architecture"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = onContainer
