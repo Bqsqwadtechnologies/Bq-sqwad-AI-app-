@@ -58,11 +58,21 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                 val raw = catalog.optJSONArray("plans") ?: JSONArray()
                 plans = List(raw.length()) { i ->
                     val p = raw.optJSONObject(i) ?: JSONObject()
-                    val price = p.optJSONObject("price")?.let { price ->
+                    val priceNgn = p.optJSONObject("priceNgn")
+                    val price = priceNgn?.let { configured ->
                         val parts = mutableListOf<String>()
-                        price.keys().forEach { key -> parts += key.replaceFirstChar { it.uppercase() } + ": $" + price.opt(key) }
+                        configured.keys().forEach { key ->
+                            val raw = configured.opt(key).toString()
+                            val shown = if (raw.contains("₦")) raw else raw.toDoubleOrNull()?.let {
+                                String.format(java.util.Locale.US, "₦%,.2f", it)
+                            } ?: raw
+                            parts += key.replaceFirstChar { it.uppercase() } + ": " + shown
+                        }
                         parts.joinToString(" • ")
-                    }.orEmpty().ifBlank { "Free" }
+                    }.orEmpty().ifBlank {
+                        if (p.optBoolean("free", false) || p.optString("id") == "explorer") "Free"
+                        else "View localized price in Plans & Credits"
+                    }
                     val features = p.optJSONArray("features") ?: JSONArray()
                     LearningPlanUi(
                         p.optString("id"),
