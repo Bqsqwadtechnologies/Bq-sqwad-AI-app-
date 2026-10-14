@@ -2204,8 +2204,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         }
         val imageParts = selectedAttachments.filter { it.imageBase64 != null }
         val fileParts = selectedAttachments.filter { it.fileBase64 != null }
-        if (imageParts.size > 4 || fileParts.size > 4) {
-            error = "You can attach up to 4 images and 4 PDF files per message. Remove extra attachments and try again."
+        if (imageParts.size > 8 || fileParts.size > 4) {
+            error = "You can attach up to 8 images and 4 PDF files per message. Each file must also fit the total request size limit."
             attachments = selectedAttachments
             message = text
             return
