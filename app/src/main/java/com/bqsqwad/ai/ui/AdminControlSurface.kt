@@ -349,7 +349,8 @@ fun AdminControlCenter() {
                             Text(
                                 (item.optString("createdAt").takeIf { it.isNotBlank() }?.let { it + " • " } ?: "") +
                                     item.optString("feature", "unknown").replace('_', ' ') + " • HTTP " +
-                                    item.optInt("status", 500) + " • " + item.optString("code", "server_request_failed"),
+                                    item.optInt("status", 500) + " • " + item.optString("code", "server_request_failed") +
+                                    item.optString("timelineStatus").takeIf { it.isNotBlank() }?.let { " • " + it } .orEmpty(),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
