@@ -22,6 +22,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 
 internal fun selectCameraIdForFacing(
     cameraIds: List<String>,
@@ -251,9 +252,24 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     private fun createSession(device: CameraDevice) {
         val texture = surfaceTexture ?: return
-        val bufferWidth = width.coerceAtLeast(640)
-        val bufferHeight = height.coerceAtLeast(480)
+        // Use a size explicitly supported for SurfaceTexture output by this camera.
+        // Request a landscape 16:9 size near 960x540 without exceeding 1280x720.
+        val supportedSize = runCatching {
+            val map = cameraId?.let { id ->
+                cameraManager.getCameraCharacteristics(id)
+                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            }
+            map?.getOutputSizes(SurfaceTexture::class.java)
+                ?.filter { it.width <= 1280 && it.height <= 720 }
+                ?.minByOrNull { size ->
+                    val ratioPenalty = abs(size.width.toFloat() / size.height.coerceAtLeast(1) - (16f / 9f)) * 10000f
+                    ratioPenalty + abs(size.width - 960) + abs(size.height - 540)
+                }
+        }.getOrNull()
+        val bufferWidth = supportedSize?.width ?: width.coerceIn(320, 1280)
+        val bufferHeight = supportedSize?.height ?: height.coerceIn(240, 720)
         runCatching { texture.setDefaultBufferSize(bufferWidth, bufferHeight) }
+            .onFailure { reportCameraError("The camera could not configure a supported preview size. Switch cameras or retry.") }
 
         previewSurface?.release()
         val surface = Surface(texture)
