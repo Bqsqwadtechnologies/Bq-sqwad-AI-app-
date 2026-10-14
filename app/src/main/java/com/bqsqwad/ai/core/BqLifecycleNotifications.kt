@@ -56,7 +56,7 @@ object BqLifecycleNotifications {
             7L to "BQ Sqwad AI is one week old!",
             1L to "BQ Sqwad AI is one day old!"
         )
-        val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
+        val sent = prefs.getStringSet(SENT_MILESTONES, mutableSetOf<String>()).orEmpty().toMutableSet()
         val due = milestones.firstOrNull { (day, _) -> ageDays >= day && day.toString() !in sent }
         if (due != null) {
             val (day, title) = due
@@ -85,7 +85,7 @@ object BqLifecycleNotifications {
             7L to "BQ Sqwad AI is one week old!",
             1L to "BQ Sqwad AI is one day old!"
         )
-        val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
+        val sent = prefs.getStringSet(SENT_MILESTONES, mutableSetOf<String>()).orEmpty().toMutableSet()
         val due = milestones.firstOrNull { (day, _) -> ageDays >= day && day.toString() !in sent }
         if (due != null) {
             val (day, title) = due
