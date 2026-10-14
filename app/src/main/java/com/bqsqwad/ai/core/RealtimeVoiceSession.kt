@@ -459,6 +459,11 @@ class RealtimeVoiceSession(
     private fun stopInternal() {
         running.set(false)
         audioCaptureStarted.set(false)
+        sessionConfigured.set(false)
+        responseInProgress.set(false)
+        suppressAudioUntilResponse.set(false)
+        pendingVisualFrame.set(null)
+        playing.set(false)
         audioJob?.cancel()
         audioJob = null
         toolScope.coroutineContext.cancelChildren()
