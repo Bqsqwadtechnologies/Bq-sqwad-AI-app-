@@ -29,6 +29,19 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun userFacingErrorsNeverExposePrivateWorkerOrRepositoryDetails() {
+        val privateDetails = IllegalStateException("Request failed for owner@example.com at https://private-worker.workers.dev; repo https://github.com/private/repo")
+        val shown = com.bqsqwad.ai.ui.safeUserFacingIssue(privateDetails, "Try again.")
+        assertEquals(
+            "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.",
+            shown
+        )
+        assertFalse(shown.contains("@"))
+        assertFalse(shown.contains("workers.dev"))
+        assertFalse(shown.contains("github.com"))
+    }
+
+
     @Test fun workspaceRedirectStorePublishesAndClearsTarget() {
         WorkspaceRedirectStore.clear()
         WorkspaceRedirectStore.publish(org.json.JSONObject().put("workspace", "CHAT").put("message", "Open Main Chat"))
