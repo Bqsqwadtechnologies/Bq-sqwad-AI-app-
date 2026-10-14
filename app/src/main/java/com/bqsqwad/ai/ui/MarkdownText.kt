@@ -49,8 +49,9 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         val trimmed = line.trimStart()
         when {
             MARKDOWN_IMAGE.matchEntire(trimmed) != null -> {
-                val match = MARKDOWN_IMAGE.matchEntire(trimmed)!!
-                out += MdBlock.Image(match.groupValues[1], match.groupValues[2])
+                // Remote images in ordinary AI text are not trusted UI attachments.
+                // Keep a neutral placeholder; generated images use the dedicated image result.
+                out += MdBlock.Para("External image preview hidden for privacy.")
             }
             trimmed.startsWith("```") -> {
                 val lang = trimmed.removePrefix("```").trim()
