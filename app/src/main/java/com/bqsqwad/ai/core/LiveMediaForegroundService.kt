@@ -150,6 +150,18 @@ class LiveMediaForegroundService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun reportTimelineFailure(sessionMode: String, code: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            runCatching {
+                WorkspaceApiClient().reportLiveSessionTimeline(
+                    mode = sessionMode,
+                    status = "failed",
+                    code = code.filter { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }.take(80)
+                )
+            }
+        }
+    }
+
     private fun startVoice() {
         if (realtimeVoice != null) return
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -180,7 +192,7 @@ class LiveMediaForegroundService : Service() {
                                 voiceConnectionWatchdog = null
                             }
                         },
-                        onError = { error -> writeError(error); stopSelf() },
+                        onError = { error -> reportTimelineFailure("voice", "live_voice_runtime_error"); writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
                         onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
                         onTranscript = { speaker, text -> appendLog("$speaker: $text") }
@@ -188,6 +200,7 @@ class LiveMediaForegroundService : Service() {
                     startRealtimeBillingHeartbeat(MODE_VOICE)
                 }
             } catch (t: Throwable) {
+                reportTimelineFailure("voice", "realtime_session_create_failed")
                 writeError(t.message ?: "Realtime voice could not start.")
                 stopSelf()
             }
