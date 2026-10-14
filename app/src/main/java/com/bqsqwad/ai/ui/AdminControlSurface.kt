@@ -339,6 +339,22 @@ fun AdminControlCenter() {
                     }
                 }
                 diagnosticsSnapshot?.let { snapshot ->
+                    val timeline = snapshot.optJSONArray("timeline")
+                    Text("Recent diagnostics timeline • last 20", fontWeight = FontWeight.SemiBold)
+                    if (timeline == null || timeline.length() == 0) {
+                        Text("No diagnostic timeline entries recorded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        for (index in 0 until minOf(20, timeline.length())) {
+                            val item = timeline.optJSONObject(index) ?: org.json.JSONObject()
+                            Text(
+                                (item.optString("createdAt").takeIf { it.isNotBlank() }?.let { it + " • " } ?: "") +
+                                    item.optString("feature", "unknown").replace('_', ' ') + " • HTTP " +
+                                    item.optInt("status", 500) + " • " + item.optString("code", "server_request_failed"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     val features = snapshot.optJSONObject("features")
                     listOf("chat", "image", "vision", "live_camera", "screen_share", "voice_session", "catalog").forEach { feature ->
                         val rows = features?.optJSONArray(feature)
