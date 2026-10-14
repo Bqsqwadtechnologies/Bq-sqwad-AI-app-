@@ -25,6 +25,8 @@ object BqLifecycleNotifications {
     private const val SENT_MILESTONES = "sent_age_milestones"
     private const val NEXT_ID = "next_notification_id"
     private const val INACTIVITY_REQUEST_CODE = 4012
+    private const val BIRTHDAY_REQUEST_CODE = 4013
+    const val ACTION_BIRTHDAY_MILESTONE = "com.bqsqwad.ai.ACTION_BIRTHDAY_MILESTONE"
 
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -66,6 +68,51 @@ object BqLifecycleNotifications {
             post(context, title, body)
             milestones.filter { it.first <= day }.forEach { sent.add(it.first.toString()) }
             prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
+        }
+        scheduleNextBirthdayReminder(context, firstOpen, sent)
+    }
+
+    fun onBirthdayAlarm(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val firstOpen = prefs.getLong(FIRST_OPEN, 0L)
+        if (firstOpen <= 0L) return
+        val now = System.currentTimeMillis()
+        val ageDays = TimeUnit.MILLISECONDS.toDays((now - firstOpen).coerceAtLeast(0L))
+        val milestones = listOf(
+            365L to "BQ Sqwad AI Birthday",
+            30L to "BQ Sqwad AI is one month old!",
+            7L to "BQ Sqwad AI is one week old!",
+            1L to "BQ Sqwad AI is one day old!"
+        )
+        val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
+        val due = milestones.firstOrNull { (day, _) -> ageDays >= day && day.toString() !in sent }
+        if (due != null) {
+            val (day, title) = due
+            val body = when (day) {
+                1L -> "BQ Sqwad AI is one day old. Wish your AI a happy birthday!"
+                7L -> "BQ Sqwad AI is one week old today. Wish your AI a happy birthday!"
+                30L -> "BQ Sqwad AI is one month old. Celebrate the journey and keep building!"
+                else -> "It is BQ Sqwad AI's birthday! Thank you for growing with your AI."
+            }
+            post(context, title, body)
+            milestones.filter { it.first <= day }.forEach { sent.add(it.first.toString()) }
+            prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
+        }
+        scheduleNextBirthdayReminder(context, firstOpen, sent)
+    }
+
+    private fun scheduleNextBirthdayReminder(context: Context, firstOpen: Long, sent: Set<String>) {
+        val nextDay = listOf(1L, 7L, 30L, 365L).firstOrNull { it.toString() !in sent } ?: return
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, BqInactivityReminderReceiver::class.java).setAction(ACTION_BIRTHDAY_MILESTONE)
+        val pending = PendingIntent.getBroadcast(
+            context, BIRTHDAY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+        val trigger = maxOf(System.currentTimeMillis() + 60_000L, firstOpen + TimeUnit.DAYS.toMillis(nextDay))
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
+            else alarmManager.set(AlarmManager.RTC_WAKEUP, trigger, pending)
         }
     }
 
