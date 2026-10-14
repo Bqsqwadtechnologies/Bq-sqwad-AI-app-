@@ -219,6 +219,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 if (passkeyIds.isEmpty()) Text("No admin passkey is connected.", style = MaterialTheme.typography.bodySmall)
             }
 
+            if (unlockRequired) {
             item {
                 Text("Fingerprint / biometric unlock", style = MaterialTheme.typography.titleLarge)
                 Text("Enroll a device-bound biometric key for direct admin unlock. Password + authenticator remains available as the recovery path.")
@@ -267,6 +268,7 @@ fun AdminSecurityScreen(onBack: () -> Unit) {
                 }
             }
 
+            }
             // Retained for future server-controlled reactivation. The current policy keeps
             // the Admin Control Center step-up timer and unlock UI hidden.
             if (unlockRequired) {
