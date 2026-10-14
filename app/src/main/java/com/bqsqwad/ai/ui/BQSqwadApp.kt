@@ -1636,7 +1636,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
-    val privateMessageIds = remember { mutableStateListOf<String>() }
+    val privateMessageIds = remember { mutableStateListOf<String>().apply { addAll(messages.filter { it.privateSession }.map { it.id }) } }
     fun appendChatMessage(chatMessage: ChatMessage) {
         val messageForSession = if (privateChat) chatMessage.copy(privateSession = true) else chatMessage
         messages.add(messageForSession)
