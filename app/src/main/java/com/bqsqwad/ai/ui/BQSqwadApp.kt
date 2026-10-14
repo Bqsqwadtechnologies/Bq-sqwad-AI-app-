@@ -1560,10 +1560,25 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var dictationRecording by remember { mutableStateOf(false) }
     var dictationTranscribing by remember { mutableStateOf(false) }
     var dictationLevel by remember { mutableFloatStateOf(0f) }
+    val dictationWaveform = remember { mutableStateListOf<Float>().apply { repeat(24) { add(0f) } } }
     var dictationSeconds by remember { mutableIntStateOf(0) }
     var dictationStartedAt by remember { mutableLongStateOf(0L) }
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
+    LaunchedEffect(dictationRecording, isListening) {
+        if (dictationRecording || isListening) {
+            while (dictationRecording || isListening) {
+                val raw = dictationLevel.coerceIn(0f, 1f)
+                val db = if (raw > 0.00001f) 20f * kotlin.math.log10(raw) else -100f
+                val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
+                if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
+                dictationWaveform.add(gained)
+                delay(65L)
+            }
+        } else {
+            dictationWaveform.indices.forEach { dictationWaveform[it] = 0f }
+        }
+    }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by remember { mutableStateOf<String?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -2742,12 +2757,16 @@ val composerShape = RoundedCornerShape(26.dp)
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val normalizedLevel = (dictationLevel * 5f).coerceIn(0f, 1f)
                                     repeat(24) { index ->
-                                        val profile = 0.35f + (index % 6) * 0.11f
+                                        val barLevel = dictationWaveform.getOrElse(index) { 0f }
+                                        val barHeight by animateFloatAsState(
+                                            targetValue = 4f + barLevel * 24f,
+                                            animationSpec = tween(durationMillis = 90),
+                                            label = "dictationWaveBar$index"
+                                        )
                                         Box(
                                             Modifier.width(3.dp)
-                                                .height((4f + normalizedLevel * 22f * profile).dp)
+                                                .height(barHeight.dp)
                                                 .clip(RoundedCornerShape(4.dp))
                                                 .background(MaterialTheme.colorScheme.primary)
                                         )
