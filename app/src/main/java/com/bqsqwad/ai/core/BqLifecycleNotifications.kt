@@ -36,6 +36,7 @@ object BqLifecycleNotifications {
                 ?: prefs.edit().putLong(FIRST_OPEN, now).apply()
             prefs.edit().putLong(LAST_OPEN, now).apply()
             cancelInactivityReminder(context)
+            cancelBirthdayReminder(context)
             return
         }
         val firstOpen = prefs.getLong(FIRST_OPEN, 0L).let { saved ->
@@ -153,6 +154,17 @@ object BqLifecycleNotifications {
         val intent = Intent(context, BqInactivityReminderReceiver::class.java)
         val pending = PendingIntent.getBroadcast(
             context, INACTIVITY_REQUEST_CODE, intent,
+            PendingIntent.FLAG_NO_CREATE or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        ) ?: return
+        alarmManager.cancel(pending)
+        pending.cancel()
+    }
+
+    private fun cancelBirthdayReminder(context: Context) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, BqInactivityReminderReceiver::class.java).setAction(ACTION_BIRTHDAY_MILESTONE)
+        val pending = PendingIntent.getBroadcast(
+            context, BIRTHDAY_REQUEST_CODE, intent,
             PendingIntent.FLAG_NO_CREATE or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         ) ?: return
         alarmManager.cancel(pending)
