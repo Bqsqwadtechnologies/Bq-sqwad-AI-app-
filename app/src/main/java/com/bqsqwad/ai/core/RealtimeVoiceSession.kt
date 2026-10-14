@@ -267,8 +267,9 @@ class RealtimeVoiceSession(
                     val bytes = Base64.decode(encoded, Base64.DEFAULT)
                     ensurePlayer()
                     player?.play()
-                    playing.set(true)
-                    lastOutputStartedAt.set(System.currentTimeMillis())
+                    if (playing.compareAndSet(false, true)) {
+                        lastOutputStartedAt.set(System.currentTimeMillis())
+                    }
                     onOutputAudioLevel(pcmRms(bytes))
                     val track = player ?: return
                     val written = track.write(bytes, 0, bytes.size)
@@ -317,6 +318,7 @@ class RealtimeVoiceSession(
             }
             "response.done" -> {
                 responseInProgress.set(false)
+                playing.set(false)
                 onOutputAudioLevel(0f)
                 onState("listening")
                 if (!toolCallInProgress.get()) sendPendingVisualFrameIfIdle(ws)
