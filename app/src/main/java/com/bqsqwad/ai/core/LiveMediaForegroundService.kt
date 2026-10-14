@@ -19,6 +19,8 @@ data class LiveMediaUiState(
     val status: String = "stopped",
     val answer: String = "",
     val audioLevel: Float = 0f,
+    val microphoneLevel: Float = 0f,
+    val outputAudioLevel: Float = 0f,
     val onlineBroadcast: Boolean = false,
     val log: List<String> = emptyList()
 )
