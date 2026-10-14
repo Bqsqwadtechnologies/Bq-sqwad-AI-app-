@@ -1686,7 +1686,11 @@ export default {
         const requestedRoute = String(body.route || "/live-voice").slice(0, 80);
         const allowedRoutes = new Set(["/live-voice", "/live-camera", "/screen-share", "/ai/stream", "/ai/vision"]);
         if (!allowedRoutes.has(requestedRoute)) return json({ error: "invalid_issue_route" }, 400);
-        await notifyAdminOfIssue(env, requestedRoute, 500, String(body.code || "client_runtime_issue").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || "client_runtime_issue");
+        const timelineStatus = ["failed", "short", "error", "stopped"].includes(String(body.status || "").toLowerCase())
+          ? String(body.status).toLowerCase() : "failed";
+        const numericStatus = timelineStatus === "failed" || timelineStatus === "error" ? 500 : 200;
+        const code = String(body.code || "client_runtime_issue").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80) || "client_runtime_issue";
+        await notifyAdminOfIssue(env, requestedRoute, numericStatus, code, "", timelineStatus);
         return json({ ok: true, received: true });
       }
 
