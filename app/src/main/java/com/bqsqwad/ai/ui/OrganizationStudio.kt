@@ -119,7 +119,7 @@ fun OrganizationStudioWorkspace() {
         scope.launch {
             runCatching { api.organization() }
                 .onSuccess { applyOrganization(it) }
-                .onFailure { error = it.message ?: "Organization could not be loaded." }
+                .onFailure { error = safeUserFacingIssue(it, "Organization could not be loaded.") }
         }
     }
 
@@ -133,7 +133,7 @@ fun OrganizationStudioWorkspace() {
                     autoSwitchEnabled = rules?.optBoolean("autoSwitchEnabled", false) ?: false
                     productionStatus = it.optString("status", "idle")
                 }
-                .onFailure { error = it.message ?: "Production configuration could not be loaded." }
+                .onFailure { error = safeUserFacingIssue(it, "Production configuration could not be loaded.") }
         }
     }
 
@@ -148,7 +148,7 @@ fun OrganizationStudioWorkspace() {
                     .put("holdLastValidOutput", true)
                 )
             }.onSuccess { production = it }
-             .onFailure { error = it.message ?: "Production rules could not be saved." }
+             .onFailure { error = safeUserFacingIssue(it, "Production rules could not be saved.") }
         }
     }
 
@@ -156,17 +156,17 @@ fun OrganizationStudioWorkspace() {
         refresh()
         runCatching { api.organizationCatalog() }
             .onSuccess { organizationCatalog = it.optJSONArray("plans") }
-            .onFailure { error = it.message ?: "Organization plan catalog could not be loaded." }
+            .onFailure { error = safeUserFacingIssue(it, "Organization plan catalog could not be loaded.") }
         runCatching { api.organizationAccess() }
             .onSuccess { organizationAccess = it }
-            .onFailure { error = it.message ?: "Organization access could not be verified." }
+            .onFailure { error = safeUserFacingIssue(it, "Organization access could not be verified.") }
         runCatching { api.organizationBilling() }
             .onSuccess { organizationBilling = it }
             .onFailure { /* billing panel remains unavailable until backend responds */ }
         refreshProduction()
         runCatching { api.organizationScheduledTasks() }
             .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
-            .onFailure { error = it.message ?: "Scheduled AI tasks could not be loaded." }
+            .onFailure { error = safeUserFacingIssue(it, "Scheduled AI tasks could not be loaded.") }
         runCatching {
             val orgId = organization?.optString("uid").orEmpty().ifBlank { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
             if (orgId.isBlank()) error("organization_id_missing")
@@ -404,7 +404,7 @@ fun OrganizationStudioWorkspace() {
                                 busy = true
                                 runCatching { api.updateOrganization(name, description) }
                                     .onSuccess { applyOrganization(it) }
-                                    .onFailure { error = it.message ?: "Organization could not be saved." }
+                                    .onFailure { error = safeUserFacingIssue(it, "Organization could not be saved.") }
                                 busy = false
                             }
                         }
@@ -479,7 +479,7 @@ fun OrganizationStudioWorkspace() {
                                         assistantResult = reply.optString("answer").ifBlank { "The organization AI returned no answer." }
                                         assistantPrompt = ""
                                     }
-                                    .onFailure { e -> error = e.message ?: "Organization AI request failed." }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Organization AI request failed.") }
                                 busy = false
                             }
                         }
@@ -507,7 +507,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching { api.addOrganizationKnowledge(knowledgeText) }
                                     .onSuccess { applyOrganization(it); knowledgeText = "" }
-                                    .onFailure { e -> error = e.message ?: "Knowledge could not be saved." }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Knowledge could not be saved.") }
                             }
                         }
                     ) { Text("Add knowledge") }
@@ -530,7 +530,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching { api.upsertOrganizationMember(memberId, memberRole) }
                                     .onSuccess { applyOrganization(it); memberId = "" }
-                                    .onFailure { e -> error = e.message ?: "Member could not be saved." }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Member could not be saved.") }
                             }
                         }
                     ) { Text("Add / update member") }
@@ -574,7 +574,7 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching { api.addOrganizationChannel(channelName, channelType) }
                                     .onSuccess { applyOrganization(it); channelName = "" }
-                                    .onFailure { e -> error = e.message ?: "Channel could not be added." }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Channel could not be added.") }
                             }
                         }
                     ) { Text("Add channel") }
@@ -592,7 +592,7 @@ fun OrganizationStudioWorkspace() {
                                 scope.launch {
                                     runCatching { api.setOrganizationChannel(id, next) }
                                         .onSuccess { applyOrganization(it) }
-                                        .onFailure { e -> error = e.message ?: "Channel state could not be changed." }
+                                        .onFailure { e -> error = safeUserFacingIssue(e, "Channel state could not be changed.") }
                                 }
                             })
                         }
@@ -682,7 +682,7 @@ fun OrganizationStudioWorkspace() {
                                 }.onSuccess {
                                     val url = it.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                }.onFailure { e -> error = e.message ?: "TikTok connection could not start." }
+                                }.onFailure { e -> error = safeUserFacingIssue(e, "TikTok connection could not start.") }
                             }
                         }) { Text("Connect TikTok") }
                     } else {
@@ -713,7 +713,7 @@ fun OrganizationStudioWorkspace() {
                                 }.onSuccess {
                                     val url = it.optString("authorizationUrl")
                                     if (url.isNotBlank()) context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                }.onFailure { e -> error = e.message ?: "YouTube connection could not start." }
+                                }.onFailure { e -> error = safeUserFacingIssue(e, "YouTube connection could not start.") }
                             }
                         }) { Text("Connect YouTube") }
                     } else {
@@ -738,7 +738,7 @@ fun OrganizationStudioWorkspace() {
                                         }
                                         connectedPlatforms = connectedPlatforms.toMutableMap().apply { this["youtube"] = accounts.length() > 0 }
                                         outputStatus = if (accounts.length() > 0) "YouTube channel connected" else "No YouTube channel connected"
-                                    }.onFailure { e -> error = e.message ?: "YouTube connection status could not be refreshed." }
+                                    }.onFailure { e -> error = safeUserFacingIssue(e, "YouTube connection status could not be refreshed.") }
                                 }
                             }
                         ) { Text("Refresh") }
@@ -787,7 +787,7 @@ fun OrganizationStudioWorkspace() {
                                     } catch (t: Throwable) {
                                         liveSessionId = null
                                         liveEndpoint = null
-                                        error = t.message ?: "YouTube live could not start."
+                                        error = safeUserFacingIssue(t, "YouTube live could not start.")
                                     } finally {
                                         busy = false
                                     }
@@ -877,7 +877,7 @@ fun OrganizationStudioWorkspace() {
                                             .put("screenAwareness", aiLiveScreenAwareness)
                                     )
                                 }.onSuccess {
-                                }.onFailure { e -> error = e.message ?: "AI Live privacy settings could not be saved." }
+                                }.onFailure { e -> error = safeUserFacingIssue(e, "AI Live privacy settings could not be saved.") }
                             }
                         }
                     ) { Text("Save AI Live privacy & mode") }
@@ -912,7 +912,7 @@ fun OrganizationStudioWorkspace() {
                                     )
                                     directorResult = reply.optString("answer").ifBlank { "The production director returned no answer." }
                                 } catch (t: Throwable) {
-                                    error = t.message ?: "AI director request failed."
+                                    error = safeUserFacingIssue(t, "AI director request failed.")
                                 } finally { busy = false }
                             }
                         }
@@ -1083,7 +1083,7 @@ fun OrganizationStudioWorkspace() {
                                     scheduledPrompt = ""
                                     runCatching { api.organizationScheduledTasks() }
                                         .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
-                                }.onFailure { e -> error = e.message ?: "Scheduled task could not be created." }
+                                }.onFailure { e -> error = safeUserFacingIssue(e, "Scheduled task could not be created.") }
                             }
                         }
                     ) { Text("Create scheduled task") }
@@ -1106,14 +1106,14 @@ fun OrganizationStudioWorkspace() {
                                             scope.launch {
                                                 runCatching { api.runOrganizationScheduledTask(id) }
                                                     .onSuccess { runCatching { api.organizationScheduledTasks() }.onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() } }
-                                                    .onFailure { e -> error = e.message ?: "Scheduled task failed." }
+                                                    .onFailure { e -> error = safeUserFacingIssue(e, "Scheduled task failed.") }
                                             }
                                         }) { Text("Run now") }
                                         OutlinedButton(onClick = {
                                             scope.launch {
                                                 runCatching { api.updateOrganizationScheduledTask(id, org.json.JSONObject().put("enabled", task.optBoolean("enabled", true).not())) }
                                                     .onSuccess { runCatching { api.organizationScheduledTasks() }.onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() } }
-                                                    .onFailure { e -> error = e.message ?: "Task state could not be changed." }
+                                                    .onFailure { e -> error = safeUserFacingIssue(e, "Task state could not be changed.") }
                                             }
                                         }) { Text(if (task.optBoolean("enabled", true)) "Pause" else "Resume") }
                                     }
