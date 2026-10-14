@@ -121,7 +121,7 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (lower.contains("history_payload_too_large")) return "This conversation is too large to save as one history item. Start a new chat to keep history complete."
     if (lower.contains("history_attachment_limit_exceeded") || lower.contains("history_attachment_name_too_large")) return "This message has too many or too-large attachment names to save."
     if (lower.contains("attachment_payload_too_large")) return "The combined attachment size is too large. Send fewer or smaller files."
-    if (lower.contains("attachment_count_invalid")) return "Attach up to four supported files at a time."
+    if (lower.contains("attachment_count_invalid")) return "Attach up to 8 images and up to 4 PDFs per message. Send extra files in another message."
     if (lower.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
     if (lower.contains("consent_required")) return "Accept the required consent in Settings before using AI features."
     if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Credits to review access."
