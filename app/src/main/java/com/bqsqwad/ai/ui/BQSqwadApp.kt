@@ -1452,6 +1452,56 @@ private fun shareGeneratedImage(context: Context, imageBase64: String) {
 }
 
 @Composable
+private fun PendingImageThumbnail(
+    attachment: PreparedChatAttachment,
+    onRemove: () -> Unit
+) {
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = attachment.imageBase64) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val encoded = attachment.imageBase64 ?: return@runCatching null
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                ChatImageBitmapCache.decode("pending:" + imageCacheKey(encoded), bytes)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    Box(
+        Modifier.size(72.dp).clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!,
+                contentDescription = "Selected image preview: " + attachment.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(Icons.Default.Image, contentDescription = "Selected image", modifier = Modifier.align(Alignment.Center))
+        }
+        Surface(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f)
+        ) {
+            Text(
+                attachment.name,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1
+            )
+        }
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.align(Alignment.TopEnd).size(25.dp)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), CircleShape)
+        ) {
+            Icon(Icons.Default.Close, contentDescription = "Remove image", modifier = Modifier.size(15.dp))
+        }
+    }
+}
+
+@Composable
 private fun ChatAttachmentPreview(
     attachment: ChatMessageAttachment,
     onImageClick: (() -> Unit)? = null,
@@ -2756,14 +2806,24 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 }
             }
             if (attachments.isNotEmpty()) {
-                LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(attachments, key = { it.name + it.mimeType }) { attachment ->
-                        InputChip(
-                            selected = true,
-                            onClick = { attachments = attachments.filterNot { it === attachment } },
-                            label = { Text(attachment.name, maxLines = 1) },
-                            trailingIcon = { Icon(Icons.Default.Close, "Remove attachment") }
-                        )
+                LazyRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
+                ) {
+                    items(attachments.size) { index ->
+                        val attachment = attachments[index]
+                        val remove = { attachments = attachments.filterIndexed { itemIndex, _ -> itemIndex != index } }
+                        if (attachment.mimeType.startsWith("image/") && attachment.imageBase64 != null) {
+                            PendingImageThumbnail(attachment, remove)
+                        } else {
+                            InputChip(
+                                selected = true,
+                                onClick = remove,
+                                label = { Text(attachment.name, maxLines = 1) },
+                                trailingIcon = { Icon(Icons.Default.Close, "Remove attachment") }
+                            )
+                        }
                     }
                 }
             }
