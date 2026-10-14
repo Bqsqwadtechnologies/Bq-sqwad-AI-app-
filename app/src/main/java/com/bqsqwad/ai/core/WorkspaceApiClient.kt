@@ -157,7 +157,20 @@ class WorkspaceApiClient {
 
     suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice", modelRegistryId: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }; if (organization) put("organization", true) })
     suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
-    suspend fun reportLiveSessionTimeline(mode: String, status: String, code: String = ""): JSONObject = request("/live/session-timeline", payload = JSONObject().apply { put("mode", mode); put("status", status); put("code", code) })
+    suspend fun reportLiveSessionTimeline(mode: String, status: String, code: String = ""): JSONObject {
+        val route = when (mode.lowercase()) {
+            "camera" -> "/live-camera"
+            "screen" -> "/screen-share"
+            else -> "/live-voice"
+        }
+        val safeStatus = status.lowercase().takeIf { it in setOf("failed", "short", "error", "stopped") } ?: "failed"
+        val safeCode = code.filter { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }.take(80)
+        return request("/issues/report", payload = JSONObject().apply {
+            put("route", route)
+            put("status", safeStatus)
+            put("code", safeCode)
+        })
+    }
 
     suspend fun livePricing(): JSONObject = request("/live/pricing", "GET")
 
