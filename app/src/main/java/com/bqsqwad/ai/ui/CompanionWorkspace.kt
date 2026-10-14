@@ -157,7 +157,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                         OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(plan.name, fontWeight = FontWeight.SemiBold)
-                                val priceText = plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": $" + value }
+                                val priceText = plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": " + value }
                                 if (priceText.isNotBlank()) Text(priceText, style = MaterialTheme.typography.bodySmall)
                                 if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                                 if (plan.features.isNotEmpty()) Text(plan.features.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -170,7 +170,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                     Column(Modifier.weight(1f)) {
                         Text(currentPlan?.name ?: "Plan unavailable", fontWeight = FontWeight.Bold)
                         currentPlan?.price?.entries?.joinToString(" • ") { (period, value) ->
-                            period.replaceFirstChar { it.uppercase() } + ": $" + value
+                            period.replaceFirstChar { it.uppercase() } + ": " + value
                         }?.takeIf { it.isNotBlank() }?.let {
                             Text(it, style = MaterialTheme.typography.bodySmall)
                         }
