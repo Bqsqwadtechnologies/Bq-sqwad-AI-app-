@@ -64,6 +64,9 @@ class LiveMediaForegroundService : Service() {
     private var realtimeVoice: RealtimeVoiceSession? = null
     private var visualVoice: RealtimeVoiceSession? = null
     private var liveSessionId: String? = null
+    private var liveSessionMode = "voice"
+    @Volatile private var liveSessionStartedAt = 0L
+    @Volatile private var liveSessionFailureReported = false
     private var rightsId: String? = null
     private var liveEndpoint: String? = null
     private var organizationStreamer: OrganizationLiveStreamer? = null
@@ -150,12 +153,13 @@ class LiveMediaForegroundService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun reportTimelineFailure(sessionMode: String, code: String) {
+    private fun reportTimelineFailure(sessionMode: String, code: String, status: String = "failed") {
+        if (status == "failed" || status == "error") liveSessionFailureReported = true
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 WorkspaceApiClient().reportLiveSessionTimeline(
                     mode = sessionMode,
-                    status = "failed",
+                    status = status,
                     code = code.filter { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }.take(80)
                 )
             }
