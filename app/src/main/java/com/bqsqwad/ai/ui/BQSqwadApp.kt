@@ -773,13 +773,14 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         onDispose { auth.removeAuthStateListener(listener) }
     }
     val email = firebaseUser?.email.orEmpty()
+    val shellScope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     val pendingWorkspaceRedirect by WorkspaceRedirectStore.redirect.collectAsState()
     LaunchedEffect(sharedText) {
         if (!sharedText.isNullOrBlank()) workspace = null
     }
-    var drawerOpen by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(false) }
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
@@ -807,7 +808,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
 
     fun resetShellAfterSignOut() {
         workspace = null
-        drawerOpen = false
+        shellScope.launch { drawerState.close() }
         plans = false
         settings = false
         accountProtection = false
@@ -929,7 +930,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
-        drawerOpen = false
+        shellScope.launch { drawerState.close() }
         // Guest browsing is allowed in Main Chat, but every other workspace is
         // account-scoped and must require Firebase authentication first.
         if (FirebaseAuth.getInstance().currentUser == null) {
@@ -947,10 +948,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         }
     }
 
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    LaunchedEffect(drawerOpen) {
-        if (drawerOpen) drawerState.open() else drawerState.close()
-    }
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -978,7 +975,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("New Chat") },
                             selected = workspace == null && !history && !settings,
-                            onClick = { drawerOpen = false; history = false; settings = false; workspace = null },
+                            onClick = { shellScope.launch { drawerState.close(); history = false; settings = false; plans = false; featureHub = false; workspace = null } },
                             icon = { Icon(Icons.Default.AddComment, null) }
                         )
                     }
@@ -986,7 +983,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Chat History") },
                             selected = history,
-                            onClick = { drawerOpen = false; history = true },
+                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1032,7 +1029,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Plans & Credits") },
                             selected = plans,
-                            onClick = { drawerOpen = false; plansInitialSection = "all"; plans = true },
+                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1040,7 +1037,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Settings") },
                             selected = settings,
-                            onClick = { drawerOpen = false; settings = true },
+                            onClick = { shellScope.launch { drawerState.close(); settings = true; history = false; plans = false; workspace = null; featureHub = false } },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
@@ -1122,7 +1119,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             }
             else -> key(firebaseUser?.uid) { MainChatScreen(
                 modifier = Modifier.fillMaxSize(),
-                openHub = { drawerOpen = true },
+                openHub = { shellScope.launch { drawerState.open() } },
                 openFeatures = { featureHub = true },
                 openSettings = { settings = true },
                 openPlans = { plansInitialSection = "all"; plans = true },
@@ -5562,7 +5559,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage and Google Pay subscriptions") }
+            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage; manage or cancel subscriptions in Google Play") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
