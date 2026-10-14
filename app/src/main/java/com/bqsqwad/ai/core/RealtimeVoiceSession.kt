@@ -2,6 +2,7 @@ package com.bqsqwad.ai.core
 
 import android.content.Context
 import android.media.*
+import android.os.Build
 import android.util.Base64
 import kotlinx.coroutines.*
 import okhttp3.*
@@ -34,6 +35,13 @@ class RealtimeVoiceSession(
     private var recorder: AudioRecord? = null
     private var player: AudioTrack? = null
     private var audioJob: Job? = null
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var previousAudioMode: Int? = null
+    private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
+    private var echoCanceler: AcousticEchoCanceler? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var automaticGainControl: AutomaticGainControl? = null
+    private val lastOutputStartedAt = java.util.concurrent.atomic.AtomicLong(0L)
     private val running = AtomicBoolean(false)
     private val audioCaptureStarted = AtomicBoolean(false)
     private val sessionConfigured = AtomicBoolean(false)
@@ -204,6 +212,11 @@ class RealtimeVoiceSession(
                 sendPendingVisualFrameIfIdle(ws)
             }
             "input_audio_buffer.speech_started" -> {
+                // Ignore only immediate speaker echo. The short guard expires quickly so
+                // genuine user barge-in still interrupts a long AI response.
+                if (!hasExternalAudioRoute() && System.currentTimeMillis() - lastOutputStartedAt.get() in 0L..280L) {
+                    return
+                }
                 // Barge-in: immediately stop local playback and cancel the active response.
                 val interruptingAi = playing.get() || responseInProgress.get()
                 if (interruptingAi) {
@@ -253,6 +266,7 @@ class RealtimeVoiceSession(
                     ensurePlayer()
                     player?.play()
                     playing.set(true)
+                    lastOutputStartedAt.set(System.currentTimeMillis())
                     onAudioLevel(pcmRms(bytes))
                     val track = player ?: return
                     val written = track.write(bytes, 0, bytes.size)
@@ -306,7 +320,7 @@ class RealtimeVoiceSession(
                 if (!toolCallInProgress.get()) sendPendingVisualFrameIfIdle(ws)
             }
             "error" -> {
-                val realtimeError = event.optJSONObject("error)
+                val realtimeError = event.optJSONObject("error")
                 val code = realtimeError?.optString("code").orEmpty().lowercase()
                 val message = realtimeError?.optString("message").orEmpty()
                 // Empty commits, cancellations, and response conflicts are recoverable.
@@ -354,7 +368,18 @@ class RealtimeVoiceSession(
             recorder = null
             throw IllegalStateException("Microphone audio could not be initialized. Check microphone permission and close other apps using the microphone.")
         }
-        recorder?.startRecording()
+        configureCommunicationAudio()
+        val activeRecorder = recorder ?: throw IllegalStateException("Microphone audio could not be initialized.")
+        if (AcousticEchoCanceler.isAvailable()) {
+            echoCanceler = runCatching { AcousticEchoCanceler.create(activeRecorder.audioSessionId)?.apply { enabled = true } }.getOrNull()
+        }
+        if (NoiseSuppressor.isAvailable()) {
+            noiseSuppressor = runCatching { NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true } }.getOrNull()
+        }
+        if (AutomaticGainControl.isAvailable()) {
+            automaticGainControl = runCatching { AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true } }.getOrNull()
+        }
+        activeRecorder.startRecording()
         if (recorder?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
             recorder?.release()
             recorder = null
@@ -409,7 +434,7 @@ class RealtimeVoiceSession(
         val min = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_OUT, ENCODING)
         if (min <= 0) throw IllegalStateException("Speaker audio format is unavailable.")
         player = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(SAMPLE_RATE).setEncoding(ENCODING).setChannelMask(CHANNEL_OUT).build())
             .setBufferSizeInBytes(min * 2)
             .setTransferMode(AudioTrack.MODE_STREAM)
@@ -435,10 +460,56 @@ class RealtimeVoiceSession(
         runCatching { recorder?.stop() }
         recorder?.release()
         recorder = null
+        runCatching { echoCanceler?.release() }; echoCanceler = null
+        runCatching { noiseSuppressor?.release() }; noiseSuppressor = null
+        runCatching { automaticGainControl?.release() }; automaticGainControl = null
         runCatching { player?.pause() }
         runCatching { player?.flush() }
         player?.release()
         player = null
+        restoreCommunicationAudio()
         socket = null
+    }
+
+    private fun hasExternalAudioRoute(): Boolean {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.isWiredHeadsetOn || audioManager.isBluetoothA2dpOn || audioManager.isBluetoothScoOn
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun configureCommunicationAudio() {
+        if (previousAudioMode == null) previousAudioMode = audioManager.mode
+        audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
+            if (change == AudioManager.AUDIOFOCUS_LOSS) {
+                onState("listening")
+            }
+        }
+        @Suppress("DEPRECATION")
+        audioManager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        @Suppress("DEPRECATION")
+        audioManager.isSpeakerphoneOn = !hasExternalAudioRoute()
+    }
+
+    private fun restoreCommunicationAudio() {
+        runCatching {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(audioFocusListener)
+        }
+        audioFocusListener = null
+        runCatching { audioManager.isSpeakerphoneOn = false }
+        previousAudioMode?.let { oldMode -> runCatching { audioManager.mode = oldMode } }
+        previousAudioMode = null
     }
 }
