@@ -38,6 +38,7 @@ class RealtimeVoiceSession(
     private var audioJob: Job? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var previousAudioMode: Int? = null
+    private var previousSpeakerphoneOn: Boolean? = null
     private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
     private var echoCanceler: AcousticEchoCanceler? = null
     private var noiseSuppressor: NoiseSuppressor? = null
@@ -84,14 +85,14 @@ class RealtimeVoiceSession(
                     onState("configuring")
                 } catch (failure: Throwable) {
                     webSocket.close(1011, "Audio initialization failed")
-                    onError(failure.message ?: "BQ Sqwad AI could not start the live audio session.")
+                    onError("BQ Sqwad AI could not initialize live audio. Check microphone permission and retry.")
                     stopInternal()
                 }
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 runCatching { handleEvent(webSocket, text) }
-                    .onFailure { failure ->
-                        onError(failure.message ?: "BQ Sqwad AI received an unreadable live-audio event.")
+                    .onFailure {
+                        onError("BQ Sqwad AI could not process a live-audio event. Reconnect and try again.")
                     }
             }
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -102,7 +103,7 @@ class RealtimeVoiceSession(
                 onState("stopped")
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                onError(t.message ?: "Realtime voice connection failed.")
+                onError("The realtime voice connection failed. Check your connection and retry.")
                 stopInternal()
             }
         })
@@ -336,6 +337,11 @@ class RealtimeVoiceSession(
                     message.contains("unauthorized", ignoreCase = true) ||
                     message.contains("invalid api key", ignoreCase = true) ||
                     message.contains("insufficient_quota", ignoreCase = true) ||
+                    code.contains("invalid_api_key") ||
+                    code.contains("unauthorized") ||
+                    code.contains("permission_denied") ||
+                    code.contains("session_not_found") ||
+                    code.contains("unsupported_model") ||
                     message.contains("model not found", ignoreCase = true)
                 if (fatal) {
                     responseInProgress.set(false)
@@ -492,6 +498,10 @@ class RealtimeVoiceSession(
 
     private fun configureCommunicationAudio() {
         if (previousAudioMode == null) previousAudioMode = audioManager.mode
+        if (previousSpeakerphoneOn == null) {
+            @Suppress("DEPRECATION")
+            previousSpeakerphoneOn = audioManager.isSpeakerphoneOn
+        }
         audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
             if (change == AudioManager.AUDIOFOCUS_LOSS) {
                 onState("listening")
@@ -510,7 +520,11 @@ class RealtimeVoiceSession(
             audioManager.abandonAudioFocus(audioFocusListener)
         }
         audioFocusListener = null
-        runCatching { audioManager.isSpeakerphoneOn = false }
+        previousSpeakerphoneOn?.let { oldSpeaker ->
+            @Suppress("DEPRECATION")
+            runCatching { audioManager.isSpeakerphoneOn = oldSpeaker }
+        }
+        previousSpeakerphoneOn = null
         previousAudioMode?.let { oldMode -> runCatching { audioManager.mode = oldMode } }
         previousAudioMode = null
     }
