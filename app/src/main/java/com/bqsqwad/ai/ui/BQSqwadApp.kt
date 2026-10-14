@@ -1760,6 +1760,29 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         statusText = "Saved conversation loaded."
         onRestoredChatConsumed()
     }
+    // ChatMessagesSaver stores only opaque local image IDs, never large image bytes
+    // in Android's SavedState bundle. Reload those bytes from app-private storage.
+    LaunchedEffect(messages.size, messages.lastOrNull()?.id) {
+        val pending = messages.mapNotNull { item ->
+            if (item.attachments.any { it.imageBase64.isNullOrBlank() && !it.imageLocalId.isNullOrBlank() }) item.id else null
+        }.distinct()
+        for (messageId in pending) {
+            val index = messages.indexOfFirst { it.id == messageId }
+            if (index < 0) continue
+            val current = messages[index]
+            val restoredAttachments = withContext(Dispatchers.IO) {
+                current.attachments.map { attachment ->
+                    if (attachment.imageBase64.isNullOrBlank() && !attachment.imageLocalId.isNullOrBlank()) {
+                        attachment.copy(imageBase64 = ChatImageStore.readBase64(context, attachment.imageLocalId))
+                    } else attachment
+                }
+            }
+            if (index < messages.size && messages[index].id == messageId) {
+                messages[index] = messages[index].copy(attachments = restoredAttachments)
+            }
+        }
+    }
+
 
     fun applyCreditSnapshot(snapshot: JSONObject) {
         if (snapshot.optBoolean("adminUnlimited")) {
