@@ -3851,7 +3851,7 @@ private fun AdminOnlyWorkspace(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             AdminWorkspaceHero()
-            AdminControlCenter()
+            Box(Modifier.weight(1f).fillMaxWidth()) { AdminControlCenter() }
         }
     }
 }
@@ -3952,7 +3952,7 @@ private fun WorkspaceScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     AdminWorkspaceHero()
-                    AdminControlCenter()
+                    Box(Modifier.weight(1f).fillMaxWidth()) { AdminControlCenter() }
                 }
                 false -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
                     AccessDenied()
