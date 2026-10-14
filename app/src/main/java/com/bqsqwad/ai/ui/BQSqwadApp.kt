@@ -1303,13 +1303,14 @@ private data class ChatMessage(
 
 private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<ChatMessage>, String>(
     save = { messages ->
-        messages.filterNot { it.privateSession }.takeLast(30).map { message ->
+        messages.takeLast(30).map { message ->
             JSONObject().apply {
                 put("mine", message.mine)
                 put("text", message.text.take(4000))
                 put("id", message.id)
                 put("prompt", message.prompt?.take(4000))
                 put("imageUrl", message.imageUrl)
+                put("privateSession", message.privateSession)
                 put("attachments", JSONArray().apply {
                     message.attachments.take(4).forEach { attachment ->
                         put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)))
@@ -1338,7 +1339,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                         id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: UUID.randomUUID().toString(),
                         prompt = item.optString("prompt").takeIf { it.isNotBlank() && it != "null" }?.take(4000),
                         attachments = attachments,
-                        imageUrl = item.optString("imageUrl").takeIf { it.startsWith("https://", ignoreCase = true) }
+                        imageUrl = item.optString("imageUrl").takeIf { it.startsWith("https://", ignoreCase = true) },
+                        privateSession = item.optBoolean("privateSession", false)
                     )
                 }.getOrNull()?.let { add(it) }
             }
@@ -1622,12 +1624,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
-    var historyId by remember { mutableStateOf<String?>(null) }
+    var historyId by rememberSaveable { mutableStateOf<String?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedTextModelId by remember { mutableStateOf("") }
-    var selectedImageModelId by remember { mutableStateOf("") }
+    var selectedTextModelId by rememberSaveable { mutableStateOf("") }
+    var selectedImageModelId by rememberSaveable { mutableStateOf("") }
 
-    var privateChat by remember { mutableStateOf(false) }
+    var privateChat by rememberSaveable { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
