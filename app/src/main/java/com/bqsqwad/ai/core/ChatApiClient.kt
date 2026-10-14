@@ -247,7 +247,7 @@ class ChatApiClient(
                     put("message", message)
                     val images = (if (imageBase64.isNullOrBlank()) emptyList() else listOf(mimeType to imageBase64.orEmpty())) + additionalImages
                     if (images.isNotEmpty()) put("images", JSONArray().apply {
-                        images.take(4).forEach { (type, encoded) ->
+                        images.take(8).forEach { (type, encoded) ->
                             put(JSONObject().put("mimeType", type).put("imageBase64", encoded))
                         }
                     })
