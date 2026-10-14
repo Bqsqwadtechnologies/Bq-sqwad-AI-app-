@@ -2148,7 +2148,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             return
         }
         val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
-        appendChatMessage(ChatMessage(true, displayText, attachments = selectedAttachments.map { ChatMessageAttachment(it.name, it.mimeType, it.imageBase64) }))
+        appendChatMessage(ChatMessage(true, displayText, attachments = selectedAttachments.map { selected ->
+                    val localId = if (!privateChat && selected.imageBase64 != null) ChatImageStore.saveBase64(context, selected.imageBase64) else null
+                    ChatMessageAttachment(selected.name, selected.mimeType, selected.imageBase64, localId)
+                }))
         val aiIndex = messages.size
         appendChatMessage(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
