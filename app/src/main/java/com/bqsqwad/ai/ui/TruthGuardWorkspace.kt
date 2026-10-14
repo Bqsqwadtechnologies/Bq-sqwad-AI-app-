@@ -253,7 +253,7 @@ private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPla
                 Column(Modifier.weight(1f)) {
                     Text(if (isAdmin) "Full access" else (plan?.name ?: "TruthGuard Free"), fontWeight = FontWeight.Bold)
                     val price = plan?.price?.entries?.joinToString(" • ") { pair ->
-                        pair.key.replaceFirstChar { it.uppercase() } + ": $" + pair.value
+                        pair.key.replaceFirstChar { it.uppercase() } + ": " + pair.value
                     }.orEmpty()
                     if (price.isNotBlank()) Text(price, style = MaterialTheme.typography.bodySmall)
                     if ((plan?.trialDays ?: 0) > 0 && plan?.trialEligible == true) {
@@ -278,7 +278,7 @@ private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: Strin
                         Column(Modifier.weight(1f)) {
                             Text(plan.name, fontWeight = FontWeight.SemiBold)
                             val price = plan.price.entries.joinToString(" • ") { pair ->
-                                pair.key.replaceFirstChar { it.uppercase() } + ": $" + pair.value
+                                pair.key.replaceFirstChar { it.uppercase() } + ": " + pair.value
                             }
                             if (price.isNotBlank()) Text(price, style = MaterialTheme.typography.bodySmall)
                         }
