@@ -129,7 +129,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                     it.message?.contains("monthly_capability_limit_reached") == true -> "This plan has reached its monthly Learning limit."
                     it.message?.contains("daily_capability_limit_reached") == true -> "You have reached today's Learning limit."
                     it.message?.contains("learning_feature_locked") == true -> "That Learning feature is locked on your current plan."
-                    else -> it.message ?: "Learning Studio could not complete the session."
+                    else -> safeUserFacingIssue(it, "Learning Studio could not complete the session.")
                 }
             }
             busy = false
