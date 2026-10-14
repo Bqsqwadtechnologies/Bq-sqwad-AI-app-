@@ -798,6 +798,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember { mutableStateOf(false) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
+    LaunchedEffect(Unit) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
@@ -2212,6 +2213,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     busy = false
                     streamJob = null
                     statusText = "Done."
+                    BqLifecycleNotifications.notifyResponseFinished(context, notificationsEnabled)
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                     if (shouldAutoSaveHistory()) {
@@ -2379,7 +2381,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
                 }
             }
-            Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (creditsExhausted) Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             creditNotice?.let { notice ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
