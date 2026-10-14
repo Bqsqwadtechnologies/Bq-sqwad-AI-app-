@@ -3015,8 +3015,8 @@ val composerShape = RoundedCornerShape(26.dp)
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    TextButton(onClick = { runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = it.message ?: "Could not save image." }; showImageActions = false }) { Text("Save") }
-                    TextButton(onClick = { runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }.onFailure { error = it.message ?: "Could not share image." }; showImageActions = false }) { Text("Share") }
+                    TextButton(onClick = { runCatching { saveGeneratedImage(context, selectedImageBase64.orEmpty()) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = safeUserFacingIssue(it, "Could not save image. Please try again.") }; showImageActions = false }) { Text("Save") }
+                    TextButton(onClick = { runCatching { shareGeneratedImage(context, selectedImageBase64.orEmpty()) }.onFailure { error = safeUserFacingIssue(it, "Could not share image. Please try again.") }; showImageActions = false }) { Text("Share") }
                     TextButton(onClick = { imageEditPrompt = ""; showImageActions = false; showImageEdit = true }) { Text("Edit") }
                     TextButton(onClick = {
                         val prompt = selectedImagePrompt.ifBlank { "Create a new version of this image" }
@@ -4464,9 +4464,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
             flashlightOn = !flashlightOn
             streamError = null
         }.onFailure {
-            streamError = it.message?.takeIf { message ->
-                message.contains("does not have a flashlight") || message.contains("No camera")
-            } ?: "The flashlight could not be switched on. Try the rear camera and check that another app is not using the light."
+            streamError = if (it.message.orEmpty().contains("does not have a flashlight") || it.message.orEmpty().contains("No camera")) {
+                "The selected camera may not support a flashlight. Try the rear camera."
+            } else {
+                "The flashlight could not be switched on. Try the rear camera and check that another app is not using the light."
+            }
         }
     }
 
