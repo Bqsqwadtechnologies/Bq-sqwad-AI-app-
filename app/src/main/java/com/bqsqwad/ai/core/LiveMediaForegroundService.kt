@@ -470,6 +470,8 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun writeState(active: Boolean, answer: String) {
+        val previousStatus = _uiState.value.status
+        val nextStatus = answer.ifBlank { if (active) "active" else "stopped" }
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean("active", active)
             .putString("mode", mode)
@@ -478,10 +480,14 @@ class LiveMediaForegroundService : Service() {
         _uiState.value = _uiState.value.copy(
             active = active,
             mode = mode,
-            status = answer.ifBlank { if (active) "active" else "stopped" },
+            status = nextStatus,
             answer = answer,
             onlineBroadcast = !liveEndpoint.isNullOrBlank()
         )
+        if (nextStatus != previousStatus && nextStatus.lowercase() in setOf(
+                "connecting", "configuring", "connected", "listening", "speaking", "stopping", "stopped"
+            )
+        ) appendLog("Session state: $nextStatus")
     }
 
     private fun updateAudioLevel(level: Float) {
@@ -501,9 +507,10 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun appendLog(entry: String) {
-        val clean = entry.trim()
+        val clean = entry.trim().take(600)
         if (clean.isBlank()) return
-        _uiState.value = _uiState.value.copy(log = (_uiState.value.log + clean).takeLast(80))
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+        _uiState.value = _uiState.value.copy(log = (_uiState.value.log + "$timestamp • $clean").takeLast(80))
     }
 
     private fun writeError(message: String) {
@@ -546,7 +553,7 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", friendly)
             .apply()
-        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, audioLevel = 0f, onlineBroadcast = false)
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, audioLevel = 0f, microphoneLevel = 0f, outputAudioLevel = 0f, onlineBroadcast = false)
         appendLog("BQ Sqwad AI status: $friendly")
     }
 
@@ -608,6 +615,8 @@ class LiveMediaForegroundService : Service() {
             status = finalStatus,
             answer = finalAnswer,
             audioLevel = 0f,
+            microphoneLevel = 0f,
+            outputAudioLevel = 0f,
             onlineBroadcast = false
         )
         stopForeground(STOP_FOREGROUND_REMOVE)
