@@ -543,7 +543,42 @@ fun AdminControlCenter() {
             }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        error?.let { details ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(
+                    Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Admin controls could not load",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Text(
+                        details,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            loading = true
+                            scope.launch {
+                                runCatching { client.list() }
+                                    .onSuccess { options = it; error = null }
+                                    .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
+                                loading = false
+                            }
+                        },
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (loading) "Retrying…" else "Retry admin controls") }
+                }
+            }
+        }
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
