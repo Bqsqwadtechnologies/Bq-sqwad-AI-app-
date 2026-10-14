@@ -1762,7 +1762,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
                 if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
                 dictationWaveform.add(gained)
-                delay(65L)
+                delay(40L)
             }
         } else {
             dictationWaveform.indices.forEach { dictationWaveform[it] = 0f }
