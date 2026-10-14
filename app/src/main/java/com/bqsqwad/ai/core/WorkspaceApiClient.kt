@@ -157,6 +157,7 @@ class WorkspaceApiClient {
 
     suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice", modelRegistryId: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }; if (organization) put("organization", true) })
     suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
+    suspend fun reportLiveSessionTimeline(mode: String, status: String, code: String = ""): JSONObject = request("/live/session-timeline", payload = JSONObject().apply { put("mode", mode); put("status", status); put("code", code) })
 
     suspend fun livePricing(): JSONObject = request("/live/pricing", "GET")
 
