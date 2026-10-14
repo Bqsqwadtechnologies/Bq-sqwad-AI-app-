@@ -1,9 +1,18 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'isaacoshiomole0@gmail.com'
+        && (request.auth.token.admin == true
+          || request.auth.token.superAdmin == true
+          || request.auth.token.role == 'admin'
+          || request.auth.token.role == 'super_admin');
+    }
+
     match /auth-background/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.admin == true;
+      allow write: if isAdmin();
     }
 
     // Generated images are stored under the authenticated owner's UID. Reads and
