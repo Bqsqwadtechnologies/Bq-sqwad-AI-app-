@@ -88,7 +88,7 @@ fun AdminControlCenter() {
     LaunchedEffect(Unit) {
         runCatching { client.list() }
             .onSuccess { options = it; error = null }
-            .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
+            .onFailure { error = "Admin controls could not load. Check Admin Diagnostics, then retry." }
         loading = false
         runCatching { client.playCatalog() }.onSuccess { playCatalog = it }
         runCatching { client.testMode() }
@@ -223,7 +223,7 @@ fun AdminControlCenter() {
                                     grantEmail = ""
                                     grantAmount = "100"
                                 }
-                                .onFailure { error = it.message ?: "Credit grant failed." }
+                                .onFailure { error = "Credit grant failed. Check Admin Diagnostics and confirm the account and amount, then retry." }
                             grantSaving = false
                         }
                     }
@@ -421,7 +421,7 @@ fun AdminControlCenter() {
                         scope.launch {
                             runCatching { client.setTestMode(enabled) }
                                 .onSuccess { testMode = it }
-                                .onFailure { error = it.message ?: "Could not change Admin Test Mode." }
+                                .onFailure { error = "Admin Test Mode could not be changed. Check Admin Diagnostics and retry." }
                             testModeSaving = false
                         }
                     }
@@ -462,7 +462,7 @@ fun AdminControlCenter() {
                         scope.launch {
                             runCatching { client.setCreditTrial(trialEnabled, trialCredits.toInt(), trialDays.toInt()) }
                                 .onSuccess { error = null }
-                                .onFailure { error = it.message ?: "Could not save the free-credit trial." }
+                                .onFailure { error = "The free-credit trial settings could not be saved. Check Admin Diagnostics and retry." }
                             trialSaving = false
                         }
                     }
@@ -501,7 +501,7 @@ fun AdminControlCenter() {
                         scope.launch {
                             runCatching { client.setDailyFreeCredits(dailyFreeCreditsEnabled, dailyFreeCredits.toInt()) }
                                 .onSuccess { error = null }
-                                .onFailure { error = it.message ?: "Could not save daily free credits." }
+                                .onFailure { error = "Daily free-credit settings could not be saved. Check Admin Diagnostics and retry." }
                             dailyFreeCreditsSaving = false
                         }
                     }
@@ -569,7 +569,7 @@ fun AdminControlCenter() {
                             scope.launch {
                                 runCatching { client.list() }
                                     .onSuccess { options = it; error = null }
-                                    .onFailure { error = it.message ?: "Unable to load Admin Control Center" }
+                                    .onFailure { error = "Admin controls could not load. Check Admin Diagnostics, then retry." }
                                 loading = false
                             }
                         },
@@ -631,7 +631,7 @@ fun AdminControlCenter() {
                         options = options.map { if (it.id == updated.id) updated else it }
                         scope.launch {
                             runCatching { client.update(updated) }
-                                .onFailure { error = it.message ?: "Admin update failed" }
+                                .onFailure { error = "The admin update failed. Check Admin Diagnostics and retry." }
                         }
                     }
                 )
