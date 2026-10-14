@@ -342,12 +342,19 @@ private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
     val array = body.optJSONArray("plans") ?: JSONArray()
     return List(array.length()) { i ->
         val p = array.optJSONObject(i) ?: JSONObject()
-        val priceObject = p.optJSONObject("price") ?: JSONObject()
+        val priceObject = p.optJSONObject("priceNgn") ?: JSONObject()
         val price = mutableMapOf<String, String>()
         val keys = priceObject.keys()
         while (keys.hasNext()) {
             val key = keys.next()
-            price[key] = priceObject.opt(key).toString()
+            val raw = priceObject.opt(key).toString()
+            price[key] = if (raw.contains("₦")) raw else raw.toDoubleOrNull()?.let {
+                String.format(java.util.Locale.US, "₦%,.2f", it)
+            } ?: raw
+        }
+        if (price.isEmpty()) {
+            if (p.optBoolean("free", false) || p.optString("id") == "companionfree") price["Plan"] = "Free"
+            else price["Price"] = "View localized price in Plans & Credits"
         }
         val featuresArray = p.optJSONArray("features") ?: JSONArray()
         CompanionPlan(
