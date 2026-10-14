@@ -29,6 +29,14 @@ import org.junit.Test
 import java.io.IOException
 
 class CoreTest {
+    @Test fun remoteImagesEmbeddedInAiTextAreNotRendered() {
+        val blocks = parseBlocks("![private repository](https://github.com/private/repo/worker.png)")
+        assertFalse(blocks.any { it is MdBlock.Image })
+        assertFalse(blocks.toString().contains("github.com"))
+        assertTrue(blocks.toString().contains("External image preview hidden for privacy."))
+    }
+
+
     @Test fun userFacingErrorsNeverExposePrivateWorkerOrRepositoryDetails() {
         val privateDetails = IllegalStateException("Request failed for owner@example.com at https://private-worker.workers.dev; repo https://github.com/private/repo")
         val shown = com.bqsqwad.ai.ui.safeUserFacingIssue(privateDetails, "Try again.")
