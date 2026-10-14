@@ -180,6 +180,7 @@ class LiveMediaForegroundService : Service() {
                         },
                         onError = { error -> writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
+                        onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
                         onTranscript = { speaker, text -> appendLog("$speaker: $text") }
                     ).also { it.start() }
                     startRealtimeBillingHeartbeat(MODE_VOICE)
@@ -239,6 +240,7 @@ class LiveMediaForegroundService : Service() {
                 },
                 onError = { error -> writeError(error); stopSelf() },
                 onAudioLevel = { level -> updateAudioLevel(level) },
+                onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
                 // Keep voice replies visible as well as audible so camera/screen sessions
                 // have clear feedback when the user cannot hear the speaker.
                 onTranscript = { speaker, text ->
@@ -483,7 +485,19 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun updateAudioLevel(level: Float) {
-        _uiState.value = _uiState.value.copy(audioLevel = level.coerceIn(0f, 1f))
+        val input = level.coerceIn(0f, 1f)
+        _uiState.value = _uiState.value.copy(
+            microphoneLevel = input,
+            audioLevel = maxOf(input, _uiState.value.outputAudioLevel)
+        )
+    }
+
+    private fun updateOutputAudioLevel(level: Float) {
+        val output = level.coerceIn(0f, 1f)
+        _uiState.value = _uiState.value.copy(
+            outputAudioLevel = output,
+            audioLevel = maxOf(output, _uiState.value.microphoneLevel)
+        )
     }
 
     private fun appendLog(entry: String) {
