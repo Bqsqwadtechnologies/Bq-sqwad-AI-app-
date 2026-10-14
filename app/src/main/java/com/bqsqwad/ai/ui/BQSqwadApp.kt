@@ -2353,7 +2353,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                 }
                 scope.launch(Dispatchers.Main) {
-                    if (failures.isNotEmpty()) {
+                    val imageCount = prepared.count { !it.imageBase64.isNullOrBlank() }
+                    val documentCount = prepared.count { !it.fileBase64.isNullOrBlank() }
+                    if (imageCount > 8 || documentCount > 4) {
+                        error = "Attach up to 8 images and up to 4 PDFs per message. Remove extra files or send them in another message."
+                    } else if (failures.isNotEmpty()) {
                         // Do not silently send only the subset of files that happened
                         // to parse successfully; keep the previous selection unchanged.
                         error = "Some selected files could not be prepared. Check the files and try again. No file details are shown for your privacy."
