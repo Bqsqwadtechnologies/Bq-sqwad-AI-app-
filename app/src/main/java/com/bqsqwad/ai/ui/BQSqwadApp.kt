@@ -47,6 +47,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1290,6 +1292,51 @@ private data class ChatMessage(
     val sources: List<SearchSource> = emptyList()
 )
 
+private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<ChatMessage>, String>(
+    save = { messages ->
+        messages.takeLast(30).map { message ->
+            JSONObject().apply {
+                put("mine", message.mine)
+                put("text", message.text.take(4000))
+                put("id", message.id)
+                put("prompt", message.prompt?.take(4000))
+                put("imageUrl", message.imageUrl)
+                put("attachments", JSONArray().apply {
+                    message.attachments.take(4).forEach { attachment ->
+                        put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)))
+                    }
+                })
+            }.toString()
+        }
+    },
+    restore = { saved ->
+        mutableStateListOf<ChatMessage>().apply {
+            saved.forEach { encoded ->
+                runCatching {
+                    val item = JSONObject(encoded)
+                    val attachmentsJson = item.optJSONArray("attachments") ?: JSONArray()
+                    val attachments = List(attachmentsJson.length()) { index ->
+                        attachmentsJson.optJSONObject(index)?.let { attachment ->
+                            ChatMessageAttachment(
+                                name = attachment.optString("name").take(160),
+                                mimeType = attachment.optString("mimeType").take(100)
+                            )
+                        } ?: ChatMessageAttachment("Attachment", "application/octet-stream")
+                    }
+                    ChatMessage(
+                        mine = item.optBoolean("mine"),
+                        text = item.optString("text").take(4000),
+                        id = item.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: UUID.randomUUID().toString(),
+                        prompt = item.optString("prompt").takeIf { it.isNotBlank() && it != "null" }?.take(4000),
+                        attachments = attachments,
+                        imageUrl = item.optString("imageUrl").takeIf { it.startsWith("https://", ignoreCase = true) }
+                    )
+                }.getOrNull()?.let { add(it) }
+            }
+        }
+    }
+)
+
 
 private fun decodeImageBytes(imageBase64: String): ByteArray = Base64.decode(imageBase64, Base64.DEFAULT)
 
@@ -1536,7 +1583,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var voiceRepliesEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("voice_replies", true)) }
     var savingChat by remember { mutableStateOf(false) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
-    var message by remember { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf("") }
     // Text shared from another Android app is placed into the composer for user review.
     // It is never submitted automatically.
     LaunchedEffect(sharedText) {
@@ -1576,7 +1623,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
     var creditsExhausted by remember { mutableStateOf(false) }
-    val messages = remember { mutableStateListOf<ChatMessage>() }
+    val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
     val privateMessageIds = remember { mutableStateListOf<String>() }
     fun appendChatMessage(chatMessage: ChatMessage) {
