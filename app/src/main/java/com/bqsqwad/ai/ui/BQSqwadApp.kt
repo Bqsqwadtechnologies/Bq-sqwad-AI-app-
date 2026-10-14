@@ -5046,6 +5046,62 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
 }
 
 @Composable
+private fun BqLiveAudioOrb(
+    modifier: Modifier,
+    active: Boolean,
+    audioLevel: Float
+) {
+    val context = LocalContext.current
+    val animationsEnabled = remember {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) > 0f
+        }.getOrDefault(true)
+    }
+    // Decibel mapping provides automatic gain for quiet speech while clamping peaks.
+    val safeLevel = audioLevel.coerceIn(0f, 1f)
+    val decibels = if (safeLevel > 0.00001f) 20f * kotlin.math.log10(safeLevel) else -100f
+    val normalized = ((decibels + 60f) / 60f).coerceIn(0f, 1f)
+    val target = if (active) (0.08f + normalized * 0.72f).coerceIn(0.08f, 0.8f) else 0.035f
+    val animatedLevel by animateFloatAsState(
+        targetValue = target,
+        animationSpec = if (animationsEnabled) spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioNoBouncy)
+        else snap(),
+        label = "bqLiveOrbLevel"
+    )
+    Canvas(modifier = modifier) {
+        val centerX = size.width / 2f
+        val centerY = size.height / 2f
+        val baseRadius = size.minDimension * 0.46f
+        val level = if (animationsEnabled) animatedLevel else target
+        drawCircle(Color(0xFF0A2B66), radius = baseRadius, center = androidx.compose.ui.geometry.Offset(centerX, centerY))
+        drawCircle(
+            Color(0xFF075DCE).copy(alpha = 0.50f + level * 0.35f),
+            radius = baseRadius * (0.76f + level * 0.18f),
+            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+        )
+        drawCircle(
+            Color(0xFF168BFF).copy(alpha = 0.45f + level * 0.45f),
+            radius = baseRadius * (0.50f + level * 0.18f),
+            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+        )
+        drawCircle(
+            Color(0xFF8CCBFF).copy(alpha = 0.88f),
+            radius = baseRadius * (0.28f + level * 0.06f),
+            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+        )
+        drawCircle(
+            Color(0xFFB9E1FF).copy(alpha = 0.85f),
+            radius = baseRadius * 0.13f,
+            center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+        )
+    }
+}
+
+@Composable
 fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -5143,38 +5199,11 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Spacer(Modifier.height(20.dp))
-        Box(
-            modifier = Modifier
-                .size((178 * voiceScale).dp.coerceIn(178.dp, 250.dp))
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.96f),
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.82f),
-                            MaterialTheme.colorScheme.surfaceContainerHighest
-                        )
-                    )
-                )
-                .border(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Surface(
-                modifier = Modifier.size(112.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
-                tonalElevation = 6.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.RecordVoiceOver,
-                        contentDescription = "AI voice assistant",
-                        modifier = Modifier.size(58.dp),
-                        tint = Color.White
-                    )
-                }
-            }
-        }
+        BqLiveAudioOrb(
+            modifier = Modifier.size((178 * voiceScale).dp.coerceIn(178.dp, 250.dp)),
+            active = active,
+            audioLevel = liveUiState.audioLevel
+        )
 
         Text(liveVoiceRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Text(
