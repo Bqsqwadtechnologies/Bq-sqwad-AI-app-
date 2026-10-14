@@ -385,7 +385,7 @@ function sanitizeProviderMessage(message) {
     .replace(/https?:\/\/\S+/gi, "[redacted-url]")
     .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[redacted-key]")
-    .replace(/(?:api[_ -]?key|authorization|token|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
+    .replace(/(api[_ -]?key|authorization|token|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim()
