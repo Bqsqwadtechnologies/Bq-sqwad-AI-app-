@@ -3847,9 +3847,58 @@ private fun AdminOnlyWorkspace(onBack: () -> Unit) {
         }
     ) { p ->
         Column(
-            Modifier.fillMaxSize().padding(p).padding(16.dp)
+            Modifier.fillMaxSize().padding(p).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            AdminWorkspaceHero()
             AdminControlCenter()
+        }
+    }
+}
+
+@Composable
+private fun AdminWorkspaceHero() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        tonalElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f)
+            ) {
+                Icon(
+                    Icons.Default.AdminPanelSettings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(12.dp).size(28.dp)
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "ADMIN CONTROL CENTER",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Operations at a glance",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Manage configuration and diagnostics in this restricted workspace.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                )
+            }
         }
     }
 }
@@ -3898,7 +3947,11 @@ private fun WorkspaceScreen(
             }
             when (allowed) {
                 null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                true -> Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
+                true -> Column(
+                    Modifier.padding(p).padding(16.dp).fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AdminWorkspaceHero()
                     AdminControlCenter()
                 }
                 false -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
