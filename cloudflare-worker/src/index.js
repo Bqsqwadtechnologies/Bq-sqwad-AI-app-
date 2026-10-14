@@ -130,6 +130,7 @@ function safeDiagnosticCode(errorCode) {
   if (value.includes("realtime_fallback_rejected")) return "realtime_fallback_rejected";
   if (value.includes("realtime_session_failed")) return "realtime_session_failed";
   if (value.includes("live_session_timeout")) return "live_session_timeout";
+  if (value.includes("short_live_session")) return "short_live_session";
   if (value.includes("insufficient_credits") || value.includes("credit_balance")) return "insufficient_credits";
   if (value.includes("provider_not_configured")) return "provider_not_configured";
   if (value.includes("openai http")) return "openai_provider_http_error";
