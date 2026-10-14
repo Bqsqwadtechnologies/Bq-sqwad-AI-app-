@@ -422,21 +422,21 @@ fun OrganizationStudioWorkspace() {
                         Text("Organization AI enabled")
                         Switch(assistantEnabled, onCheckedChange = {
                             assistantEnabled = it
-                            scope.launch { runCatching { api.updateOrganizationSettings(assistantEnabled = it) }.onFailure { e -> error = e.message } }
+                            scope.launch { runCatching { api.updateOrganizationSettings(assistantEnabled = it) }.onFailure { e -> error = safeUserFacingIssue(e, "Organization settings could not be saved.") } }
                         })
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Shared organization memory")
                         Switch(sharedMemory, onCheckedChange = {
                             sharedMemory = it
-                            scope.launch { runCatching { api.updateOrganizationSettings(sharedMemoryEnabled = it) }.onFailure { e -> error = e.message } }
+                            scope.launch { runCatching { api.updateOrganizationSettings(sharedMemoryEnabled = it) }.onFailure { e -> error = safeUserFacingIssue(e, "Organization settings could not be saved.") } }
                         })
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Shared organization knowledge")
                         Switch(sharedKnowledge, onCheckedChange = {
                             sharedKnowledge = it
-                            scope.launch { runCatching { api.updateOrganizationSettings(sharedKnowledgeEnabled = it) }.onFailure { e -> error = e.message } }
+                            scope.launch { runCatching { api.updateOrganizationSettings(sharedKnowledgeEnabled = it) }.onFailure { e -> error = safeUserFacingIssue(e, "Organization settings could not be saved.") } }
                         })
                     }
                 }
@@ -549,7 +549,7 @@ fun OrganizationStudioWorkspace() {
                                         scope.launch {
                                             runCatching { api.setOrganizationMemberStatus(id, if (m.optString("status") == "inactive") "active" else "inactive") }
                                                 .onSuccess { applyOrganization(it) }
-                                                .onFailure { e -> error = e.message }
+                                                .onFailure { e -> error = safeUserFacingIssue(e, "Member status could not be changed.") }
                                         }
                                     }) { Text(if (m.optString("status") == "inactive") "Activate" else "Deactivate") }
                                 }
@@ -942,7 +942,7 @@ fun OrganizationStudioWorkspace() {
                                         org.json.JSONObject().put("aiDirectorEnabled", next)
                                     )
                                 }.onSuccess { production = it }
-                                 .onFailure { e -> error = e.message }
+                                 .onFailure { e -> error = safeUserFacingIssue(e, "Production operation could not be completed.") }
                             }
                         })
                     }
@@ -959,14 +959,14 @@ fun OrganizationStudioWorkspace() {
                             scope.launch {
                                 runCatching { api.setOrganizationProductionState(org.json.JSONObject().put("status", "ready")) }
                                     .onSuccess { production = it; productionStatus = "ready" }
-                                    .onFailure { e -> error = e.message }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Production operation could not be completed.") }
                             }
                         }) { Text("Prepare") }
                         Button(onClick = {
                             scope.launch {
                                 runCatching { api.setOrganizationProductionState(org.json.JSONObject().put("status", "idle")) }
                                     .onSuccess { production = it; productionStatus = "idle" }
-                                    .onFailure { e -> error = e.message }
+                                    .onFailure { e -> error = safeUserFacingIssue(e, "Production operation could not be completed.") }
                             }
                         }) { Text("Safe stop") }
                     }
@@ -992,7 +992,7 @@ fun OrganizationStudioWorkspace() {
                                     .put("type", "camera")
                                     .put("enabled", true))
                             }.onSuccess { production = it; cameraName = ""; cameraEndpoint = "" }
-                             .onFailure { e -> error = e.message }
+                             .onFailure { e -> error = safeUserFacingIssue(e, "Camera/source could not be registered.") }
                         }
                     }) { Text("Register camera/source") }
                     val sourceArray = production?.optJSONArray("sources")
@@ -1035,7 +1035,7 @@ fun OrganizationStudioWorkspace() {
                                     .put("enabled", false)
                                     .put("authentication", "not_connected"))
                             }.onSuccess { production = it; destinationName = "" }
-                             .onFailure { e -> error = e.message }
+                             .onFailure { e -> error = safeUserFacingIssue(e, "Destination could not be added.") }
                         }
                     }) { Text("Add destination") }
                     val destinations = production?.optJSONArray("destinations")
