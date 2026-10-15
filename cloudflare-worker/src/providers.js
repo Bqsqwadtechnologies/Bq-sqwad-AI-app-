@@ -44,7 +44,7 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false }) {
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false, maxOutputTokens = null }) {
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
@@ -65,6 +65,9 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? [{ role: "user", content }]
     : String(message || "");
   const body = { model: model || DEFAULT_MODELS.openai, input, stream };
+  if (Number.isInteger(Number(maxOutputTokens)) && Number(maxOutputTokens) >= 128) {
+    body.max_output_tokens = Math.min(8192, Number(maxOutputTokens));
+  }
   if (system) body.instructions = system;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -73,7 +76,7 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   });
 }
 
-export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg" }) {
+export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg", maxOutputTokens = null }) {
   const modelId = model || DEFAULT_MODELS.gemini;
   const imageInputs = Array.isArray(images) && images.length
     ? images
@@ -94,6 +97,9 @@ export async function callGemini(env, { model, message, system, images = [], fil
   });
   const request = { contents: [{ role: "user", parts }] };
   if (system) request.systemInstruction = { parts: [{ text: system }] };
+  if (Number.isInteger(Number(maxOutputTokens)) && Number(maxOutputTokens) >= 128) {
+    request.generationConfig = { maxOutputTokens: Math.min(8192, Number(maxOutputTokens)) };
+  }
   const result = await jsonFetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
     {
