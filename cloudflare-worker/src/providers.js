@@ -105,7 +105,8 @@ export async function callGemini(env, { model, message, system, images = [], fil
   return {
     text: result.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "",
     providerId: "gemini",
-    modelId
+    modelId,
+    usage: result.usageMetadata || {}
   };
 }
 
@@ -182,7 +183,12 @@ export async function runProvider(env, route, input) {
           throw new Error("provider_http_" + response.status + ":" + raw.slice(0, 700));
         }
         const body = await response.json();
-        return { text: body.output_text || body.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "", providerId: "openai", modelId: input.model || route.primaryModelId || DEFAULT_MODELS.openai };
+        return {
+          text: body.output_text || body.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "",
+          providerId: "openai",
+          modelId: input.model || route.primaryModelId || DEFAULT_MODELS.openai,
+          usage: body.usage || {}
+        };
       }
       if (providerId === "gemini") {
         return await callGemini(env, { ...input, model: route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.gemini) });
