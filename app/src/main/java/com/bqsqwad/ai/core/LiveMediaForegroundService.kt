@@ -305,7 +305,7 @@ class LiveMediaForegroundService : Service() {
                 }
                 val result = heartbeat.getOrNull()
                 if (result == null) {
-                    writeError("BQ Sqwad AI could not verify the live session balance after retry. Please retry the session.")
+                    writeError("BQ Sqwad AI could not verify the live session status after retry. Please retry the session.")
                     stopSelf()
                     return@launch
                 }
@@ -323,8 +323,8 @@ class LiveMediaForegroundService : Service() {
                     val insufficient = code.contains("insufficient") || code.contains("out_of_credits") ||
                         message.contains("insufficient credits") || message.contains("out of credits")
                     writeError(
-                        if (insufficient) "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
-                        else "BQ Sqwad AI could not verify the live session balance. Please retry the session."
+                        if (insufficient) "Your current usage allowance is unavailable. Open Plans & Billing to continue."
+                        else "BQ Sqwad AI could not verify the live session status. Please retry the session."
                     )
                     stopSelf()
                     return@launch
@@ -570,7 +570,7 @@ class LiveMediaForegroundService : Service() {
             lower.contains("review and accept the required") ||
             lower.contains("please sign in again")
         val friendly = when {
-            creditProblem -> "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
+            creditProblem -> "Your current usage allowance is unavailable. Open Plans & Billing to continue."
             actionableProviderError -> raw.take(220)
             technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
             else -> raw.take(180).ifBlank { "BQ Sqwad AI could not start this session. Please try again." }
