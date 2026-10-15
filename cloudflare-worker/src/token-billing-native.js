@@ -114,7 +114,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
     (rates.inputPriceUsdPerMillion + rates.outputPriceUsdPerMillion > 0) &&
-    Number.isFinite(customerMultiplier) && customerMultiplier >= 1;
+    Number.isFinite(customerMultiplier) && customerMultiplier >= 1 &&
+    Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens, configured,
     billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
