@@ -49,6 +49,14 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var description by remember { mutableStateOf("") }
     var creditCost by remember { mutableStateOf("1") }
     var priceUsd by remember { mutableStateOf("0.01") }
+    var billingMode by remember { mutableStateOf("fixed_credit") }
+    var inputRate by remember { mutableStateOf("0") }
+    var outputRate by remember { mutableStateOf("0") }
+    var cachedInputRate by remember { mutableStateOf("") }
+    var creditValueUsd by remember { mutableStateOf("0.07999") }
+    var costMultiplier by remember { mutableStateOf("8") }
+    var maxOutputTokens by remember { mutableStateOf("2048") }
+    var usageReport by remember { mutableStateOf(JSONObject()) }
     var creditsPerMinute by remember { mutableStateOf("") }
     var active by remember { mutableStateOf(true) }
     var isDefault by remember { mutableStateOf(false) }
@@ -61,6 +69,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             runCatching { api.adminAiModels().optJSONArray("models") ?: JSONArray() }
                 .onSuccess { arr -> models = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
                 .onFailure { message = it.message ?: "Could not load model registry." }
+            runCatching { api.adminAiUsage(100) }.onSuccess { usageReport = it }
             loading = false
         }
     }
