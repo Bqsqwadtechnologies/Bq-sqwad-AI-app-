@@ -1068,8 +1068,8 @@ const BQ_APP_KNOWLEDGE = [
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
 
-function configuredMediaProviderCost(control, units, expectedUnit) {
-  if (String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
+function configuredMediaProviderCost(control, units, expectedUnit, trackingOnly = false) {
+  if (trackingOnly ? control?.providerCostTrackingEnabled !== true : String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
   const unit = String(control?.providerCostUnit || "");
   const count = Number(units);
   const unitPrice = Number(control?.priceUsd || 0);
@@ -2032,15 +2032,24 @@ export default {
          const heartbeatMode = String(heartbeatBody.mode || "voice").toLowerCase();
          const isCameraMode = heartbeatMode === "camera" || heartbeatMode === "screen";
          const capabilityName = isCameraMode ? "live_camera" : "live_voice";
+         const expectedFeature = isCameraMode ? "live-camera" : "live-voice";
+         const expectedCostUnit = isCameraMode ? "second" : "minute";
          const config = await firestoreGet("adminAdvancedOptions/" + (isCameraMode ? "live_camera_pricing" : "live_voice_pricing")) || {};
          const pricing = normalizeLivePricing(config.config || config, {}, capabilityName);
          if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
            throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403 });
          }
-         let rate = pricing.creditsPerMinute;
+         let modelControl = await capability(user.uid, capabilityName);
          if (heartbeatBody.modelRegistryId) {
-           const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, isCameraMode ? "live-camera" : "live-voice");
-           if (selected.creditsPerMinute != null) rate = Math.max(0, Number(selected.creditsPerMinute));
+           const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, expectedFeature);
+           modelControl = { ...modelControl, ...selected, config: modelControl.config || {} };
+         } else if (modelControl.providerCostTrackingEnabled === true && modelControl.selectedRegistryModelId) {
+           const selected = await resolvePublishedModel(modelControl.selectedRegistryModelId, expectedFeature);
+           modelControl = { ...modelControl, ...selected, config: modelControl.config || {} };
+         }
+         let rate = pricing.creditsPerMinute;
+         if (heartbeatBody.modelRegistryId && modelControl.creditsPerMinute != null) {
+           rate = Math.max(0, Number(modelControl.creditsPerMinute));
          }
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
@@ -2054,8 +2063,25 @@ export default {
            if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
            throw error;
          }
+         const trackedCost = configuredMediaProviderCost(modelControl, isCameraMode ? 60 : 1, expectedCostUnit, true);
+         if (trackedCost) {
+           await recordConfiguredMediaCost(user.uid, capabilityName, modelControl, {
+             providerId: modelControl.providerId || "openai",
+             modelId: modelControl.modelId || pricing.modelId || DEFAULT_REALTIME_MODEL,
+             creditsCharged: Number(charge.amount || 0),
+             jobId: crypto.randomUUID()
+           }, trackedCost, isCameraMode ? "live_camera" : "live_voice").catch(() =>
+             notifyAdminOfIssue(env, "/realtime/heartbeat", 500, "live_media_cost_ledger_write_failed"));
+         }
          const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
-         return json({ ok: true, available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0), charged: Number(charge.amount || 0), free: rate === 0, billingIntervalSeconds: 60 });
+         return json({
+           ok: true,
+           available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0),
+           charged: Number(charge.amount || 0),
+           free: rate === 0,
+           billingIntervalSeconds: 60,
+           ...(trackedCost ? { estimatedProviderCostUsd: trackedCost.providerCostUsd } : {})
+         });
        }
        
        if (url.pathname === "/realtime/session" && request.method === "POST") {
