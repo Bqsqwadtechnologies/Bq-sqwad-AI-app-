@@ -83,8 +83,9 @@ class WorkspaceApiClient {
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Throwable) {
-            if (isConnectionFailure(error)) error(connectionUnavailableMessage())
+        } catch (failure: Throwable) {
+            if (failure is CancellationException) throw failure
+            if (isConnectionFailure(failure)) throw IllegalStateException(connectionUnavailableMessage(), failure)
             error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
         }
         val (status, raw) = statusAndBody
