@@ -1,6 +1,7 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -313,7 +314,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
             val features = plan?.optJSONArray("features") ?: org.json.JSONArray()
             planFeatures = List(features.length()) { features.optString(it) }
             if (plan?.optBoolean("trialEligible", false) == true) {
-                val days = plan.optInt("trialDays", 0)
+                val days = plan?.optInt("trialDays", 0) ?: 0
                 if (days > 0) planTrial = days.toString() + "-day free trial"
             }
         }
