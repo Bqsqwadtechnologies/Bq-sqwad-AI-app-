@@ -137,7 +137,7 @@ export function estimateTokenReservation({ message, system, pricing }) {
   return Math.max(0.000001, estimated.customerCredits * 1.35);
 }
 
-export async function recordTokenUsage({ uid, feature, providerId, modelId, usage, pricing, calculation, requestId, chargedCredits, planCovered = false, modality = "text" }) {
+export async function recordTokenUsage({ uid, feature, providerId, modelId, usage, pricing, calculation, requestId, chargedCredits, planCovered = false, modality = "text", unitCount = 0 }) {
   const recordId = crypto.randomUUID();
   const createdAt = new Date();
   const actualChargedCredits = Math.max(0, Number(chargedCredits || 0));
@@ -153,6 +153,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     providerId: String(providerId || ""),
     modelId: String(modelId || ""),
     modality,
+    unitCount: Math.max(0, Number(unitCount || 0)),
     requestId: String(requestId || recordId),
     inputTokens: Number(usage?.inputTokens || 0),
     outputTokens: Number(usage?.outputTokens || 0),
@@ -192,6 +193,7 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
     inputTokens: Number(row.inputTokens || 0),
     outputTokens: Number(row.outputTokens || 0),
     cachedInputTokens: Number(row.cachedInputTokens || 0),
+    unitCount: Number(row.unitCount || 0),
     providerCostUsd: Number(row.providerCostUsd || 0),
     chargedCredits: Number(row.chargedCredits || 0),
     grossUsageValueUsd: Number(row.grossUsageValueUsd || 0),
@@ -208,12 +210,13 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
       inputTokens: total.inputTokens + item.inputTokens,
       outputTokens: total.outputTokens + item.outputTokens,
       cachedInputTokens: total.cachedInputTokens + item.cachedInputTokens,
+      units: total.units + item.unitCount,
       providerCostUsd: total.providerCostUsd + item.providerCostUsd,
       chargedCredits: total.chargedCredits + item.chargedCredits,
       grossUsageValueUsd: total.grossUsageValueUsd + item.grossUsageValueUsd,
       estimatedGrossProfitUsd: total.estimatedGrossProfitUsd + item.estimatedGrossProfitUsd,
       estimatedFeeUsd: total.estimatedFeeUsd + item.estimatedFeeUsd,
       estimatedNetProfitUsd: total.estimatedNetProfitUsd + item.estimatedNetProfitUsd
-    }), { requests: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, providerCostUsd: 0, chargedCredits: 0, grossUsageValueUsd: 0, estimatedGrossProfitUsd: 0, estimatedFeeUsd: 0, estimatedNetProfitUsd: 0 })
+    }), { requests: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, units: 0, providerCostUsd: 0, chargedCredits: 0, grossUsageValueUsd: 0, estimatedGrossProfitUsd: 0, estimatedFeeUsd: 0, estimatedNetProfitUsd: 0 })
   };
 }
