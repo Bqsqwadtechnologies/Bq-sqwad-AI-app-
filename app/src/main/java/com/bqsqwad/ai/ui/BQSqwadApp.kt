@@ -2130,7 +2130,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             failedImagePrompt = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
-                    val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() })
+                    val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = null)
                     val durableImageUrl = generated.imageBase64?.let {
                         runCatching { uploadGeneratedImage(it) }.getOrNull()
                     } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
@@ -2272,7 +2272,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = selectedTextModelId.takeIf { activeCapability == "chat" && it.isNotBlank() }, onDelta = { delta ->
+                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             rawStreamText += delta
                             val current = messages.getOrNull(aiIndex)
@@ -2317,7 +2317,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             error = "Attach up to four images and four PDF files per message."
                         } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
                             creditsExhausted = true
-                            creditNotice = "You've run out of BQ Sqwad AI credits. Buy credits to continue using AI features."
+                            creditNotice = "Your current usage allowance is unavailable. Review plans and billing to continue."
                             error = creditNotice
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
@@ -2421,12 +2421,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (publishedAiModels.any { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }) {
-                            DropdownMenuItem(text = { Text("Text model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedTextModelId }?.optString("name") ?: publishedAiModels.firstOrNull { it.optString("feature") == "text-chat" && it.optBoolean("isDefault") }?.optString("name") ?: "Server default")) }, onClick = { menuOpen = false; textModelMenuOpen = true })
-                        }
-                        if (publishedAiModels.any { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }) {
-                            DropdownMenuItem(text = { Text("Image model: " + (publishedAiModels.firstOrNull { it.optString("id") == selectedImageModelId }?.optString("name") ?: publishedAiModels.firstOrNull { it.optString("feature") == "image-generation" && it.optBoolean("isDefault") }?.optString("name") ?: "Server default")) }, onClick = { menuOpen = false; imageModelMenuOpen = true })
-                        }
                         if (chatHistoryEnabled && !privateChat && messages.isNotEmpty()) {
                             DropdownMenuItem(
                                 enabled = !savingChat && !busy,
@@ -2449,18 +2443,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     onClick = openSettings
                 )
             }
-            DropdownMenu(expanded = textModelMenuOpen, onDismissRequest = { textModelMenuOpen = false }) {
-                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedTextModelId = ""; textModelMenuOpen = false })
-                publishedAiModels.filter { it.optString("feature") == "text-chat" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedTextModelId = model.optString("id"); textModelMenuOpen = false })
-                }
-            }
-            DropdownMenu(expanded = imageModelMenuOpen, onDismissRequest = { imageModelMenuOpen = false }) {
-                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedImageModelId = ""; imageModelMenuOpen = false })
-                publishedAiModels.filter { it.optString("feature") == "image-generation" && it.optBoolean("active") && it.optBoolean("published") }.forEach { model ->
-                    DropdownMenuItem(text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") }, onClick = { selectedImageModelId = model.optString("id"); imageModelMenuOpen = false })
-                }
-            }
             if (creditsExhausted) Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             creditNotice?.let { notice ->
                 Surface(
@@ -2475,10 +2457,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     ) {
                         BqLogo(28.dp)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(if (creditsExhausted) "Credits used up" else "Credit balance notice", fontWeight = FontWeight.Bold)
+                            Text(if (creditsExhausted) "Usage limit reached" else "Usage notice", fontWeight = FontWeight.Bold)
                             Text(notice, style = MaterialTheme.typography.bodySmall)
                         }
-                        TextButton(onClick = openPlans) { Text("Buy credits") }
+                        TextButton(onClick = openPlans) { Text("View plans") }
                     }
                 }
             }
@@ -2961,7 +2943,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
                                     if (dictationNeedsCredits) {
-                                        Button(onClick = { openCredits() }) { Text("Buy credits") }
+                                        Button(onClick = { openCredits() }) { Text("View plans") }
                                     }
                                 }
                             }
@@ -3015,7 +2997,7 @@ val composerShape = RoundedCornerShape(26.dp)
                             enabled = !creditsExhausted,
                             placeholder = {
                                 Text(
-                                    if (creditsExhausted) "Credits used up — buy credits to continue" else "Message BQ Sqwad AI",
+                                    if (creditsExhausted) "Usage limit reached — review plans to continue" else "Message BQ Sqwad AI",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
@@ -4701,38 +4683,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(liveCameraRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
-            Box {
-                OutlinedButton(onClick = {
-                    cameraModelExpanded = true
-                    scope.launch {
-                        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-                            .onSuccess { array ->
-                                publishedCameraModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                                    .filter { it.optString("feature") == "live-camera" && it.optBoolean("active") && it.optBoolean("published") }
-                            }
-                    }
-                }) {
-                    val selectedName = publishedCameraModels.firstOrNull { it.optString("id") == selectedCameraModelId }?.optString("name")
-                        ?: publishedCameraModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
-                        ?: "Server default"
-                    Text("AI model: $selectedName")
-                }
-                DropdownMenu(expanded = cameraModelExpanded, onDismissRequest = { cameraModelExpanded = false }) {
-                    DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedCameraModelId = ""; cameraModelExpanded = false })
-                    publishedCameraModels.forEach { model ->
-                        DropdownMenuItem(
-                            text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") },
-                            onClick = { selectedCameraModelId = model.optString("id"); cameraModelExpanded = false }
-                        )
-                    }
-                }
-            }
             var voiceExpanded by remember { mutableStateOf(false) }
             Box {
                 OutlinedButton(onClick = { voiceExpanded = true }) {
@@ -5390,7 +5345,6 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             }
         }
 
-        Text(liveVoiceRateLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         Text(
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
@@ -5419,33 +5373,6 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
         if (!active && state.contains("credit", ignoreCase = true)) {
             Text("You need credits to use Live Voice.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
-        }
-
-        Box {
-            OutlinedButton(onClick = {
-                voiceModelExpanded = true
-                scope.launch {
-                    runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-                        .onSuccess { array ->
-                            publishedVoiceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                                .filter { it.optString("feature") == "live-voice" && it.optBoolean("active") && it.optBoolean("published") }
-                        }
-                }
-            }) {
-                val selectedName = publishedVoiceModels.firstOrNull { it.optString("id") == selectedVoiceModelId }?.optString("name")
-                    ?: publishedVoiceModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
-                    ?: "Server default"
-                Text("AI model: " + selectedName.take(20))
-            }
-            DropdownMenu(expanded = voiceModelExpanded, onDismissRequest = { voiceModelExpanded = false }) {
-                DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVoiceModelId = ""; voiceModelExpanded = false })
-                publishedVoiceModels.forEach { model ->
-                    DropdownMenuItem(
-                        text = { Text(model.optString("name") + if (model.optBoolean("isDefault")) " · Default" else "") },
-                        onClick = { selectedVoiceModelId = model.optString("id"); voiceModelExpanded = false }
-                    )
-                }
-            }
         }
 
         Button(
@@ -5526,30 +5453,6 @@ fun DeviceIntelligencePanel(featureName: String) {
         "Use $featureName to control supported Android device actions. Main Chat does not expose this control panel."
     )
 
-    Box {
-        val selectedName = publishedDeviceModels.firstOrNull { it.optString("id") == selectedDeviceModelId }?.optString("name")
-            ?: publishedDeviceModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
-            ?: "Server default"
-        OutlinedButton(onClick = {
-            deviceModelExpanded = true
-            scope.launch {
-                runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-                    .onSuccess { array ->
-                        publishedDeviceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                            .filter { it.optString("feature") == "device-commands" && it.optBoolean("active") && it.optBoolean("published") }
-                    }
-            }
-        }) { Text("AI model: " + selectedName.take(20)) }
-        DropdownMenu(expanded = deviceModelExpanded, onDismissRequest = { deviceModelExpanded = false }) {
-            DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedDeviceModelId = ""; deviceModelExpanded = false })
-            publishedDeviceModels.forEach { model ->
-                DropdownMenuItem(
-                    text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/request" + if (model.optBoolean("isDefault")) " · Default" else "") },
-                    onClick = { selectedDeviceModelId = model.optString("id"); deviceModelExpanded = false }
-                )
-            }
-        }
-    }
     OutlinedTextField(
         value = command,
         onValueChange = { command = it; status = null },
@@ -5566,7 +5469,7 @@ fun DeviceIntelligencePanel(featureName: String) {
             status = null
             scope.launch(Dispatchers.IO) {
                 runCatching {
-                    DeviceIntelligenceClient().interpret(requested, selectedDeviceModelId.takeIf { it.isNotBlank() })
+                    DeviceIntelligenceClient().interpret(requested, null)
                 }.onSuccess { result ->
                     val executor = DeviceCommandExecutor(context)
                     val failures = result.actions.mapNotNull { action ->
@@ -5585,10 +5488,7 @@ fun DeviceIntelligencePanel(featureName: String) {
                                 append(" Some actions could not be completed: ")
                                 append(failures.joinToString("; "))
                             }
-                            if (result.creditsCharged > 0) {
-                                append(" Credits used: ")
-                                append(result.creditsCharged)
-                            }
+
                         }
                     }
                 }.onFailure {
@@ -5784,10 +5684,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         BqLogo(26.dp)
-                                        Text("BQ Sqwad Credits", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                        Text("AI usage", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                                     }
-                                    Text(if (loadingAccount) "…" else balanceLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                    Text("Available shared balance", style = MaterialTheme.typography.bodySmall)
+                                    Text(if (loadingAccount) "Checking…" else "Managed automatically", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("Feature charges are handled automatically", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                             Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
@@ -5824,7 +5724,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Plans, credits & billing", "Your server-authoritative usage; manage or cancel subscriptions in Google Play") }
+            item { SettingsSectionTitle("Plans & billing", "Manage purchases and subscriptions in Google Play") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
@@ -5836,12 +5736,12 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 BqLogo(38.dp)
                                 Column(Modifier.weight(1f)) {
-                                    Text("BQ Sqwad Credits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text("One shared balance for eligible AI features", style = MaterialTheme.typography.bodySmall)
+                                    Text("AI usage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("Eligible feature usage is handled automatically", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-                            Text(if (adminUnlimited) "Unlimited" else String.format(java.util.Locale.US, "%.0f", balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Your balance is managed securely by BQ Sqwad AI.", style = MaterialTheme.typography.bodySmall)
+                            Text("Managed automatically", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Feature usage is managed securely by BQ Sqwad AI.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
