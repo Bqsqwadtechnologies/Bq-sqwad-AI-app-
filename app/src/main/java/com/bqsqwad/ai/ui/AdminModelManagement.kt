@@ -181,8 +181,20 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         }
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(creditCost, { creditCost = it }, label = { Text("Credits charged per request (minimum 1)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Reference price in USD per request (actual user charge is credits)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(creditsPerMinute, { creditsPerMinute = it }, label = { Text("Credits per live minute (blank = global live-session rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Legacy reference price in USD per request") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Text("Billing mode")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { billingMode = "fixed_credit" }) { Text(if (billingMode == "fixed_credit") "✓ Fixed credits" else "Fixed credits") }
+            OutlinedButton(onClick = { billingMode = "token" }) { Text(if (billingMode == "token") "✓ Token billing" else "Token billing") }
+        }
+        Text("Token prices are USD per 1,000,000 tokens. Configure rates for this exact model before activating token billing.", style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(inputRate, { inputRate = it }, label = { Text("Provider input USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(outputRate, { outputRate = it }, label = { Text("Provider output USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(cachedInputRate, { cachedInputRate = it }, label = { Text("Cached input USD per 1M tokens (blank = input rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(creditValueUsd, { creditValueUsd = it }, label = { Text("Reference value of one credit in USD") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(costMultiplier, { costMultiplier = it }, label = { Text("Customer/provider cost multiplier (default 8)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(maxOutputTokens, { maxOutputTokens = it }, label = { Text("Maximum output tokens (128–8192)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(creditsPerMinute, { creditsPerMinute = it }, label = { Text("Credits per live minute (preserve existing live-session rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(isDefault, { isDefault = it }); Text("Use as the default model for this feature", Modifier.padding(top = 12.dp)) }
         Row { Checkbox(published, { published = it }); Text("Publish in the user model catalogue", Modifier.padding(top = 12.dp)) }
