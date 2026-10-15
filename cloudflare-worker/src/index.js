@@ -1245,22 +1245,33 @@ async function stream(request, user, body) {
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
-    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+    control = { ...control, ...selected, config: control.config || {} };
   }
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
+  const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  const tokenPricing = await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control);
+  const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
+    tokenPricing.billingMode === "token";
+  if (tokenBilling && !tokenPricing.configured) {
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+  }
+  const memory = await memoryContext(user.uid);
+  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+  const reservationAmount = tokenBilling
+    ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
+    : (control.creditCost || 0);
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling });
   try {
-    const memory = await memoryContext(user.uid);
-    const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const provider = await runProviderStream(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
-      fallbackProviderIds: control.config?.fallbackProviderIds || [],
+      fallbackProviderIds: tokenBilling ? [] : (control.config?.fallbackProviderIds || []),
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message: userMessage, system });
+    }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     const encoder = new TextEncoder();
     const output = new ReadableStream({
       async start(controller) {
         const emit = (value) => controller.enqueue(encoder.encode("data: " + JSON.stringify(value) + "\n\n"));
+        let usageRaw = provider.usage || {};
         try {
           if (provider.streamed) {
             const reader = provider.response.body.getReader();
@@ -1281,7 +1292,7 @@ async function stream(request, user, body) {
                   emit({ type: "delta", text: parsed.delta });
                 } else if (parsed.type === "response.completed") {
                   completed = true;
-                  emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId, creditsCharged: reservation.amount });
+                  usageRaw = parsed.response?.usage || parsed.usage || usageRaw;
                 } else if (parsed.type === "error") {
                   throw new Error(parsed.error?.message || "Streaming failed");
                 }
@@ -1290,15 +1301,49 @@ async function stream(request, user, body) {
             if (!completed) throw new Error("stream_incomplete");
           } else {
             emit({ type: "delta", text: provider.text });
-            emit({ type: "completed", providerId: provider.providerId, modelId: provider.modelId, creditsCharged: reservation.amount });
           }
-          await commitCredits(user.uid, reservation.reservationId, provider.providerId);
+          let creditsCharged = Number(reservation.amount || 0);
+          let tokenUsage = null;
+          if (tokenBilling) {
+            const usage = normalizeProviderUsage(provider.providerId, usageRaw);
+            if (usage.inputTokens + usage.outputTokens <= 0) {
+              throw Object.assign(new Error("provider_usage_unavailable"), { httpStatus: 502, safeError: "provider_usage_unavailable" });
+            }
+            const actualPricing = await resolveTokenPricing(provider.providerId, provider.modelId, pricingFeature, control);
+            if (!actualPricing.configured) {
+              throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+            }
+            const calculation = calculateTokenCost({
+              usage, pricing: actualPricing,
+              creditReferenceValueUsd: actualPricing.creditReferenceValueUsd,
+              multiplier: actualPricing.customerMultiplier
+            });
+            const settled = await settleCreditReservation(user.uid, reservation.reservationId, calculation.customerCredits, provider.providerId);
+            creditsCharged = Number(settled.amount || 0);
+            tokenUsage = {
+              inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+              cachedInputTokens: usage.cachedInputTokens, providerCostUsd: calculation.providerCostUsd,
+              providerCostCredits: calculation.providerCostCredits, creditsCharged,
+              grossUsageValueUsd: calculation.grossUsageValueUsd
+            };
+            await recordTokenUsage({
+              uid: user.uid, feature: capabilityName, providerId: provider.providerId, modelId: provider.modelId,
+              usage, pricing: actualPricing, calculation, requestId: reservation.reservationId || crypto.randomUUID(),
+              chargedCredits: creditsCharged, planCovered: false, modality: "text"
+            }).catch(() => notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, "token_usage_ledger_write_failed"));
+          } else {
+            await commitCredits(user.uid, reservation.reservationId, provider.providerId);
+          }
+          emit({
+            type: "completed", providerId: provider.providerId, modelId: provider.modelId,
+            creditsCharged, ...(tokenUsage ? { tokenUsage } : {})
+          });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
           await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed");
-          emit({ type: "error", message: "service_temporarily_unavailable" });
+          emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
