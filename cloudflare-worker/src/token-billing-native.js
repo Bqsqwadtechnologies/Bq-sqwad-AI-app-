@@ -140,6 +140,13 @@ export function estimateTokenReservation({ message, system, pricing }) {
 export async function recordTokenUsage({ uid, feature, providerId, modelId, usage, pricing, calculation, requestId, chargedCredits, planCovered = false, modality = "text" }) {
   const recordId = crypto.randomUUID();
   const createdAt = new Date();
+  const actualChargedCredits = Math.max(0, Number(chargedCredits || 0));
+  const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
+  const grossUsageValueUsd = actualChargedCredits * creditValue;
+  const estimatedFeePercent = Math.min(100, Math.max(0, Number(calculation?.estimatedFeePercent ?? pricing?.estimatedFeePercent ?? 15)));
+  const estimatedFeeUsd = grossUsageValueUsd * estimatedFeePercent / 100;
+  const estimatedGrossProfitUsd = grossUsageValueUsd - Number(calculation?.providerCostUsd || 0);
+  const estimatedNetProfitUsd = estimatedGrossProfitUsd - estimatedFeeUsd;
   await firestoreCreate("aiUsageLedger/" + recordId, {
     uid: String(uid || ""),
     feature: String(feature || ""),
@@ -153,13 +160,13 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     reasoningTokens: Number(usage?.reasoningTokens || 0),
     providerCostUsd: Number(calculation?.providerCostUsd || 0),
     providerCostCredits: Number(calculation?.providerCostCredits || 0),
-    chargedCredits: Number(chargedCredits || 0),
-    grossUsageValueUsd: Number(calculation?.grossUsageValueUsd || 0),
-    estimatedGrossProfitUsd: Number(calculation?.estimatedGrossProfitUsd || 0),
-    estimatedFeePercent: Number(calculation?.estimatedFeePercent || 0),
-    estimatedFeeUsd: Number(calculation?.estimatedFeeUsd || 0),
-    estimatedNetProfitUsd: Number(calculation?.estimatedNetProfitUsd || 0),
-    creditReferenceValueUsd: Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD),
+    chargedCredits: actualChargedCredits,
+    grossUsageValueUsd,
+    estimatedGrossProfitUsd,
+    estimatedFeePercent,
+    estimatedFeeUsd,
+    estimatedNetProfitUsd,
+    creditReferenceValueUsd: creditValue,
     customerMultiplier: Number(pricing?.customerMultiplier || DEFAULT_CUSTOMER_MULTIPLIER),
     planCovered: planCovered === true,
     costStatus: "estimated_from_provider_usage_and_configured_rates",
@@ -169,8 +176,14 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
 }
 
 export async function getTokenUsageReport({ limit = 100 } = {}) {
-  const rows = await firestoreQuery("aiUsageLedger", { limit: Math.min(500, Math.max(1, Number(limit) || 100)) });
-  const items = rows.map(row => ({
+  const requestedLimit = Math.min(500, Math.max(1, Number(limit) || 100));
+  const rows = await firestoreQuery("aiUsageLedger", { limit: 500 });
+  rows.sort((a, b) => {
+    const aTime = Date.parse(a.createdAt?.toDate?.() || a.createdAt || 0) || 0;
+    const bTime = Date.parse(b.createdAt?.toDate?.() || b.createdAt || 0) || 0;
+    return bTime - aTime;
+  });
+  const items = rows.slice(0, requestedLimit).map(row => ({
     id: String(row.id || String(row.__name || "").split("/").pop()),
     uid: String(row.uid || ""),
     feature: String(row.feature || ""),
