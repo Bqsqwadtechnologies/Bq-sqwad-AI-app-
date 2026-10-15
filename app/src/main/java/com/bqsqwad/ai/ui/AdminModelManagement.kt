@@ -85,7 +85,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Token usage and cost report", style = MaterialTheme.typography.titleMedium)
-                Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")}")
+                Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")} · Media units: ${totals.optDouble("units")}")
                 Text("Provider cost: USD ${"%.6f".format(totals.optDouble("providerCostUsd"))} · Credits charged: ${"%.6f".format(totals.optDouble("chargedCredits"))}")
                 Text("Gross usage value: USD ${"%.6f".format(totals.optDouble("grossUsageValueUsd"))} · Estimated fee: USD ${"%.6f".format(totals.optDouble("estimatedFeeUsd"))}")
                 Text("Estimated net contribution: USD ${"%.6f".format(totals.optDouble("estimatedNetProfitUsd"))} (before other overheads)")
@@ -240,7 +240,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 (billingMode != "provider_cost" || feature in setOf("image-generation", "video-generation")) &&
                 (!active || billingMode != "token" || (inputRate.toDoubleOrNull() ?: 0.0) + (outputRate.toDoubleOrNull() ?: 0.0) > 0) &&
                 (!active || billingMode != "provider_cost" || (priceUsd.toDoubleOrNull() ?: 0.0) > 0) &&
-                (billingMode != "provider_cost" || providerCostUnit == if (feature == "image-generation") "image" else if (feature == "video-generation") "second" else "request") &&
+                (billingMode != "provider_cost" || providerCostUnit == (if (feature == "image-generation") "image" else if (feature == "video-generation") "second" else "request")) &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
             onClick = {
