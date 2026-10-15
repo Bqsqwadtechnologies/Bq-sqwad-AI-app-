@@ -2233,7 +2233,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val current = messages.getOrNull(aiIndex)
                     if (current != null) {
                         val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(reply.text) else reply.text
-                        messages[aiIndex] = current.copy(text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply, sources = webSources)
+                        val chargeNotice = if (reply.creditsCharged > 0.0) {
+                            val amount = String.format(java.util.Locale.US, "%.3f", reply.creditsCharged)
+                                .trimEnd('0').trimEnd('.')
+                            "\n\nCredits used: $amount"
+                        } else ""
+                        messages[aiIndex] = current.copy(
+                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + chargeNotice,
+                            sources = webSources
+                        )
                     }
                     busy = false
                     streamJob = null
