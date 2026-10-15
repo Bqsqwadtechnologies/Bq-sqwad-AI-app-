@@ -562,8 +562,15 @@ class LiveMediaForegroundService : Service() {
             lower.contains("organization_insufficient_balance")
         val permissionProblem = lower.contains("permission")
         val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|client_secret_missing|provider_not_configured|not_configured|temporarily unavailable|could not start|failed|internal server|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+        val actionableProviderError = lower.contains("provider status ") ||
+            lower.contains("provider is not configured") ||
+            lower.contains("ai provider is not configured") ||
+            lower.contains("currently disabled") ||
+            lower.contains("review and accept the required") ||
+            lower.contains("please sign in again")
         val friendly = when {
             creditProblem -> "You've run out of BQ Sqwad AI credits. Open Plans & Credits to buy more and continue."
+            actionableProviderError -> raw.take(220)
             technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
             else -> raw.take(180).ifBlank { "BQ Sqwad AI could not start this session. Please try again." }
         }
