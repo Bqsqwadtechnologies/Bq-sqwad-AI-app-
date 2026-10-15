@@ -1665,6 +1665,57 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by rememberSaveable { mutableStateOf<String?>(null) }
+    var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedTextModelId by rememberSaveable { mutableStateOf("") }
+    var selectedImageModelId by rememberSaveable { mutableStateOf("") }
+
+    var privateChat by rememberSaveable { mutableStateOf(false) }
+    var statusText by remember { mutableStateOf("Ready") }
+    var creditNotice by remember { mutableStateOf<String?>(null) }
+    var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
+    var creditsExhausted by remember { mutableStateOf(false) }
+    val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
+    // Keep Private Chat turns visible in this session but never include them in a saved history payload.
+    val privateMessageIds = remember { mutableStateListOf<String>().apply { addAll(messages.filter { it.privateSession }.map { it.id }) } }
+    fun appendChatMessage(chatMessage: ChatMessage) {
+        val messageForSession = if (privateChat) chatMessage.copy(privateSession = true) else chatMessage
+        messages.add(messageForSession)
+        if (privateChat) privateMessageIds.add(messageForSession.id)
+    }
+    var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
+    var selectedImageMimeType by remember { mutableStateOf("image/png") }
+    var selectedImagePrompt by remember { mutableStateOf("") }
+    var selectedImageMessageId by remember { mutableStateOf<String?>(null) }
+    var showImageActions by remember { mutableStateOf(false) }
+    var imageActionLoading by remember { mutableStateOf(false) }
+    var showImageViewer by remember { mutableStateOf(false) }
+    var showImageEdit by remember { mutableStateOf(false) }
+    var imageEditPrompt by remember { mutableStateOf("") }
+    var showImageResize by remember { mutableStateOf(false) }
+    var selectedImageSize by remember { mutableStateOf("1024x1024") }
+    var textModelMenuOpen by remember { mutableStateOf(false) }
+    var imageModelMenuOpen by remember { mutableStateOf(false) }
+
+    fun applyPublishedAiModels(array: JSONArray) {
+        val latest = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+        publishedAiModels = latest
+        if (selectedTextModelId.isNotBlank() && latest.none {
+                it.optString("id") == selectedTextModelId &&
+                    it.optString("feature") == "text-chat" &&
+                    it.optBoolean("active") && it.optBoolean("published")
+            }) selectedTextModelId = ""
+        if (selectedImageModelId.isNotBlank() && latest.none {
+                it.optString("id") == selectedImageModelId &&
+                    it.optString("feature") == "image-generation" &&
+                    it.optBoolean("active") && it.optBoolean("published")
+            }) selectedImageModelId = ""
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
+            .onSuccess { array -> applyPublishedAiModels(array) }
+    }
+
     LaunchedEffect(restoredChat?.first) {
         val saved = restoredChat ?: return@LaunchedEffect
         historyId = saved.first
