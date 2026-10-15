@@ -190,6 +190,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             OutlinedButton(onClick = { billingMode = "fixed_credit" }) { Text(if (billingMode == "fixed_credit") "✓ Fixed credits" else "Fixed credits") }
             OutlinedButton(onClick = { billingMode = "token" }) { Text(if (billingMode == "token") "✓ Token billing" else "Token billing") }
         }
+        Text("Token billing is supported here for text-chat and device-commands. Image, voice, camera, video, and research must use their actual modality/provider billing units.", style = MaterialTheme.typography.bodySmall)
         Text("Token prices are USD per 1,000,000 tokens. Configure rates for this exact model before activating token billing.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(inputRate, { inputRate = it }, label = { Text("Provider input USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(outputRate, { outputRate = it }, label = { Text("Provider output USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -232,6 +233,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 (costMultiplier.toDoubleOrNull() ?: -1.0) >= 1 &&
                 (estimatedFeePercent.toDoubleOrNull() ?: -1.0) in 0.0..100.0 &&
                 (maxOutputTokens.toIntOrNull() ?: -1) in 128..8192 &&
+                (billingMode != "token" || feature in setOf("text-chat", "device-commands")) &&
+                (!active || billingMode != "token" || (inputRate.toDoubleOrNull() ?: 0.0) + (outputRate.toDoubleOrNull() ?: 0.0) > 0) &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
             onClick = {
