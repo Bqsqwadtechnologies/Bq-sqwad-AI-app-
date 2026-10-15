@@ -2326,7 +2326,31 @@ export default {
       if (url.pathname === "/consent/training" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); await firestoreSet("userConsents/"+u.uid,{uid:u.uid,trainingConsent:b.trainingConsent===true,trainingConsentAt:new Date(),updatedAt:new Date()},true); return json({ok:true,trainingConsent:b.trainingConsent===true}); }
       if (url.pathname === "/notifications/token" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token||token.length>4096)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreSet("notificationTokens/"+u.uid+"_"+h,{uid:u.uid,token,tokenHash:h,platform:String(b.platform||"android").slice(0,40),enabled:true,updatedAt:new Date()},true); return json({ok:true,registered:true}); }
       if (url.pathname === "/notifications/token" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreDelete("notificationTokens/"+u.uid+"_"+h); return json({ok:true,removed:true}); }
-      if (url.pathname === "/video/generate" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const b=await readBody(request); const videoPrompt=String(b.prompt||b.description||b.text||"").trim(); if(videoPrompt){const redirect=await workspaceScopeRedirect("video",videoPrompt);if(redirect)return json({ok:true,redirect});} let control=await capability(u.uid,"video_generation"); if(b.modelRegistryId){const selected=await resolvePublishedModel(b.modelRegistryId,"video-generation");control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost};} b.creditCost=control.creditCost;b.model=control.modelId;return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
+      if (url.pathname === "/video/generate" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        const b = await readBody(request);
+        const videoPrompt = String(b.prompt || b.description || b.text || "").trim();
+        if (videoPrompt) {
+          const redirect = await workspaceScopeRedirect("video", videoPrompt);
+          if (redirect) return json({ ok: true, redirect });
+        }
+        let control = await capability(u.uid, "video_generation");
+        if (b.modelRegistryId) {
+          const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
+          control = { ...control, ...selected, config: control.config || {} };
+        }
+        const mediaCost = configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
+        b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        b.model = control.modelId;
+        const result = await createVideoNative(env, u, b,
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, id, provider) => commitCredits(uid, id, provider),
+          (uid, id) => reverseCredits(uid, id));
+        if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
+          .catch(() => notifyAdminOfIssue(env, "/video/generate", 500, "media_cost_ledger_write_failed"));
+        return json(result);
+      }
       if (url.pathname.startsWith("/video/jobs/") && !url.pathname.endsWith("/content") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/video/jobs/".length)))); }
       if (url.pathname.startsWith("/video/jobs/") && url.pathname.endsWith("/content") && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
@@ -2377,7 +2401,26 @@ export default {
           .catch(() => notifyAdminOfIssue(env, "/ai/image/edit", 500, "media_cost_ledger_write_failed"));
         return json(result);
       }
-      if (url.pathname === "/ai/video" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); let control=await capability(u.uid,"video_generation"); const b=await readBody(request); if(b.modelRegistryId){const selected=await resolvePublishedModel(b.modelRegistryId,"video-generation");control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost};} b.creditCost=control.creditCost; b.model=control.modelId; return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
+      if (url.pathname === "/ai/video" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        let control = await capability(u.uid, "video_generation");
+        const b = await readBody(request);
+        if (b.modelRegistryId) {
+          const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
+          control = { ...control, ...selected, config: control.config || {} };
+        }
+        const mediaCost = configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
+        b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        b.model = control.modelId;
+        const result = await createVideoNative(env, u, b,
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, id, provider) => commitCredits(uid, id, provider),
+          (uid, id) => reverseCredits(uid, id));
+        if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
+          .catch(() => notifyAdminOfIssue(env, "/ai/video", 500, "media_cost_ledger_write_failed"));
+        return json(result);
+      }
       if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
       if (url.pathname === "/social/oauth/callback" && request.method === "GET") { const state=String(url.searchParams.get("state")||""),code=String(url.searchParams.get("code")||""); if(!state||!code)return new Response("OAuth callback parameters required",{status:400}); const result=await socialCallback(env,state,code); return new Response("<!doctype html><html><body><h1>BQ Sqwad AI</h1><p>Account connected successfully. You can return to the app.</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}}); }
       if (url.pathname === "/organization/social/accounts" && request.method === "GET") { const u=await verifyFirebaseUser(request),orgId=String(url.searchParams.get("organizationId")||u.uid); const org=await firestoreGet("organizationWorkspaces/"+orgId); const member=Array.isArray(org?.members)?org.members.find(x=>String(x.id||"")===u.uid&&x.status!=="inactive"):null;if(!member||!["owner","admin","editor"].includes(String(member.role||"")))throw new Error("organization_social_access_denied");return json({accounts:(await listSocialAccounts(u.uid,orgId)).filter(x=>["youtube","tiktok"].includes(x.platform))}); }
