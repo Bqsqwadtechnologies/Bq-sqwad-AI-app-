@@ -252,7 +252,7 @@ class WorkspaceApiClient {
         if (status !in 200..299) {
             val code = body?.optString("error").orEmpty().lowercase()
             error(when {
-                code == "out_of_credits" || code == "insufficient_credits" || status == 402 -> "You need credits to use dictation. Open Plans & Credits and choose Buy credits."
+                code == "out_of_credits" || code == "insufficient_credits" || status == 402 -> "Your current usage allowance is unavailable for dictation. Review plans and billing to continue."
                 code == "consent_required" -> "Please review and accept the required BQ Sqwad AI terms to use dictation."
                 code == "dictation_disabled" -> "Dictation is temporarily unavailable. Try again later."
                 status >= 500 -> "Transcription is temporarily unavailable. Check your internet connection and retry."
