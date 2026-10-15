@@ -23,7 +23,8 @@ class RealtimeVoiceSession(
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
     private val onTranscript: (speaker: String, text: String) -> Unit = { _, _ -> },
-    private val onOutputAudioLevel: (Float) -> Unit = {}
+    private val onOutputAudioLevel: (Float) -> Unit = {},
+    private val onDiagnostic: (String) -> Unit = {}
 ) {
     companion object {
         private const val SAMPLE_RATE = 24000
@@ -329,8 +330,10 @@ class RealtimeVoiceSession(
             "error" -> {
                 val realtimeError = event.optJSONObject("error")
                 val code = realtimeError?.optString("code").orEmpty().lowercase()
-                val message = realtimeError?.optString("message").orEmpty()
-                // Empty commits, cancellations, and response conflicts are recoverable.
+                val message = realtimeError?.optString("message").orEmpty().trim()
+                // Authentication, billing, model, and session-configuration errors stop the
+                // session. Recoverable VAD/response conflicts stay connected but are now
+                // visible in the foreground-service activity log instead of being swallowed.
                 val fatal = code.contains("auth") ||
                     code.contains("expired") ||
                     code.contains("quota") ||
@@ -339,6 +342,8 @@ class RealtimeVoiceSession(
                     code.contains("invalid_session") ||
                     code.contains("session_configuration") ||
                     code.contains("connection_closed") ||
+                    code.contains("invalid_value") ||
+                    code.contains("unknown_parameter") ||
                     message.contains("unauthorized", ignoreCase = true) ||
                     message.contains("invalid api key", ignoreCase = true) ||
                     message.contains("insufficient_quota", ignoreCase = true) ||
@@ -348,9 +353,12 @@ class RealtimeVoiceSession(
                     code.contains("session_not_found") ||
                     code.contains("unsupported_model") ||
                     message.contains("model not found", ignoreCase = true)
+                val safeCode = code.ifBlank { "provider_error" }.take(80)
+                val safeMessage = message.replace(Regex("\\s+"), " ").take(180)
+                onDiagnostic("Realtime error ($safeCode)" + if (safeMessage.isNotBlank()) ": $safeMessage" else "")
                 if (fatal) {
                     responseInProgress.set(false)
-                    onError("Realtime session error (" + (code.ifBlank { "fatal_provider_error" }) + "). Retry the session.")
+                    onError("Realtime session error ($safeCode). Check the Live session activity details, then retry.")
                 } else {
                     if (!playing.get()) responseInProgress.set(false)
                     onState(if (playing.get()) "speaking" else "listening")
