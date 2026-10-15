@@ -110,7 +110,7 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (message.isBlank()) return fallback
     val lower = message.lowercase()
     if (lower.contains("insufficient credits") || lower.contains("insufficient_credits") || lower.contains("credit_balance")) {
-        return "You've run out of BQ Sqwad AI credits. Open Plans & Credits to continue."
+        return "Your current usage allowance is unavailable. Open Plans & Billing to continue."
     }
     if (lower.contains("capability_disabled") || lower.contains("capability_killed") ||
         lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
@@ -124,7 +124,7 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (lower.contains("attachment_count_invalid")) return "Attach up to 8 images and up to 4 PDFs per message. Send extra files in another message."
     if (lower.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
     if (lower.contains("consent_required")) return "Accept the required consent in Settings before using AI features."
-    if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Credits to review access."
+    if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Billing to review access."
     if (lower.contains("rate limit") || lower.contains("rate_limited") || lower.contains("http 429")) return "You are sending requests too quickly. Wait a moment and try again."
     // Never echo raw exception text to a normal user. It can contain account
     // email addresses, worker/repository URLs, provider responses, or file paths.
@@ -1038,7 +1038,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
                     item {
                         NavigationDrawerItem(
-                            label = { Text("Plans & Credits") },
+                            label = { Text("Plans & Billing") },
                             selected = plans,
                             onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
@@ -1255,7 +1255,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 )
             },
             confirmButton = {
-                Button(onClick = { paywallWorkspace = null; plans = true }) { Text("View Plans & Credits") }
+                Button(onClick = { paywallWorkspace = null; plans = true }) { Text("View Plans & Billing") }
             },
             dismissButton = {
                 TextButton(onClick = { paywallWorkspace = null }) { Text("Cancel") }
@@ -1665,57 +1665,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var historyId by rememberSaveable { mutableStateOf<String?>(null) }
-    var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedTextModelId by rememberSaveable { mutableStateOf("") }
-    var selectedImageModelId by rememberSaveable { mutableStateOf("") }
-
-    var privateChat by rememberSaveable { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf("Ready") }
-    var creditNotice by remember { mutableStateOf<String?>(null) }
-    var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
-    var creditsExhausted by remember { mutableStateOf(false) }
-    val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
-    // Keep Private Chat turns visible in this session but never include them in a saved history payload.
-    val privateMessageIds = remember { mutableStateListOf<String>().apply { addAll(messages.filter { it.privateSession }.map { it.id }) } }
-    fun appendChatMessage(chatMessage: ChatMessage) {
-        val messageForSession = if (privateChat) chatMessage.copy(privateSession = true) else chatMessage
-        messages.add(messageForSession)
-        if (privateChat) privateMessageIds.add(messageForSession.id)
-    }
-    var selectedImageBase64 by remember { mutableStateOf<String?>(null) }
-    var selectedImageMimeType by remember { mutableStateOf("image/png") }
-    var selectedImagePrompt by remember { mutableStateOf("") }
-    var selectedImageMessageId by remember { mutableStateOf<String?>(null) }
-    var showImageActions by remember { mutableStateOf(false) }
-    var imageActionLoading by remember { mutableStateOf(false) }
-    var showImageViewer by remember { mutableStateOf(false) }
-    var showImageEdit by remember { mutableStateOf(false) }
-    var imageEditPrompt by remember { mutableStateOf("") }
-    var showImageResize by remember { mutableStateOf(false) }
-    var selectedImageSize by remember { mutableStateOf("1024x1024") }
-    var textModelMenuOpen by remember { mutableStateOf(false) }
-    var imageModelMenuOpen by remember { mutableStateOf(false) }
-
-    fun applyPublishedAiModels(array: JSONArray) {
-        val latest = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-        publishedAiModels = latest
-        if (selectedTextModelId.isNotBlank() && latest.none {
-                it.optString("id") == selectedTextModelId &&
-                    it.optString("feature") == "text-chat" &&
-                    it.optBoolean("active") && it.optBoolean("published")
-            }) selectedTextModelId = ""
-        if (selectedImageModelId.isNotBlank() && latest.none {
-                it.optString("id") == selectedImageModelId &&
-                    it.optString("feature") == "image-generation" &&
-                    it.optBoolean("active") && it.optBoolean("published")
-            }) selectedImageModelId = ""
-    }
-
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array -> applyPublishedAiModels(array) }
-    }
-
     LaunchedEffect(restoredChat?.first) {
         val saved = restoredChat ?: return@LaunchedEffect
         historyId = saved.first
@@ -1785,7 +1734,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         creditsExhausted = available <= 0.0
         val renewalTime = snapshot.optString("dailyFreeCreditsRenewalTime", "00:00").ifBlank { "00:00" }
         val renewalZone = snapshot.optString("dailyFreeCreditsTimeZone", "Africa/Lagos").ifBlank { "Africa/Lagos" }
-        dailyRenewalNotice = "Free credits renew daily at " + (if (renewalTime == "00:00") "12:00 AM" else renewalTime) + " " + renewalZone + " time."
+        dailyRenewalNotice = "Your usage allowance renews daily at " + (if (renewalTime == "00:00") "12:00 AM" else renewalTime) + " " + renewalZone + " time."
         val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
         val creditPrefs = accountPreferences(context, "bq_ui")
         val baselineKey = "credit_cycle_baseline_$userKey"
@@ -2409,16 +2358,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqHeaderIconButton(
                         icon = Icons.Default.MoreVert,
                         contentDescription = "More chat options",
-                        onClick = {
-                            menuOpen = true
-                            scope.launch {
-                                runCatching {
-                                    WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray()
-                                }.onSuccess { array ->
-                                    applyPublishedAiModels(array)
-                                }
-                            }
-                        }
+                        onClick = { menuOpen = true }
                     )
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         if (chatHistoryEnabled && !privateChat && messages.isNotEmpty()) {
@@ -4404,17 +4344,6 @@ private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var liveCameraRateLabel by remember { mutableStateOf("Checking live price…") }
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().livePricing().optJSONObject("liveCamera") ?: JSONObject() }
-            .onSuccess { price ->
-                liveCameraRateLabel = when {
-                    !price.optBoolean("enabled", true) -> "Live Camera is currently unavailable"
-                    price.optBoolean("free", false) -> "Live Camera / Screen Share: Free right now"
-                    else -> "${price.optDouble("creditsPerMinute", 0.0)} credits per minute"
-                }
-            }.onFailure { liveCameraRateLabel = "Live pricing will be checked when the session starts" }
-    }
     val settingsPrefs = remember { accountPreferences(context) }
     val cameraEnhanceEnabled = remember { settingsPrefs.getBoolean("camera_enhance", true) }
     val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 1800L else 2800L
@@ -4491,7 +4420,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
                 }.onSuccess {
                     active = true
                     streamError = null
@@ -4566,7 +4495,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
                 }.onSuccess {
                     // Re-enable the preview container only after the service has had a
                     // moment to claim Camera2; streamOnline switches it to SourcePreview.
@@ -4615,7 +4544,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                     .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() })
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null)
             )
             screenActive = true
             screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames through the foreground service."
@@ -4652,16 +4581,6 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
     val streamingPreview by OrganizationLiveStreamer.activeStreamer.collectAsState()
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array ->
-                publishedCameraModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                    .filter { it.optString("feature") == "live-camera" && it.optBoolean("active") && it.optBoolean("published") }
-                if (selectedCameraModelId.isNotBlank() && publishedCameraModels.none { it.optString("id") == selectedCameraModelId }) {
-                    selectedCameraModelId = ""
-                }
-            }
-    }
     LaunchedEffect(liveUiState.log.size) {
         if (liveUiState.log.isNotEmpty()) cameraLogState.animateScrollToItem((liveUiState.log.size - 1).coerceAtLeast(0))
     }
@@ -4746,7 +4665,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                                     .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                                     .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedCameraModelId.takeIf { it.isNotBlank() }))
+                                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
                             }.onFailure {
                                 streamError = "The camera switched, but the AI microphone session could not restart. Tap Retry to reconnect."
                             }
@@ -5249,17 +5168,6 @@ private fun BqLiveAudioOrb(
 fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var liveVoiceRateLabel by remember { mutableStateOf("Checking live price…") }
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().livePricing().optJSONObject("liveVoice") ?: JSONObject() }
-            .onSuccess { price ->
-                liveVoiceRateLabel = when {
-                    !price.optBoolean("enabled", true) -> "Live Voice is currently unavailable"
-                    price.optBoolean("free", false) -> "Free right now"
-                    else -> "${price.optDouble("creditsPerMinute", 0.0)} credits per minute"
-                }
-            }.onFailure { liveVoiceRateLabel = "Live pricing will be checked when the session starts" }
-    }
     var publishedVoiceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedVoiceModelId by remember { mutableStateOf("") }
     var voiceModelExpanded by remember { mutableStateOf(false) }
@@ -5280,7 +5188,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             context.startForegroundService(
                 Intent(context, LiveMediaForegroundService::class.java)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, selectedVoiceModelId.takeIf { it.isNotBlank() })
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null)
             )
         }.onSuccess {
             active = true
@@ -5300,16 +5208,6 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
     }
 
     val liveUiState by LiveMediaForegroundService.uiState.collectAsState()
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array ->
-                publishedVoiceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                    .filter { it.optString("feature") == "live-voice" && it.optBoolean("active") && it.optBoolean("published") }
-                if (selectedVoiceModelId.isNotBlank() && publishedVoiceModels.none { it.optString("id") == selectedVoiceModelId }) {
-                    selectedVoiceModelId = ""
-                }
-            }
-    }
     LaunchedEffect(liveUiState) {
         if (liveUiState.mode == LiveMediaForegroundService.MODE_VOICE) {
             active = liveUiState.active
@@ -5438,15 +5336,6 @@ fun DeviceIntelligencePanel(featureName: String) {
     var publishedDeviceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedDeviceModelId by remember { mutableStateOf("") }
     var deviceModelExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array ->
-                publishedDeviceModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                    .filter { it.optString("feature") == "device-commands" && it.optBoolean("active") && it.optBoolean("published") }
-                if (selectedDeviceModelId.isNotBlank() && publishedDeviceModels.none { it.optString("id") == selectedDeviceModelId }) selectedDeviceModelId = ""
-            }
-    }
 
     SurfaceCard(
         "Device Intelligence",
