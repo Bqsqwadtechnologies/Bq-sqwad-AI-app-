@@ -202,7 +202,14 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("live-voice", "device-commands", "video-generation").forEach { option ->
-                OutlinedButton(onClick = { feature = option }) { Text(if (feature == option) "✓ $option" else option) }
+                OutlinedButton(onClick = {
+                    feature = option
+                    providerCostUnit = when (option) {
+                        "live-voice" -> "minute"
+                        "video-generation" -> "second"
+                        else -> "request"
+                    }
+                }) { Text(if (feature == option) "✓ $option" else option) }
             }
         }
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
