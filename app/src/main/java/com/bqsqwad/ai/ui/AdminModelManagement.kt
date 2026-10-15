@@ -79,13 +79,27 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Text("AI Model Management", style = MaterialTheme.typography.headlineSmall)
         Text("Changes are stored on the server. Active models become the server default for their feature on subsequent requests. API keys stay in Cloudflare secrets; never enter keys here.", style = MaterialTheme.typography.bodyMedium)
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        val totals = usageReport.optJSONObject("totals") ?: JSONObject()
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Token usage and cost report", style = MaterialTheme.typography.titleMedium)
+                Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")}")
+                Text("Provider cost: USD ${"%.6f".format(totals.optDouble("providerCostUsd"))} · Credits charged: ${"%.6f".format(totals.optDouble("chargedCredits"))}")
+                Text("Gross usage value: USD ${"%.6f".format(totals.optDouble("grossUsageValueUsd"))} · Estimated contribution: USD ${"%.6f".format(totals.optDouble("estimatedGrossProfitUsd"))}")
+                Text("Report covers the latest returned records. Costs are calculated from provider usage and configured rates.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (loading) Text("Loading registered models…")
         models.forEach { model ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(model.optString("name"), style = MaterialTheme.typography.titleMedium)
                     Text("${model.optString("providerId")} / ${model.optString("modelId")}", style = MaterialTheme.typography.bodySmall)
-                    Text("Feature: ${model.optString("feature")} · User charge: ${model.optInt("creditCost")} credits/request · Reference price: USD ${"%.4f".format(model.optDouble("priceUsd"))}")
+                    Text("Feature: ${model.optString("feature")} · Billing: ${model.optString("billingMode", "fixed_credit")} · Legacy rate: ${model.optInt("creditCost")} credits/request · Reference USD ${"%.4f".format(model.optDouble("priceUsd"))}")
+                    if (model.optString("billingMode") == "token") {
+                        Text("Provider per 1M tokens: input USD ${model.optDouble("inputPriceUsdPerMillion")} · output USD ${model.optDouble("outputPriceUsdPerMillion")} · cached input USD ${if (model.isNull("cachedInputPriceUsdPerMillion")) "same as input" else model.optDouble("cachedInputPriceUsdPerMillion")}")
+                        Text("Multiplier ${model.optDouble("customerMultiplier", 8.0)}× · credit reference USD ${model.optDouble("creditReferenceValueUsd", 0.07999)} · output limit ${model.optInt("maxOutputTokens", 2048)} tokens")
+                    }
                     if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
                     val providerStatus = model.optString("providerStatus", "not_checked")
@@ -125,7 +139,14 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             feature = model.optString("feature", "text-chat"); description = model.optString("description")
                             creditCost = model.optInt("creditCost").toString()
                             priceUsd = model.optDouble("priceUsd").toString()
-                            creditsPerMinute = if (model.isNull("creditsPerMinute")) "" else model.optInt("creditsPerMinute").toString()
+                            billingMode = model.optString("billingMode", "fixed_credit")
+                            inputRate = model.optDouble("inputPriceUsdPerMillion").toString()
+                            outputRate = model.optDouble("outputPriceUsdPerMillion").toString()
+                            cachedInputRate = if (model.isNull("cachedInputPriceUsdPerMillion")) "" else model.optDouble("cachedInputPriceUsdPerMillion").toString()
+                            creditValueUsd = model.optDouble("creditReferenceValueUsd", 0.07999).toString()
+                            costMultiplier = model.optDouble("customerMultiplier", 8.0).toString()
+                            maxOutputTokens = model.optInt("maxOutputTokens", 2048).toString()
+                            creditsPerMinute = if (model.isNull("creditsPerMinute")) "" else model.optDouble("creditsPerMinute").toString()
                             active = model.optBoolean("active"); isDefault = model.optBoolean("isDefault"); published = model.optBoolean("published")
                             message = "Editing ${model.optString("name")}."
                         }) { Text("Edit") }
