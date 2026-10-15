@@ -1088,7 +1088,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         onRestoredChatConsumed = { restoredChat = null },
                         sharedText = sharedText,
                         onSharedTextConsumed = onSharedTextConsumed,
-                        onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it }
+                        onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it },
+                        notificationsEnabled = notificationsEnabled
                     )
                 }
                 if (!showMainChat) when {
@@ -1621,7 +1622,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -1994,6 +1995,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 dictationError = null
                 dictationNeedsCredits = false
             } catch (failure: Throwable) {
+                val reason = failure.message.orEmpty()
                 dictationError = safeUserFacingIssue(failure, "Transcription could not be completed. Please try again.")
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
                 if (!dictationNeedsCredits) {
