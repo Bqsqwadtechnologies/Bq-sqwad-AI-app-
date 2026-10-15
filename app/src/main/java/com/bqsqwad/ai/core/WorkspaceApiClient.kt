@@ -146,6 +146,8 @@ class WorkspaceApiClient {
                     "Token billing is selected for this model, but its provider token prices are not configured in the admin dashboard."
                 serverError == "provider_usage_unavailable" ->
                     "The AI provider did not return usage details, so this request was not charged. Please try again or contact support."
+                serverError == "media_provider_cost_not_configured" ->
+                    "The selected image or video model needs a valid provider cost and billing unit in the admin dashboard."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
                     "Your shared BQ Sqwad AI credit balance is too low for this request."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
