@@ -149,7 +149,7 @@ class WorkspaceApiClient {
                 serverError == "media_provider_cost_not_configured" ->
                     "The selected image or video model needs a valid provider cost and billing unit in the admin dashboard."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
-                    "Your shared BQ Sqwad AI credit balance is too low for this request."
+                    "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
                     "Please review and accept the required BQ Sqwad AI terms to continue."
                 serverError == "route_not_migrated" ->
@@ -161,7 +161,7 @@ class WorkspaceApiClient {
                 status == 401 || serverError == "auth_required" ->
                     "Please sign in again to continue."
                 status == 402 || serverError.contains("insufficient credits") ->
-                    "Your shared BQ Sqwad AI credit balance is too low for this request."
+                    "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 status == 403 || serverError.contains("consent") ->
                     "Please review and accept the required BQ Sqwad AI terms to continue."
                 status == 429 || serverError.contains("rate_limited") ->
