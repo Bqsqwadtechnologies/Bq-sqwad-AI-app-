@@ -1133,7 +1133,9 @@ async function ai(request, user, body) {
         providerCostUsd: calculation.providerCostUsd,
         providerCostCredits: calculation.providerCostCredits,
         creditsCharged,
-        grossUsageValueUsd: calculation.grossUsageValueUsd
+        grossUsageValueUsd: calculation.grossUsageValueUsd,
+        estimatedFeeUsd: calculation.estimatedFeeUsd,
+        estimatedNetProfitUsd: calculation.estimatedNetProfitUsd
       };
       await recordTokenUsage({
         uid: user.uid, feature: capabilityName, providerId: result.providerId, modelId: result.modelId,
@@ -1328,7 +1330,9 @@ async function stream(request, user, body) {
               inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
               cachedInputTokens: usage.cachedInputTokens, providerCostUsd: calculation.providerCostUsd,
               providerCostCredits: calculation.providerCostCredits, creditsCharged,
-              grossUsageValueUsd: calculation.grossUsageValueUsd
+              grossUsageValueUsd: calculation.grossUsageValueUsd,
+              estimatedFeeUsd: calculation.estimatedFeeUsd,
+              estimatedNetProfitUsd: calculation.estimatedNetProfitUsd
             };
             await recordTokenUsage({
               uid: user.uid, feature: capabilityName, providerId: provider.providerId, modelId: provider.modelId,
