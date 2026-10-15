@@ -86,11 +86,30 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Token usage and cost report", style = MaterialTheme.typography.titleMedium)
-                Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")} · Media units: ${totals.optDouble("units")}")
+                Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")}")
                 Text("Provider cost: USD ${"%.6f".format(totals.optDouble("providerCostUsd"))} · Credits charged: ${"%.6f".format(totals.optDouble("chargedCredits"))}")
                 Text("Gross usage value: USD ${"%.6f".format(totals.optDouble("grossUsageValueUsd"))} · Estimated fee: USD ${"%.6f".format(totals.optDouble("estimatedFeeUsd"))}")
                 Text("Estimated net contribution: USD ${"%.6f".format(totals.optDouble("estimatedNetProfitUsd"))} (before other overheads)")
                 Text("Report covers the latest returned records. Costs are calculated from provider usage and configured rates.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        val usageItems = usageReport.optJSONArray("items") ?: JSONArray()
+        if (usageItems.length() > 0) {
+            Text("Latest usage records", style = MaterialTheme.typography.titleMedium)
+            for (index in 0 until minOf(20, usageItems.length())) {
+                val item = usageItems.optJSONObject(index) ?: continue
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("${item.optString("feature")} · ${item.optString("modality")} · ${item.optString("providerId")} / ${item.optString("modelId")}", style = MaterialTheme.typography.titleSmall)
+                        if (item.optString("modality") == "text") {
+                            Text("Input ${item.optLong("inputTokens")} tokens · Output ${item.optLong("outputTokens")} tokens · Cached ${item.optLong("cachedInputTokens")}")
+                        } else {
+                            Text("Billable units: ${item.optDouble("unitCount")} · Cost status: ${item.optString("costStatus")}")
+                        }
+                        Text("Provider cost USD ${"%.6f".format(item.optDouble("providerCostUsd"))} · Credits charged ${"%.6f".format(item.optDouble("chargedCredits"))}")
+                        Text("Gross usage USD ${"%.6f".format(item.optDouble("grossUsageValueUsd"))} · Estimated fee USD ${"%.6f".format(item.optDouble("estimatedFeeUsd"))} · Net contribution USD ${"%.6f".format(item.optDouble("estimatedNetProfitUsd"))}")
+                    }
+                }
             }
         }
         if (loading) Text("Loading registered models…")
