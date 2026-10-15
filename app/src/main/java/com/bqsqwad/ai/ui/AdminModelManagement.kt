@@ -55,6 +55,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var cachedInputRate by remember { mutableStateOf("") }
     var creditValueUsd by remember { mutableStateOf("0.07999") }
     var costMultiplier by remember { mutableStateOf("8") }
+    var estimatedFeePercent by remember { mutableStateOf("15") }
     var maxOutputTokens by remember { mutableStateOf("2048") }
     var usageReport by remember { mutableStateOf(JSONObject()) }
     var creditsPerMinute by remember { mutableStateOf("") }
@@ -85,7 +86,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 Text("Token usage and cost report", style = MaterialTheme.typography.titleMedium)
                 Text("Requests: ${totals.optInt("requests")} · Input tokens: ${totals.optLong("inputTokens")} · Output tokens: ${totals.optLong("outputTokens")}")
                 Text("Provider cost: USD ${"%.6f".format(totals.optDouble("providerCostUsd"))} · Credits charged: ${"%.6f".format(totals.optDouble("chargedCredits"))}")
-                Text("Gross usage value: USD ${"%.6f".format(totals.optDouble("grossUsageValueUsd"))} · Estimated contribution: USD ${"%.6f".format(totals.optDouble("estimatedGrossProfitUsd"))}")
+                Text("Gross usage value: USD ${"%.6f".format(totals.optDouble("grossUsageValueUsd"))} · Estimated fee: USD ${"%.6f".format(totals.optDouble("estimatedFeeUsd"))}")
+                Text("Estimated net contribution: USD ${"%.6f".format(totals.optDouble("estimatedNetProfitUsd"))} (before other overheads)")
                 Text("Report covers the latest returned records. Costs are calculated from provider usage and configured rates.", style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -98,7 +100,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     Text("Feature: ${model.optString("feature")} · Billing: ${model.optString("billingMode", "fixed_credit")} · Legacy rate: ${model.optInt("creditCost")} credits/request · Reference USD ${"%.4f".format(model.optDouble("priceUsd"))}")
                     if (model.optString("billingMode") == "token") {
                         Text("Provider per 1M tokens: input USD ${model.optDouble("inputPriceUsdPerMillion")} · output USD ${model.optDouble("outputPriceUsdPerMillion")} · cached input USD ${if (model.isNull("cachedInputPriceUsdPerMillion")) "same as input" else model.optDouble("cachedInputPriceUsdPerMillion")}")
-                        Text("Multiplier ${model.optDouble("customerMultiplier", 8.0)}× · credit reference USD ${model.optDouble("creditReferenceValueUsd", 0.07999)} · output limit ${model.optInt("maxOutputTokens", 2048)} tokens")
+                        Text("Multiplier ${model.optDouble("customerMultiplier", 8.0)}× · fee estimate ${model.optDouble("estimatedFeePercent", 15.0)}% · credit reference USD ${model.optDouble("creditReferenceValueUsd", 0.07999)} · output limit ${model.optInt("maxOutputTokens", 2048)} tokens")
                     }
                     if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
@@ -145,6 +147,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             cachedInputRate = if (model.isNull("cachedInputPriceUsdPerMillion")) "" else model.optDouble("cachedInputPriceUsdPerMillion").toString()
                             creditValueUsd = model.optDouble("creditReferenceValueUsd", 0.07999).toString()
                             costMultiplier = model.optDouble("customerMultiplier", 8.0).toString()
+                            estimatedFeePercent = model.optDouble("estimatedFeePercent", 15.0).toString()
                             maxOutputTokens = model.optInt("maxOutputTokens", 2048).toString()
                             creditsPerMinute = if (model.isNull("creditsPerMinute")) "" else model.optDouble("creditsPerMinute").toString()
                             active = model.optBoolean("active"); isDefault = model.optBoolean("isDefault"); published = model.optBoolean("published")
