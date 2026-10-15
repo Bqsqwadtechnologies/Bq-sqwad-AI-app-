@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Base64
+import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.*
@@ -112,7 +113,8 @@ class LiveMediaForegroundService : Service() {
         organizationLiveMode = intent?.getStringExtra("organization_live_mode")?.trim()?.takeIf { it.isNotBlank() } ?: organizationLiveMode
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_sqwad_logo)
+            .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_notification_mark)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, com.bqsqwad.ai.R.drawable.bq_sqwad_logo))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(when (mode) {
                 MODE_CAMERA -> "Live camera is active"
