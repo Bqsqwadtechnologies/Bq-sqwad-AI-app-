@@ -20,7 +20,8 @@ function normalizeModel(raw, actorUid) {
   const creditCost = Number(raw?.creditCost);
   const priceUsd = Number(raw?.priceUsd ?? 0);
   const creditsPerMinute = raw?.creditsPerMinute == null || raw?.creditsPerMinute === "" ? null : Number(raw.creditsPerMinute);
-  const billingMode = ["fixed_credit", "token"].includes(String(raw?.billingMode || "fixed_credit")) ? String(raw?.billingMode || "fixed_credit") : "fixed_credit";
+  const billingMode = ["fixed_credit", "token", "provider_cost"].includes(String(raw?.billingMode || "fixed_credit")) ? String(raw?.billingMode || "fixed_credit") : "fixed_credit";
+  const providerCostUnit = String(raw?.providerCostUnit || (feature === "image-generation" ? "image" : feature === "video-generation" ? "second" : "request"));
   const inputPriceUsdPerMillion = Number(raw?.inputPriceUsdPerMillion ?? 0);
   const outputPriceUsdPerMillion = Number(raw?.outputPriceUsdPerMillion ?? 0);
   const cachedInputPriceUsdPerMillion = raw?.cachedInputPriceUsdPerMillion == null || raw?.cachedInputPriceUsdPerMillion === "" ? null : Number(raw.cachedInputPriceUsdPerMillion);
@@ -55,6 +56,11 @@ function normalizeModel(raw, actorUid) {
   if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) throw new Error("max_output_tokens_invalid");
   if (billingMode === "token" && !["text-chat", "device-commands"].includes(feature)) throw new Error("token_billing_only_supported_for_text_model_features");
   if (billingMode === "token" && raw?.active === true && inputPriceUsdPerMillion + outputPriceUsdPerMillion <= 0) throw new Error("token_pricing_required_for_active_token_billing");
+  if (!["request", "image", "second"].includes(providerCostUnit)) throw new Error("provider_cost_unit_invalid");
+  if (billingMode === "provider_cost" && !["image-generation", "video-generation"].includes(feature)) throw new Error("provider_cost_billing_only_supported_for_media_features");
+  if (billingMode === "provider_cost" && raw?.active === true && priceUsd <= 0) throw new Error("provider_operation_cost_required");
+  if (billingMode === "provider_cost" && feature === "image-generation" && providerCostUnit !== "image") throw new Error("image_provider_cost_unit_must_be_image");
+  if (billingMode === "provider_cost" && feature === "video-generation" && providerCostUnit !== "second") throw new Error("video_provider_cost_unit_must_be_second");
   if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000)) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
@@ -65,7 +71,7 @@ function normalizeModel(raw, actorUid) {
     isDefault: raw?.isDefault === true,
     published: raw?.published === true,
     creditCost, priceUsd, creditsPerMinute,
-    billingMode, inputPriceUsdPerMillion, outputPriceUsdPerMillion,
+    billingMode, providerCostUnit, inputPriceUsdPerMillion, outputPriceUsdPerMillion,
     cachedInputPriceUsdPerMillion, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens,
     validation: raw?.validation && raw.validation.ok === true ? { ok: true, providerModelName: String(raw.validation.providerModelName || modelId).slice(0, 160), validatedAt: String(raw.validation.validatedAt || new Date().toISOString()) } : null,
     updatedBy: actorUid, updatedAt: new Date()
@@ -131,6 +137,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
         ? (capability.creditsPerMinute == null ? null : Math.max(0, Number(capability.creditsPerMinute)))
         : Math.max(0, Number(matching.creditsPerMinute)),
       billingMode: String(matching?.billingMode || capability.billingMode || "fixed_credit"),
+      providerCostUnit: String(matching?.providerCostUnit || capability.providerCostUnit || (definition.feature === "image-generation" ? "image" : definition.feature === "video-generation" ? "second" : "request")),
       inputPriceUsdPerMillion: Math.max(0, Number(matching?.inputPriceUsdPerMillion ?? capability.inputPriceUsdPerMillion ?? 0)),
       outputPriceUsdPerMillion: Math.max(0, Number(matching?.outputPriceUsdPerMillion ?? capability.outputPriceUsdPerMillion ?? 0)),
       cachedInputPriceUsdPerMillion: matching?.cachedInputPriceUsdPerMillion == null && capability.cachedInputPriceUsdPerMillion == null
@@ -153,6 +160,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
         priceUsd: model.priceUsd,
         creditsPerMinute: model.creditsPerMinute,
         billingMode: model.billingMode,
+        providerCostUnit: model.providerCostUnit,
         inputPriceUsdPerMillion: model.inputPriceUsdPerMillion,
         outputPriceUsdPerMillion: model.outputPriceUsdPerMillion,
         cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion,
@@ -343,6 +351,7 @@ export async function saveAiModel(raw, actorUid) {
       priceUsd: model.priceUsd,
       creditsPerMinute: model.creditsPerMinute,
       billingMode: model.billingMode,
+      providerCostUnit: model.providerCostUnit,
       inputPriceUsdPerMillion: model.inputPriceUsdPerMillion,
       outputPriceUsdPerMillion: model.outputPriceUsdPerMillion,
       cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion,
@@ -409,6 +418,7 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     priceUsd: Math.max(0, Number(model.priceUsd || 0)),
     creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0)),
     billingMode: String(model.billingMode || "fixed_credit"),
+    providerCostUnit: String(model.providerCostUnit || (model.feature === "image-generation" ? "image" : model.feature === "video-generation" ? "second" : "request")),
     inputPriceUsdPerMillion: Math.max(0, Number(model.inputPriceUsdPerMillion || 0)),
     outputPriceUsdPerMillion: Math.max(0, Number(model.outputPriceUsdPerMillion || 0)),
     cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion == null ? null : Math.max(0, Number(model.cachedInputPriceUsdPerMillion || 0)),
