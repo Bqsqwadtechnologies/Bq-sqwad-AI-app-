@@ -53,6 +53,7 @@ function normalizeModel(raw, actorUid) {
   if (!Number.isFinite(customerMultiplier) || customerMultiplier < 1 || customerMultiplier > 1000) throw new Error("customer_multiplier_invalid");
   if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) throw new Error("estimated_fee_percent_invalid");
   if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) throw new Error("max_output_tokens_invalid");
+  if (billingMode === "token" && !["text-chat", "device-commands"].includes(feature)) throw new Error("token_billing_only_supported_for_text_model_features");
   if (billingMode === "token" && raw?.active === true && inputPriceUsdPerMillion + outputPriceUsdPerMillion <= 0) throw new Error("token_pricing_required_for_active_token_billing");
   if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000)) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
