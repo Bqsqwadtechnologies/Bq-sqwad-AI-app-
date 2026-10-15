@@ -2430,7 +2430,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                         DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
                         DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
-                        DropdownMenuItem(text = { Text("Plans & Credits") }, onClick = { menuOpen = false; openPlans() })
+                        DropdownMenuItem(text = { Text("Plans & Billing") }, onClick = { menuOpen = false; openPlans() })
                         DropdownMenuItem(text = { Text("Change background") }, onClick = { menuOpen = false; wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() })
                         DropdownMenuItem(text = { Text("Learn more") }, onClick = { menuOpen = false; onLearnMore() })
                         DropdownMenuItem(text = { Text("Privacy") }, onClick = { menuOpen = false; onPrivacy() })
@@ -3099,7 +3099,7 @@ val composerShape = RoundedCornerShape(26.dp)
                         busy = true
                         statusText = "Generating image…"
                         scope.launch(Dispatchers.IO) {
-                            val result = runCatching { GenerationApiClient().generateImage(prompt, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }
+                            val result = runCatching { GenerationApiClient().generateImage(prompt, modelRegistryId = null) }
                             val durableUrl = result.getOrNull()?.let { generated ->
                                 generated.imageBase64?.let { runCatching { uploadGeneratedImage(it) }.getOrNull() }
                                     ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
@@ -3138,7 +3138,7 @@ val composerShape = RoundedCornerShape(26.dp)
                 confirmButton = { Button(enabled = imageEditPrompt.isNotBlank() && !busy, onClick = {
                     val image = selectedImageBase64.orEmpty(); val prompt = imageEditPrompt.trim(); val targetId = selectedImageMessageId; showImageEdit = false; busy = true; statusText = "Editing image…"
                     scope.launch {
-                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }, mimeType = selectedImageMimeType) }
+                        runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = null, mimeType = selectedImageMimeType) }
                             .onSuccess { generated ->
                                 val durableImageUrl = generated.imageBase64?.let {
                                     runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
@@ -3180,7 +3180,7 @@ val composerShape = RoundedCornerShape(26.dp)
                 confirmButton = { Button(enabled = !busy, onClick = {
                     val prompt = selectedImagePrompt.ifBlank { "Create an image" }; val targetId = selectedImageMessageId; showImageResize = false; busy = true; statusText = "Generating image…"
                     scope.launch {
-                        runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = selectedImageModelId.takeIf { it.isNotBlank() }) }
+                        runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = null) }
                             .onSuccess { generated ->
                                 val durableImageUrl = generated.imageBase64?.let {
                                     runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
