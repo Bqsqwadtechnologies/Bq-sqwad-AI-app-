@@ -50,6 +50,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var creditCost by remember { mutableStateOf("1") }
     var priceUsd by remember { mutableStateOf("0.01") }
     var billingMode by remember { mutableStateOf("fixed_credit") }
+    var providerCostUnit by remember { mutableStateOf("request") }
     var inputRate by remember { mutableStateOf("0") }
     var outputRate by remember { mutableStateOf("0") }
     var cachedInputRate by remember { mutableStateOf("") }
@@ -97,7 +98,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(model.optString("name"), style = MaterialTheme.typography.titleMedium)
                     Text("${model.optString("providerId")} / ${model.optString("modelId")}", style = MaterialTheme.typography.bodySmall)
-                    Text("Feature: ${model.optString("feature")} · Billing: ${model.optString("billingMode", "fixed_credit")} · Legacy rate: ${model.optInt("creditCost")} credits/request · Reference USD ${"%.4f".format(model.optDouble("priceUsd"))}")
+                    Text("Feature: ${model.optString("feature")} · Billing: ${model.optString("billingMode", "fixed_credit")} · Legacy rate: ${model.optInt("creditCost")} credits/request · Price USD ${"%.4f".format(model.optDouble("priceUsd"))} per ${model.optString("providerCostUnit", "request")}")
                     if (model.optString("billingMode") == "token") {
                         Text("Provider per 1M tokens: input USD ${model.optDouble("inputPriceUsdPerMillion")} · output USD ${model.optDouble("outputPriceUsdPerMillion")} · cached input USD ${if (model.isNull("cachedInputPriceUsdPerMillion")) "same as input" else model.optDouble("cachedInputPriceUsdPerMillion")}")
                         Text("Multiplier ${model.optDouble("customerMultiplier", 8.0)}× · fee estimate ${model.optDouble("estimatedFeePercent", 15.0)}% · credit reference USD ${model.optDouble("creditReferenceValueUsd", 0.07999)} · output limit ${model.optInt("maxOutputTokens", 2048)} tokens")
@@ -142,6 +143,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             creditCost = model.optInt("creditCost").toString()
                             priceUsd = model.optDouble("priceUsd").toString()
                             billingMode = model.optString("billingMode", "fixed_credit")
+                            providerCostUnit = model.optString("providerCostUnit", if (model.optString("feature") == "image-generation") "image" else if (model.optString("feature") == "video-generation") "second" else "request")
                             inputRate = model.optDouble("inputPriceUsdPerMillion").toString()
                             outputRate = model.optDouble("outputPriceUsdPerMillion").toString()
                             cachedInputRate = if (model.isNull("cachedInputPriceUsdPerMillion")) "" else model.optDouble("cachedInputPriceUsdPerMillion").toString()
@@ -174,7 +176,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Text("Feature (tap to select)")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("text-chat", "image-generation", "live-camera").forEach { option ->
-                OutlinedButton(onClick = { feature = option }) { Text(if (feature == option) "✓ $option" else option) }
+                OutlinedButton(onClick = { feature = option; providerCostUnit = if (option == "image-generation") "image" else if (option == "video-generation") "second" else "request" }) { Text(if (feature == option) "✓ $option" else option) }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -184,13 +186,14 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         }
         OutlinedTextField(description, { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(creditCost, { creditCost = it }, label = { Text("Credits charged per request (minimum 1)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Legacy reference price in USD per request") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(priceUsd, { priceUsd = it }, label = { Text("Provider cost/reference USD per operation unit") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Text("Billing mode")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { billingMode = "fixed_credit" }) { Text(if (billingMode == "fixed_credit") "✓ Fixed credits" else "Fixed credits") }
             OutlinedButton(onClick = { billingMode = "token" }) { Text(if (billingMode == "token") "✓ Token billing" else "Token billing") }
+            OutlinedButton(onClick = { billingMode = "provider_cost" }) { Text(if (billingMode == "provider_cost") "✓ Provider cost" else "Provider cost") }
         }
-        Text("Token billing is supported here for text-chat and device-commands. Image, voice, camera, video, and research must use their actual modality/provider billing units.", style = MaterialTheme.typography.bodySmall)
+        Text("Token billing is supported for text-chat and device-commands. Provider-cost billing is supported for image-generation (USD per image) and video-generation (USD per second). Voice/camera keep their existing configurable session rates.", style = MaterialTheme.typography.bodySmall)
         Text("Token prices are USD per 1,000,000 tokens. Configure rates for this exact model before activating token billing.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(inputRate, { inputRate = it }, label = { Text("Provider input USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(outputRate, { outputRate = it }, label = { Text("Provider output USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -234,7 +237,10 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 (estimatedFeePercent.toDoubleOrNull() ?: -1.0) in 0.0..100.0 &&
                 (maxOutputTokens.toIntOrNull() ?: -1) in 128..8192 &&
                 (billingMode != "token" || feature in setOf("text-chat", "device-commands")) &&
+                (billingMode != "provider_cost" || feature in setOf("image-generation", "video-generation")) &&
                 (!active || billingMode != "token" || (inputRate.toDoubleOrNull() ?: 0.0) + (outputRate.toDoubleOrNull() ?: 0.0) > 0) &&
+                (!active || billingMode != "provider_cost" || (priceUsd.toDoubleOrNull() ?: 0.0) > 0) &&
+                (billingMode != "provider_cost" || providerCostUnit == if (feature == "image-generation") "image" else if (feature == "video-generation") "second" else "request") &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
             onClick = {
@@ -244,6 +250,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     put("description", description.trim()); put("creditCost", creditCost.toInt())
                     put("priceUsd", priceUsd.toDouble())
                     put("billingMode", billingMode)
+                    put("providerCostUnit", providerCostUnit)
                     put("inputPriceUsdPerMillion", inputRate.toDouble())
                     put("outputPriceUsdPerMillion", outputRate.toDouble())
                     if (cachedInputRate.isNotBlank()) put("cachedInputPriceUsdPerMillion", cachedInputRate.toDouble()) else put("cachedInputPriceUsdPerMillion", JSONObject.NULL)
@@ -263,7 +270,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; providerCostUnit = "request"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
         Text("Model IDs are checked against the provider before saving. Token billing uses provider-reported usage and configured per-model rates; fixed-credit and live-session rates remain available for features using those billing units.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
