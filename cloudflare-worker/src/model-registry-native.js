@@ -127,6 +127,14 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       creditsPerMinute: matching?.creditsPerMinute == null
         ? (capability.creditsPerMinute == null ? null : Math.max(0, Number(capability.creditsPerMinute)))
         : Math.max(0, Number(matching.creditsPerMinute)),
+      billingMode: String(matching?.billingMode || capability.billingMode || "fixed_credit"),
+      inputPriceUsdPerMillion: Math.max(0, Number(matching?.inputPriceUsdPerMillion ?? capability.inputPriceUsdPerMillion ?? 0)),
+      outputPriceUsdPerMillion: Math.max(0, Number(matching?.outputPriceUsdPerMillion ?? capability.outputPriceUsdPerMillion ?? 0)),
+      cachedInputPriceUsdPerMillion: matching?.cachedInputPriceUsdPerMillion == null && capability.cachedInputPriceUsdPerMillion == null
+        ? null : Math.max(0, Number(matching?.cachedInputPriceUsdPerMillion ?? capability.cachedInputPriceUsdPerMillion ?? 0)),
+      creditReferenceValueUsd: Math.max(0.000001, Number(matching?.creditReferenceValueUsd ?? capability.creditReferenceValueUsd ?? 0.07999)),
+      customerMultiplier: Math.max(1, Number(matching?.customerMultiplier ?? capability.customerMultiplier ?? 8)),
+      maxOutputTokens: Math.min(8192, Math.max(128, Number(matching?.maxOutputTokens ?? capability.maxOutputTokens ?? 2048))),
       updatedAt: now,
       updatedBy: "system-bootstrap"
     };
