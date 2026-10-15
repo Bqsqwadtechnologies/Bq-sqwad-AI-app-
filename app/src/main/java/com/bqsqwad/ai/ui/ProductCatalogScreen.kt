@@ -42,6 +42,17 @@ private data class PublicContactOption(val name:String,val module:String,val bil
 private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
 private data class UserEntitlement(val id:String,val planId:String,val productId:String,val product:String,val basePlanId:String?,val state:String,val renewalState:String,val endDate:String?)
 
+internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
+    val available = ids.toSet()
+    return listOf("credit100", "credit250", "credit500", "credit1000").filter { it in available }
+}
+
+internal fun catalogCategoryHeaderIndex(totalItemCount: Int, trailingItemCount: Int, planCount: Int): Int =
+    (totalItemCount - trailingItemCount - planCount - 1).coerceAtLeast(0)
+
+private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean =
+    modules.any { equals(it, ignoreCase = true) }
+
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val context=androidx.compose.ui.platform.LocalContext.current
