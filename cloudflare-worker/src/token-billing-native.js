@@ -94,7 +94,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
     (rates.inputPriceUsdPerMillion + rates.outputPriceUsdPerMillion > 0) &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1;
-  return { ...rates, creditReferenceValueUsd, customerMultiplier, maxOutputTokens, configured, modelRegistryId: model.id || null };
+  return {
+    ...rates, creditReferenceValueUsd, customerMultiplier, maxOutputTokens, configured,
+    billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
+    modelRegistryId: model.id || null
+  };
 }
 
 export function estimateTokenReservation({ message, system, pricing }) {
