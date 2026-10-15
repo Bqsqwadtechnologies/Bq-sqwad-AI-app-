@@ -5395,7 +5395,27 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
-        startError?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+        val serviceVoiceError = liveUiState.answer.takeIf {
+            liveUiState.mode == LiveMediaForegroundService.MODE_VOICE &&
+                liveUiState.status.equals("error", ignoreCase = true) &&
+                it.isNotBlank()
+        }
+        (startError ?: serviceVoiceError)?.let {
+            Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        if (liveUiState.mode == LiveMediaForegroundService.MODE_VOICE && liveUiState.log.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Live session activity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    liveUiState.log.takeLast(6).forEach { entry ->
+                        Text(entry, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
         if (!active && state.contains("credit", ignoreCase = true)) {
             Text("You need credits to use Live Voice.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
