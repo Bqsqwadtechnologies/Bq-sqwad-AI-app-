@@ -1086,9 +1086,11 @@ async function ai(request, user, body) {
     control = { ...control, ...selected, config: control.config || {} };
   }
   const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
-  const tokenPricing = await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control);
   const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
-    tokenPricing.billingMode === "token";
+    String(control.billingMode || "fixed_credit") === "token";
+  const tokenPricing = tokenBilling
+    ? await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control)
+    : null;
   if (tokenBilling && !tokenPricing.configured) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
   }
@@ -1248,9 +1250,11 @@ async function stream(request, user, body) {
     control = { ...control, ...selected, config: control.config || {} };
   }
   const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
-  const tokenPricing = await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control);
   const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
-    tokenPricing.billingMode === "token";
+    String(control.billingMode || "fixed_credit") === "token";
+  const tokenPricing = tokenBilling
+    ? await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control)
+    : null;
   if (tokenBilling && !tokenPricing.configured) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
   }
