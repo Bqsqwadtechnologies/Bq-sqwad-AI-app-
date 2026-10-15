@@ -33,18 +33,6 @@ fun VideoGenerationWorkspace() {
     var busy by remember { mutableStateOf(false) }
     var pollingFailed by remember { mutableStateOf(false) }
     var pollRefresh by remember { mutableIntStateOf(0) }
-    var publishedVideoModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedVideoModelId by remember { mutableStateOf("") }
-    var videoModelExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-            .onSuccess { array ->
-                publishedVideoModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                    .filter { it.optString("feature") == "video-generation" && it.optBoolean("active") && it.optBoolean("published") }
-                if (selectedVideoModelId.isNotBlank() && publishedVideoModels.none { it.optString("id") == selectedVideoModelId }) selectedVideoModelId = ""
-            }
-    }
 
     LaunchedEffect(jobId, pollRefresh) {
         val id = jobId ?: return@LaunchedEffect
@@ -95,35 +83,9 @@ fun VideoGenerationWorkspace() {
                         Text("AI Video Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("Prompt → render job → progress → output.", color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text(
-                            "A dedicated render workspace. Video jobs use the centrally configured credit cost.",
+                            "A dedicated render workspace. Usage rules are managed centrally by BQ Sqwad AI.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
-                        )
-                    }
-                }
-            }
-        }
-        item {
-            val selectedName = publishedVideoModels.firstOrNull { it.optString("id") == selectedVideoModelId }?.optString("name")
-                ?: publishedVideoModels.firstOrNull { it.optBoolean("isDefault") }?.optString("name")
-                ?: "Server default"
-            Box {
-                OutlinedButton(onClick = {
-                    videoModelExpanded = true
-                    scope.launch {
-                        runCatching { WorkspaceApiClient().publishedAiModels().optJSONArray("models") ?: JSONArray() }
-                            .onSuccess { array ->
-                                publishedVideoModels = (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-                                    .filter { it.optString("feature") == "video-generation" && it.optBoolean("active") && it.optBoolean("published") }
-                            }
-                    }
-                }) { Text("AI model: " + selectedName.take(20)) }
-                DropdownMenu(expanded = videoModelExpanded, onDismissRequest = { videoModelExpanded = false }) {
-                    DropdownMenuItem(text = { Text("Use server default") }, onClick = { selectedVideoModelId = ""; videoModelExpanded = false })
-                    publishedVideoModels.forEach { model ->
-                        DropdownMenuItem(
-                            text = { Text(model.optString("name") + " · " + model.optInt("creditCost") + " credits/job" + if (model.optBoolean("isDefault")) " · Default" else "") },
-                            onClick = { selectedVideoModelId = model.optString("id"); videoModelExpanded = false }
                         )
                     }
                 }
@@ -156,7 +118,7 @@ fun VideoGenerationWorkspace() {
                     pollingFailed = false
                     jobId = null
                     scope.launch {
-                        runCatching { GenerationApiClient().createVideo(prompt, seconds, size, selectedVideoModelId.takeIf { it.isNotBlank() }) }
+                        runCatching { GenerationApiClient().createVideo(prompt, seconds, size, null) }
                             .onSuccess {
                                 jobId = it.jobId
                                 status = it.status
@@ -224,7 +186,7 @@ fun VideoGenerationWorkspace() {
                             pollingFailed = false
                             jobId = null
                             scope.launch {
-                                runCatching { GenerationApiClient().createVideo(prompt, seconds, size, selectedVideoModelId.takeIf { it.isNotBlank() }) }
+                                runCatching { GenerationApiClient().createVideo(prompt, seconds, size, null) }
                                     .onSuccess {
                                         jobId = it.jobId
                                         status = it.status
