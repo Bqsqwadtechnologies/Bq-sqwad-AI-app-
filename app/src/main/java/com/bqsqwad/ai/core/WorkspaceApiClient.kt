@@ -1,6 +1,13 @@
 package com.bqsqwad.ai.core
 
 import com.google.android.gms.tasks.Tasks
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CancellationException
@@ -30,7 +37,39 @@ object WorkspaceRedirectStore {
 class WorkspaceApiClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
 
+    private fun connectionUnavailableMessage(): String =
+        "No internet connection. Please turn on Wi-Fi or mobile data, then try again."
+
+    private fun hasUsableNetwork(): Boolean {
+        return runCatching {
+            val context = FirebaseApp.getInstance().applicationContext
+            val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = manager.activeNetwork ?: return@runCatching false
+            val capabilities = manager.getNetworkCapabilities(network) ?: return@runCatching false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }.getOrDefault(true)
+    }
+
+    private fun isConnectionFailure(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            if (current is UnknownHostException ||
+                current is ConnectException ||
+                current is SocketTimeoutException ||
+                current is IOException
+            ) return true
+            current = current.cause
+        }
+        return false
+    }
+
+    private fun ensureNetworkAvailable() {
+        if (!hasUsableNetwork()) error(connectionUnavailableMessage())
+    }
+
     private suspend fun publicRequest(path:String, method:String="GET"):JSONObject = withContext(Dispatchers.IO) {
+        ensureNetworkAvailable()
         val statusAndBody = try {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
                 requestMethod=method; connectTimeout=4500; readTimeout=6500; doInput=true
@@ -44,7 +83,8 @@ class WorkspaceApiClient {
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            if (isConnectionFailure(error)) error(connectionUnavailableMessage())
             error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
         }
         val (status, raw) = statusAndBody
@@ -58,6 +98,7 @@ class WorkspaceApiClient {
     }
 
     private suspend fun request(path:String, method:String="POST", payload:JSONObject=JSONObject()):JSONObject = withContext(Dispatchers.IO) {
+        ensureNetworkAvailable()
         val user=FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
         val token=Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val statusAndRaw = try {
@@ -77,7 +118,8 @@ class WorkspaceApiClient {
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            if (isConnectionFailure(error)) error(connectionUnavailableMessage())
             error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
         }
         val (status, raw) = statusAndRaw
