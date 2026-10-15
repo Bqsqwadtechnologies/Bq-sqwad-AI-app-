@@ -142,6 +142,10 @@ class WorkspaceApiClient {
                 }
                 serverError == "realtime_client_secret_missing" ->
                     "The live AI connection could not be secured. Please try again later."
+                serverError == "token_pricing_not_configured" ->
+                    "Token billing is selected for this model, but its provider token prices are not configured in the admin dashboard."
+                serverError == "provider_usage_unavailable" ->
+                    "The AI provider did not return usage details, so this request was not charged. Please try again or contact support."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
                     "Your shared BQ Sqwad AI credit balance is too low for this request."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
