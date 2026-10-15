@@ -221,14 +221,28 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             enabled = !saving && !validating && id.isNotBlank() && name.isNotBlank() && providerModelId.isNotBlank() &&
                 provider in setOf("openai", "gemini") && (creditCost.toIntOrNull() ?: -1) >= 1 &&
                 (priceUsd.toDoubleOrNull() ?: -1.0) >= 0 &&
-                (creditsPerMinute.isBlank() || (creditsPerMinute.toIntOrNull() ?: -1) >= 0) &&
+                (inputRate.toDoubleOrNull() ?: -1.0) >= 0 &&
+                (outputRate.toDoubleOrNull() ?: -1.0) >= 0 &&
+                (cachedInputRate.isBlank() || (cachedInputRate.toDoubleOrNull() ?: -1.0) >= 0) &&
+                (creditValueUsd.toDoubleOrNull() ?: -1.0) > 0 &&
+                (costMultiplier.toDoubleOrNull() ?: -1.0) >= 1 &&
+                (maxOutputTokens.toIntOrNull() ?: -1) in 128..8192 &&
+                (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
             onClick = {
                 val payload = JSONObject().apply {
                     put("id", id.trim()); put("name", name.trim()); put("providerId", provider.trim())
                     put("modelId", providerModelId.trim()); put("feature", feature)
                     put("description", description.trim()); put("creditCost", creditCost.toInt())
-                    put("priceUsd", priceUsd.toDouble()); if (creditsPerMinute.isNotBlank()) put("creditsPerMinute", creditsPerMinute.toInt()) else put("creditsPerMinute", JSONObject.NULL)
+                    put("priceUsd", priceUsd.toDouble())
+                    put("billingMode", billingMode)
+                    put("inputPriceUsdPerMillion", inputRate.toDouble())
+                    put("outputPriceUsdPerMillion", outputRate.toDouble())
+                    if (cachedInputRate.isNotBlank()) put("cachedInputPriceUsdPerMillion", cachedInputRate.toDouble()) else put("cachedInputPriceUsdPerMillion", JSONObject.NULL)
+                    put("creditReferenceValueUsd", creditValueUsd.toDouble())
+                    put("customerMultiplier", costMultiplier.toDouble())
+                    put("maxOutputTokens", maxOutputTokens.toInt())
+                    if (creditsPerMinute.isNotBlank()) put("creditsPerMinute", creditsPerMinute.toDouble()) else put("creditsPerMinute", JSONObject.NULL)
                     put("active", active); put("isDefault", isDefault); put("published", published)
                 }
                 scope.launch {
@@ -240,7 +254,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
         Text("Model IDs are checked against the provider before saving. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
