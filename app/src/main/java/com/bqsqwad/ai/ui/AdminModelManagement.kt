@@ -265,6 +265,9 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 (!active || billingMode != "token" || (inputRate.toDoubleOrNull() ?: 0.0) + (outputRate.toDoubleOrNull() ?: 0.0) > 0) &&
                 (!active || billingMode != "provider_cost" || (priceUsd.toDoubleOrNull() ?: 0.0) > 0) &&
                 (billingMode != "provider_cost" || providerCostUnit == (if (feature == "image-generation") "image" else if (feature == "video-generation") "second" else "request")) &&
+                (!providerCostTrackingEnabled || feature in setOf("live-camera", "live-voice")) &&
+                (!active || !providerCostTrackingEnabled || (priceUsd.toDoubleOrNull() ?: 0.0) > 0) &&
+                (!providerCostTrackingEnabled || providerCostUnit == (if (feature == "live-camera") "second" else "minute")) &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
             onClick = {
