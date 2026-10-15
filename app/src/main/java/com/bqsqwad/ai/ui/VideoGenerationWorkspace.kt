@@ -11,10 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.net.Uri
 import com.bqsqwad.ai.core.GenerationApiClient
-import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.WorkspaceRedirectException
-import org.json.JSONArray
-import org.json.JSONObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
