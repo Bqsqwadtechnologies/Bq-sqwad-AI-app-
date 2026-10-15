@@ -320,7 +320,7 @@ private fun TruthGuardResultCard(result: JSONObject, showSources: Boolean, showR
             HorizontalDivider()
             Text(analysis, style = MaterialTheme.typography.bodyLarge)
             Text(
-                "Plan: " + result.optString("planId", "truthguardfree") + " • Charged: " + result.optString("creditsCharged", "0"),
+                "Verification completed. Your plan and usage rules are applied automatically.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
