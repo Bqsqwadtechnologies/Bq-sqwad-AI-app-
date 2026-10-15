@@ -42,28 +42,6 @@ private data class PublicContactOption(val name:String,val module:String,val bil
 private data class ContactSelection(val planId:String,val planName:String,val billingPeriod:String,val features:List<String>)
 private data class UserEntitlement(val id:String,val planId:String,val productId:String,val product:String,val basePlanId:String?,val state:String,val renewalState:String,val endDate:String?)
 
-private fun livePriceLabel(price: JSONObject): String {
-    if (!price.optBoolean("enabled", true)) return "Unavailable"
-    if (price.optBoolean("free", false)) return "Free now"
-    val rate = price.optDouble("creditsPerMinute", 0.0)
-    val rateText = if (rate % 1.0 == 0.0) rate.toInt().toString() else rate.toString()
-    val startFee = price.optDouble("startFeeCredits", 0.0)
-    return buildString {
-        append(rateText).append(" credits/min")
-        if (startFee > 0.0) append(" • ").append(startFee).append(" start fee")
-    }
-}
-
-internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
-    val available = ids.toSet()
-    return listOf("credit100", "credit250", "credit500", "credit1000").filter { it in available }
-}
-
-internal fun catalogCategoryHeaderIndex(totalItemCount: Int, trailingItemCount: Int, planCount: Int): Int =
-    (totalItemCount - trailingItemCount - planCount - 1).coerceAtLeast(0)
-
-private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean = modules.any { equals(it, ignoreCase = true) }
-
 @Composable
 fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val context=androidx.compose.ui.platform.LocalContext.current
@@ -87,8 +65,6 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var entitlements by remember { mutableStateOf(emptyList<UserEntitlement>()) }
     var contactPlan by remember { mutableStateOf<ContactSelection?>(null) }
     var salesNotice by remember { mutableStateOf<String?>(null) }
-    var credits by remember { mutableStateOf<JSONObject?>(null) }
-    var livePricing by remember { mutableStateOf<JSONObject?>(null) }
     var contactOptions by remember { mutableStateOf(emptyList<PublicContactOption>()) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
 
@@ -146,8 +122,6 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 }
                 entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
-                credits=runCatching{api.credits()}.getOrNull()
-                livePricing=runCatching{api.livePricing()}.getOrNull()
                 playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
                 salesNotice=runCatching {
                     val a=api.contactSalesStatus().optJSONArray("requests")
@@ -267,46 +241,6 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             loading->ProductLoading(Modifier.padding(padding))
             error!=null->ProductError(Modifier.padding(padding),::load)
             else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
-                credits?.let { balance ->
-                    item {
-                        Surface(shape=RoundedCornerShape(24.dp), tonalElevation=6.dp, modifier=Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(20.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                    Surface(Modifier.size(48.dp), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment=Alignment.Center) { BqLogo(34.dp) } }
-                                    Column(Modifier.weight(1f), verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                                        Text("Your credits", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
-                                        Text("One balance for every AI feature", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
-                                    }
-                                    BqStatusBadge("LIVE")
-                                }
-                                Text(formatCredits(balance.optDouble("available", 0.0)), style=MaterialTheme.typography.displaySmall, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                        Column(Modifier.padding(14.dp)) {
-                                            Text("Available", style=MaterialTheme.typography.labelLarge)
-                                            Text(formatCredits(balance.optDouble("available", 0.0)), fontWeight=FontWeight.Bold)
-                                        }
-                                    }
-                                    Surface(Modifier.weight(1f), shape=RoundedCornerShape(16.dp), color=MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                        Column(Modifier.padding(14.dp)) {
-                                            Text("Trial credits", style=MaterialTheme.typography.labelLarge)
-                                            Text(formatCredits(balance.optDouble("trial", 0.0)), fontWeight=FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                                balance.optString("trialExpiresAt").takeIf { it.isNotBlank() && it != "null" }?.let {
-                                    Text("Trial expiry: " + it.take(10), color=MaterialTheme.colorScheme.onSurface)
-                                }
-                                val voicePrice = livePricing?.optJSONObject("liveVoice")
-                                val cameraPrice = livePricing?.optJSONObject("liveCamera")
-                                if (voicePrice != null) Text("Live Voice: " + livePriceLabel(voicePrice), color=MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.bodyMedium)
-                                if (cameraPrice != null) Text("Live Camera: " + livePriceLabel(cameraPrice), color=MaterialTheme.colorScheme.primary, style=MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
-                } ?: item {
-                    ProductNotice("Your credits", "Sign in to see your shared BQ Sqwad AI balance, trial credits and expiry.")
-                }
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
@@ -358,7 +292,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     }
                 }
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces, compare clear plan options, and use one shared credit balance across eligible AI tools. Secure in-app purchases are handled by Google Pay.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
@@ -500,7 +434,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                 BqLogo(42.dp)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text("BQ Sqwad AI plans", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                    Text("Clear options by workspace. All eligible AI tools share one credit balance.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                                    Text("Clear options by workspace. Eligible feature usage is handled automatically.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
                         }
