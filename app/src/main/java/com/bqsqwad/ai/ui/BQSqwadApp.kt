@@ -4381,9 +4381,6 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
     var showLiveTerms by remember { mutableStateOf(false) }
     var pendingLiveAction by remember { mutableStateOf("camera") }
     var selectedVoice by remember { mutableStateOf("marin") }
-    var publishedCameraModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedCameraModelId by remember { mutableStateOf("") }
-    var cameraModelExpanded by remember { mutableStateOf(false) }
     var flashlightOn by remember { mutableStateOf(false) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
@@ -5168,9 +5165,6 @@ private fun BqLiveAudioOrb(
 fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var publishedVoiceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedVoiceModelId by remember { mutableStateOf("") }
-    var voiceModelExpanded by remember { mutableStateOf(false) }
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
     var startError by remember { mutableStateOf<String?>(null) }
@@ -5333,9 +5327,6 @@ fun DeviceIntelligencePanel(featureName: String) {
     var command by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var publishedDeviceModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedDeviceModelId by remember { mutableStateOf("") }
-    var deviceModelExpanded by remember { mutableStateOf(false) }
 
     SurfaceCard(
         "Device Intelligence",
@@ -5419,7 +5410,6 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var settingsNotice by remember { mutableStateOf<String?>(null) }
     var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
     var consentStatus by remember { mutableStateOf<String?>(null) }
-    var credits by remember { mutableStateOf<JSONObject?>(null) }
     var entitlements by remember(uid) { mutableStateOf(emptyList<JSONObject>()) }
     var loadingAccount by remember(uid) { mutableStateOf(true) }
     var showDeleteAccount by remember(uid) { mutableStateOf(false) }
@@ -5461,7 +5451,6 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     LaunchedEffect(uid) {
         loadingAccount = true
         val api = WorkspaceApiClient()
-        credits = runCatching { api.credits() }.getOrNull()
         runCatching { api.featureSettings() }.onSuccess { body ->
             val global = body.optJSONObject("settings")?.optJSONObject("global") ?: return@onSuccess
             val mapping = mapOf("web_search" to "web_search_enabled", "memory" to "memory_enabled", "notifications" to "notifications_enabled", "history" to "chat_history", "save_files" to "auto_save", "voice_responses" to "voice_replies", "camera_enhance" to "camera_enhance", "companion_memory" to "companion_memory", "truthguard_sources" to "truthguard_sources", "auto_run" to "auto_run", "streaming" to "streaming", "personalization" to "personalization", "background_jobs" to "background_jobs")
@@ -5490,9 +5479,6 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
 
     val modes = listOf("system", "light", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
-    val adminUnlimited = credits?.optBoolean("adminUnlimited", false) == true
-    val balance = credits?.optDouble("available", 0.0) ?: 0.0
-    val balanceLabel = if (adminUnlimited) "Unlimited" else String.format(java.util.Locale.US, "%.0f", balance)
 
     Scaffold(
         topBar = {
