@@ -204,7 +204,8 @@ class LiveMediaForegroundService : Service() {
                         onError = { error -> reportTimelineFailure("voice", "live_voice_runtime_error"); writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
                         onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
-                        onTranscript = { speaker, text -> appendLog("$speaker: $text") }
+                        onTranscript = { speaker, text -> appendLog("$speaker: $text") },
+                        onDiagnostic = { detail -> appendLog(detail) }
                     ).also { it.start() }
                     startRealtimeBillingHeartbeat(MODE_VOICE)
                 }
