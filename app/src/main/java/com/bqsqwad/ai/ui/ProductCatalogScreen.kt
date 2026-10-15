@@ -53,7 +53,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var planSearch by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else "all") }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = if (initialSection.equals("credits", ignoreCase = true)) 1 else 0)
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = 0)
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
     var showAllCapabilities by remember { mutableStateOf(true) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
