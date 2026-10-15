@@ -33,7 +33,7 @@ function normalizeModel(raw, actorUid) {
     "live-camera": new Set(["openai"]),
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
-    "device-commands": new Set(["gemini"]),
+    "device-commands": new Set(["openai", "gemini"]),
     "video-generation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
@@ -166,6 +166,9 @@ export async function listAiModels({ admin = false } = {}) {
     priceUsd: Math.max(0, Number(x.priceUsd || 0)),
     creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
     validation: x.validation?.ok === true ? { ok: true, providerModelName: String(x.validation.providerModelName || x.modelId || ""), validatedAt: x.validation.validatedAt || null } : null,
+    providerStatus: String(x.providerStatus || "not_checked"),
+    providerStatusMessage: String(x.providerStatusMessage || ""),
+    providerCheckedAt: x.providerCheckedAt || null,
     updatedAt: x.updatedAt || null
   }));
   return { models: models.filter(x => admin || (x.active && x.published)).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
@@ -191,7 +194,6 @@ export async function validateAiModel(env, raw) {
     "live-voice": /^(?:gpt-realtime|gpt-4o-realtime)/i,
     "image-generation": /^gpt-image/i,
     "video-generation": /^sora/i,
-    "device-commands": /^gemini/i
   };
   if (prefixRules[feature] && !prefixRules[feature].test(modelId)) {
     throw Object.assign(new Error("model_id_does_not_match_feature"), { httpStatus: 400 });
@@ -230,6 +232,53 @@ export async function validateAiModel(env, raw) {
     feature,
     providerModelName: String(body.displayName || body.name || body.id || modelId),
     validatedAt: new Date().toISOString()
+  };
+}
+
+
+export async function checkAiModelStatus(env, id, actorUid) {
+  const registryId = String(id || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(registryId)) {
+    throw Object.assign(new Error("model_id_invalid"), { httpStatus: 400 });
+  }
+  const existing = await firestoreGet("aiModelRegistry/" + registryId);
+  if (!existing) throw Object.assign(new Error("model_not_found"), { httpStatus: 404 });
+  const checkedAt = new Date();
+  let status = "available";
+  let message = "";
+  let validation = null;
+  try {
+    validation = await validateAiModel(env, {
+      providerId: existing.providerId,
+      modelId: existing.modelId,
+      feature: existing.feature
+    });
+    message = "Provider confirms this model ID is available to this API key.";
+  } catch (error) {
+    const reason = String(error?.message || "provider_status_check_failed").slice(0, 220);
+    if (reason.includes("provider_not_configured")) status = "provider_not_configured";
+    else if (reason.includes("timeout") || reason.includes("network_error")) status = "not_verified";
+    else status = "unavailable";
+    message = reason;
+  }
+  const updated = {
+    ...existing,
+    providerStatus: status,
+    providerStatusMessage: message,
+    providerCheckedAt: checkedAt,
+    ...(validation ? { validation } : {}),
+    providerStatusCheckedBy: String(actorUid || "")
+  };
+  await firestoreSet("aiModelRegistry/" + registryId, updated, true);
+  return {
+    id: registryId,
+    providerId: String(existing.providerId || ""),
+    modelId: String(existing.modelId || ""),
+    feature: String(existing.feature || ""),
+    providerStatus: status,
+    providerStatusMessage: message,
+    providerCheckedAt: checkedAt.toISOString(),
+    validation
   };
 }
 
