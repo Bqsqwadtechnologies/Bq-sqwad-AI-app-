@@ -65,7 +65,7 @@ class ChatApiClient(
                     status == 401 || serverError.contains("auth") ->
                         "Please sign in again to continue."
                     status == 402 || serverError.contains("credit") ->
-                        "Your shared BQ Sqwad AI credit balance is too low for this request."
+                        "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                     status == 403 || serverError.contains("consent") ->
                         "Please review and accept the required BQ Sqwad AI terms to continue."
                     status == 429 || serverError.contains("rate_limited") ->
@@ -135,7 +135,7 @@ class ChatApiClient(
                             "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
                         detail.contains("consent_required") -> "Please accept the required BQ Sqwad AI consent before sending messages."
                         detail.contains("auth") -> "Please sign in to use this AI feature."
-                        status == 402 || detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
+                        status == 402 || detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                         detail.contains("message_required") -> "Enter a message before sending."
                         detail.contains("capability_disabled") -> "This AI capability is currently unavailable."
                         status == 429 || detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
@@ -184,7 +184,7 @@ class ChatApiClient(
                         "error" -> {
                             val detail = json.optString("message").lowercase()
                             val friendly = when {
-                                detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your shared BQ Sqwad AI credit balance is too low for this request."
+                                detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                                 detail.contains("consent") -> "Please review and accept the required BQ Sqwad AI terms to continue."
                                 detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
                                 else -> "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it."
