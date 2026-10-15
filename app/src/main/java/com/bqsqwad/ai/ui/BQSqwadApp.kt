@@ -4417,7 +4417,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                 }.onSuccess {
                     active = true
                     streamError = null
@@ -4492,7 +4492,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
+                        .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                 }.onSuccess {
                     // Re-enable the preview container only after the service has had a
                     // moment to claim Camera2; streamOnline switches it to SourcePreview.
@@ -4541,7 +4541,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                     .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, "")
             )
             screenActive = true
             screenAnswer = "Android screen sharing is active. BQ Sqwad AI is receiving screen frames through the foreground service."
@@ -4662,7 +4662,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                                     .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                                     .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
-                                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null))
+                                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                             }.onFailure {
                                 streamError = "The camera switched, but the AI microphone session could not restart. Tap Retry to reconnect."
                             }
@@ -5182,7 +5182,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             context.startForegroundService(
                 Intent(context, LiveMediaForegroundService::class.java)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
-                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, null)
+                    .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, "")
             )
         }.onSuccess {
             active = true
