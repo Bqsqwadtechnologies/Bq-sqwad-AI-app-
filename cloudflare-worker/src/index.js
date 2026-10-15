@@ -1083,21 +1083,69 @@ async function ai(request, user, body) {
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
-    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+    control = { ...control, ...selected, config: control.config || {} };
   }
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
+  const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  const tokenPricing = await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control);
+  const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
+    tokenPricing.billingMode === "token";
+  if (tokenBilling && !tokenPricing.configured) {
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+  }
+  const memory = await memoryContext(user.uid);
+  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+  const reservationAmount = tokenBilling
+    ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
+    : (control.creditCost || 0);
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling });
   try {
-    const memory = await memoryContext(user.uid);
-    const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
-      fallbackProviderIds: control.config?.fallbackProviderIds || [],
+      fallbackProviderIds: tokenBilling ? [] : (control.config?.fallbackProviderIds || []),
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message: userMessage, system });
+    }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
-    await commitCredits(user.uid, reservation.reservationId, result.providerId);
-    const responseBody = { text: result.text.trim(), providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount, incidentId: crypto.randomUUID() };
+    let creditsCharged = Number(reservation.amount || 0);
+    let usageSummary = null;
+    if (tokenBilling) {
+      const usage = normalizeProviderUsage(result.providerId, result.usage || {});
+      if (usage.inputTokens + usage.outputTokens <= 0) {
+        throw Object.assign(new Error("provider_usage_unavailable"), { httpStatus: 502, safeError: "provider_usage_unavailable" });
+      }
+      const actualPricing = await resolveTokenPricing(result.providerId, result.modelId, pricingFeature, control);
+      if (!actualPricing.configured) {
+        throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+      }
+      const calculation = calculateTokenCost({
+        usage, pricing: actualPricing,
+        creditReferenceValueUsd: actualPricing.creditReferenceValueUsd,
+        multiplier: actualPricing.customerMultiplier
+      });
+      const settled = await settleCreditReservation(user.uid, reservation.reservationId, calculation.customerCredits, result.providerId);
+      creditsCharged = Number(settled.amount || 0);
+      usageSummary = {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        providerCostUsd: calculation.providerCostUsd,
+        providerCostCredits: calculation.providerCostCredits,
+        creditsCharged,
+        grossUsageValueUsd: calculation.grossUsageValueUsd
+      };
+      await recordTokenUsage({
+        uid: user.uid, feature: capabilityName, providerId: result.providerId, modelId: result.modelId,
+        usage, pricing: actualPricing, calculation, requestId: reservation.reservationId || crypto.randomUUID(),
+        chargedCredits: creditsCharged, planCovered: false, modality: "text"
+      }).catch(error => notifyAdminOfIssue(globalThis.__bqEnv, "/ai", 500, "token_usage_ledger_write_failed"));
+    } else {
+      await commitCredits(user.uid, reservation.reservationId, result.providerId);
+    }
+    const responseBody = {
+      text: result.text.trim(), providerId: result.providerId, modelId: result.modelId,
+      creditsCharged, ...(usageSummary ? { tokenUsage: usageSummary } : {}),
+      incidentId: crypto.randomUUID()
+    };
     if (idem?.hash) await firestoreSet("idempotency/" + idem.hash, { uid:user.uid, status:"completed", body:responseBody, httpStatus:200, completedAt:new Date(), expiresAt:new Date(Date.now()+600000) }, true);
     return json(responseBody);
   } catch (error) {
