@@ -1068,6 +1068,54 @@ const BQ_APP_KNOWLEDGE = [
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
 
+function configuredMediaProviderCost(control, units, expectedUnit) {
+  if (String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
+  const unit = String(control?.providerCostUnit || "");
+  const count = Number(units);
+  const unitPrice = Number(control?.priceUsd || 0);
+  const creditValue = Number(control?.creditReferenceValueUsd || 0.07999);
+  const multiplier = Number(control?.customerMultiplier || 8);
+  const feePercent = Number(control?.estimatedFeePercent ?? 15);
+  if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
+      !Number.isFinite(unitPrice) || unitPrice <= 0 ||
+      !Number.isFinite(creditValue) || creditValue <= 0 ||
+      !Number.isFinite(multiplier) || multiplier < 1 ||
+      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100) {
+    throw Object.assign(new Error("media_provider_cost_not_configured"), { httpStatus: 409, safeError: "media_provider_cost_not_configured" });
+  }
+  const providerCostUsd = unitPrice * count;
+  return {
+    units: count, unit, providerCostUsd, creditValue, multiplier, feePercent,
+    chargeCredits: (providerCostUsd / creditValue) * multiplier,
+    providerCostCredits: providerCostUsd / creditValue
+  };
+}
+
+async function recordConfiguredMediaCost(uid, feature, control, result, cost, modality) {
+  if (!cost) return;
+  await recordTokenUsage({
+    uid, feature,
+    providerId: result?.providerId || control.providerId,
+    modelId: result?.modelId || control.modelId,
+    usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, reasoningTokens: 0 },
+    pricing: {
+      creditReferenceValueUsd: cost.creditValue,
+      customerMultiplier: cost.multiplier,
+      estimatedFeePercent: cost.feePercent
+    },
+    calculation: {
+      providerCostUsd: cost.providerCostUsd,
+      providerCostCredits: cost.providerCostCredits,
+      estimatedFeePercent: cost.feePercent
+    },
+    requestId: result?.generationId || result?.jobId || crypto.randomUUID(),
+    chargedCredits: Number(result?.creditsCharged || 0),
+    planCovered: false,
+    modality,
+    unitCount: cost.units
+  });
+}
+
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
