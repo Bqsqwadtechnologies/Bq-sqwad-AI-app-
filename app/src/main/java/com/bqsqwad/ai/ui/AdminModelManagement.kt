@@ -196,6 +196,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         OutlinedTextField(cachedInputRate, { cachedInputRate = it }, label = { Text("Cached input USD per 1M tokens (blank = input rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(creditValueUsd, { creditValueUsd = it }, label = { Text("Reference value of one credit in USD") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(costMultiplier, { costMultiplier = it }, label = { Text("Customer/provider cost multiplier (default 8)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(estimatedFeePercent, { estimatedFeePercent = it }, label = { Text("Estimated fee percentage (15% illustrative; configure actual fee)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(maxOutputTokens, { maxOutputTokens = it }, label = { Text("Maximum output tokens (128–8192)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(creditsPerMinute, { creditsPerMinute = it }, label = { Text("Credits per live minute (preserve existing live-session rate)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Row { Checkbox(active, { active = it }); Text("Enable this model for users", Modifier.padding(top = 12.dp)) }
@@ -229,6 +230,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 (cachedInputRate.isBlank() || (cachedInputRate.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (creditValueUsd.toDoubleOrNull() ?: -1.0) > 0 &&
                 (costMultiplier.toDoubleOrNull() ?: -1.0) >= 1 &&
+                (estimatedFeePercent.toDoubleOrNull() ?: -1.0) in 0.0..100.0 &&
                 (maxOutputTokens.toIntOrNull() ?: -1) in 128..8192 &&
                 (creditsPerMinute.isBlank() || (creditsPerMinute.toDoubleOrNull() ?: -1.0) >= 0) &&
                 (!isDefault || (active && published)),
@@ -244,6 +246,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     if (cachedInputRate.isNotBlank()) put("cachedInputPriceUsdPerMillion", cachedInputRate.toDouble()) else put("cachedInputPriceUsdPerMillion", JSONObject.NULL)
                     put("creditReferenceValueUsd", creditValueUsd.toDouble())
                     put("customerMultiplier", costMultiplier.toDouble())
+                    put("estimatedFeePercent", estimatedFeePercent.toDouble())
                     put("maxOutputTokens", maxOutputTokens.toInt())
                     if (creditsPerMinute.isNotBlank()) put("creditsPerMinute", creditsPerMinute.toDouble()) else put("creditsPerMinute", JSONObject.NULL)
                     put("active", active); put("isDefault", isDefault); put("published", published)
@@ -257,7 +260,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
         Text("Model IDs are checked against the provider before saving. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
