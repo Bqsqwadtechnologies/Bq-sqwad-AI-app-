@@ -1,4 +1,4 @@
-import { firestoreCreate, firestoreQuery } from "./firebase.js";
+import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 
 const DEFAULT_CREDIT_REFERENCE_USD = 0.07999;
 const DEFAULT_CUSTOMER_MULTIPLIER = 8;
@@ -36,7 +36,7 @@ export function normalizeProviderUsage(providerId, raw = {}) {
   };
 }
 
-export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD, multiplier = DEFAULT_CUSTOMER_MULTIPLIER }) {
+export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD, multiplier = DEFAULT_CUSTOMER_MULTIPLIER, estimatedFeePercent = Number(pricing?.estimatedFeePercent ?? 15) }) {
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
   const cachedInputTokens = Math.min(inputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
@@ -59,28 +59,48 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   if (!Number.isFinite(creditValue) || creditValue <= 0 || !Number.isFinite(markup) || markup < 1) {
     throw Object.assign(new Error("token_billing_config_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
+  if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) {
+    throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+  }
   const providerCostCredits = providerCostUsd / creditValue;
   const customerCredits = providerCostCredits * markup;
+  const grossUsageValueUsd = customerCredits * creditValue;
+  const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
+  const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
   return {
     inputTokens, outputTokens, cachedInputTokens,
     inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
     creditReferenceValueUsd: creditValue,
     customerMultiplier: markup,
+    estimatedFeePercent,
+    estimatedFeeUsd,
     providerCostCredits,
     customerCredits,
-    grossUsageValueUsd: customerCredits * creditValue,
-    estimatedGrossProfitUsd: (customerCredits * creditValue) - providerCostUsd
+    grossUsageValueUsd,
+    estimatedGrossProfitUsd,
+    estimatedNetProfitUsd: estimatedGrossProfitUsd - estimatedFeeUsd
   };
 }
 
 export async function resolveTokenPricing(providerId, modelId, feature, control = {}) {
   const embedded = control.tokenPricing && typeof control.tokenPricing === "object" ? control.tokenPricing : {};
-  const rows = await firestoreQuery("aiModelRegistry", { limit: 200 });
-  const model = rows.find(row =>
-    String(row.providerId || "").toLowerCase() === String(providerId || "").toLowerCase() &&
-    String(row.modelId || "") === String(modelId || "") &&
-    (!feature || String(row.feature || "") === String(feature))
-  ) || {};
+  let model = null;
+  const registryId = String(control.selectedRegistryModelId || control.modelRegistryId || control.id || "");
+  if (/^[a-z0-9][a-z0-9-]{1,79}$/i.test(registryId)) {
+    const candidate = await firestoreGet("aiModelRegistry/" + registryId);
+    if (candidate &&
+        String(candidate.providerId || "").toLowerCase() === String(providerId || "").toLowerCase() &&
+        String(candidate.modelId || "") === String(modelId || "") &&
+        (!feature || String(candidate.feature || "") === String(feature))) model = candidate;
+  }
+  if (!model) {
+    const rows = await firestoreQuery("aiModelRegistry", { limit: 200 });
+    model = rows.find(row =>
+      String(row.providerId || "").toLowerCase() === String(providerId || "").toLowerCase() &&
+      String(row.modelId || "") === String(modelId || "") &&
+      (!feature || String(row.feature || "") === String(feature))
+    ) || {};
+  }
   const config = control.config && typeof control.config === "object" ? control.config : {};
   const rates = {
     inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? 0),
@@ -89,13 +109,14 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
   const customerMultiplier = Number(embedded.customerMultiplier ?? model.customerMultiplier ?? config.customerMultiplier ?? DEFAULT_CUSTOMER_MULTIPLIER);
+  const estimatedFeePercent = Number(embedded.estimatedFeePercent ?? model.estimatedFeePercent ?? config.estimatedFeePercent ?? 15);
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
     (rates.inputPriceUsdPerMillion + rates.outputPriceUsdPerMillion > 0) &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1;
   return {
-    ...rates, creditReferenceValueUsd, customerMultiplier, maxOutputTokens, configured,
+    ...rates, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens, configured,
     billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };
@@ -134,6 +155,9 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     chargedCredits: Number(chargedCredits || 0),
     grossUsageValueUsd: Number(calculation?.grossUsageValueUsd || 0),
     estimatedGrossProfitUsd: Number(calculation?.estimatedGrossProfitUsd || 0),
+    estimatedFeePercent: Number(calculation?.estimatedFeePercent || 0),
+    estimatedFeeUsd: Number(calculation?.estimatedFeeUsd || 0),
+    estimatedNetProfitUsd: Number(calculation?.estimatedNetProfitUsd || 0),
     creditReferenceValueUsd: Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD),
     customerMultiplier: Number(pricing?.customerMultiplier || DEFAULT_CUSTOMER_MULTIPLIER),
     planCovered: planCovered === true,
@@ -158,6 +182,8 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
     chargedCredits: Number(row.chargedCredits || 0),
     grossUsageValueUsd: Number(row.grossUsageValueUsd || 0),
     estimatedGrossProfitUsd: Number(row.estimatedGrossProfitUsd || 0),
+    estimatedFeeUsd: Number(row.estimatedFeeUsd || 0),
+    estimatedNetProfitUsd: Number(row.estimatedNetProfitUsd || 0),
     costStatus: String(row.costStatus || "unknown"),
     createdAt: row.createdAt || null
   }));
@@ -171,7 +197,9 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
       providerCostUsd: total.providerCostUsd + item.providerCostUsd,
       chargedCredits: total.chargedCredits + item.chargedCredits,
       grossUsageValueUsd: total.grossUsageValueUsd + item.grossUsageValueUsd,
-      estimatedGrossProfitUsd: total.estimatedGrossProfitUsd + item.estimatedGrossProfitUsd
-    }), { requests: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, providerCostUsd: 0, chargedCredits: 0, grossUsageValueUsd: 0, estimatedGrossProfitUsd: 0 })
+      estimatedGrossProfitUsd: total.estimatedGrossProfitUsd + item.estimatedGrossProfitUsd,
+      estimatedFeeUsd: total.estimatedFeeUsd + item.estimatedFeeUsd,
+      estimatedNetProfitUsd: total.estimatedNetProfitUsd + item.estimatedNetProfitUsd
+    }), { requests: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, providerCostUsd: 0, chargedCredits: 0, grossUsageValueUsd: 0, estimatedGrossProfitUsd: 0, estimatedFeeUsd: 0, estimatedNetProfitUsd: 0 })
   };
 }
