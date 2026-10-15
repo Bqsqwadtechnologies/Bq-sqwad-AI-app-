@@ -59,7 +59,7 @@ function normalizeModel(raw, actorUid) {
   if (billingMode === "token" && raw?.active === true && inputPriceUsdPerMillion + outputPriceUsdPerMillion <= 0) throw new Error("token_pricing_required_for_active_token_billing");
   if (!["request", "image", "second", "minute"].includes(providerCostUnit)) throw new Error("provider_cost_unit_invalid");
   if (providerCostTrackingEnabled && !["live-camera", "live-voice"].includes(feature)) throw new Error("provider_cost_tracking_only_supported_for_live_media");
-  if (providerCostTrackingEnabled && priceUsd <= 0) throw new Error("live_provider_cost_required");
+  if (providerCostTrackingEnabled && raw?.active === true && priceUsd <= 0) throw new Error("live_provider_cost_required");
   if (providerCostTrackingEnabled && feature === "live-camera" && providerCostUnit !== "second") throw new Error("camera_provider_cost_unit_must_be_second");
   if (providerCostTrackingEnabled && feature === "live-voice" && providerCostUnit !== "minute") throw new Error("voice_provider_cost_unit_must_be_minute");
   if (billingMode === "provider_cost" && !["image-generation", "video-generation"].includes(feature)) throw new Error("provider_cost_billing_only_supported_for_media_features");
