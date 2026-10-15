@@ -51,6 +51,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var priceUsd by remember { mutableStateOf("0.01") }
     var billingMode by remember { mutableStateOf("fixed_credit") }
     var providerCostUnit by remember { mutableStateOf("request") }
+    var providerCostTrackingEnabled by remember { mutableStateOf(false) }
     var inputRate by remember { mutableStateOf("0") }
     var outputRate by remember { mutableStateOf("0") }
     var cachedInputRate by remember { mutableStateOf("") }
@@ -143,7 +144,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                             creditCost = model.optInt("creditCost").toString()
                             priceUsd = model.optDouble("priceUsd").toString()
                             billingMode = model.optString("billingMode", "fixed_credit")
-                            providerCostUnit = model.optString("providerCostUnit", if (model.optString("feature") == "image-generation") "image" else if (model.optString("feature") == "video-generation") "second" else "request")
+                            providerCostUnit = model.optString("providerCostUnit", if (model.optString("feature") == "image-generation") "image" else if (model.optString("feature") in setOf("video-generation", "live-camera")) "second" else if (model.optString("feature") == "live-voice") "minute" else "request")
+                            providerCostTrackingEnabled = model.optBoolean("providerCostTrackingEnabled")
                             inputRate = model.optDouble("inputPriceUsdPerMillion").toString()
                             outputRate = model.optDouble("outputPriceUsdPerMillion").toString()
                             cachedInputRate = if (model.isNull("cachedInputPriceUsdPerMillion")) "" else model.optDouble("cachedInputPriceUsdPerMillion").toString()
@@ -176,7 +178,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Text("Feature (tap to select)")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("text-chat", "image-generation", "live-camera").forEach { option ->
-                OutlinedButton(onClick = { feature = option; providerCostUnit = if (option == "image-generation") "image" else if (option == "video-generation") "second" else "request" }) { Text(if (feature == option) "✓ $option" else option) }
+                OutlinedButton(onClick = { feature = option; providerCostUnit = if (option == "image-generation") "image" else if (option in setOf("video-generation", "live-camera")) "second" else if (option == "live-voice") "minute" else "request" }) { Text(if (feature == option) "✓ $option" else option) }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -193,7 +195,10 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             OutlinedButton(onClick = { billingMode = "token" }) { Text(if (billingMode == "token") "✓ Token billing" else "Token billing") }
             OutlinedButton(onClick = { billingMode = "provider_cost" }) { Text(if (billingMode == "provider_cost") "✓ Provider cost" else "Provider cost") }
         }
-        Text("Token billing is supported for text-chat and device-commands. Provider-cost billing is supported for image-generation (USD per image) and video-generation (USD per second). Voice/camera keep their existing configurable session rates.", style = MaterialTheme.typography.bodySmall)
+        Text("Token billing is supported for text-chat and device-commands. Provider-cost billing charges image-generation per image and video-generation per second. Optional provider-cost tracking for Live Voice/Live Camera estimates provider expense while preserving their existing customer credit rates.", style = MaterialTheme.typography.bodySmall)
+        if (feature in setOf("live-camera", "live-voice")) {
+            Row { Checkbox(providerCostTrackingEnabled, { providerCostTrackingEnabled = it }); Text("Track estimated provider cost without changing live-session credit rates", Modifier.padding(top = 12.dp)) }
+        }
         Text("Token prices are USD per 1,000,000 tokens. Configure rates for this exact model before activating token billing.", style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(inputRate, { inputRate = it }, label = { Text("Provider input USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(outputRate, { outputRate = it }, label = { Text("Provider output USD per 1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -251,6 +256,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     put("priceUsd", priceUsd.toDouble())
                     put("billingMode", billingMode)
                     put("providerCostUnit", providerCostUnit)
+                    put("providerCostTrackingEnabled", providerCostTrackingEnabled)
                     put("inputPriceUsdPerMillion", inputRate.toDouble())
                     put("outputPriceUsdPerMillion", outputRate.toDouble())
                     if (cachedInputRate.isNotBlank()) put("cachedInputPriceUsdPerMillion", cachedInputRate.toDouble()) else put("cachedInputPriceUsdPerMillion", JSONObject.NULL)
@@ -270,7 +276,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                 }
             }
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
-        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; providerCostUnit = "request"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
+        OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; providerCostUnit = "request"; providerCostTrackingEnabled = false; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
         Text("Model IDs are checked against the provider before saving. Token billing uses provider-reported usage and configured per-model rates; fixed-credit and live-session rates remain available for features using those billing units.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
