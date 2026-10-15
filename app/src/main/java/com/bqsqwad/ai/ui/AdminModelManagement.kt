@@ -39,6 +39,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var validating by remember { mutableStateOf(false) }
+    var checkingModelId by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var id by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
@@ -78,8 +79,37 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                     Text("Feature: ${model.optString("feature")} · User charge: ${model.optInt("creditCost")} credits/request · Reference price: USD ${"%.4f".format(model.optDouble("priceUsd"))}")
                     if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
-                    Text(if (model.optJSONObject("validation")?.optBoolean("ok") == true) "Provider validation: passed" else "Provider validation: not recorded", style = MaterialTheme.typography.bodySmall)
+                    val providerStatus = model.optString("providerStatus", "not_checked")
+                    val providerStatusLabel = when (providerStatus) {
+                        "available" -> "LIVE PROVIDER STATUS: AVAILABLE"
+                        "unavailable" -> "LIVE PROVIDER STATUS: UNAVAILABLE / REJECTED"
+                        "provider_not_configured" -> "LIVE PROVIDER STATUS: PROVIDER KEY NOT CONFIGURED"
+                        "not_verified" -> "LIVE PROVIDER STATUS: NOT VERIFIED (NETWORK/TIMEOUT)"
+                        else -> "LIVE PROVIDER STATUS: NOT CHECKED"
+                    }
+                    Text(providerStatusLabel, style = MaterialTheme.typography.bodySmall,
+                        color = if (providerStatus == "available") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                    model.optString("providerStatusMessage").takeIf { it.isNotBlank() }?.let {
+                        Text(it.take(180), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(if (model.optJSONObject("validation")?.optBoolean("ok") == true) "Provider model validation: passed" else "Provider model validation: not recorded", style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            enabled = checkingModelId.isBlank(),
+                            onClick = {
+                                val modelId = model.optString("id")
+                                checkingModelId = modelId
+                                scope.launch {
+                                    runCatching { api.checkAdminAiModelStatus(modelId) }
+                                        .onSuccess { statusResult ->
+                                            message = "${statusResult.optString("providerId")} / ${statusResult.optString("modelId")}: ${statusResult.optString("providerStatus")}."
+                                            load()
+                                        }
+                                        .onFailure { message = it.message ?: "Could not check provider availability." }
+                                    checkingModelId = ""
+                                }
+                            }
+                        ) { Text(if (checkingModelId == model.optString("id")) "Checking…" else "Check live status") }
                         OutlinedButton(onClick = {
                             id = model.optString("id"); name = model.optString("name")
                             provider = model.optString("providerId", "openai"); providerModelId = model.optString("modelId")
@@ -98,7 +128,15 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         Text("Add or update model", style = MaterialTheme.typography.titleLarge)
         OutlinedTextField(id, { id = it.lowercase().replace(Regex("[^a-z0-9-]"), "-") }, label = { Text("Registry ID (for example, my-chat-model)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(name, { name = it }, label = { Text("Display name shown to users") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        OutlinedTextField(provider, { provider = it.lowercase() }, label = { Text("Provider: openai or gemini") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Text("Provider (choose a supported provider for this feature)")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { provider = "openai" }) {
+                Text(if (provider == "openai") "✓ OpenAI" else "OpenAI")
+            }
+            OutlinedButton(onClick = { provider = "gemini" }) {
+                Text(if (provider == "gemini") "✓ Gemini" else "Gemini")
+            }
+        }
         OutlinedTextField(providerModelId, { providerModelId = it }, label = { Text("Exact provider model ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Text("Feature (tap to select)")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -161,7 +199,8 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
             }
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
         OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
-        Text("Model IDs are checked against the provider before saving. Feature compatibility is also checked, but provider model availability does not replace a real generation/session test. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
+        Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
+        Text("Model IDs are checked against the provider before saving. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
     }
 
