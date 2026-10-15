@@ -102,7 +102,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
                         Text("Provider per 1M tokens: input USD ${model.optDouble("inputPriceUsdPerMillion")} · output USD ${model.optDouble("outputPriceUsdPerMillion")} · cached input USD ${if (model.isNull("cachedInputPriceUsdPerMillion")) "same as input" else model.optDouble("cachedInputPriceUsdPerMillion")}")
                         Text("Multiplier ${model.optDouble("customerMultiplier", 8.0)}× · fee estimate ${model.optDouble("estimatedFeePercent", 15.0)}% · credit reference USD ${model.optDouble("creditReferenceValueUsd", 0.07999)} · output limit ${model.optInt("maxOutputTokens", 2048)} tokens")
                     }
-                    if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optInt("creditsPerMinute")} credits/minute")
+                    if (!model.isNull("creditsPerMinute")) Text("Live-session rate: ${model.optDouble("creditsPerMinute")} credits/minute")
                     Text("Status: ${if (model.optBoolean("active")) "enabled" else "disabled"} · ${if (model.optBoolean("isDefault")) "DEFAULT" else "not default"} · ${if (model.optBoolean("published")) "listed" else "hidden from user catalogue"}")
                     val providerStatus = model.optString("providerStatus", "not_checked")
                     val providerStatusLabel = when (providerStatus) {
@@ -262,7 +262,7 @@ fun AdminModelManagementScreen(onClose: () -> Unit) {
         ) { Text(if (saving) "Validating and saving…" else "Save model and apply") }
         OutlinedButton(onClick = { id = ""; name = ""; provider = "openai"; providerModelId = ""; feature = "text-chat"; description = ""; creditCost = "1"; priceUsd = "0.01"; billingMode = "fixed_credit"; inputRate = "0"; outputRate = "0"; cachedInputRate = ""; creditValueUsd = "0.07999"; costMultiplier = "8"; estimatedFeePercent = "15"; maxOutputTokens = "2048"; creditsPerMinute = ""; active = true; isDefault = false; published = true }) { Text("Clear form for new model") }
         Text("OpenAI and Gemini can be selected for features supported by each provider. Live voice, live camera, image generation and video generation currently require compatible OpenAI models; text chat supports both providers, and device commands support OpenAI or Gemini. Use Check live status to check whether the provider API key can currently access each model. A successful model-list check does not guarantee a full generation or realtime session will succeed.", style = MaterialTheme.typography.bodySmall)
-        Text("Model IDs are checked against the provider before saving. USD is a reference price; the enforced in-app charge is credits per request or credits per live minute.", style = MaterialTheme.typography.bodySmall)
+        Text("Model IDs are checked against the provider before saving. Token billing uses provider-reported usage and configured per-model rates; fixed-credit and live-session rates remain available for features using those billing units.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onClose) { Text("Close model management") }
     }
 
