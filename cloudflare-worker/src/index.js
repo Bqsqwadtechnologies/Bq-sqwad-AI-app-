@@ -14,6 +14,7 @@ import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBu
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant, workspaceScopeRedirect, workspaceScopeSystemPrompt } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
 import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel, checkAiModelStatus } from "./model-registry-native.js";
+import { normalizeProviderUsage, calculateTokenCost, resolveTokenPricing, estimateTokenReservation, recordTokenUsage, getTokenUsageReport } from "./token-billing-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -654,7 +655,7 @@ async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
 
-async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
+async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
   let charge = Math.max(0, Number(amount || 0));
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   await applyConfiguredCreditTrial(uid);
@@ -664,7 +665,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null) {
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
   // Chat is never free because an old capability record is missing a price.
-  if (String(capabilityName || "") === "chat" && charge < 1) charge = 1;
+  if (String(capabilityName || "") === "chat" && charge < 1 && options.allowFractional !== true) charge = 1;
   if (!charge) {
     const profile = await readCanonicalUserBalance(uid);
     if (!profile) throw new Error("Account not found.");
@@ -775,6 +776,64 @@ async function commitCredits(uid, reservationId, providerId) {
       if (attempt === 4) throw error;
     }
   }
+}
+
+async function settleCreditReservation(uid, reservationId, finalAmount, providerId) {
+  if (!reservationId) return { amount: 0, adminUnlimited: true };
+  const targetAmount = Math.max(0, Number(finalAmount || 0));
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const reservation = await firestoreGet("creditReservations/" + reservationId);
+    if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") {
+      throw new Error("credit_reservation_not_settleable");
+    }
+    const reservedAmount = Math.max(0, Number(reservation.amount || 0));
+    if (targetAmount > reservedAmount + 0.000000001) {
+      throw Object.assign(new Error("token_usage_exceeds_reserved_credits"), { httpStatus: 402, safeError: "insufficient_credits" });
+    }
+    const refundNeeded = Math.max(0, reservedAmount - targetAmount);
+    if (refundNeeded <= 0.000000001) break;
+    const profile = await readCanonicalUserBalance(uid);
+    if (!profile) throw new Error("credit_balance_missing");
+    let remaining = refundNeeded;
+    const refundPermanent = Math.min(remaining, Math.max(0, Number(reservation.fromPermanent || 0))); remaining -= refundPermanent;
+    const refundSubscription = Math.min(remaining, Math.max(0, Number(reservation.fromSubscription || 0))); remaining -= refundSubscription;
+    const refundTrial = Math.min(remaining, Math.max(0, Number(reservation.fromTrial || 0))); remaining -= refundTrial;
+    const refundDaily = Math.min(remaining, Math.max(0, Number(reservation.fromDaily || 0))); remaining -= refundDaily;
+    if (remaining > 0.0000001) throw new Error("credit_reservation_refund_mismatch");
+    try {
+      await firestoreCommit([
+        {
+          path: "users/" + uid,
+          data: {
+            credits: Math.max(0, Number(profile.credits || 0)) + refundPermanent,
+            subCredits: Math.max(0, Number(profile.subCredits || 0)) + refundSubscription,
+            trialCredits: Math.max(0, Number(profile.trialCredits || 0)) + refundTrial,
+            dailyFreeCredits: Math.max(0, Number(profile.dailyFreeCredits || 0)) + refundDaily,
+            updatedAt: new Date()
+          },
+          updateTime: profile.__updateTime
+        },
+        {
+          path: "creditReservations/" + reservationId,
+          data: {
+            ...reservation,
+            amount: targetAmount,
+            fromPermanent: Math.max(0, Number(reservation.fromPermanent || 0) - refundPermanent),
+            fromSubscription: Math.max(0, Number(reservation.fromSubscription || 0) - refundSubscription),
+            fromTrial: Math.max(0, Number(reservation.fromTrial || 0) - refundTrial),
+            fromDaily: Math.max(0, Number(reservation.fromDaily || 0) - refundDaily),
+            tokenSettledAt: new Date()
+          },
+          updateTime: reservation.__updateTime
+        }
+      ]);
+      break;
+    } catch (error) {
+      if (attempt === 4) throw error;
+    }
+  }
+  await commitCredits(uid, reservationId, providerId);
+  return { amount: targetAmount };
 }
 
 async function reverseCredits(uid, reservationId) {
