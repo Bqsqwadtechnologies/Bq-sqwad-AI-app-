@@ -2050,7 +2050,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
         if (creditsExhausted) {
-            error = "You've run out of BQ Sqwad AI credits. Buy credits to continue."
+            error = "Your current usage allowance is unavailable. Review plans and billing to continue."
             creditNotice = error
             return
         }
@@ -4589,11 +4589,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
         if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
             screenActive = liveServiceActive
             if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
-            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = liveUiState.status
+            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = "Your current usage allowance is unavailable. Review plans and billing to continue."
         } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
             active = liveServiceActive
             if (liveAnswer.isNotBlank()) answer = liveAnswer
-            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = liveUiState.status
+            if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = "Your current usage allowance is unavailable. Review plans and billing to continue."
         }
     }
 
@@ -4877,7 +4877,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                             if (message.contains("credit", ignoreCase = true)) {
-                                TextButton(onClick = onOpenCredits) { Text("Buy credits") }
+                                TextButton(onClick = onOpenCredits) { Text("View plans") }
                             }
                             TextButton(onClick = {
                                 streamError = null
@@ -4928,7 +4928,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                 streamError?.let { message ->
                     Text(message, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                     if (message.contains("credit", ignoreCase = true)) {
-                        Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
+                        Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("View plans") }
                     }
                     Button(
                         modifier = Modifier.fillMaxWidth(),
@@ -5263,8 +5263,8 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
             }
         }
         if (!active && state.contains("credit", ignoreCase = true)) {
-            Text("You need credits to use Live Voice.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
+            Text("Your current usage allowance is unavailable. Review plans and billing to continue.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("View plans") }
         }
 
         Button(
