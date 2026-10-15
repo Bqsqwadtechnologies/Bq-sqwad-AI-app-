@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.core
 
+import android.graphics.BitmapFactory
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -56,7 +57,8 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.bq_sqwad_logo)
+            .setSmallIcon(R.drawable.bq_notification_mark)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.bq_sqwad_logo))
             .setContentTitle(title.take(120))
             .setContentText(body.take(500))
             .setStyle(NotificationCompat.BigTextStyle().bigText(body.take(2000)))
