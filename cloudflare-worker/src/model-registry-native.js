@@ -183,7 +183,7 @@ export async function validateAiModel(env, raw) {
     "live-camera": new Set(["openai"]),
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
-    "device-commands": new Set(["gemini"]),
+    "device-commands": new Set(["openai", "gemini"]),
     "video-generation": new Set(["openai"])
   };
   if (!FEATURE_CAPABILITIES[feature] || !allowedProviders[feature]?.has(providerId)) {
