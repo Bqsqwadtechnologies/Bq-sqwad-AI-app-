@@ -107,7 +107,19 @@ class RealtimeVoiceSession(
                 onState("stopped")
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                onError("The realtime voice connection failed. Check your connection and retry.")
+                // Keep diagnostics actionable without exposing the short-lived session credential,
+                // request headers, provider keys, or raw server response bodies to the UI/log.
+                val status = response?.code
+                val diagnostic = when (status) {
+                    401, 403 -> "The realtime session was rejected by the provider (HTTP $status). Check the server-side realtime session configuration."
+                    404 -> "The configured realtime model or endpoint was not found (HTTP 404). Check the administrator's realtime model configuration."
+                    429 -> "The realtime provider rate limit was reached (HTTP 429). Wait briefly and retry."
+                    in 500..599 -> "The realtime provider is temporarily unavailable (HTTP $status). Retry in a moment."
+                    null -> "The realtime voice connection failed before the server returned an HTTP status. Check internet access and retry."
+                    else -> "The realtime voice connection failed (HTTP $status). Check the server-side realtime session configuration and retry."
+                }
+                onDiagnostic("Realtime WebSocket connection failed" + (status?.let { " (HTTP $it)" } ?: "") + ": " + (t.javaClass.simpleName.take(80)))
+                onError(diagnostic)
                 stopInternal()
             }
         })
