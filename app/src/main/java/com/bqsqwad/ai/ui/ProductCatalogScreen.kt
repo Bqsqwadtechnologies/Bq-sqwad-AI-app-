@@ -175,6 +175,13 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         }
     }
     LaunchedEffect(Unit){load()}
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            runCatching { WorkspaceApiClient().credits() }
+                .onSuccess { latest -> credits = latest }
+        }
+    }
 
     // Customer plans come only from the live/cached server catalog. Add-ons and
     // capability-only products stay out of the general plan browser until configured.
