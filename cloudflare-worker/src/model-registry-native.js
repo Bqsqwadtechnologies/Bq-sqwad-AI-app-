@@ -20,6 +20,13 @@ function normalizeModel(raw, actorUid) {
   const creditCost = Number(raw?.creditCost);
   const priceUsd = Number(raw?.priceUsd ?? 0);
   const creditsPerMinute = raw?.creditsPerMinute == null || raw?.creditsPerMinute === "" ? null : Number(raw.creditsPerMinute);
+  const billingMode = ["fixed_credit", "token"].includes(String(raw?.billingMode || "fixed_credit")) ? String(raw?.billingMode || "fixed_credit") : "fixed_credit";
+  const inputPriceUsdPerMillion = Number(raw?.inputPriceUsdPerMillion ?? 0);
+  const outputPriceUsdPerMillion = Number(raw?.outputPriceUsdPerMillion ?? 0);
+  const cachedInputPriceUsdPerMillion = raw?.cachedInputPriceUsdPerMillion == null || raw?.cachedInputPriceUsdPerMillion === "" ? null : Number(raw.cachedInputPriceUsdPerMillion);
+  const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.07999);
+  const customerMultiplier = Number(raw?.customerMultiplier ?? 8);
+  const maxOutputTokens = Number(raw?.maxOutputTokens ?? 2048);
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
@@ -39,6 +46,12 @@ function normalizeModel(raw, actorUid) {
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
   if (!Number.isFinite(creditCost) || creditCost < 1 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
+  if (![inputPriceUsdPerMillion, outputPriceUsdPerMillion].every(value => Number.isFinite(value) && value >= 0 && value <= 1000000)) throw new Error("model_token_price_invalid");
+  if (cachedInputPriceUsdPerMillion != null && (!Number.isFinite(cachedInputPriceUsdPerMillion) || cachedInputPriceUsdPerMillion < 0 || cachedInputPriceUsdPerMillion > 1000000)) throw new Error("model_cached_token_price_invalid");
+  if (!Number.isFinite(creditReferenceValueUsd) || creditReferenceValueUsd <= 0 || creditReferenceValueUsd > 1000) throw new Error("credit_reference_value_invalid");
+  if (!Number.isFinite(customerMultiplier) || customerMultiplier < 1 || customerMultiplier > 1000) throw new Error("customer_multiplier_invalid");
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) throw new Error("max_output_tokens_invalid");
+  if (billingMode === "token" && raw?.active === true && inputPriceUsdPerMillion + outputPriceUsdPerMillion <= 0) throw new Error("token_pricing_required_for_active_token_billing");
   if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000 || !Number.isInteger(creditsPerMinute))) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
@@ -49,6 +62,8 @@ function normalizeModel(raw, actorUid) {
     isDefault: raw?.isDefault === true,
     published: raw?.published === true,
     creditCost, priceUsd, creditsPerMinute,
+    billingMode, inputPriceUsdPerMillion, outputPriceUsdPerMillion,
+    cachedInputPriceUsdPerMillion, creditReferenceValueUsd, customerMultiplier, maxOutputTokens,
     validation: raw?.validation && raw.validation.ok === true ? { ok: true, providerModelName: String(raw.validation.providerModelName || modelId).slice(0, 160), validatedAt: String(raw.validation.validatedAt || new Date().toISOString()) } : null,
     updatedBy: actorUid, updatedAt: new Date()
   };
@@ -364,6 +379,13 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     feature: String(model.feature || ""),
     creditCost: Math.max(1, Number(model.creditCost || 1)),
     priceUsd: Math.max(0, Number(model.priceUsd || 0)),
-    creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0))
+    creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0)),
+    billingMode: String(model.billingMode || "fixed_credit"),
+    inputPriceUsdPerMillion: Math.max(0, Number(model.inputPriceUsdPerMillion || 0)),
+    outputPriceUsdPerMillion: Math.max(0, Number(model.outputPriceUsdPerMillion || 0)),
+    cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion == null ? null : Math.max(0, Number(model.cachedInputPriceUsdPerMillion || 0)),
+    creditReferenceValueUsd: Math.max(0.000001, Number(model.creditReferenceValueUsd || 0.07999)),
+    customerMultiplier: Math.max(1, Number(model.customerMultiplier || 8)),
+    maxOutputTokens: Math.min(8192, Math.max(128, Number(model.maxOutputTokens || 2048)))
   };
 }
