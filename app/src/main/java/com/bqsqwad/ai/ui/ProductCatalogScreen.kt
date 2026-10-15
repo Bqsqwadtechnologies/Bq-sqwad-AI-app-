@@ -67,6 +67,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var salesNotice by remember { mutableStateOf<String?>(null) }
     var contactOptions by remember { mutableStateOf(emptyList<PublicContactOption>()) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
+    var credits by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         // A previous unauthenticated catalog query cannot fetch Play mappings.
@@ -120,6 +121,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                         .putString("catalog",live.toString()).apply()
                 }
+                credits=runCatching{api.credits()}.getOrNull()
                 entitlement=runCatching{api.entitlement()}.getOrNull()
                 entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
                 playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
@@ -241,6 +243,20 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             loading->ProductLoading(Modifier.padding(padding))
             error!=null->ProductError(Modifier.padding(padding),::load)
             else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+                credits?.let { balance ->
+                    item {
+                        Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(18.dp), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)) {
+                            Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                Text("Available credit balance", style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.onPrimaryContainer)
+                                val unlimited = balance.optBoolean("adminUnlimited", false)
+                                val available = balance.optDouble("available", balance.optDouble("balance", 0.0))
+                                val balanceText = if (unlimited) "Unlimited" else String.format(java.util.Locale.US, "%,.2f", available).trimEnd('0').trimEnd('.')
+                                Text(if (unlimited) balanceText else "$balanceText credits", style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("Your balance updates from your account. Feature usage is charged automatically at the configured BQ Sqwad AI rate.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    }
+                }
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
