@@ -310,7 +310,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
                 }
                 planPrice = values.joinToString(" • ")
             }
-            if (planPrice.isBlank()) planPrice = "View localized price in Plans & Credits"
+            if (planPrice.isNullOrBlank()) planPrice = "View localized price in Plans & Credits"
             val features = plan?.optJSONArray("features") ?: org.json.JSONArray()
             planFeatures = List(features.length()) { features.optString(it) }
             if (plan?.optBoolean("trialEligible", false) == true) {
