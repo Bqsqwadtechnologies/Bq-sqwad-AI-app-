@@ -2048,7 +2048,7 @@ export default {
            modelControl = { ...modelControl, ...selected, config: modelControl.config || {} };
          }
          let rate = pricing.creditsPerMinute;
-         if (heartbeatBody.modelRegistryId && modelControl.creditsPerMinute != null) {
+         if ((heartbeatBody.modelRegistryId || modelControl.selectedRegistryModelId) && modelControl.creditsPerMinute != null) {
            rate = Math.max(0, Number(modelControl.creditsPerMinute));
          }
          if (rate > 0 && !isSuperAdmin(user, env)) {
