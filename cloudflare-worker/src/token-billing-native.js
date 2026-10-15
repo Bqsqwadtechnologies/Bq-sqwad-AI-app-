@@ -170,7 +170,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     creditReferenceValueUsd: creditValue,
     customerMultiplier: Number(pricing?.customerMultiplier || DEFAULT_CUSTOMER_MULTIPLIER),
     planCovered: planCovered === true,
-    costStatus: "estimated_from_provider_usage_and_configured_rates",
+    costStatus: modality === "text" ? "estimated_from_provider_usage_and_configured_rates" : "estimated_from_configured_provider_unit_rate",
     createdAt
   });
   return { id: recordId, createdAt: createdAt.toISOString() };
@@ -188,6 +188,7 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
     id: String(row.id || String(row.__name || "").split("/").pop()),
     uid: String(row.uid || ""),
     feature: String(row.feature || ""),
+    modality: String(row.modality || "text"),
     providerId: String(row.providerId || ""),
     modelId: String(row.modelId || ""),
     inputTokens: Number(row.inputTokens || 0),
