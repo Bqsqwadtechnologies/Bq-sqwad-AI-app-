@@ -2340,17 +2340,20 @@ export default {
         const body = await readBody(request);
         if (body.modelRegistryId) {
           const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
-          control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+          control = { ...control, ...selected, config: control.config || {} };
         }
-        // Model and credit cost are resolved from trusted server-side configuration.
         body.model = control.modelId || "gpt-image-2";
-        body.creditCost = control.creditCost;
-        return json(await generateImageNative(
+        const mediaCost = configuredMediaProviderCost(control, 1, "image");
+        body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        const result = await generateImageNative(
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id)
-        ));
+        );
+        if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image")
+          .catch(() => notifyAdminOfIssue(env, "/ai/image", 500, "media_cost_ledger_write_failed"));
+        return json(result);
       }
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -2359,17 +2362,20 @@ export default {
         const body = await readBody(request);
         if (body.modelRegistryId) {
           const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
-          control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+          control = { ...control, ...selected, config: control.config || {} };
         }
-        // Model and credit cost are resolved from trusted server-side configuration.
         body.model = control.modelId || "gpt-image-2";
-        body.creditCost = control.creditCost;
-        return json(await editImageNative(
+        const mediaCost = configuredMediaProviderCost(control, 1, "image");
+        body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        const result = await editImageNative(
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id)
-        ));
+        );
+        if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image_edit")
+          .catch(() => notifyAdminOfIssue(env, "/ai/image/edit", 500, "media_cost_ledger_write_failed"));
+        return json(result);
       }
       if (url.pathname === "/ai/video" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); let control=await capability(u.uid,"video_generation"); const b=await readBody(request); if(b.modelRegistryId){const selected=await resolvePublishedModel(b.modelRegistryId,"video-generation");control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost};} b.creditCost=control.creditCost; b.model=control.modelId; return json(await createVideoNative(env,u,b,(uid,cost,name,user)=>chargeCredits(uid,cost,name,user),(uid,id,p)=>commitCredits(uid,id,p),(uid,id)=>reverseCredits(uid,id))); }
       if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
