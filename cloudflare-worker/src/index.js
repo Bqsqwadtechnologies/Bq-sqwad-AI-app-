@@ -1836,7 +1836,7 @@ export default {
         const content = String(body.content || "");
         const mimeType = String(body.mimeType || "text/plain").slice(0,100);
         if (!title || !content.trim()) return json({ error:"file_title_and_content_required" }, 400);
-        if (content.length > 350000) return json({ error:"file_content_too_large" }, 413);
+        if (content.length > 25000) return json({ error:"file_content_too_large" }, 413);
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
         const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : 30;
         const now = new Date();
@@ -3174,5 +3174,33 @@ export default {
       const body = { error: code };
       return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
+  },
+  async scheduled(controller, env, ctx) {
+    // Configure a Cloudflare Cron Trigger (for example, every hour) for this handler.
+    // Expiry is also enforced on every File Box read/write, so missed scheduled runs
+    // cannot make expired items visible to the owner.
+    ctx.waitUntil((async () => {
+      try {
+        const rows = await firestoreQuery("fileBox", { limit:500 });
+        const now = Date.now();
+        for (const row of rows) {
+          const uid = String(row.uid || "");
+          if (!uid || !Array.isArray(row.items)) continue;
+          const items = row.items.filter(item => {
+            const expiresAt = Date.parse(String(item.expiresAt || ""));
+            return Number.isFinite(expiresAt) && expiresAt > now;
+          });
+          if (items.length !== row.items.length) {
+            await firestoreSet("fileBox/" + uid, {
+              uid, items,
+              retentionDays:[7,14,30,90].includes(Number(row.retentionDays)) ? Number(row.retentionDays) : 30,
+              updatedAt:new Date()
+            }, true);
+          }
+        }
+      } catch (error) {
+        console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
+      }
+    })());
   }
 };
