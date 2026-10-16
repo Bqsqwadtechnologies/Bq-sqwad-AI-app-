@@ -1,5 +1,7 @@
 package com.bqsqwad.ai.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +49,24 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<JSONObject?>(null) }
+    val importTextFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            busy = true
+            scope.launch {
+                runCatching {
+                    val imported = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                            ?: error("Could not open the selected file.")
+                    }
+                    val safeContent = imported.take(25000)
+                    val displayName = uri.lastPathSegment?.substringAfterLast('/')?.take(180)?.ifBlank { "Imported text" } ?: "Imported text"
+                    api.saveFileBoxItem(displayName, safeContent, context.contentResolver.getType(uri) ?: "text/plain")
+                }.onSuccess { notice = "Text file imported into File Box. Content over 25,000 characters is truncated."; refresh() }
+                    .onFailure { notice = "Import failed. Choose a readable text file and try again." }
+                busy = false
+            }
+        }
+    }
 
     fun refresh() {
         busy = true
@@ -82,6 +102,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
             }
             OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
             OutlinedTextField(value = content, onValueChange = { content = it.take(25000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
+            OutlinedButton(enabled = !busy, onClick = { importTextFile.launch(arrayOf("text/*", "application/json", "application/xml")) }, modifier = Modifier.fillMaxWidth()) { Text("Import text file") }
             Button(enabled = !busy && title.isNotBlank() && content.isNotBlank(), onClick = {
                 busy = true
                 scope.launch {
