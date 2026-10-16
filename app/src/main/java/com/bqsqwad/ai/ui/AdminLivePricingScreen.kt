@@ -21,6 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -169,6 +172,7 @@ private fun PricingCard(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
+        var modelMenuExpanded by remember { mutableStateOf(false) }
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -189,7 +193,22 @@ private fun PricingCard(
             }
             PriceField("Maximum session minutes", form.maxSessionMinutes) { onChange(form.copy(maxSessionMinutes = it)) }
             if (showVoiceSettings) {
-                PriceField("Realtime model override (optional)", form.modelId) { onChange(form.copy(modelId = it)) }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Realtime model override (optional)", style = MaterialTheme.typography.labelLarge)
+                    androidx.compose.foundation.layout.Box {
+                        OutlinedButton(onClick = { modelMenuExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(form.modelId.ifBlank { "Default — gpt-realtime" })
+                        }
+                        DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
+                            listOf("" to "Default — gpt-realtime", "gpt-realtime" to "gpt-realtime", "gpt-realtime-1.5" to "gpt-realtime-1.5", "gpt-realtime-2" to "gpt-realtime-2").forEach { (id, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = { onChange(form.copy(modelId = id)); modelMenuExpanded = false }
+                                )
+                            }
+                        }
+                    }
+                }
                 PriceField("Default voice", form.defaultVoice) { onChange(form.copy(defaultVoice = it)) }
             } else {
                 PriceField("Transcription model", form.transcriptionModel) { onChange(form.copy(transcriptionModel = it)) }
