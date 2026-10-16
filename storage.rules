@@ -12,6 +12,13 @@ service firebase.storage {
     }
 
     match /auth-background/{allPaths=**} {
+      // Public auth screens can stream the published sign-in/sign-up media.
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /chat-background/{allPaths=**} {
+      // The shared Main Chat background is public to app clients; only admins may replace it.
       allow read: if true;
       allow write: if isAdmin();
     }
