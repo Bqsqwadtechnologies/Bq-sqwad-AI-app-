@@ -1940,7 +1940,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val bytes = input.readBytes()
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    val sample = ((maxOf(bounds.outWidth, bounds.outHeight) + 2399) / 2400).coerceAtLeast(1)
+                    val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
+                    val sample = when {
+                        maxDimension > 9600 -> 4
+                        maxDimension > 6400 -> 3
+                        maxDimension > 3200 -> 2
+                        else -> 1
+                    }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
                 }
             }
@@ -5940,8 +5946,9 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
         Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI voice settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Playback volume · " + (voiceVolume * 100).roundToInt() + "%", style = MaterialTheme.typography.bodyMedium)
+                Text("Live speaker volume · " + (voiceVolume * 100).roundToInt() + "%", style = MaterialTheme.typography.bodyMedium)
                 Slider(value = voiceVolume, onValueChange = ::setVoiceVolume, valueRange = 0f..1f)
+                Text("This controls the live AI call-speaker stream. Device volume buttons remain available during the session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Box {
                     OutlinedButton(onClick = { voicePickerExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("AI voice: " + (availableLiveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
