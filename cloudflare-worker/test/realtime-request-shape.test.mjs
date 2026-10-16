@@ -7,9 +7,14 @@ test("realtime client-secret request uses the GA audio.output.voice field", asyn
   assert.match(source, /session:\s*\{[\s\S]*?audio:\s*\{[\s\S]*?output:\s*\{[\s\S]*?\bvoice\b/);
   assert.doesNotMatch(source, /session:\s*\{\s*type:\s*"realtime"\s*,\s*model\s*,\s*voice:/);
   assert.match(source, /const DEFAULT_REALTIME_MODEL = "gpt-realtime"/);
-  assert.match(source, /gpt-realtime-2\.1/);
 });
 
+
+test("admin realtime model selector includes documented current realtime models", async () => {
+  const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/AdminLivePricingScreen.kt", import.meta.url), "utf8");
+  assert.match(source, /gpt-realtime-2\\.1/);
+  assert.match(source, /gpt-realtime/);
+});
 
 test("realtime public errors use safe codes rather than provider diagnostics", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
