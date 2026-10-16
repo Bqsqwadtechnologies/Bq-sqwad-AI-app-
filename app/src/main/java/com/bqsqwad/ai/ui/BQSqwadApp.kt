@@ -2080,6 +2080,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var privateChat by rememberSaveable { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("Ready") }
     var creditNotice by remember { mutableStateOf<String?>(null) }
+    var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
@@ -2201,6 +2202,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val cycleDateKey = "credit_cycle_date_$userKey"
         val previousCycleDate = creditPrefs.getString(cycleDateKey, "").orEmpty()
         val previousBaseline = creditPrefs.getFloat(baselineKey, -1f).toDouble()
+        val dismissedKey = "credit_notice_dismissed_${userKey}_${cycleDate}"
+        creditNoticeDismissed = creditPrefs.getBoolean(dismissedKey, false)
+        if (available > 0.0) creditNotice = null
         val newCycle = cycleDate.isNotBlank() && cycleDate != previousCycleDate
         val baseline = if (newCycle || previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
         creditPrefs.edit().putString(cycleDateKey, cycleDate).apply()
@@ -2746,8 +2750,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             error = "Attach up to four images and four PDF files per message."
                         } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
                             creditsExhausted = true
-                            creditNotice = "You need more credits to continue. Choose Buy credits to add credits."
-                            error = creditNotice
+                            if (!creditNoticeDismissed) {
+                                creditNotice = "You need more credits to continue. Choose Buy credits to add credits."
+                                error = creditNotice
+                            } else {
+                                error = null
+                            }
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
                                 scope.launch(Dispatchers.IO) {
@@ -2991,6 +2999,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             Text(notice, style = MaterialTheme.typography.bodySmall)
                         }
                         TextButton(onClick = { if (creditsExhausted) openCredits() else openPlans() }) { Text(if (creditsExhausted) "Buy credits" else "View plans") }
+                        IconButton(onClick = {
+                            val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
+                            val creditPrefs = accountPreferences(context, "bq_ui")
+                            val cycleDate = creditPrefs.getString("credit_cycle_date_${userKey}", "").orEmpty()
+                            creditPrefs.edit().putBoolean("credit_notice_dismissed_${userKey}_${cycleDate}", true).apply()
+                            creditNoticeDismissed = true
+                            creditNotice = null
+                        }) { Icon(Icons.Default.Close, contentDescription = "Dismiss usage notice") }
                     }
                 }
             }
