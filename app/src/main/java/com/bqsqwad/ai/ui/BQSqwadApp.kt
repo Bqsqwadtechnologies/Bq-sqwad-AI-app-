@@ -5892,6 +5892,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
     var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
+    var settingsCategory by remember(uid) { mutableStateOf("All settings") }
     val chatBackgroundPrefs = remember(uid) { accountPreferences(context, "bq_ui") }
     var customChatBackgroundUri by remember(uid) { mutableStateOf(chatBackgroundPrefs.getString("chat_background_uri", null)) }
     var changingChatBackground by remember { mutableStateOf(false) }
@@ -6005,6 +6006,17 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("All settings", "Account", "Payments & Billing", "Appearance", "Chat & AI Features", "Live AI", "Notifications", "Privacy & Data", "About")) { category ->
+                        FilterChip(
+                            selected = settingsCategory == category,
+                            onClick = { settingsCategory = category },
+                            label = { Text(category) }
+                        )
+                    }
+                }
+            }
             scheduledDeletionAt?.let { deadline ->
                 item {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
@@ -6085,7 +6097,8 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
+            if (settingsCategory == "All settings" || settingsCategory == "Account") {
+item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
             item {
                 OutlinedButton(
                     onClick = { onSignOut() },
@@ -6106,7 +6119,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscriptions in Google Play") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Payments & Billing") {
+item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscriptions in Google Play") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
@@ -6145,7 +6161,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             item {
                 SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
             }
-            item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Appearance") {
+item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             item {
                 SurfaceCard("Theme", "Choose how BQ Sqwad AI looks across the native app.")
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -6214,7 +6233,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     ) { Text("Reset text size") }
                 }
             }
-            item { SettingsSectionTitle("Chat & AI Features", "Control how the assistant works for you") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Chat & AI Features") {
+item { SettingsSectionTitle("Chat & AI Features", "Control how the assistant works for you") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("Conversation history", "Save conversations for History.", chatHistory) { chatHistory = it; putBoolean("chat_history", it) }
@@ -6231,7 +6253,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Live AI", "Voice, camera and Companion controls") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Live AI") {
+item { SettingsSectionTitle("Live AI", "Voice, camera and Companion controls") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("Read-aloud replies", "Show spoken playback controls for text responses.", voiceReplies) { voiceReplies = it; putBoolean("voice_replies", it) }
@@ -6248,7 +6273,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("AI features", "Feature-specific controls stay inside their workspaces") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Chat & AI Features") {
+item { SettingsSectionTitle("AI features", "Open any AI workspace from here instead of the left menu") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("TruthGuard evidence sources", "Show source-backed evidence and reliability details.", truthGuardSources) {
@@ -6271,7 +6299,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Notifications", "Stay informed without losing control") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Notifications") {
+item { SettingsSectionTitle("Notifications", "Stay informed without losing control") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingsToggleCard("Notifications", "Receive supported plan, generation, business and security notifications.", notifications) {
@@ -6285,11 +6316,14 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("File Box", "Control how long saved files remain available") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Privacy & Data") {
+item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for quick access") }
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Automatic expiry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Choose the retention period for supported text files saved to your File Box. Expired entries are removed on access and by the Worker’s configured daily Cloudflare cleanup trigger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Choose how long uploaded files, pictures and text documents remain in your File Box. Expired stored files are removed from private storage by the scheduled Worker cleanup.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(7, 14, 30, 90).forEach { days ->
                             FilterChip(selected = fileBoxRetentionDays == days, onClick = {
@@ -6313,14 +6347,20 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center to manage consent and account data") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "Privacy & Data") {
+item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center to manage consent and account data") }
             item {
                 FeatureCard("Open Settings & Privacy", "Manage AI training participation, privacy policy, account data, payment methods and account protection.") {
                     showSettingsPrivacyDirectory = true
                 }
             }
 
-            item { SettingsSectionTitle("About", "BQ Sqwad AI") }
+            
+            }
+            if (settingsCategory == "All settings" || settingsCategory == "About") {
+item { SettingsSectionTitle("About", "BQ Sqwad AI") }
             item {
                 Surface(
                     Modifier.fillMaxWidth(),
@@ -6334,6 +6374,8 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                                             }
                 }
             }
+            }
+            
         }
     }
 
