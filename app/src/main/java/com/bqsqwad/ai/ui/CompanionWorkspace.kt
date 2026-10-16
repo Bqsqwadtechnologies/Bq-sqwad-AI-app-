@@ -415,8 +415,8 @@ private fun CompanionFloatingWords(modifier: Modifier = Modifier) {
         canvas.clipRect(0f, 0f, size.width, size.height)
         words.forEachIndexed { index, word ->
             paint.textSize = (10 + index % 4 * 2) * density
-            paint.alpha = if (reduceMotion) 58 else (36 + ((kotlin.math.sin((phase * 6.28318f) + index) + 1f) * 20f).toInt()).coerceIn(25, 78)
             paint.color = if (index % 2 == 0) android.graphics.Color.rgb(70, 155, 245) else android.graphics.Color.rgb(73, 190, 183)
+            paint.alpha = if (reduceMotion) 58 else (36 + ((kotlin.math.sin(((phase * 6.28318f) + index).toDouble()).toFloat() + 1f) * 20f).toInt()).coerceIn(25, 78)
             val yBase = word.third * size.height
             val y = if (reduceMotion) yBase else (yBase - phase * size.height + size.height * 2f) % size.height
             canvas.drawText(word.first, word.second * size.width, y, paint)
