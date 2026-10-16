@@ -19,6 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -78,11 +81,25 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
 
     LaunchedEffect(accessRefresh) {
         loadingAccess = true
+        val api = WorkspaceApiClient()
+        val coreData = withTimeoutOrNull(15_000L) {
+            coroutineScope {
+                val catalogRequest = async { api.companionCatalog() }
+                val entitlementRequest = async { api.entitlements() }
+                val settingsRequest = async { api.companionSettings() }
+                Triple(catalogRequest.await(), entitlementRequest.await(), settingsRequest.await())
+            }
+        }
+        if (coreData == null) {
+            accessLoadedSuccessfully = false
+            notice = "Companion plan checks took too long. Check your connection and retry."
+            currentPlan = null
+            loadingAccess = false
+            return@LaunchedEffect
+        }
+        val (catalog, entitlements, settingsResponse) = coreData
         runCatching {
-            val api = WorkspaceApiClient()
-            val catalog = api.companionCatalog()
-            val entitlements = api.entitlements()
-            val companionSettings = api.companionSettings().optJSONObject("settings") ?: JSONObject()
+            val companionSettings = settingsResponse.optJSONObject("settings") ?: JSONObject()
             notifications = companionSettings.optBoolean("notifications", true)
             saveHistory = companionSettings.optBoolean("saveHistory", true)
             safeMode = companionSettings.optBoolean("safeMode", true)
