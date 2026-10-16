@@ -76,7 +76,8 @@ object ChatAttachmentReader {
                 PreparedChatAttachment(name, mime, text = text)
             }
             else -> error("Unsupported attachment type for '" + name + "'. Use an image, PDF, DOCX, XLSX, PPTX, or text-based document.")
-
+        }
+    }
 
     internal fun extractOfficeText(bytes: ByteArray, extension: String): String {
         val entries = linkedMapOf<String, String>()
