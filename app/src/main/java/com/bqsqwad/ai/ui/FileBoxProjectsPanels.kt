@@ -169,8 +169,8 @@ internal fun ProjectsPanel(onDismiss: () -> Unit) {
             Text("Projects", style = MaterialTheme.typography.headlineSmall)
             Text("Create project notes and keep a working draft synced to your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(value = title, onValueChange = { title = it.take(160) }, modifier = Modifier.fillMaxWidth(), label = { Text("Project title") }, singleLine = true)
-            OutlinedTextField(value = description, onValueChange = { description = it.take(4000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Description") }, minLines = 2)
-            OutlinedTextField(value = content, onValueChange = { content = it.take(30000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Working notes") }, minLines = 3)
+            OutlinedTextField(value = description, onValueChange = { description = it.take(1500) }, modifier = Modifier.fillMaxWidth(), label = { Text("Description") }, minLines = 2)
+            OutlinedTextField(value = content, onValueChange = { content = it.take(5000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Working notes") }, minLines = 3)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = !busy && title.isNotBlank(), onClick = {
                     busy = true
