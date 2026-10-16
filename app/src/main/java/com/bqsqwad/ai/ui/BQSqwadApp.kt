@@ -2544,9 +2544,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqLifecycleNotifications.notifyResponseFinished(context, notificationsEnabled)
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
-                    if (!privateChat && selectedAttachments.isEmpty() && text.isNotBlank() && cleanReply.isNotBlank()) {
+                    // Keep training submission opt-in at the Android boundary as well as
+                    // enforcing consent on the Worker. A normal chat must not even be
+                    // sent to the contribution endpoint when the user has opted out.
+                    val trainingContributionAllowed = accountPreferences(context)
+                        .getBoolean("training_consent", false)
+                    if (!privateChat && trainingContributionAllowed && selectedAttachments.isEmpty() &&
+                        text.isNotBlank() && cleanReply.isNotBlank()) {
                         scope.launch(Dispatchers.IO) {
-                            runCatching { WorkspaceApiClient().submitTrainingContribution(text, cleanReply, "main_chat", false) }
+                            runCatching {
+                                WorkspaceApiClient().submitTrainingContribution(text, cleanReply, "main_chat", false)
+                            }
                         }
                     }
                     if (shouldAutoSaveHistory()) {
