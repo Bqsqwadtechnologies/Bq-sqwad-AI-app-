@@ -97,6 +97,21 @@ class CoreTest {
         assertFalse(isImageGenerationRequest("What is image generation?"))
     }
 
+    @Test fun creditOnlyWorkspacesNeverWaitForOrRequireAPlan() {
+        val snapshot = WorkspaceAccessSnapshot.empty()
+        listOf(
+            Workspace.CHAT,
+            Workspace.SEARCH,
+            Workspace.CAMERA,
+            Workspace.VOICE,
+            Workspace.VIDEO,
+            Workspace.PERSONAL
+        ).forEach { workspace ->
+            assertTrue("$workspace must be immediately accessible", snapshot.hasVerifiedAccess(workspace))
+            assertFalse("$workspace must not be plan gated", snapshot.requiresPaidAccess(workspace))
+        }
+    }
+
     @Test fun adminTestModeBypassesWorkspacePlanGatesWithoutGrantingEntitlements() {
         val catalog = org.json.JSONObject().put("plans", org.json.JSONArray().put(
             org.json.JSONObject()
