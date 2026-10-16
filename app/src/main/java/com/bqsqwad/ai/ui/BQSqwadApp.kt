@@ -2544,19 +2544,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqLifecycleNotifications.notifyResponseFinished(context, notificationsEnabled)
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
-                    // Keep training submission opt-in at the Android boundary as well as
-                    // enforcing consent on the Worker. A normal chat must not even be
-                    // sent to the contribution endpoint when the user has opted out.
-                    val trainingContributionAllowed = accountPreferences(context)
-                        .getBoolean("training_consent", false)
-                    if (!privateChat && trainingContributionAllowed && selectedAttachments.isEmpty() &&
-                        text.isNotBlank() && cleanReply.isNotBlank()) {
-                        scope.launch(Dispatchers.IO) {
-                            runCatching {
-                                WorkspaceApiClient().submitTrainingContribution(text, cleanReply, "main_chat", false)
-                            }
-                        }
-                    }
+                    // Training contributions are never submitted automatically from chat.
+                    // A future explicit contribution action must submit only after fresh consent.
                     if (shouldAutoSaveHistory()) {
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
                         runCatching {
@@ -4544,14 +4533,6 @@ private fun AiTaskWorkspace(
                             streamingResult += delta
                         })
                         result = reply.text
-                        if (prompt.trim().isNotBlank() && reply.text.isNotBlank()) {
-                            val trainingPrompt = prompt.trim()
-                            val trainingResponse = reply.text
-                            // Server-side consent is mandatory; this request is ignored when the user has not opted in.
-                            scope.launch {
-                                runCatching { WorkspaceApiClient().submitTrainingContribution(trainingPrompt, trainingResponse, capability, false) }
-                            }
-                        }
                     } catch (t: Throwable) {
                         if (t is kotlinx.coroutines.CancellationException) {
                             result = streamingResult
