@@ -45,6 +45,7 @@ private data class CompanionPlan(
 @Composable
 fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var personality by remember { mutableStateOf("Caring") }
     var mode by remember { mutableStateOf("Chat") }
     var input by remember { mutableStateOf("") }
