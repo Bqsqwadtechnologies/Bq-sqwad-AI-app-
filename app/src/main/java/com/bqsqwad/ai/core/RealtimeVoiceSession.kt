@@ -448,10 +448,10 @@ class RealtimeVoiceSession(
     }
 
     // Realtime PCM can arrive quieter than normal media on some Android speaker routes.
-    // Apply modest software gain for Live Voice and Live Camera speech, with
-    // signed-16-bit saturation to prevent integer overflow.
+    // Raise the software output gain for Live Voice and Live Camera speech while
+    // saturating signed-16-bit samples to avoid overflow or wraparound distortion.
     private fun amplifyOutputPcm(bytes: ByteArray): ByteArray {
-        val gain = 1.5
+        val gain = 2.0
         var offset = 0
         while (offset + 1 < bytes.size) {
             val sample = ((bytes[offset + 1].toInt() shl 8) or (bytes[offset].toInt() and 0xff)).toShort().toInt()
