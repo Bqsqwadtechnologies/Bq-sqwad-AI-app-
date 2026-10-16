@@ -1179,7 +1179,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     item {
                         NavigationDrawerItem(
                             label = { Text("New Chat") },
-                            selected = workspace == null && !history && !settings,
+                            selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans,
                             onClick = {
                                 shellScope.launch {
                                     drawerState.close()
@@ -1195,7 +1195,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Chat History") },
                             selected = history,
-                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false } },
+                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1212,7 +1212,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Plans & Billing") },
                             selected = plans,
-                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false } },
+                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1220,7 +1220,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             label = { Text("Settings") },
                             selected = settings,
-                            onClick = { shellScope.launch { drawerState.close(); settings = true; history = false; plans = false; workspace = null; featureHub = false } },
+                            onClick = { shellScope.launch { drawerState.close(); settings = true; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
