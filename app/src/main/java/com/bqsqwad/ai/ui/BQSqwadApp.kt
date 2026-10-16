@@ -2726,24 +2726,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    WebsiteApiClient().streamChat(
-                        conversation = messages.take(aiIndex).map { message ->
-                            WebsiteChatMessage(
-                                id = message.id,
-                                role = if (message.mine) "user" else "assistant",
-                                content = message.text
-                            )
-                        },
-                        latestUserText = requestPrompt,
-                        system = requestSystem,
-                        onDelta = { delta ->
-                            scope.launch(Dispatchers.Main) {
-                                rawStreamText += delta
-                                val current = messages.getOrNull(aiIndex)
-                                if (current != null) messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(rawStreamText) else rawStreamText)
-                            }
+                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, onDelta = { delta ->
+                        scope.launch(Dispatchers.Main) {
+                            rawStreamText += delta
+                            val current = messages.getOrNull(aiIndex)
+                            if (current != null) messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(rawStreamText) else rawStreamText)
                         }
-                    )
+                    })
                 }
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
