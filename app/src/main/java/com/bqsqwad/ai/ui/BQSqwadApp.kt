@@ -5733,6 +5733,9 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var themeMode by remember(uid) { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
     var accent by remember(uid) { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
     var trainingConsent by remember(uid) { mutableStateOf(prefs.getBoolean("training_consent", false)) }
+    var showSettingsPrivacyDirectory by remember { mutableStateOf(false) }
+    var showTrainingSettings by remember { mutableStateOf(false) }
+    var trainingSaving by remember { mutableStateOf(false) }
     var chatHistory by remember(uid) { mutableStateOf(prefs.getBoolean("chat_history", true)) }
     var autoSave by remember(uid) { mutableStateOf(prefs.getBoolean("auto_save", true)) }
     var memory by remember(uid) { mutableStateOf(prefs.getBoolean("memory_enabled", true)) }
@@ -5744,6 +5747,23 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var notifications by remember(uid) { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
     var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
+    val aiBirthTimestamp = remember(uid) { BqLifecycleNotifications.birthTimestamp(context) }
+    val aiAgeLabel = remember(aiBirthTimestamp) {
+        val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
+        val months = (days / 30.4375).toInt()
+        when {
+            days < 1L -> "less than one day"
+            days < 30L -> "$days day" + if (days == 1L) "" else "s"
+            months < 12 -> "$months month" + if (months == 1) "" else "s"
+            else -> {
+                val years = months / 12
+                val remainingMonths = months % 12
+                val yearLabel = if (years == 1) "year" else "years"
+                val monthLabel = if (remainingMonths == 1) "month" else "months"
+                "$years $yearLabel" + if (remainingMonths > 0) " $remainingMonths $monthLabel" else ""
+            }
+        }
+    }
     var consentStatus by remember { mutableStateOf<String?>(null) }
     var entitlements by remember(uid) { mutableStateOf(emptyList<JSONObject>()) }
     var loadingAccount by remember(uid) { mutableStateOf(true) }
@@ -5970,6 +5990,12 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
+            item {
+                SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
+            }
+            item {
+                FeatureCard("Settings & Privacy", "Manage AI training participation, payment methods, account protection, privacy policy and personal data controls.") { showSettingsPrivacyDirectory = true }
+            }
             item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             item {
                 SurfaceCard("Theme", "Choose how BQ Sqwad AI looks across the native app.")
@@ -6077,28 +6103,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
-            item { SettingsSectionTitle("Privacy & data", "Your consent and account data") }
+            item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center to manage consent and account data") }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SurfaceCard("AI training consent", if (trainingConsent) "Optional training consent is on." else "Optional training consent is off.")
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = trainingConsent, onCheckedChange = { enabled ->
-                            trainingConsent = enabled
-                            prefs.edit().putBoolean("training_consent", enabled).apply()
-                            consentStatus = "Saving consent…"
-                            scope.launch {
-                                runCatching { WorkspaceApiClient().updateTrainingConsent(enabled) }
-                                    .onSuccess { consentStatus = "Training consent updated." }
-                                    .onFailure { consentStatus = "Could not update consent. Try again." }
-                            }
-                        })
-                        Spacer(Modifier.width(8.dp))
-                        Text("Allow non-private training activity to improve the service.", Modifier.weight(1f))
-                    }
-                    consentStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    FeatureCard("Privacy Policy", "Read the complete BQ Sqwad AI Privacy Policy.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) }
-                    FeatureCard("Terms & Conditions", "Read the complete BQ Sqwad AI Terms & Conditions.") { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) }
-                    FeatureCard("Delete account and data", "Permanently delete the account and associated app data.") { showDeleteAccount = true; deleteError = null }
+                FeatureCard("Open Settings & Privacy", "Manage AI training participation, privacy policy, account data, payment methods and account protection.") {
+                    showSettingsPrivacyDirectory = true
                 }
             }
 
@@ -6119,6 +6127,73 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
         }
     }
 
+    if (showSettingsPrivacyDirectory) {
+        ModalBottomSheet(onDismissRequest = { showSettingsPrivacyDirectory = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Settings & Privacy", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("You control what is remembered, contributed and connected. AI training is optional and can be switched off at any time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FeatureCard("AI Training & Data", if (trainingConsent) "Participation is enabled. Review the safeguards and turn it off whenever you want." else "Participation is off. Review the optional contribution controls.") {
+                    showSettingsPrivacyDirectory = false
+                    showTrainingSettings = true
+                }
+                FeatureCard("Payment method", "Manage purchases and subscriptions through Google Play Billing.") {
+                    showSettingsPrivacyDirectory = false
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/account"))) }
+                        .onFailure { settingsNotice = "Google Play payment management could not be opened on this device." }
+                }
+                FeatureCard("Account protection", "Manage available sign-in and account security controls.") {
+                    showSettingsPrivacyDirectory = false
+                    onOpenAccountProtection()
+                }
+                FeatureCard("Privacy Policy", "Read how BQ Sqwad AI handles account data.") {
+                    showSettingsPrivacyDirectory = false
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy")))
+                }
+                FeatureCard("Terms & Conditions", "Review the service terms.") {
+                    showSettingsPrivacyDirectory = false
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms")))
+                }
+                FeatureCard("Delete account and data", "Schedule deletion of your account and associated app data.") {
+                    showSettingsPrivacyDirectory = false
+                    showDeleteAccount = true
+                    deleteError = null
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+    }
+    if (showTrainingSettings) {
+        ModalBottomSheet(onDismissRequest = { if (!trainingSaving) showTrainingSettings = false }) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("AI Training & Data", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("This optional setting allows BQ Sqwad AI to contribute eligible text-only, non-private prompts and responses to a protected training-data library. Attachments, camera frames, live audio, and chats marked Private are excluded. The server checks your current consent before saving anything.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("This builds a reviewable data library; it does not automatically retrain a foundation model or change model weights.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Contribute eligible chats", fontWeight = FontWeight.SemiBold)
+                        Text(if (trainingConsent) "On — eligible text-only chats may be submitted." else "Off — chat text is not submitted to the training library.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = trainingConsent, enabled = !trainingSaving, onCheckedChange = { enabled ->
+                        trainingSaving = true
+                        consentStatus = "Saving your choice…"
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().updateTrainingConsent(enabled) }
+                                .onSuccess {
+                                    trainingConsent = enabled
+                                    prefs.edit().putBoolean("training_consent", enabled).apply()
+                                    consentStatus = if (enabled) "AI training participation enabled." else "AI training participation disabled; stored contributions were requested for deletion."
+                                }
+                                .onFailure { consentStatus = "Could not update your choice. Your previous server setting remains in effect." }
+                            trainingSaving = false
+                        }
+                    })
+                }
+                consentStatus?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = { showTrainingSettings = false }, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+    }
     if (showDeleteAccount) {
         AlertDialog(
             onDismissRequest = { if (!deletingAccount) showDeleteAccount = false },
