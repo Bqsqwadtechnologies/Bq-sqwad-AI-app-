@@ -41,8 +41,8 @@ private fun businessPlanTierOrder(plan: LivePlan): Int {
     return when {
         key.contains("bizstarter") || key.contains("businessstarter") -> 0
         key.contains("bizbasic") || key.contains("businessbasic") -> 1
-        key.contains("bizstandard") || key.contains("businessstandard") -> 2
-        key.contains("bizprofessional") || key.contains("businessprofessional") || key.contains("professionalbusiness") -> 3
+        key.contains("bizprofessional") || key.contains("businessprofessional") || key.contains("professionalbusiness") -> 2
+        key.contains("bizstandard") || key.contains("businessstandard") -> 3
         key.contains("bizbusiness") || key.contains("businessadvanced") -> 4
         key.contains("bizenterprise") || key.contains("businessenterprise") -> 5
         else -> 100
