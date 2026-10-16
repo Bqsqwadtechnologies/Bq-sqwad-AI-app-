@@ -1236,8 +1236,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                     }
                                 },
                                 selected = false,
-                                enabled = openingDrawerHistoryId == null,
                                 onClick = {
+                                    if (openingDrawerHistoryId != null) return@NavigationDrawerItem
                                     openingDrawerHistoryId = historyItem.id
                                     shellScope.launch {
                                         runCatching { HistoryApiClient().load(historyItem.id) }
