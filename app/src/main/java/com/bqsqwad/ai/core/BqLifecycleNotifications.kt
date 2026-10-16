@@ -154,12 +154,8 @@ object BqLifecycleNotifications {
         }
         val firstCalendar = Calendar.getInstance().apply { timeInMillis = firstOpen }
         val nowCalendar = Calendar.getInstance().apply { timeInMillis = now }
-        var yearIndex = (nowCalendar.get(Calendar.YEAR) - firstCalendar.get(Calendar.YEAR)).coerceAtLeast(1)
-        var yearAt = yearAnniversary(firstOpen, yearIndex)
-        if (yearAt > now && yearIndex > 1) {
-            yearIndex--
-            yearAt = yearAnniversary(firstOpen, yearIndex)
-        }
+        val yearIndex = (nowCalendar.get(Calendar.YEAR) - firstCalendar.get(Calendar.YEAR)).coerceAtLeast(1)
+        val yearAt = yearAnniversary(firstOpen, yearIndex)
         result += AgeMilestone(
             "year:$yearIndex", yearAt, "Happy BQ Sqwad AI Birthday!",
             "Another year of growing, learning, and creating together. Celebrate your AI birthday!", true
