@@ -1,4 +1,4 @@
-name: BQ Sqwad AI — Signed Release AAB
+name: BQ Sqwad AI — Signed Release APK and AAB
 
 on:
   workflow_dispatch:
@@ -7,10 +7,10 @@ permissions:
   contents: read
 
 jobs:
-  release-aab:
-    name: Build Signed Release AAB
+  release:
+    name: Build Signed Release APK and AAB
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     env:
       KEYSTORE_PATH: ${{ github.workspace }}/app/release-upload.jks
@@ -29,6 +29,7 @@ jobs:
           java-version: "17"
 
       - name: Restore Release Keystore
+        shell: bash
         run: |
           set -euo pipefail
           test -n "$KEYSTORE_PASSWORD"
@@ -39,16 +40,33 @@ jobs:
           chmod 600 "$KEYSTORE_PATH"
           test -s "$KEYSTORE_PATH"
 
-      - name: Build Signed Release AAB
+      - name: Set Up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.5.0"
-      - run: gradle :app:bundleRelease
+
+      - name: Build Signed Release APK and AAB
+        run: gradle :app:assembleRelease :app:bundleRelease
+
+      - name: Verify APK and AAB Outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload Signed Release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: BQ-Sqwad-AI-Signed-Release-APK
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Signed Release AAB
         uses: actions/upload-artifact@v7
         with:
           name: BQ-Sqwad-AI-Signed-Release-AAB
-          path: app/build/outputs/bundle/release/*.aab
+          path: app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7
