@@ -6040,7 +6040,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
     var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
-    var settingsCategory by remember(uid) { mutableStateOf("All settings") }
+    var settingsCategory by remember(uid) { mutableStateOf("Account") }
     val chatBackgroundPrefs = remember(uid) { accountPreferences(context, "bq_ui") }
     var customChatBackgroundUri by remember(uid) { mutableStateOf(chatBackgroundPrefs.getString("chat_background_uri", null)) }
     var changingChatBackground by remember { mutableStateOf(false) }
@@ -6540,7 +6540,17 @@ item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for q
             if (settingsCategory == "All settings" || settingsCategory == "Privacy & Data") {
 item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center to manage consent and account data") }
             item {
-                FeatureCard("Open Settings & Privacy", "Manage AI training participation, privacy policy, account data, payment methods and account protection.") {
+                FeatureCard("Privacy Policy", "Read BQ Sqwad AI's privacy policy.") {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy")))
+                }
+            }
+            item {
+                FeatureCard("Terms & Conditions", "Read the terms governing use of BQ Sqwad AI.") {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms")))
+                }
+            }
+            item {
+                FeatureCard("Open Settings & Privacy", "Manage AI training participation, account data and account protection.") {
                     showSettingsPrivacyDirectory = true
                 }
             }
@@ -6617,14 +6627,6 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                 FeatureCard("Account protection", "Manage available sign-in and account security controls.") {
                     showSettingsPrivacyDirectory = false
                     onOpenAccountProtection()
-                }
-                FeatureCard("Privacy Policy", "Read how BQ Sqwad AI handles account data.") {
-                    showSettingsPrivacyDirectory = false
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy")))
-                }
-                FeatureCard("Terms & Conditions", "Review the service terms.") {
-                    showSettingsPrivacyDirectory = false
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms")))
                 }
                 FeatureCard("Delete account and data", "Schedule deletion of your account and associated app data.") {
                     showSettingsPrivacyDirectory = false
