@@ -50,6 +50,16 @@ class CoreTest {
     }
 
 
+    @Test fun realtimeProviderRejectionDoesNotExposeStatusOrDiagnosticCodesToUsers() {
+        val shown = com.bqsqwad.ai.ui.safeUserFacingIssue(
+            IllegalStateException("realtime_session_failed (provider status 400)"),
+            "Live Voice is getting ready. Please try again in a moment."
+        )
+        assertFalse(shown.contains("400"))
+        assertFalse(shown.contains("realtime_session_failed"))
+        assertFalse(shown.contains("provider_not_configured"))
+    }
+
     @Test fun workspaceRedirectStorePublishesAndClearsTarget() {
         WorkspaceRedirectStore.clear()
         WorkspaceRedirectStore.publish(org.json.JSONObject().put("workspace", "CHAT").put("message", "Open Main Chat"))
