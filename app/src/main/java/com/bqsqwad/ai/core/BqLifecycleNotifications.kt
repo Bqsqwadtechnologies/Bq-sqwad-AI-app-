@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import java.util.concurrent.TimeUnit
+import java.util.Calendar
 
 /** Privacy-safe local lifecycle notices. Notification content never includes account or project details. */
 object BqLifecycleNotifications {
@@ -152,11 +153,45 @@ object BqLifecycleNotifications {
             context, BIRTHDAY_REQUEST_CODE, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
-        val trigger = maxOf(System.currentTimeMillis() + 60_000L, firstOpen + TimeUnit.DAYS.toMillis(nextDay))
+        val now = System.currentTimeMillis()
+        val milestoneAt = firstOpen + TimeUnit.DAYS.toMillis(nextDay)
+        val trigger = politeBirthdayTrigger(milestoneAt, now)
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
             else alarmManager.set(AlarmManager.RTC_WAKEUP, trigger, pending)
         }
+    }
+
+    private fun politeBirthdayTrigger(targetAt: Long, now: Long): Long {
+        val calendar = Calendar.getInstance()
+        if (targetAt > now) {
+            calendar.timeInMillis = targetAt
+            val hour = calendar.get(Calendar.HOUR_OF_DAY)
+            if (hour in 9..19) return targetAt
+            calendar.set(Calendar.HOUR_OF_DAY, 9)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            if (calendar.timeInMillis < now) calendar.add(Calendar.DAY_OF_YEAR, 1)
+            return calendar.timeInMillis
+        }
+        calendar.timeInMillis = now
+        if (AppVisibility.isForeground || calendar.get(Calendar.HOUR_OF_DAY) >= 20) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            calendar.set(Calendar.HOUR_OF_DAY, 9)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            return calendar.timeInMillis
+        }
+        if (calendar.get(Calendar.HOUR_OF_DAY) < 9) {
+            calendar.set(Calendar.HOUR_OF_DAY, 9)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            return calendar.timeInMillis
+        }
+        return now + 60_000L
     }
 
     fun notifyResponseFinished(context: Context, notificationsEnabled: Boolean) {
