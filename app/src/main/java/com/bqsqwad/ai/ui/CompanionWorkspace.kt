@@ -43,8 +43,9 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id in ids
     val memoryUnlocked = hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
-    val voiceUnlocked = hasPlan("companionplus", "companionpremium", "companionultimate")
-    val cameraUnlocked = hasPlan("companionpremium", "companionultimate")
+    // Live Voice and Live Camera are credit-metered, never Companion-plan gated.
+    val voiceUnlocked = true
+    val cameraUnlocked = true
 
     fun selectMode(next: String) {
         val unlocked = when (next) {
@@ -58,8 +59,6 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             notice = null
         } else {
             notice = when (next) {
-                "Voice" -> "Companion Voice requires Companion Plus or higher."
-                "Camera" -> "Companion Camera requires Companion Premium or Ultimate."
                 "Memory" -> "Companion Memory requires Companion Basic or higher."
                 else -> "This Companion feature requires an eligible plan."
             }
@@ -178,7 +177,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
-                        Text(currentPlan?.name ?: "Plan unavailable", fontWeight = FontWeight.Bold)
+                        Text(currentPlan?.name ?: if (loadingAccess) "Checking plan…" else "Plan details unavailable", fontWeight = FontWeight.Bold)
                         currentPlan?.price?.entries?.joinToString(" • ") { (period, value) ->
                             period.replaceFirstChar { it.uppercase() } + ": " + value
                         }?.takeIf { it.isNotBlank() }?.let {
@@ -202,8 +201,8 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat") })
-                    FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text(if (voiceUnlocked) "Voice" else "Voice • Plus+") })
-                    FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text(if (cameraUnlocked) "Camera" else "Camera • Premium+") })
+                    FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text("Voice", maxLines = 1, softWrap = false) })
+                    FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text("Camera", maxLines = 1, softWrap = false) })
                     FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "Memory • Basic+") })
                 }
             }
