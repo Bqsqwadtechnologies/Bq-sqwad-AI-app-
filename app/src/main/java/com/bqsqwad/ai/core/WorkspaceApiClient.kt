@@ -411,6 +411,10 @@ class WorkspaceApiClient {
         })
     suspend fun setAdminAuthBackgroundVideo(url:String, enabled:Boolean=true):JSONObject =
         request("/admin/auth-background-video", payload=JSONObject().put("url", url).put("enabled", enabled))
+    suspend fun setAdminFeatureAnnouncement(id:String, title:String, body:String, feature:String, enabled:Boolean):JSONObject =
+        request("/admin/feature-announcement", payload=JSONObject().apply {
+            put("id", id); put("title", title); put("body", body); put("feature", feature); put("enabled", enabled)
+        })
 
     suspend fun adminStaff():JSONObject = request("/admin/staff","GET")
     suspend fun adminStaffRoles():JSONObject = request("/admin/staff/roles","GET")
