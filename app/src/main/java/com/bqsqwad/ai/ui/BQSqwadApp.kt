@@ -3092,11 +3092,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 .padding(top = 2.dp, bottom = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                        .clickable(onClick = openFeatures)
+                                    .clickable(onClick = openFeatures)
                                     .padding(horizontal = 18.dp)
                             ) {
                                 FloatingLogo(Modifier)
@@ -3106,7 +3106,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     shadowElevation = 8.dp
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
