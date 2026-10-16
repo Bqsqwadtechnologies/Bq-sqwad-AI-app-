@@ -63,7 +63,28 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
-  const customerCredits = providerCostCredits * markup;
+  const sharedMetering = pricing?.sharedCreditMetering && typeof pricing.sharedCreditMetering === "object"
+    ? pricing.sharedCreditMetering
+    : null;
+  let customerCredits;
+  if (sharedMetering) {
+    // Match the website's creditsForUsage() formula exactly: fractional per-token
+    // rates, cached-input discount, model weight, global conversion, minimum,
+    // and decimal precision all come from config/aiModels in Firebase.
+    const precision = Math.min(6, Math.max(0, Math.round(Number(sharedMetering.precision ?? 4))));
+    const weight = Math.max(0, Number(sharedMetering.conversionRate ?? 1)) *
+      Math.max(0, Number(pricing.sharedModelMultiplier ?? 1));
+    const rawCredits = (
+      Math.max(0, inputTokens - cachedInputTokens) * Math.max(0, Number(sharedMetering.creditsPerInputToken ?? 0)) +
+      cachedInputTokens * Math.max(0, Number(sharedMetering.creditsPerCachedInputToken ?? 0)) +
+      outputTokens * Math.max(0, Number(sharedMetering.creditsPerOutputToken ?? 0))
+    ) * weight;
+    const minimumCredits = Math.max(0, Number(sharedMetering.minimumCredits ?? 0));
+    const factor = 10 ** precision;
+    customerCredits = Math.round(Math.max(minimumCredits, rawCredits) * factor) / factor;
+  } else {
+    customerCredits = providerCostCredits * markup;
+  }
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
@@ -136,8 +157,21 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     (rates.inputPriceUsdPerMillion + rates.outputPriceUsdPerMillion > 0) &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
+  const sharedCreditMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
+    ? {
+        creditsPerInputToken: Number(sharedMetering.creditsPerInputToken ?? 0.00003),
+        creditsPerOutputToken: Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
+        creditsPerCachedInputToken: Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
+        minimumCredits: Number(sharedMetering.minimumCredits ?? 0.002),
+        fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
+        precision: Number(sharedMetering.precision ?? 4),
+        conversionRate: Number(sharedMetering.conversionRate ?? 1)
+      }
+    : null;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens, configured,
+    sharedCreditMetering,
+    sharedModelMultiplier: sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1,
     billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };
