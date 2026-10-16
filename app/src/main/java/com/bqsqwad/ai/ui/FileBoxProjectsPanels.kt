@@ -1,0 +1,199 @@
+package com.bqsqwad.ai.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+
+@Composable
+internal fun FileBoxPanel(onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val api = remember { WorkspaceApiClient() }
+    val rows = remember { mutableStateListOf<JSONObject>() }
+    var title by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    var retention by remember { mutableStateOf(30) }
+    var busy by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var preview by remember { mutableStateOf<JSONObject?>(null) }
+
+    fun refresh() {
+        busy = true
+        scope.launch {
+            runCatching { api.fileBox() }.onSuccess { body ->
+                rows.clear()
+                val arr = body.optJSONArray("items")
+                if (arr != null) for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { rows.add(it) }
+                retention = body.optInt("retentionDays", 30).let { if (it in listOf(7,14,30,90)) it else 30 }
+                notice = null
+            }.onFailure { notice = "File Box could not be loaded. Check your connection and retry." }
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { refresh() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("File Box", style = MaterialTheme.typography.headlineSmall)
+            Text("Save text documents securely to your account. Files expire according to the retention period. This native panel currently stores text content; binary attachments and PDF/DOCX export are not yet connected.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(7,14,30,90).forEach { days ->
+                    FilterChip(selected = retention == days, onClick = {
+                        scope.launch {
+                            busy = true
+                            runCatching { api.setFileBoxRetentionDays(days) }
+                                .onSuccess { retention = days; notice = "Retention set to $days days."; refresh() }
+                                .onFailure { notice = "Could not save the retention period." }
+                            busy = false
+                        }
+                    }, label = { Text("$days d") })
+                }
+            }
+            OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
+            OutlinedTextField(value = content, onValueChange = { content = it.take(300000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
+            Button(enabled = !busy && title.isNotBlank() && content.isNotBlank(), onClick = {
+                busy = true
+                scope.launch {
+                    runCatching { api.saveFileBoxItem(title.trim(), content) }
+                        .onSuccess { title = ""; content = ""; notice = "Document saved. Expiry follows the selected retention period."; refresh() }
+                        .onFailure { notice = "Could not save this document. It may exceed the supported text-file limit." }
+                    busy = false
+                }
+            }, modifier = Modifier.fillMaxWidth()) { Text("Save to File Box") }
+            notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+            if (busy) CircularProgressIndicator()
+            Text("Saved documents", style = MaterialTheme.typography.titleMedium)
+            if (rows.isEmpty() && !busy) Text("No saved files yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            rows.forEach { row ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(row.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall)
+                        Text("Expires: " + row.optString("expiresAt", "not available"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { preview = row }) { Text("View") }
+                            TextButton(onClick = {
+                                scope.launch {
+                                    runCatching { api.deleteFileBoxItem(row.optString("id")) }
+                                        .onSuccess { notice = "Document deleted."; refresh() }
+                                        .onFailure { notice = "Could not delete this document." }
+                                }
+                            }) { Text("Delete") }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+    preview?.let { row ->
+        AlertDialog(onDismissRequest = { preview = null }, title = { Text(row.optString("title", "Document")) },
+            text = { Text(row.optString("content", "No text content available.")) },
+            confirmButton = { TextButton(onClick = { preview = null }) { Text("Close") } })
+    }
+}
+
+@Composable
+internal fun ProjectsPanel(onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val api = remember { WorkspaceApiClient() }
+    val rows = remember { mutableStateListOf<JSONObject>() }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    fun refresh() {
+        busy = true
+        scope.launch {
+            runCatching { api.projects() }.onSuccess { body ->
+                rows.clear()
+                val arr = body.optJSONArray("items")
+                if (arr != null) for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { rows.add(it) }
+                notice = null
+            }.onFailure { notice = "Projects could not be loaded. Check your connection and retry." }
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { refresh() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Projects", style = MaterialTheme.typography.headlineSmall)
+            Text("Create project notes and keep a working draft synced to your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(value = title, onValueChange = { title = it.take(160) }, modifier = Modifier.fillMaxWidth(), label = { Text("Project title") }, singleLine = true)
+            OutlinedTextField(value = description, onValueChange = { description = it.take(4000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Description") }, minLines = 2)
+            OutlinedTextField(value = content, onValueChange = { content = it.take(30000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Working notes") }, minLines = 3)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = !busy && title.isNotBlank(), onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching { api.saveProject(selectedId, title.trim(), description, content) }
+                            .onSuccess { selectedId = null; title = ""; description = ""; content = ""; notice = "Project saved."; refresh() }
+                            .onFailure { notice = "Could not save this project." }
+                        busy = false
+                    }
+                }, modifier = Modifier.weight(1f)) { Text(if (selectedId == null) "Create project" else "Save changes") }
+                OutlinedButton(onClick = { selectedId = null; title = ""; description = ""; content = "" }) { Text("Clear") }
+            }
+            notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+            if (busy) CircularProgressIndicator()
+            Text("Your projects", style = MaterialTheme.typography.titleMedium)
+            if (rows.isEmpty() && !busy) Text("No projects yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            rows.forEach { row ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(row.optString("title", "Untitled project"), style = MaterialTheme.typography.titleSmall)
+                        Text(row.optString("description"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                selectedId = row.optString("id")
+                                title = row.optString("title")
+                                description = row.optString("description")
+                                content = row.optString("content")
+                            }) { Text("Edit") }
+                            TextButton(onClick = {
+                                scope.launch {
+                                    runCatching { api.deleteProject(row.optString("id")) }
+                                        .onSuccess { notice = "Project deleted."; refresh() }
+                                        .onFailure { notice = "Could not delete this project." }
+                                }
+                            }) { Text("Delete") }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
