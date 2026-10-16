@@ -67,6 +67,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
+import com.bqsqwad.ai.InAppNotificationBus
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.onFocusChanged
