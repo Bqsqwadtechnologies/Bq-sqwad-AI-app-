@@ -892,10 +892,11 @@ private fun GoogleLogoMark(size: Dp) {
         val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
         val style = Stroke(width = stroke, cap = StrokeCap.Butt)
         val topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius)
-        drawArc(Color(0xFF4285F4), -45f, 100f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFF34A853), 55f, 95f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFFFBBC05), 150f, 95f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFFEA4335), 245f, 70f, false, topLeft, arcSize, style = style)
+        // Multicolour Google G: leave a visible opening on the right instead of drawing an O.
+        drawArc(Color(0xFF4285F4), -50f, 80f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFF34A853), 40f, 90f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFFFBBC05), 130f, 90f, false, topLeft, arcSize, style = style)
+        drawArc(Color(0xFFEA4335), 220f, 80f, false, topLeft, arcSize, style = style)
         drawLine(Color(0xFF4285F4), center, androidx.compose.ui.geometry.Offset(size.toPx() * 0.88f, center.y), stroke, StrokeCap.Butt)
     }
 }
@@ -1445,6 +1446,12 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Image(
+                                painter = painterResource(R.drawable.bq_sqwad_logo),
+                                contentDescription = "BQ Sqwad AI logo",
+                                modifier = Modifier.size(36.dp),
+                                contentScale = ContentScale.Fit
+                            )
                             Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(announcement.optString("title").ifBlank { "Featured in BQ Sqwad AI" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                 announcement.optString("feature").takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
