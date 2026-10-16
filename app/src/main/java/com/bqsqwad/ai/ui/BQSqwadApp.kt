@@ -1647,6 +1647,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val scope = rememberCoroutineScope()
     val prefs = remember { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
+    var birthdayCardOpen by remember { mutableStateOf(false) }
+    val aiBirthTimestamp = remember(FirebaseAuth.getInstance().currentUser?.uid) {
+        BqLifecycleNotifications.birthTimestamp(context)
+    }
     var chatHistoryEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("chat_history", true)) }
     var autoSaveEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("auto_save", true)) }
     var voiceRepliesEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("voice_replies", true)) }
@@ -2414,6 +2418,40 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    val ageDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
+                    val ageLabel = when {
+                        ageDays < 7 -> "$ageDays day${if (ageDays == 1L) "" else "s"} old"
+                        ageDays < 30 -> "${(ageDays / 7).coerceAtLeast(1)} week${if (ageDays / 7 == 1L) "" else "s"} old"
+                        ageDays < 365 -> "${(ageDays / 30).coerceAtLeast(1)} month${if (ageDays / 30 == 1L) "" else "s"} old"
+                        else -> "${(ageDays / 365).coerceAtLeast(1)} year${if (ageDays / 365 == 1L) "" else "s"} old"
+                    }
+                    TextButton(onClick = { birthdayCardOpen = true }, contentPadding = PaddingValues(0.dp)) {
+                        Text(
+                            "Born ${java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))} · $ageLabel",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
+                    if (birthdayCardOpen) {
+                        val milestones = listOf(1L to "1 day", 7L to "1 week", 30L to "1 month", 365L to "1 year")
+                        val next = milestones.firstOrNull { ageDays < it.first } ?: (((ageDays / 30 + 1) * 30) to "monthly")
+                        val previousMilestone = milestones.lastOrNull { ageDays >= it.first }?.first ?: 0L
+                        val progress = ((ageDays - previousMilestone).toFloat() / (next.first - previousMilestone).coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
+                        AlertDialog(
+                            onDismissRequest = { birthdayCardOpen = false },
+                            title = { Text("Your AI birthday") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    FloatingLogo(Modifier)
+                                    Text("Born ${java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))}")
+                                    Text("Your AI is $ageDays days old.")
+                                    CircularProgressIndicator(progress = progress)
+                                    Text("Next milestone: ${next.second} · ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(next.first)))}")
+                                }
+                            },
+                            confirmButton = { TextButton(onClick = { birthdayCardOpen = false }) { Text("Close") } }
+                        )
+                    }
                 }
                 // Keep the established image-generation animation untouched. For ordinary
                 // chat requests, show a compact circular progress indicator in the header.
