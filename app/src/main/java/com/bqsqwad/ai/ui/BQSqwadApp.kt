@@ -4417,11 +4417,16 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
     val aiFrameIntervalMs = if (cameraEnhanceEnabled) 1600L else 2600L
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
-    var previewEnabled by remember { mutableStateOf(false) }
+    var previewEnabled by remember { mutableStateOf(granted) }
     var fullScreenPreview by remember { mutableStateOf(false) }
     var fullScreenPreviewReady by remember { mutableStateOf(false) }
     var analyzing by remember { mutableStateOf(false) }
     var permissionExplanation by remember { mutableStateOf(false) }
+    val cameraPreviewPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
+        granted = allowed
+        previewEnabled = allowed
+        if (!allowed) permissionExplanation = true
+    }
     var lastAnalysisAt by remember { mutableLongStateOf(0L) }
     var prompt by remember { mutableStateOf("What do you see in this camera view?") }
     var answer by remember { mutableStateOf("") }
@@ -4685,32 +4690,34 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
         }
         Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
         if (!granted) {
-            Button(onClick = { permissionExplanation = true }) {
-                Icon(Icons.Default.CameraAlt, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Enable camera")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Allow camera access to show a live preview. The AI session starts only when you choose Start AI session.")
+                Button(onClick = { cameraPreviewPermissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Enable camera")
+                }
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     enabled = !screenActive || active,
                     onClick = {
-                        if (active || previewEnabled) {
+                        if (active) {
                             context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                             active = false
-                            previewEnabled = false
-                            fullScreenPreview = false
-                        } else {
+                            streamOnline = false
+                            previewEnabled = granted
+                        } else if (!screenActive) {
                             startLiveCamera()
                         }
                     }
                 ) {
                     Text(
                         when {
-                            active -> "End live camera"
+                            active -> "Stop AI session"
                             screenActive -> "Stop screen sharing first"
-                            previewEnabled -> "Stop preview"
-                            else -> "Start live camera"
+                            else -> "Start AI session"
                         }
                     )
                 }
@@ -4995,7 +5002,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                 streamError?.let { message ->
                     Text(message, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                     if (message.contains("credit", ignoreCase = true)) {
-                        Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("View plans") }
+                        Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
                     }
                     Button(
                         modifier = Modifier.fillMaxWidth(),
