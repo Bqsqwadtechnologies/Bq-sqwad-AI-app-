@@ -111,7 +111,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             val activePlanId = active?.optString("planId").orEmpty().ifBlank { "companionfree" }
             currentPlan = plans.firstOrNull { it.id == activePlanId }
                 ?: plans.firstOrNull { it.id == "companionfree" }
-            val memoryPlanEligible = currentPlan?.id in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate")
+            val memoryPlanEligible = currentPlan?.id?.let { it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate") } == true
             if (memoryPlanEligible) {
                 runCatching { api.companionMemory() }
                     .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
