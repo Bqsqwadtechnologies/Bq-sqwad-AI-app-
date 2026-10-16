@@ -2416,7 +2416,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             error = "Attach up to four images and four PDF files per message."
                         } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
                             creditsExhausted = true
-                            creditNotice = "Your current usage allowance is unavailable. Review plans and billing to continue."
+                            creditNotice = "You need more credits to continue. Choose Buy credits to add credits."
                             error = creditNotice
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
