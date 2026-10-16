@@ -23,6 +23,7 @@ fun HistoryScreen(
 ) {
     val scope = rememberCoroutineScope()
     var items by remember { mutableStateOf<List<HistoryItem>>(emptyList()) }
+    var historyLimit by remember { mutableStateOf(25) }
     var selected by remember { mutableStateOf<Pair<HistoryItem, List<HistoryMessage>>?>(null) }
     var busy by remember { mutableStateOf(true) }
     var loadingItemId by remember { mutableStateOf<String?>(null) }
@@ -30,11 +31,11 @@ fun HistoryScreen(
     var deletingId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    fun refresh() {
+    fun refresh(limit: Int = historyLimit) {
         busy = true
         error = null
         scope.launch {
-            runCatching { HistoryApiClient().list() }
+            runCatching { HistoryApiClient().list(limit.coerceIn(1, 100)) }
                 .onSuccess { items = it }
                 .onFailure { error = safeUserFacingIssue(it, "Could not load history.") }
             busy = false
@@ -63,7 +64,7 @@ fun HistoryScreen(
             if (!busy && items.isEmpty() && error == null) {
                 Text("No saved chats yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(items, key = { it.id }) { item ->
                     ElevatedCard(onClick = {
                         if (loadingItemId != null || deletingId != null) return@ElevatedCard
@@ -88,6 +89,15 @@ fun HistoryScreen(
                         }
                     }
                 }
+            }
+            if (!busy && error == null && items.size >= historyLimit && historyLimit < 100) {
+                OutlinedButton(
+                    onClick = {
+                        historyLimit = (historyLimit + 25).coerceAtMost(100)
+                        refresh(historyLimit)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Load more history (" + items.size + " shown)") }
             }
         }
     }
