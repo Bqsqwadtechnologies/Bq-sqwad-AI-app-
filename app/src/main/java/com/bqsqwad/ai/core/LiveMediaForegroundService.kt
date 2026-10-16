@@ -564,7 +564,7 @@ class LiveMediaForegroundService : Service() {
             lower.contains("credit balance") || lower.contains("out of credits") ||
             lower.contains("organization_insufficient_balance")
         val permissionProblem = lower.contains("permission")
-        val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|client_secret_missing|provider_not_configured|not_configured|temporarily unavailable|could not start|failed|internal server|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)
+        val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|client_secret_missing|provider_not_configured|not_configured|temporarily unavailable|could not start|failed|internal server|\\b[45]\\d{2}\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)
         val actionableProviderError = lower.contains("provider is not configured") ||
             lower.contains("ai provider is not configured") ||
             lower.contains("currently disabled") ||
