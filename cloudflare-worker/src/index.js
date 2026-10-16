@@ -2913,7 +2913,6 @@ export default {
       // arbitrary exception text, URLs, account details, or provider messages to clients.
       const code = /^[a-z0-9_.-]{1,80}$/i.test(String(candidateCode)) ? String(candidateCode) : (status >= 500 ? "service_temporarily_unavailable" : "request_failed");
       const body = { error: code };
-      if (Number.isInteger(error?.providerStatus)) body.providerStatus = error.providerStatus;
       return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
   }
