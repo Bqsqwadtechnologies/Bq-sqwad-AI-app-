@@ -49,6 +49,11 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
     var themeMode by remember { mutableStateOf("system") }
     var authVideoUrl by remember { mutableStateOf("") }
     var authVideoEnabled by remember { mutableStateOf(false) }
+    var announcementId by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    var announcementTitle by remember { mutableStateOf("") }
+    var announcementBody by remember { mutableStateOf("") }
+    var announcementFeature by remember { mutableStateOf("") }
+    var announcementEnabled by remember { mutableStateOf(false) }
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -67,6 +72,13 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
             themeMode = cfg.optString("themeMode", "system")
             authVideoUrl = cfg.optString("authBackgroundVideoUrl").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
             authVideoEnabled = cfg.optBoolean("authBackgroundVideoEnabled", false)
+            cfg.optJSONObject("dailyFeatureAnnouncement")?.let { announcement ->
+                announcementId = announcement.optString("id").ifBlank { UUID.randomUUID().toString() }
+                announcementTitle = announcement.optString("title")
+                announcementBody = announcement.optString("body")
+                announcementFeature = announcement.optString("feature")
+                announcementEnabled = announcement.optBoolean("enabled", false)
+            }
         }
     }
 
@@ -174,6 +186,33 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                             busy = false
                         }
                     }) { Text(if (busy) "Publishing…" else "Publish app configuration") }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Daily Feature Announcement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Publish one featured capability as a dismissible in-app message. The app tracks the announcement ID per signed-in account so it does not repeat after dismissal.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(announcementTitle, { announcementTitle = it.take(100) }, label = { Text("Announcement title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(announcementBody, { announcementBody = it.take(500) }, label = { Text("Announcement message") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(announcementFeature, { announcementFeature = it.take(80) }, label = { Text("Feature name (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Enable announcement", fontWeight = FontWeight.SemiBold)
+                        Switch(checked = announcementEnabled, enabled = !busy, onCheckedChange = { announcementEnabled = it })
+                    }
+                    Button(enabled = !busy && (!announcementEnabled || (announcementTitle.isNotBlank() && announcementBody.isNotBlank())), onClick = {
+                        busy = true
+                        scope.launch {
+                            runCatching { api.setAdminFeatureAnnouncement(announcementId, announcementTitle.trim(), announcementBody.trim(), announcementFeature.trim(), announcementEnabled) }
+                                .onSuccess { result ->
+                                    announcementId = result.optJSONObject("dailyFeatureAnnouncement")?.optString("id").orEmpty().ifBlank { announcementId }
+                                    status = if (announcementEnabled) "Daily feature announcement published." else "Daily feature announcement disabled."
+                                }
+                                .onFailure { status = safeUserFacingIssue(it, "Daily feature announcement could not be published.") }
+                            busy = false
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Publishing…" else "Publish announcement") }
                 }
             }
         }
