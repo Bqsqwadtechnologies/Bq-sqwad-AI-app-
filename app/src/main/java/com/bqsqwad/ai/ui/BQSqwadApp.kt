@@ -1708,6 +1708,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val scope = rememberCoroutineScope()
     val prefs = remember { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
+    val pushBanner by InAppNotificationBus.banner.collectAsState()
     var birthdayCardOpen by remember { mutableStateOf(false) }
     val aiBirthTimestamp = remember(FirebaseAuth.getInstance().currentUser?.uid) {
         BqLifecycleNotifications.birthTimestamp(context)
@@ -2479,6 +2480,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    pushBanner?.let { banner ->
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(banner, Modifier.weight(1f).padding(vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
+                                TextButton(onClick = { InAppNotificationBus.clear() }) { Text("Dismiss") }
+                            }
+                        }
+                    }
                     val ageDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
                     val ageLabel = when {
                         ageDays < 7 -> "$ageDays day${if (ageDays == 1L) "" else "s"} old"
