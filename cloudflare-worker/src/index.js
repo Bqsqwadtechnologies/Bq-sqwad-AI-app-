@@ -2016,12 +2016,37 @@ export default {
         return json({ok:true,policyVersion,trainingConsent});
       }
 
+      if (url.pathname === "/training/contributions" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        if (body.privateMode === true) return json({ accepted: false, reason: "private_mode" });
+        const consent = await firestoreGet("userConsents/" + user.uid);
+        if (consent?.trainingConsent !== true) return json({ accepted: false, reason: "training_consent_off" });
+        const prompt = String(body.prompt || "").trim().slice(0, 4000);
+        const response = String(body.response || "").trim().slice(0, 4000);
+        const workspace = String(body.workspace || "main_chat").trim().slice(0, 60);
+        if (!prompt || !response) return json({ accepted: false, reason: "empty_example" }, 400);
+        // Do not store obvious direct identifiers, phone numbers, or common API tokens.
+        const sensitivePattern = /(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})|(?:\b\+?\d[\d\s().-]{7,}\d\b)|(?:\bsk-[A-Za-z0-9_-]{16,}\b)|(?:\bAIza[0-9A-Za-z_-]{20,}\b)|(?:\bBearer\s+\S+)/i;
+        if (sensitivePattern.test(prompt) || sensitivePattern.test(response)) {
+          return json({ accepted: false, reason: "sensitive_content_filtered" });
+        }
+        const path = "aiTrainingContributions/" + user.uid;
+        const existing = await firestoreGet(path);
+        const examples = Array.isArray(existing?.items) ? existing.items : [];
+        examples.push({ id: crypto.randomUUID(), workspace, prompt, response, createdAt: new Date().toISOString() });
+        const bounded = examples.slice(-100);
+        await firestoreSet(path, { uid: user.uid, items: bounded, itemCount: bounded.length, updatedAt: new Date() }, true);
+        return json({ accepted: true, stored: true, itemCount: bounded.length });
+      }
+
       if (url.pathname === "/consent/training" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const trainingConsent = body.trainingConsent === true;
         await firestoreSet("userConsents/" + user.uid, {uid:user.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()}, true);
-        return json({ok:true,trainingConsent});
+        if (!trainingConsent) await firestoreDelete("aiTrainingContributions/" + user.uid);
+        return json({ok:true,trainingConsent,contributionsDeleted:!trainingConsent});
       }
 
       // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
@@ -2361,7 +2386,7 @@ export default {
 
       if (url.pathname === "/consent" && request.method === "GET") { const u=await verifyFirebaseUser(request); const x=await firestoreGet("userConsents/"+u.uid); return json({requiredAccepted:x?.requiredAccepted===true,trainingConsent:x?.trainingConsent===true,policyVersion:String(x?.policyVersion||"")}); }
       if (url.pathname === "/consent" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); if(b.requiredAccepted!==true)return json({error:"required_consent_missing"},400); const now=new Date(); await firestoreSet("userConsents/"+u.uid,{uid:u.uid,requiredAccepted:true,requiredConsentAt:now,trainingConsent:b.trainingConsent===true,trainingConsentAt:now,policyVersion:String(b.policyVersion||"current").slice(0,80),updatedAt:now},true); return json({ok:true,policyVersion:String(b.policyVersion||"current"),trainingConsent:b.trainingConsent===true}); }
-      if (url.pathname === "/consent/training" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); await firestoreSet("userConsents/"+u.uid,{uid:u.uid,trainingConsent:b.trainingConsent===true,trainingConsentAt:new Date(),updatedAt:new Date()},true); return json({ok:true,trainingConsent:b.trainingConsent===true}); }
+      if (url.pathname === "/consent/training" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),trainingConsent=b.trainingConsent===true; await firestoreSet("userConsents/"+u.uid,{uid:u.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()},true); if(!trainingConsent)await firestoreDelete("aiTrainingContributions/"+u.uid); return json({ok:true,trainingConsent,contributionsDeleted:!trainingConsent}); }
       if (url.pathname === "/notifications/token" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token||token.length>4096)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreSet("notificationTokens/"+u.uid+"_"+h,{uid:u.uid,token,tokenHash:h,platform:String(b.platform||"android").slice(0,40),enabled:true,updatedAt:new Date()},true); return json({ok:true,registered:true}); }
       if (url.pathname === "/notifications/token" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreDelete("notificationTokens/"+u.uid+"_"+h); return json({ok:true,removed:true}); }
       if (url.pathname === "/video/generate" && request.method === "POST") {
