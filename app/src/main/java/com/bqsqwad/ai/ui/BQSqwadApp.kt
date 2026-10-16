@@ -2105,7 +2105,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
     var creditBalanceLabel by remember { mutableStateOf(if (FirebaseAuth.getInstance().currentUser == null) "Sign in for credits" else "Credits: checking…") }
-    var creditBalanceLoaded by remember { mutableStateOf(false) }
+    var creditBalanceLoaded by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser == null) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
