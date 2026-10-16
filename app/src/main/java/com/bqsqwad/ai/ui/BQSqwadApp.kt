@@ -928,8 +928,17 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
             val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
             WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
-        }.onSuccess { workspaceAccess = it }
-         .onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+        }.onSuccess {
+            workspaceAccess = it
+            val current = workspace
+            if (current != null && current !in setOf(
+                    Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS, Workspace.ADMIN
+                ) && !it.hasVerifiedAccess(current)) {
+                paywallWorkspace = current
+                workspace = null
+            }
+        }.onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
         accessLoading = false
     }
 
@@ -951,8 +960,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             // must never block opening them or show a plan dialog.
             workspace = selected
         } else if (accessLoading) {
-            // Only plan-gated destinations wait for the access snapshot.
-            paywallWorkspace = selected
+            // Never show a false paywall while the access snapshot is still loading.
+            // The completed snapshot decides whether a plan-gated destination needs a paywall.
+            workspace = selected
         } else if (workspaceAccess.hasVerifiedAccess(selected)) {
             workspace = selected
         } else {
