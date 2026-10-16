@@ -54,6 +54,8 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
     var announcementBody by remember { mutableStateOf("") }
     var announcementFeature by remember { mutableStateOf("") }
     var announcementEnabled by remember { mutableStateOf(false) }
+    var chatBackgroundUrl by remember { mutableStateOf("") }
+    var selectedChatBackgroundUri by remember { mutableStateOf<Uri?>(null) }
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -61,6 +63,10 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedVideoUri = uri
         if (uri != null) status = "Video selected. Upload it to publish the sign-in background."
+    }
+    val chatBackgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        selectedChatBackgroundUri = uri
+        if (uri != null) status = "Image selected. Upload it to publish the app chat background."
     }
 
     LaunchedEffect(Unit) {
@@ -79,6 +85,7 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                 announcementFeature = announcement.optString("feature")
                 announcementEnabled = announcement.optBoolean("enabled", false)
             }
+            chatBackgroundUrl = cfg.optString("chatBackgroundUrl").takeIf { it.startsWith("https://", ignoreCase = true) }.orEmpty()
         }
     }
 
@@ -186,6 +193,65 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                             busy = false
                         }
                     }) { Text(if (busy) "Publishing…" else "Publish app configuration") }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Main Chat Background", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Upload a shared background image. The app uses this image behind Main Chat unless a user has chosen a personal background.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { chatBackgroundPicker.launch("image/*") }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Choose image") }
+                        Button(enabled = !busy && selectedChatBackgroundUri != null, onClick = {
+                            val uri = selectedChatBackgroundUri ?: return@Button
+                            val contentType = context.contentResolver.getType(uri).orEmpty().ifBlank { "image/jpeg" }
+                            if (!contentType.startsWith("image/", ignoreCase = true)) {
+                                status = "Choose an image file."
+                                return@Button
+                            }
+                            val uid = FirebaseAuth.getInstance().currentUser?.uid
+                            if (uid.isNullOrBlank()) {
+                                status = "Sign in with the authorized admin account before uploading."
+                                return@Button
+                            }
+                            busy = true
+                            status = "Uploading chat background…"
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        val objectRef = FirebaseStorage.getInstance().reference
+                                            .child("chat-background/" + uid + "/" + UUID.randomUUID().toString())
+                                        val metadata = StorageMetadata.Builder().setContentType(contentType).build()
+                                        Tasks.await(objectRef.putFile(uri, metadata))
+                                        Tasks.await(objectRef.downloadUrl).toString()
+                                    }
+                                }.onSuccess { url ->
+                                    runCatching { api.setAdminChatBackground(url, true) }
+                                        .onSuccess {
+                                            chatBackgroundUrl = url
+                                            selectedChatBackgroundUri = null
+                                            status = "Shared Main Chat background published."
+                                        }
+                                        .onFailure { status = safeUserFacingIssue(it, "Image uploaded, but publishing the background failed.") }
+                                }.onFailure { status = safeUserFacingIssue(it, "Chat background upload failed.") }
+                                busy = false
+                            }
+                        }, modifier = Modifier.weight(1f)) { Text(if (busy) "Uploading…" else "Upload & publish") }
+                    }
+                    selectedChatBackgroundUri?.let { Text("Selected: " + (it.lastPathSegment ?: "image file"), style = MaterialTheme.typography.bodySmall) }
+                    if (chatBackgroundUrl.isNotBlank()) {
+                        Text("A shared chat background is currently published.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(enabled = !busy, onClick = {
+                            busy = true
+                            scope.launch {
+                                runCatching { api.setAdminChatBackground("", false) }
+                                    .onSuccess { chatBackgroundUrl = ""; status = "Shared Main Chat background cleared." }
+                                    .onFailure { status = safeUserFacingIssue(it, "Shared chat background could not be cleared.") }
+                                busy = false
+                            }
+                        }) { Text("Clear shared background") }
+                    }
                 }
             }
         }
