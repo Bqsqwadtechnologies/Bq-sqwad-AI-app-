@@ -1838,7 +1838,9 @@ export default {
         if (!title || !content.trim()) return json({ error:"file_title_and_content_required" }, 400);
         if (content.length > 25000) return json({ error:"file_content_too_large" }, 413);
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
-        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : 30;
+        const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
+        const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
+        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
         const now = new Date();
         const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
         const item = { id:crypto.randomUUID(), uid:user.uid, title, mimeType, content, createdAt:now.toISOString(), expiresAt:new Date(now.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
