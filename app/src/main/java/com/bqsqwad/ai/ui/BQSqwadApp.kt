@@ -973,7 +973,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val current = workspace
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS, Workspace.ADMIN
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ADMIN
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1002,8 +1002,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             if (adminAuthorized) workspace = selected
         } else if (selected in setOf(
             Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-            Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS
-        )) {
+            Workspace.VIDEO, Workspace.PERSONAL
+        ) || (selected == Workspace.DATA_ANALYSIS && workspaceAccess.planModules["data-analysis"].isNullOrEmpty())) {
             // These destinations are free or credit-metered; entitlement loading
             // must never block opening them or show a plan dialog.
             workspace = selected
