@@ -2021,7 +2021,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 val remoteUrl = config.optString("chatBackgroundUrl").takeIf { it.startsWith("https://", ignoreCase = true) }
                     ?: return@runCatching null
                 withContext(Dispatchers.IO) {
-                    val connection = URL(remoteUrl).openConnection().apply { connectTimeout = 5000; readTimeout = 7000 }
+                    val connection = (URL(remoteUrl).openConnection() as java.net.HttpURLConnection).apply { connectTimeout = 5000; readTimeout = 7000 }
                     try {
                         val bytes = connection.getInputStream().use { input ->
                             val output = java.io.ByteArrayOutputStream()
