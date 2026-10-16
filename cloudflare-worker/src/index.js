@@ -2758,43 +2758,34 @@ export default {
       if (url.pathname === "/admin/web-search-pricing" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("adminAdvancedOptions/web_search_pricing",{enabled:b.enabled!==false,config:b.config&&typeof b.config==="object"?b.config:{},updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")); }
       if (url.pathname === "/admin/training-library" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
-        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
-        const consentRows = await firestoreQuery("userConsents", {
-          filters: [{ field: { fieldPath: "trainingConsent" }, op: "EQUAL", value: { booleanValue: true } }],
-          limit: 500
-        });
-        const eligibleUids = [...new Set(consentRows.map(row => String(row.uid || row.id || "").trim()).filter(Boolean))];
-        const docs = [];
-        for (let offset = 0; offset < eligibleUids.length; offset += 20) {
-          const batch = await Promise.all(eligibleUids.slice(offset, offset + 20).map(async uid => ({
-            uid,
-            doc: await firestoreGet("aiTrainingContributions/" + uid)
-          })));
-          docs.push(...batch);
-        }
-        const items = [];
-        for (const { uid, doc } of docs) {
-          if (!doc || !Array.isArray(doc.items)) continue;
-          for (const example of doc.items) {
-            const prompt = String(example?.prompt || "").trim();
-            const response = String(example?.response || "").trim();
-            if (!prompt || !response) continue;
-            items.push({
-              id: String(example.id || crypto.randomUUID()),
-              owner: uid.slice(0, 8) + "…",
-              workspace: String(example.workspace || "main_chat").slice(0, 60),
-              prompt: prompt.slice(0, 4000),
-              response: response.slice(0, 4000),
-              createdAt: String(example.createdAt || "")
-            });
-          }
-        }
-        items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const [contributions, consentRows] = await Promise.all([
+          firestoreQuery("consented_contributions", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:500 }).catch(() => []),
+          firestoreQuery("userConsents", {
+            filters:[{field:{fieldPath:"trainingConsent"},op:"EQUAL",value:{booleanValue:true}}],
+            limit:500
+          }).catch(() => [])
+        ]);
+        const active = contributions.filter(row =>
+          row.status !== "withdrawn" && row.contentDeleted !== true &&
+          typeof row.prompt === "string" && row.prompt.trim() &&
+          typeof row.response === "string" && row.response.trim()
+        );
+        const items = active.map(row => ({
+          id:String(row.id || String(row.__name || "").split("/").pop()).slice(0,120),
+          owner:String(row.userId || "").slice(0,8) + "…",
+          workspace:String(row.workspace || "main_chat").slice(0,60),
+          dataType:String(row.dataType || "chat").slice(0,24),
+          status:String(row.status || "pending_review").slice(0,32),
+          prompt:String(row.prompt).slice(0,4000),
+          response:String(row.response).slice(0,4000),
+          createdAt:String(row.createdAt || "")
+        })).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
         return json({
-          items: items.slice(0, 2000),
-          userCount: docs.filter(row => Array.isArray(row.doc?.items) && row.doc.items.length > 0).length,
-          itemCount: items.length,
-          updatedAt: new Date().toISOString()
+          items:items.slice(0,500),
+          userCount:consentRows.length,
+          itemCount:items.length,
+          updatedAt:new Date().toISOString()
         });
       }
       if (url.pathname === "/admin/auth-background-video" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),enabled=b.enabled===true,urlValue=String(b.url||"").trim();if(enabled&&!/^https:\/\//i.test(urlValue))throw new Error("auth_background_video_url_required");await firestoreSet("publicAppConfig/app",{authBackgroundVideoUrl:enabled?urlValue:null,authBackgroundVideoEnabled:enabled,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("publicAppConfig/app")); }
