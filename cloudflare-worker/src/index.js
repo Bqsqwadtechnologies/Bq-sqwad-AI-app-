@@ -1938,6 +1938,29 @@ export default {
         return json({ ok: true, uid: targetUid, email, amount, available: nextPermanent + oldBalance.subscription });
       }
 
+      if (url.pathname === "/admin/training/contributions" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const [contributions, consentRows, auditRows] = await Promise.all([
+          firestoreQuery("consented_contributions", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:200 }).catch(() => []),
+          firestoreQuery("userConsents", { limit:500 }).catch(() => []),
+          firestoreQuery("trainingConsentAudit", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:200 }).catch(() => [])
+        ]);
+        return json({
+          contributions:contributions.map(x => ({
+            id:String(x.id || String(x.__name || "").split("/").pop()),
+            userId:String(x.userId || ""), dataType:String(x.dataType || "chat"),
+            chatId:x.chatId || null, fileId:x.fileId || null, workspace:String(x.workspace || ""),
+            status:String(x.status || "pending_review"), createdAt:x.createdAt || null,
+            contentDeleted:x.contentDeleted === true
+          })),
+          consentedUsers:consentRows.filter(x => x.trainingConsent === true).length,
+          contributionCount:contributions.filter(x => x.status !== "withdrawn").length,
+          audit:auditRows.map(x => ({userId:String(x.userId || ""),action:String(x.action || ""),contributionId:x.contributionId || null,createdAt:x.createdAt || null,deletedCount:Number(x.deletedCount || 0)})),
+          checkedAt:new Date().toISOString()
+        });
+      }
+
       if (url.pathname === "/admin/diagnostics" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
@@ -2006,14 +2029,33 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         if (body.requiredAccepted !== true) return json({error:"required_consent_missing"},400);
-        const trainingConsent = body.trainingConsent === true;
+        // Training is a separate, affirmative opt-in. Adult confirmation or a verified
+        // parental-consent record is required before training consent can become active.
+        const ageGatePassed = body.ageConfirmedAdult === true || body.parentalConsentVerified === true;
+        const trainingConsent = body.trainingConsent === true && ageGatePassed;
         const policyVersion = String(body.policyVersion || "2026-09").slice(0,40);
+        const previous = await firestoreGet("userConsents/" + user.uid);
+        const now = new Date();
         await firestoreSet("userConsents/" + user.uid, {
           uid:user.uid, requiredAccepted:true, policyVersion,
-          requiredConsentAt:new Date(), trainingConsent,
-          trainingConsentAt:new Date(), updatedAt:new Date()
+          requiredConsentAt:previous?.requiredAccepted === true ? (previous.requiredConsentAt || now) : now,
+          trainingConsent, trainingAgeGatePassed:ageGatePassed,
+          trainingConsentAt:trainingConsent ? now : (previous?.trainingConsentAt || null),
+          trainingConsentWithdrawnAt:previous?.trainingConsent === true && !trainingConsent ? now : (previous?.trainingConsentWithdrawnAt || null),
+          updatedAt:now
         }, true);
-        return json({ok:true,policyVersion,trainingConsent});
+        if (previous?.trainingConsent === true && !trainingConsent) {
+          const rows = await firestoreQuery("consented_contributions", {
+            filters:[{field:{fieldPath:"userId"},op:"EQUAL",value:{stringValue:user.uid}}],
+            limit:200
+          }).catch(() => []);
+          for (const row of rows) {
+            const id = String(row.id || String(row.__name || "").split("/").pop());
+            if (id) await firestoreSet("consented_contributions/" + id, {status:"withdrawn", withdrawnAt:now, contentDeleted:true, prompt:null, response:null, updatedAt:now}, true);
+          }
+          await firestoreCreate("trainingConsentAudit/" + crypto.randomUUID(), {userId:user.uid,action:"withdrawn",createdAt:now,source:"consent"});
+        }
+        return json({ok:true,policyVersion,trainingConsent,ageGateRequired:!ageGatePassed});
       }
 
       if (url.pathname === "/training/contributions" && request.method === "POST") {
@@ -2021,7 +2063,9 @@ export default {
         const body = await readBody(request);
         if (body.privateMode === true) return json({ accepted: false, reason: "private_mode" });
         const consent = await firestoreGet("userConsents/" + user.uid);
-        if (consent?.trainingConsent !== true) return json({ accepted: false, reason: "training_consent_off" });
+        if (consent?.trainingConsent !== true || consent?.trainingAgeGatePassed !== true) {
+          return json({ accepted: false, reason: "training_consent_off_or_age_gate_missing" });
+        }
         const prompt = String(body.prompt || "").trim().slice(0, 4000);
         const response = String(body.response || "").trim().slice(0, 4000);
         const workspace = String(body.workspace || "main_chat").trim().slice(0, 60);
@@ -2031,22 +2075,53 @@ export default {
         if (sensitivePattern.test(prompt) || sensitivePattern.test(response)) {
           return json({ accepted: false, reason: "sensitive_content_filtered" });
         }
-        const path = "aiTrainingContributions/" + user.uid;
-        const existing = await firestoreGet(path);
-        const examples = Array.isArray(existing?.items) ? existing.items : [];
-        examples.push({ id: crypto.randomUUID(), workspace, prompt, response, createdAt: new Date().toISOString() });
-        const bounded = examples.slice(-100);
-        await firestoreSet(path, { uid: user.uid, items: bounded, itemCount: bounded.length, updatedAt: new Date() }, true);
-        return json({ accepted: true, stored: true, itemCount: bounded.length });
+        const now = new Date();
+        const id = crypto.randomUUID();
+        const dataType = String(body.dataType || "chat").slice(0,24);
+        const chatId = body.chatId == null ? null : String(body.chatId).slice(0,120);
+        const fileId = body.fileId == null ? null : String(body.fileId).slice(0,120);
+        await firestoreCreate("consented_contributions/" + id, {
+          id, userId:user.uid, consentTimestamp:consent.trainingConsentAt || now,
+          dataType, chatId, fileId, workspace, status:"pending_review",
+          prompt, response, createdAt:now, updatedAt:now
+        });
+        await firestoreCreate("trainingConsentAudit/" + crypto.randomUUID(), {
+          userId:user.uid, contributionId:id, action:"contribution_submitted", dataType, createdAt:now
+        });
+        return json({ accepted: true, stored: true, contributionId:id, status:"pending_review" });
       }
 
       if (url.pathname === "/consent/training" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const trainingConsent = body.trainingConsent === true;
-        await firestoreSet("userConsents/" + user.uid, {uid:user.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()}, true);
-        if (!trainingConsent) await firestoreDelete("aiTrainingContributions/" + user.uid);
-        return json({ok:true,trainingConsent,contributionsDeleted:!trainingConsent});
+        const ageGatePassed = body.ageConfirmedAdult === true || body.parentalConsentVerified === true;
+        if (trainingConsent && !ageGatePassed) return json({ok:false,trainingConsent:false,reason:"age_gate_required"},400);
+        const previous = await firestoreGet("userConsents/" + user.uid);
+        const now = new Date();
+        await firestoreSet("userConsents/" + user.uid, {
+          uid:user.uid,trainingConsent,trainingAgeGatePassed:trainingConsent && ageGatePassed,
+          trainingConsentAt:trainingConsent ? now : (previous?.trainingConsentAt || null),
+          trainingConsentWithdrawnAt:previous?.trainingConsent === true && !trainingConsent ? now : (previous?.trainingConsentWithdrawnAt || null),
+          updatedAt:now
+        }, true);
+        let deletedCount = 0;
+        if (!trainingConsent) {
+          const rows = await firestoreQuery("consented_contributions", {
+            filters:[{field:{fieldPath:"userId"},op:"EQUAL",value:{stringValue:user.uid}}],
+            limit:200
+          }).catch(() => []);
+          for (const row of rows) {
+            const id = String(row.id || String(row.__name || "").split("/").pop());
+            if (!id) continue;
+            await firestoreSet("consented_contributions/" + id, {status:"withdrawn",withdrawnAt:now,contentDeleted:true,prompt:null,response:null,updatedAt:now}, true);
+            deletedCount++;
+          }
+          await firestoreCreate("trainingConsentAudit/" + crypto.randomUUID(), {userId:user.uid,action:"withdrawn",deletedCount,createdAt:now});
+        } else {
+          await firestoreCreate("trainingConsentAudit/" + crypto.randomUUID(), {userId:user.uid,action:"granted",createdAt:now});
+        }
+        return json({ok:true,trainingConsent,contributionsDeleted:deletedCount});
       }
 
       // Native legacy phase routes: Companion, Learning, TruthGuard, Organization.
