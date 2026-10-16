@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.os.Build
 import com.bqsqwad.ai.AppVisibility
+import com.bqsqwad.ai.InAppNotificationBus
 import com.bqsqwad.ai.R
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.app.NotificationCompat
@@ -109,8 +110,14 @@ object BqLifecycleNotifications {
         val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
         val candidates = birthdayMilestones(firstOpen, now)
         val due = candidates.filter { it.at <= now && it.key !in sent }.maxByOrNull { it.at }
-        if (due != null && allowPost) {
-            post(context, due.title, due.body)
+        if (due != null) {
+            if (allowPost) {
+                post(context, due.title, due.body)
+            } else {
+                // Foreground celebrations stay in-app; never post a system notification
+                // while the user is already using BQ Sqwad AI.
+                InAppNotificationBus.show("${due.title} · ${due.body}")
+            }
             sent.add(due.key)
             // Do not flood users with old one-time notices when an account is first
             // opened after months or years. A current monthly/yearly celebration wins.
