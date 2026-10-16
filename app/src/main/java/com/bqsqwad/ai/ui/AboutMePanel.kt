@@ -35,7 +35,7 @@ internal fun AboutMePanel(onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("About Me", style = MaterialTheme.typography.headlineSmall)
             Text("Account: " + (FirebaseAuth.getInstance().currentUser?.email ?: "Signed in"), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Add optional context to this device and choose the response style you prefer. These notes stay in local app storage and are not automatically sent to the AI or used for training.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Add optional context and choose a response style. When you send a chat, these preferences are included with that request to personalize the reply. They are not automatically submitted for AI training.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(value = aboutMe, onValueChange = { aboutMe = it.take(2000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Optional notes about your preferences") }, minLines = 3)
             Text("AI personality", style = MaterialTheme.typography.titleMedium)
             styles.chunked(3).forEach { row ->
