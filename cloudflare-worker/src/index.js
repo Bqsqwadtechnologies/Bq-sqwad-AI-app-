@@ -1868,8 +1868,8 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const title = String(body.title || "").trim().slice(0,160);
-        const description = String(body.description || "").trim().slice(0,4000);
-        const content = String(body.content || "").slice(0,30000);
+        const description = String(body.description || "").trim().slice(0,1500);
+        const content = String(body.content || "").slice(0,5000);
         if (!title) return json({ error:"project_title_required" }, 400);
         const doc = await firestoreGet("userProjects/" + user.uid) || {};
         const items = Array.isArray(doc.items) ? doc.items : [];
