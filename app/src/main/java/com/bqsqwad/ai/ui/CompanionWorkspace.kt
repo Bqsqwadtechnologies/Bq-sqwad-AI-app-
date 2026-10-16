@@ -1,6 +1,12 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.bqsqwad.ai.ui
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.*
@@ -13,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +61,29 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
     var catalogPlans by remember { mutableStateOf<List<CompanionPlan>>(emptyList()) }
     val messages = remember { mutableStateListOf<CompanionMessage>() }
+    val dictationResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty().trim()
+            if (spoken.isNotBlank()) {
+                input = if (input.isBlank()) spoken else input.trimEnd() + " " + spoken
+                notice = "Voice dictation added to your message. Review it before sending."
+            }
+        }
+    }
+    val dictationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to your AI Companion")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            }
+            runCatching { dictationResultLauncher.launch(intent) }
+                .onFailure { notice = "Voice dictation is not available on this device right now." }
+        } else {
+            notice = "Microphone permission is needed for voice-to-text. You can still type your message."
+        }
+    }
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id?.let { it in ids } == true
     val memoryUnlocked = accessLoadedSuccessfully && hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
@@ -320,7 +350,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it; notice = null },
@@ -328,6 +358,22 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 placeholder = { Text("Talk to your companion…") },
                 maxLines = 4
             )
+            IconButton(
+                enabled = !busy,
+                onClick = {
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to your AI Companion")
+                        }
+                        runCatching { dictationResultLauncher.launch(intent) }
+                            .onFailure { notice = "Voice dictation is not available on this device right now." }
+                    } else {
+                        dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+            ) { Icon(Icons.Default.Mic, contentDescription = "Voice to text") }
             Button(
                 enabled = !busy && input.isNotBlank(),
                 onClick = {
