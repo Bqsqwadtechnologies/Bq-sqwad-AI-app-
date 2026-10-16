@@ -594,7 +594,17 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (busy) "Signing in with Google…" else "Continue with Google") }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GoogleLogoMark(22.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(if (busy) "Signing in with Google…" else "Continue with Google")
+            }
+        }
 
         Button(
             enabled = !busy && name.isNotBlank() &&
