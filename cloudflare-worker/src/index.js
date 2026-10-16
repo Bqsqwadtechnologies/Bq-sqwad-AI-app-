@@ -1546,6 +1546,21 @@ export default {
     } catch (error) {
       console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
     }
+    // Remove abandoned upload sessions and any uploaded object after 24 hours.
+    try {
+      const uploads = await firestoreQuery("fileBoxUploads", { limit: 500 });
+      const staleBefore = Date.now() - 24 * 60 * 60 * 1000;
+      for (const upload of uploads) {
+        if (upload.uploadPending !== true) continue;
+        const created = Date.parse(String(upload.createdAt || ""));
+        if (!Number.isFinite(created) || created > staleBefore) continue;
+        if (upload.objectPath) await deleteTrainingAssetObject(String(upload.objectPath)).catch(() => {});
+        const id = String(upload.id || String(upload.__name || "").split("/").pop() || "");
+        if (id) await firestoreDelete("fileBoxUploads/" + id).catch(() => {});
+      }
+    } catch (error) {
+      console.error("file_box_upload_cleanup_failed", error?.message || "unknown");
+    }
   },
   async fetch(request, env) {
     configureFirebaseEnv(env);
