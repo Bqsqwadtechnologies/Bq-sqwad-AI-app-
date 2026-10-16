@@ -1858,12 +1858,17 @@ export default {
         const message = String(body.message || "");
         const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(message));
         const messageHash = Array.from(new Uint8Array(hash)).map(x => x.toString(16).padStart(2,"0")).join("");
+        const rawComment = String(body.comment || "").slice(0,1000);
+        const sanitizedComment = rawComment
+          .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email redacted]")
+          .replace(/\b\+?\d[\d\s().-]{7,}\d\b/g, "[phone redacted]")
+          .replace(/\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+\S+)\b/gi, "[credential redacted]");
         await firestoreCreate("aiFeedback/" + crypto.randomUUID(), {
           uid:user.uid, messageId:body.messageId == null ? null : String(body.messageId).slice(0,120),
           category:String(body.category || "general").slice(0,40),
           sentiment:body.sentiment == null ? null : String(body.sentiment).slice(0,20),
           reason:body.reason == null ? null : String(body.reason).slice(0,80),
-          comment:body.comment == null ? null : String(body.comment).slice(0,1000),
+          comment:sanitizedComment || null,
           messageHash, createdAt:new Date()
         });
         return json({ ok:true });
