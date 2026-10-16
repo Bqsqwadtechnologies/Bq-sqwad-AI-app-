@@ -311,7 +311,7 @@ fun AdminControlCenter() {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                diagnosticsError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                diagnosticsError?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall) }
                 selfTestSnapshot?.let { result ->
                     Text("Readiness results • " + result.optString("checkedAt", ""), fontWeight = FontWeight.SemiBold)
                     val checks = result.optJSONArray("checks")
@@ -325,9 +325,11 @@ fun AdminControlCenter() {
                                     if (check.optString("modelStatus").isNotBlank()) append(" • ").append(check.optString("modelStatus").replace('_', ' '))
                                 }
                             }
+                            val featureName = if (check.optString("feature") == "voice_session") "Create realtime session" else check.optString("feature", "feature").replace('_', ' ')
+                            val rawStatus = check.optString("status", "unknown")
+                            val statusLabel = if (check.optString("feature") == "voice_session" && rawStatus == "session_created_secret_discarded") "PASS" else rawStatus.replace('_', ' ')
                             Text(
-                                check.optString("feature", "feature").replace('_', ' ') + ": " +
-                                    check.optString("status", "unknown").replace('_', ' ') + details,
+                                featureName + ": " + statusLabel + details,
                                 style = MaterialTheme.typography.bodySmall
                             )
                             val warnings = check.optJSONArray("warnings")
@@ -335,7 +337,7 @@ fun AdminControlCenter() {
                                 Text(
                                     "Warnings: " + List(warnings.length()) { warnings.optString(it) }.joinToString(", "),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error
+                                    color = MaterialTheme.colorScheme.tertiary
                                 )
                             }
                         }
