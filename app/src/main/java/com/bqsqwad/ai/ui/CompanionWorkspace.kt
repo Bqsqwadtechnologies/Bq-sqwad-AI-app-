@@ -1,6 +1,8 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -135,46 +137,30 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     }
 
     Column(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        Modifier.fillMaxSize().imePadding(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    BqLogo(48.dp)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("AI Companion", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text(
-                            "Memory, voice and camera access follows your verified BQ Sqwad AI plan.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.84f)
-                        )
+                    BqLogo(42.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("AI Companion", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Caring, calm and always listening", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    IconButton(onClick = { settingsOpen = true }) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Settings, contentDescription = "Companion settings")
                     }
                 }
 
-                if (catalogPlans.isNotEmpty()) {
-                    Text("Companion plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    catalogPlans.forEach { plan ->
-                        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(plan.name, fontWeight = FontWeight.SemiBold)
-                                val priceText = plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": " + value }
-                                if (priceText.isNotBlank()) Text(priceText, style = MaterialTheme.typography.bodySmall)
-                                if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                                if (plan.features.isNotEmpty()) Text(plan.features.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                if (plan.id == currentPlan?.id) AssistChip(onClick = {}, label = { Text("ACTIVE") })
-                            }
-                        }
-                    }
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
                         Text(currentPlan?.name ?: if (loadingAccess) "Checking plan…" else "Plan details unavailable", fontWeight = FontWeight.Bold)
@@ -191,19 +177,14 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                         OutlinedButton(onClick = onOpenPlans) { Text("View plans") }
                     }
                 }
-                if (!currentPlan?.features.isNullOrEmpty()) {
-                    Text("Included in your plan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        currentPlan?.features?.joinToString(" • ").orEmpty(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat") })
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat", maxLines = 1, softWrap = false) })
                     FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text("Voice", maxLines = 1, softWrap = false) })
                     FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text("Camera", maxLines = 1, softWrap = false) })
-                    FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "Memory • Basic+") })
+                    FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "🔒 Memory", maxLines = 1, softWrap = false) })
                 }
             }
         }
@@ -244,31 +225,32 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Companion settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            TextButton(onClick = { settingsOpen = !settingsOpen }) { Text(if (settingsOpen) "Hide" else "Open") }
-        }
         if (settingsOpen) {
-            Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 2.dp) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Notifications"); Switch(checked = notifications, onCheckedChange = { notifications = it })
+            ModalBottomSheet(onDismissRequest = { settingsOpen = false }) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Companion settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Notifications", modifier = Modifier.weight(1f)); Switch(checked = notifications, onCheckedChange = { notifications = it })
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Save conversation history"); Switch(checked = saveHistory, onCheckedChange = { saveHistory = it })
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Save conversation history", modifier = Modifier.weight(1f)); Switch(checked = saveHistory, onCheckedChange = { saveHistory = it })
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Safety mode"); Switch(checked = safeMode, onCheckedChange = { safeMode = it })
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Safety mode", modifier = Modifier.weight(1f)); Switch(checked = safeMode, onCheckedChange = { safeMode = it })
                     }
-                    Button(onClick = ::saveSettings, modifier = Modifier.fillMaxWidth()) { Text("Save settings") }
+                    Button(onClick = { saveSettings(); settingsOpen = false }, modifier = Modifier.fillMaxWidth()) { Text("Save settings") }
+                    Spacer(Modifier.height(18.dp))
                 }
             }
         }
 
         Text("Personality", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             listOf("Caring", "Encouraging", "Calm").forEach { value ->
-                FilterChip(selected = personality == value, onClick = { personality = value }, label = { Text(value) })
+                FilterChip(selected = personality == value, onClick = { personality = value }, label = { Text(value, maxLines = 1, softWrap = false) })
             }
         }
 
@@ -281,7 +263,11 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                                 }
         )
 
-        notice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        notice?.let {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+                Text(it, Modifier.padding(10.dp), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+            }
+        }
 
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
