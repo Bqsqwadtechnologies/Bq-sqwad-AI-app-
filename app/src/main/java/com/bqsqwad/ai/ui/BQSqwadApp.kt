@@ -930,6 +930,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var fileBoxOpen by remember { mutableStateOf(false) }
     var pendingFileBoxAttachment by remember { mutableStateOf<PreparedChatAttachment?>(null) }
     var restoredChat by remember { mutableStateOf<Pair<String, List<HistoryMessage>>?>(null) }
+    var drawerHistoryItems by remember(firebaseUser?.uid) { mutableStateOf<List<HistoryItem>>(emptyList()) }
+    var drawerHistoryLimit by remember { mutableStateOf(5) }
+    var drawerHistoryLoading by remember { mutableStateOf(false) }
+    var drawerHistoryError by remember { mutableStateOf<String?>(null) }
+    var openingDrawerHistoryId by remember { mutableStateOf<String?>(null) }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
@@ -1201,6 +1206,48 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
+                    }
+                    if (firebaseUser != null) {
+                        item {
+                            Text("Recent chats", modifier = Modifier.fillMaxWidth().padding(start = 28.dp, top = 4.dp, bottom = 2.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (drawerHistoryLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) }
+                        drawerHistoryError?.let { message -> item { Text(message, modifier = Modifier.padding(horizontal = 18.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) } }
+                        items(drawerHistoryItems, key = { "drawer-history-" + it.id }) { historyItem ->
+                            NavigationDrawerItem(
+                                label = {
+                                    Column {
+                                        Text(historyItem.title, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+                                        Text(historyItem.messageCount.toString() + " messages", maxLines = 1, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                },
+                                selected = false,
+                                enabled = openingDrawerHistoryId == null,
+                                onClick = {
+                                    openingDrawerHistoryId = historyItem.id
+                                    shellScope.launch {
+                                        runCatching { HistoryApiClient().load(historyItem.id) }
+                                            .onSuccess { messages ->
+                                                restoredChat = historyItem.title to messages
+                                                history = false; settings = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
+                                                chatSessionNonce += 1
+                                                drawerState.close()
+                                            }
+                                            .onFailure { drawerHistoryError = safeUserFacingIssue(it, "Could not open this saved chat.") }
+                                        openingDrawerHistoryId = null
+                                    }
+                                },
+                                icon = { if (openingDrawerHistoryId == historyItem.id) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.History, null) }
+                            )
+                        }
+                        if (!drawerHistoryLoading && drawerHistoryItems.size >= drawerHistoryLimit && drawerHistoryLimit < 100) {
+                            item {
+                                TextButton(
+                                    onClick = { drawerHistoryLimit = (drawerHistoryLimit + 10).coerceAtMost(100) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Load more history") }
+                            }
+                        }
                     }
                     item {
                         NavigationDrawerItem(
