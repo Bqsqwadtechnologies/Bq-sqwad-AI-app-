@@ -115,7 +115,8 @@ class CoreTest {
             Workspace.CAMERA,
             Workspace.VOICE,
             Workspace.VIDEO,
-            Workspace.PERSONAL
+            Workspace.PERSONAL,
+            Workspace.DATA_ANALYSIS
         ).forEach { workspace ->
             assertTrue("$workspace must be immediately accessible", snapshot.hasVerifiedAccess(workspace))
             assertFalse("$workspace must not be plan gated", snapshot.requiresPaidAccess(workspace))
