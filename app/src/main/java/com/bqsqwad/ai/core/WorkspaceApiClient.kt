@@ -294,8 +294,77 @@ class WorkspaceApiClient {
         return request(path, payload = JSONObject().put("enabled", enabled).put("killSwitch", killSwitch).put("config", config))
     }
 
-    suspend fun chargeChatBackground(uploadId: String): JSONObject =
-        request("/chat-background/charge", payload = JSONObject().put("uploadId", uploadId))
+    suspend fun uploadFileBoxAsset(title: String, fileName: String, contentType: String, bytes: ByteArray): JSONObject = withContext(Dispatchers.IO) {
+        require(bytes.isNotEmpty()) { "Choose a non-empty file." }
+        require(bytes.size <= 25 * 1024 * 1024) { "Files must be 25 MB or smaller." }
+        val metadata = request("/file-box/upload-url", payload = JSONObject().apply {
+            put("title", title.take(180))
+            put("fileName", fileName.take(160))
+            put("contentType", contentType.take(120))
+            put("size", bytes.size)
+        })
+        val uploadUrl = metadata.optString("uploadUrl")
+        val uploadToken = metadata.optString("authorizationToken")
+        val objectPath = metadata.optString("objectPath")
+        val id = metadata.optString("id")
+        if (uploadUrl.isBlank() || uploadToken.isBlank() || objectPath.isBlank() || id.isBlank()) error("Secure upload could not be prepared.")
+        val encodedName = java.net.URLEncoder.encode(objectPath, "UTF-8").replace("+", "%20")
+        val sha1 = java.security.MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }
+        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15000
+            readTimeout = 60000
+            doOutput = true
+            setFixedLengthStreamingMode(bytes.size)
+            setRequestProperty("Authorization", uploadToken)
+            setRequestProperty("X-Bz-File-Name", encodedName)
+            setRequestProperty("Content-Type", contentType.ifBlank { "application/octet-stream" })
+            setRequestProperty("X-Bz-Content-Sha1", sha1)
+        }
+        try {
+            connection.outputStream.use { it.write(bytes) }
+            val status = connection.responseCode
+            val raw = (if (status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) error("File upload failed. Please retry.")
+        } finally {
+            connection.disconnect()
+        }
+        request("/file-box/finalize", payload = JSONObject().put("id", id))
+    }
+
+    suspend fun downloadFileBoxAsset(id: String): ByteArray = withContext(Dispatchers.IO) {
+        ensureNetworkAvailable()
+        val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
+        val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
+        val path = "/file-box/download?id=" + java.net.URLEncoder.encode(id, "UTF-8")
+        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 60000
+            setRequestProperty("Authorization", "Bearer $token")
+        }
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val message = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                error(runCatching { JSONObject(message).optString("error") }.getOrDefault("File download failed."))
+            }
+            if (connection.contentLengthLong > 25L * 1024L * 1024L) error("This file is too large to download in the app.")
+            connection.inputStream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (output.size().toLong() + count > 25L * 1024L * 1024L) error("This file is too large to download in the app.")
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     suspend fun fileBox(): JSONObject = request("/file-box", "GET")
     suspend fun saveFileBoxItem(title: String, content: String, mimeType: String = "text/plain"): JSONObject =
