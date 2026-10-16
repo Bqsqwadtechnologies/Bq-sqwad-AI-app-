@@ -294,6 +294,9 @@ class WorkspaceApiClient {
         return request(path, payload = JSONObject().put("enabled", enabled).put("killSwitch", killSwitch).put("config", config))
     }
 
+    suspend fun chargeChatBackground(uploadId: String): JSONObject =
+        request("/chat-background/charge", payload = JSONObject().put("uploadId", uploadId))
+
     suspend fun fileBox(): JSONObject = request("/file-box", "GET")
     suspend fun saveFileBoxItem(title: String, content: String, mimeType: String = "text/plain"): JSONObject =
         request("/file-box", payload = JSONObject().put("title", title).put("content", content).put("mimeType", mimeType))
