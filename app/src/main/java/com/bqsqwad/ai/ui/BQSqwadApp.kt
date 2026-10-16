@@ -5924,6 +5924,27 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             scope.launch {
                 var persistedPermission = false
                 runCatching {
+                    val mime = context.contentResolver.getType(uri).orEmpty()
+                    require(mime.startsWith("image/")) { "Choose a valid image file." }
+                    val imageBytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                if (output.size() + count > 10 * 1024 * 1024) error("Choose an image smaller than 10 MB.")
+                                output.write(buffer, 0, count)
+                            }
+                            output.toByteArray()
+                        } ?: error("Could not read the selected image.")
+                    }
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
+                    require(bounds.outWidth in 1..12000 && bounds.outHeight in 1..12000 &&
+                        bounds.outWidth.toLong() * bounds.outHeight.toLong() <= 40_000_000L) {
+                        "Choose a valid image with dimensions no larger than 12,000 × 12,000 pixels."
+                    }
                     context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     persistedPermission = true
                     val uploadId = java.util.UUID.randomUUID().toString()
