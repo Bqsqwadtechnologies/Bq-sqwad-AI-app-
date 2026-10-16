@@ -8,7 +8,7 @@ import android.content.ContentValues
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
-import android.view.Surface
+import android.view.Surface as AndroidSurface
 import android.view.TextureView
 import android.util.LruCache
 import java.net.URL
@@ -665,7 +665,7 @@ private fun LegalConsentLinks() {
 private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
     var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
     var authVideoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
-    var authVideoSurface by remember { mutableStateOf<Surface?>(null) }
+    var authVideoSurface by remember { mutableStateOf<AndroidSurface?>(null) }
     var authVideoPrepared by remember { mutableStateOf(false) }
     var authVideoPaused by remember { mutableStateOf(false) }
     var authVideoMuted by remember { mutableStateOf(true) }
@@ -700,7 +700,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                         isOpaque = false
                         surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                             override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
-                                val outputSurface = Surface(surfaceTexture)
+                                val outputSurface = AndroidSurface(surfaceTexture)
                                 val player = android.media.MediaPlayer()
                                 authVideoSurface = outputSurface
                                 authVideoPlayer = player
