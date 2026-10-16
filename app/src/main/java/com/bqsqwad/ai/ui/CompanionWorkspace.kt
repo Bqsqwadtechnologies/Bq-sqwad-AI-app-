@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
@@ -6,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -157,7 +160,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                         Text("Caring, calm and always listening", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                     IconButton(onClick = { settingsOpen = true }) {
-                        Icon(androidx.compose.material.icons.Icons.Default.Settings, contentDescription = "Companion settings")
+                        Icon(Icons.Default.Settings, contentDescription = "Companion settings")
                     }
                 }
 
