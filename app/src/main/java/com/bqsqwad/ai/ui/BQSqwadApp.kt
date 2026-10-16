@@ -6304,6 +6304,22 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     }
                 }
             }
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy"))) }
+                    ) { Icon(Icons.Default.Lock, contentDescription = null); Spacer(Modifier.width(5.dp)); Text("Privacy Policy", maxLines = 1) }
+                    TextButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms"))) }
+                    ) { Icon(Icons.Default.Description, contentDescription = null); Spacer(Modifier.width(5.dp)); Text("Terms & Conditions", maxLines = 1) }
+                }
+            }
             scheduledDeletionAt?.let { deadline ->
                 item {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
@@ -6596,7 +6612,7 @@ item { SettingsSectionTitle("AI features", "Open any AI workspace from here inst
                     }
                     listOf(
                         Workspace.SEARCH, Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB,
-                        Workspace.DATA_ANALYSIS, Workspace.CAMERA, Workspace.VOICE, Workspace.VIDEO,
+                        Workspace.DATA_ANALYSIS, Workspace.VIDEO,
                         Workspace.PERSONAL, Workspace.LIFE, Workspace.COMPANION, Workspace.LEARNING,
                         Workspace.BUSINESS, Workspace.ORGANIZATION_STUDIO
                     ).forEach { feature ->
@@ -6657,16 +6673,6 @@ item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for q
             }
             if (settingsCategory == "All settings" || settingsCategory == "Privacy & Data") {
 item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center to manage consent and account data") }
-            item {
-                FeatureCard("Privacy Policy", "Read BQ Sqwad AI's privacy policy.") {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/privacy-policy")))
-                }
-            }
-            item {
-                FeatureCard("Terms & Conditions", "Read the terms governing use of BQ Sqwad AI.") {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com/terms")))
-                }
-            }
             item {
                 FeatureCard("Open Settings & Privacy", "Manage AI training participation, account data and account protection.") {
                     showSettingsPrivacyDirectory = true
