@@ -92,6 +92,7 @@ import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.gms.tasks.Tasks
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -920,14 +921,40 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             accessLoading = false
             return@LaunchedEffect
         }
+        val accessPrefs = accountPreferences(context, "workspace_access_cache")
+        val cachedCatalog = accessPrefs.getString("catalog", null)
+        val cachedEntitlements = accessPrefs.getString("entitlements", null)
+        if (!cachedCatalog.isNullOrBlank() && !cachedEntitlements.isNullOrBlank()) {
+            workspaceAccess = runCatching {
+                WorkspaceAccessSnapshot.fromCatalog(
+                    JSONObject(cachedCatalog),
+                    JSONObject(cachedEntitlements),
+                    accessPrefs.getBoolean("admin", false),
+                    accessPrefs.getBoolean("test_mode", false)
+                )
+            }.getOrDefault(workspaceAccess)
+        }
         accessLoading = true
         val api = WorkspaceApiClient()
         runCatching {
-            val catalog = api.nativeCatalog()
-            val entitlements = runCatching { api.entitlements() }.getOrElse { JSONObject() }
-            val admin = runCatching { api.adminAccess().optBoolean("allowed") }.getOrDefault(false)
-            val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
-            WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
+            kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                kotlinx.coroutines.coroutineScope {
+                    val catalogTask = async(Dispatchers.IO) { api.nativeCatalog() }
+                    val entitlementsTask = async(Dispatchers.IO) { api.entitlements() }
+                    val adminTask = async(Dispatchers.IO) { api.adminAccess().optBoolean("allowed") }
+                    val catalog = catalogTask.await()
+                    val entitlements = entitlementsTask.await()
+                    val admin = adminTask.await()
+                    val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
+                    accessPrefs.edit()
+                        .putString("catalog", catalog.toString())
+                        .putString("entitlements", entitlements.toString())
+                        .putBoolean("admin", admin)
+                        .putBoolean("test_mode", testMode)
+                        .apply()
+                    WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin, testMode)
+                }
+            } ?: throw IllegalStateException("access_check_timeout")
         }.onSuccess {
             workspaceAccess = it
             val current = workspace
