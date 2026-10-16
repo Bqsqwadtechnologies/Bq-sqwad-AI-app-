@@ -417,6 +417,9 @@ class WorkspaceApiClient {
         })
     suspend fun setAdminChatBackground(url:String, enabled:Boolean=true):JSONObject =
         request("/admin/chat-background", payload=JSONObject().put("url", url).put("enabled", enabled))
+    suspend fun adminDailyFreeCredits(): JSONObject = request("/admin/daily-free-credits", "GET")
+    suspend fun setAdminDailyFreeCredits(credits: Int, enabled: Boolean): JSONObject =
+        request("/admin/daily-free-credits", payload = JSONObject().put("credits", credits).put("enabled", enabled))
 
     suspend fun adminStaff():JSONObject = request("/admin/staff","GET")
     suspend fun adminStaffRoles():JSONObject = request("/admin/staff/roles","GET")
