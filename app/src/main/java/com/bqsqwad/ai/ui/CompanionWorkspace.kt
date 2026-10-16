@@ -388,7 +388,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             WorkspaceApiClient().companionChat(text, personality)
                         }.onSuccess { reply ->
                             val answer = reply.optString("text").ifBlank { reply.optString("answer") }
-                            if (answer.isNotBlank()) messages.add(CompanionMessage(false, answer))
+                            if (answer.isNotBlank()) {
+                                messages.add(CompanionMessage(false, answer))
+                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
+                                }
+                            }
                         }.onFailure { notice = safeUserFacingIssue(it, "Companion response failed.") }
                         busy = false
                     }
