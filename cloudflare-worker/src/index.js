@@ -1604,7 +1604,7 @@ export default {
         let reservation = null;
         if (chargeAmount > 0) reservation = await chargeCredits(user.uid, chargeAmount, "dictation", user);
         try {
-          if (!env?.OPENAI_API_KEY) throw Object.assign(new Error("openai_provider_not_configured"), { httpStatus: 503, safeError: "openai_provider_not_configured" });
+          if (!env?.OPENAI_API_KEY) throw Object.assign(new Error("provider_key_missing"), { httpStatus: 503, safeError: "provider_key_missing" });
           const transcribeWithModel = async (model) => {
             const form = new FormData();
             form.append("file", new Blob([audioBytes], { type: "audio/wav" }), "dictation.wav");
