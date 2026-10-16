@@ -280,7 +280,7 @@ class RealtimeVoiceSession(
                 if (suppressAudioUntilResponse.get()) return
                 val encoded = event.optString("delta")
                 if (encoded.isNotBlank()) {
-                    val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                    val bytes = amplifyOutputPcm(Base64.decode(encoded, Base64.DEFAULT))
                     ensurePlayer()
                     player?.play()
                     if (playing.compareAndSet(false, true)) {
@@ -445,6 +445,22 @@ class RealtimeVoiceSession(
                 }
             }
         }
+    }
+
+    // Realtime PCM can arrive quieter than normal media on some Android speaker routes.
+    // Apply modest software gain for Live Voice and Live Camera speech, with
+    // signed-16-bit saturation to prevent integer overflow.
+    private fun amplifyOutputPcm(bytes: ByteArray): ByteArray {
+        val gain = 1.5
+        var offset = 0
+        while (offset + 1 < bytes.size) {
+            val sample = ((bytes[offset + 1].toInt() shl 8) or (bytes[offset].toInt() and 0xff)).toShort().toInt()
+            val amplified = (sample * gain).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            bytes[offset] = amplified.toByte()
+            bytes[offset + 1] = (amplified shr 8).toByte()
+            offset += 2
+        }
+        return bytes
     }
 
     private fun pcmRms(bytes: ByteArray, length: Int = bytes.size): Float {
