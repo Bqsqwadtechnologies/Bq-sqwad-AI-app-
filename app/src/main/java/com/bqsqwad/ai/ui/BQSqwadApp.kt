@@ -803,6 +803,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
+    var accessLoadFailed by remember { mutableStateOf(false) }
+    var accessRetryNonce by remember { mutableIntStateOf(0) }
+    var accessRetryWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var signInRequired by remember { mutableStateOf(false) }
     var signUpRequired by remember { mutableStateOf(false) }
@@ -913,7 +916,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         }
     }
 
-    LaunchedEffect(email, workspace) {
+    LaunchedEffect(email, workspace, accessRetryNonce) {
         // Refresh when returning from a workspace so an administrator's test-mode
         // change is reflected without requiring an app restart.
         if (email.isBlank()) {
@@ -934,6 +937,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 )
             }.getOrDefault(workspaceAccess)
         }
+        accessLoadFailed = false
         accessLoading = true
         val api = WorkspaceApiClient()
         runCatching {
@@ -956,6 +960,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 }
             } ?: throw IllegalStateException("access_check_timeout")
         }.onSuccess {
+            accessLoadFailed = false
+            accessRetryWorkspace = null
             workspaceAccess = it
             val current = workspace
             if (current != null && current !in setOf(
@@ -965,7 +971,15 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 paywallWorkspace = current
                 workspace = null
             }
-        }.onFailure { workspaceAccess = WorkspaceAccessSnapshot.empty() }
+        }.onFailure {
+            workspaceAccess = WorkspaceAccessSnapshot.empty()
+            accessLoadFailed = true
+            val current = workspace
+            if (current != null && current !in setOf(
+                    Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS, Workspace.ADMIN
+                )) accessRetryWorkspace = current
+        }
         accessLoading = false
     }
 
@@ -990,6 +1004,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             // Never show a false paywall while the access snapshot is still loading.
             // The completed snapshot decides whether a plan-gated destination needs a paywall.
             workspace = selected
+        } else if (accessLoadFailed) {
+            workspace = selected
+            accessRetryWorkspace = selected
         } else if (workspaceAccess.hasVerifiedAccess(selected)) {
             workspace = selected
         } else {
@@ -1287,6 +1304,21 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 }
             }
         }
+    }
+
+    accessRetryWorkspace?.let { selected ->
+        AlertDialog(
+            onDismissRequest = { accessRetryWorkspace = null },
+            title = { Text("Could not check your plan") },
+            text = { Text("Your access could not be checked right now. Retry when your connection is available.") },
+            confirmButton = {
+                Button(onClick = {
+                    accessRetryWorkspace = null
+                    accessRetryNonce++
+                }) { Text("Retry") }
+            },
+            dismissButton = { TextButton(onClick = { accessRetryWorkspace = null }) { Text("Close") } }
+        )
     }
 
     paywallWorkspace?.let { selected ->
