@@ -306,28 +306,30 @@ class WorkspaceApiClient {
             put("contentType", contentType.take(120))
             put("size", bytes.size)
         })
-        val uploadUrl = metadata.optString("uploadUrl")
-        val uploadToken = metadata.optString("authorizationToken")
-        val objectPath = metadata.optString("objectPath")
         val id = metadata.optString("id")
-        if (uploadUrl.isBlank() || uploadToken.isBlank() || objectPath.isBlank() || id.isBlank()) error("Secure upload could not be prepared.")
-        val encodedName = java.net.URLEncoder.encode(objectPath, "UTF-8").replace("+", "%20")
+        if (id.isBlank()) error("Secure upload could not be prepared.")
+        val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
+        val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val sha1 = java.security.MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }
-        val connection = (URL(uploadUrl).openConnection() as HttpURLConnection).apply {
+        val path = "/file-box/upload?id=" + java.net.URLEncoder.encode(id, "UTF-8")
+        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15000
             readTimeout = 60000
             doOutput = true
             setFixedLengthStreamingMode(bytes.size)
-            setRequestProperty("Authorization", uploadToken)
-            setRequestProperty("X-Bz-File-Name", encodedName)
-            setRequestProperty("Content-Type", contentType.ifBlank { "application/octet-stream" })
-            setRequestProperty("X-Bz-Content-Sha1", sha1)
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/octet-stream")
+            setRequestProperty("X-BQ-Content-SHA1", sha1)
         }
         try {
             connection.outputStream.use { it.write(bytes) }
             val status = connection.responseCode
-            if (status !in 200..299) error("File upload failed. Please retry.")
+            if (status !in 200..299) {
+                val message = (connection.errorStream?.bufferedReader()?.use { it.readText() }).orEmpty()
+                val reason = runCatching { JSONObject(message).optString("error") }.getOrDefault("")
+                error(reason.ifBlank { "File upload failed. Please retry." })
+            }
         } finally {
             connection.disconnect()
         }
