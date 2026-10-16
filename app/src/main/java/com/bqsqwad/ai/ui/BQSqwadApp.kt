@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.Environment
 import android.speech.tts.TextToSpeech
 import java.util.UUID
+import kotlin.math.roundToInt
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -4776,8 +4777,27 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
     var previewEnabled by remember { mutableStateOf(granted) }
-    var fullScreenPreview by remember { mutableStateOf(false) }
-    var fullScreenPreviewReady by remember { mutableStateOf(false) }
+    var fullScreenPreview by remember { mutableStateOf(granted) }
+    var fullScreenPreviewReady by remember { mutableStateOf(granted) }
+    var showCameraSettings by remember { mutableStateOf(false) }
+    val liveAudioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
+    var liveVolume by remember {
+        mutableStateOf(
+            (liveAudioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() /
+                liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)).coerceIn(0f, 1f)
+        )
+    }
+    fun setLiveVolume(value: Float) {
+        liveVolume = value.coerceIn(0f, 1f)
+        val maxVolume = liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        liveAudioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (liveVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
+    }
+    LaunchedEffect(granted, previewEnabled) {
+        if (granted && previewEnabled && !streamOnline && !screenActive) {
+            fullScreenPreview = true
+            fullScreenPreviewReady = true
+        }
+    }
     var previewFrame by remember { mutableStateOf<ImageBitmap?>(null) }
     var lastPreviewTextureUpdate by remember { mutableLongStateOf(0L) }
     var showPreviewBitmapFallback by remember { mutableStateOf(false) }
@@ -5421,8 +5441,8 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     if (fullScreenPreview && fullScreenPreviewReady && granted && previewEnabled) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = {
-                // The dialog preview's onClosed callback returns to the inline preview.
                 fullScreenPreviewReady = false
+                fullScreenPreview = false
             },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
@@ -5485,12 +5505,14 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     }
                     Spacer(Modifier.weight(1f))
                     Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
+                        IconButton(onClick = { showCameraSettings = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Live camera settings", tint = Color.White)
+                        }
+                    }
+                    Surface(color = Color.Black.copy(alpha = 0.55f), shape = RoundedCornerShape(12.dp)) {
                         TextButton(onClick = {
                             fullScreenPreviewReady = false
-                            scope.launch {
-                                kotlinx.coroutines.delay(250)
-                                fullScreenPreview = false
-                            }
+                            fullScreenPreview = false
                         }) { Text("Close", color = Color.White) }
                     }
                 }
@@ -5506,6 +5528,66 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                 }
             }
         }
+    }
+
+    if (showCameraSettings) {
+        AlertDialog(
+            onDismissRequest = { showCameraSettings = false },
+            title = { Text("Live Camera settings") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("AI voice volume · " + (liveVolume * 100).roundToInt() + "%", style = MaterialTheme.typography.titleSmall)
+                    Slider(value = liveVolume, onValueChange = ::setLiveVolume, valueRange = 0f..1f)
+                    Text("This adjusts media playback volume on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("AI voice", style = MaterialTheme.typography.titleSmall)
+                    liveVoices.forEach { (id, label) ->
+                        Row(Modifier.fillMaxWidth().clickable { selectedVoice = id }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = selectedVoice == id, onClick = { selectedVoice = id })
+                            Text(label)
+                        }
+                    }
+                    OutlinedButton(onClick = { toggleFlashlight() }, modifier = Modifier.fillMaxWidth(), enabled = granted) {
+                        Icon(Icons.Default.FlashOn, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (flashlightOn) "Turn spotlight off" else "Turn spotlight on")
+                    }
+                    OutlinedButton(onClick = {
+                        lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
+                        flashlightOn = false
+                    }, modifier = Modifier.fillMaxWidth(), enabled = granted) {
+                        Icon(Icons.Default.Cameraswitch, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Flip camera")
+                    }
+                    OutlinedButton(onClick = {
+                        showCameraSettings = false
+                        if (screenActive) {
+                            context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                            screenActive = false
+                        } else if (!liveTermsAccepted) {
+                            pendingLiveAction = "screen"
+                            showLiveTerms = true
+                        } else launchScreenWithMic()
+                    }, modifier = Modifier.fillMaxWidth(), enabled = !active || screenActive) {
+                        Icon(Icons.Default.ScreenShare, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (screenActive) "Stop screen sharing" else "Share screen with AI")
+                    }
+                    OutlinedButton(onClick = {
+                        showCameraSettings = false
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/live"))) }
+                            .onFailure { streamError = "TikTok could not be opened on this device." }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Open TikTok LIVE") }
+                    OutlinedButton(onClick = {
+                        showCameraSettings = false
+                        val intent = Intent("com.google.android.youtube.intent.action.CREATE_LIVE_STREAM").setPackage("com.google.android.youtube")
+                        runCatching { context.startActivity(intent) }.onFailure {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/live"))) }
+                                .onFailure { streamError = "YouTube Live could not be opened. Install or update YouTube and try again." }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Open YouTube Live") }
+                    Text("TikTok and YouTube open their own apps/pages. Direct in-app broadcasting requires each platform's supported stream credentials and integration.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showCameraSettings = false }) { Text("Done") } }
+        )
     }
 
     if (showLiveTerms) {
@@ -5634,6 +5716,18 @@ private fun BqLiveAudioOrb(
 fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val voiceAudioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
+    var voiceVolume by remember {
+        mutableStateOf((voiceAudioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)).coerceIn(0f, 1f))
+    }
+    var selectedVoice by remember { mutableStateOf("marin") }
+    var voicePickerExpanded by remember { mutableStateOf(false) }
+    val availableLiveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
+    fun setVoiceVolume(value: Float) {
+        voiceVolume = value.coerceIn(0f, 1f)
+        val maxVolume = voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        voiceAudioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (voiceVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
+    }
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
     var startError by remember { mutableStateOf<String?>(null) }
@@ -5651,6 +5745,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             context.startForegroundService(
                 Intent(context, LiveMediaForegroundService::class.java)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
+                    .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, "")
             )
         }.onSuccess {
@@ -5710,6 +5805,22 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
+        Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("AI voice settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Playback volume · " + (voiceVolume * 100).roundToInt() + "%", style = MaterialTheme.typography.bodyMedium)
+                Slider(value = voiceVolume, onValueChange = ::setVoiceVolume, valueRange = 0f..1f)
+                Box {
+                    OutlinedButton(onClick = { voicePickerExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("AI voice: " + (availableLiveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
+                    }
+                    DropdownMenu(expanded = voicePickerExpanded, onDismissRequest = { voicePickerExpanded = false }) {
+                        availableLiveVoices.forEach { (id, label) -> DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voicePickerExpanded = false }) }
+                    }
+                }
+                Text("Volume uses the device media playback level. A voice change applies the next time you start a live session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         val serviceVoiceError = liveUiState.answer.takeIf {
             liveUiState.mode == LiveMediaForegroundService.MODE_VOICE &&
                 liveUiState.status.equals("error", ignoreCase = true) &&
