@@ -2652,7 +2652,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 contentDescription = "Custom chat background",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alpha = 0.22f
+                alpha = 0.32f
             )
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
