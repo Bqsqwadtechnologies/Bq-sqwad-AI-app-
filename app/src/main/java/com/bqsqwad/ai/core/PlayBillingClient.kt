@@ -175,14 +175,15 @@ class PlayBillingClient(
     private fun queryCatalog() {
         Thread {
             runCatching {
-                val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
-                val token = Tasks.await(user.getIdToken(false)).token ?: return@runCatching
-                val catalogPath = if (catalogContext == "organization") "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
+                // Product mappings must come from the same admin-managed website pricing
+                // configuration as plans; the Worker must not maintain a second catalogue.
+                val contextQuery = if (catalogContext == "organization") "?context=organization" else ""
+                val catalogPath = "https://bqsqwadai.com/api/native/pricing$contextQuery"
                 val connection = (URL(catalogPath).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 15000
                     readTimeout = 30000
-                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Accept", "application/json")
                 }
                 val raw = try {
                     val status = connection.responseCode
@@ -193,7 +194,12 @@ class PlayBillingClient(
                 } finally {
                     connection.disconnect()
                 }
-                val catalogJson = JSONObject(raw).optJSONArray("products") ?: JSONArray()
+                val catalogRoot = JSONObject(raw)
+                val catalogJson = catalogRoot.optJSONArray("products")
+                    ?: catalogRoot.optJSONObject("pricing")?.optJSONArray("products")
+                    ?: catalogRoot.optJSONObject("catalog")?.optJSONArray("products")
+                    ?: catalogRoot.optJSONArray("playProducts")
+                    ?: JSONArray()
                 val nextCatalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
                 val products = mutableListOf<QueryProductDetailsParams.Product>()
                 val seenProducts = mutableSetOf<String>()
