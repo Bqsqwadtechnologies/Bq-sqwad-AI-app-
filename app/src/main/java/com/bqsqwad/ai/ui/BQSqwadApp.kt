@@ -5144,6 +5144,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         if (liveServiceMode == LiveMediaForegroundService.MODE_SCREEN) {
             screenActive = liveServiceActive
             if (liveAnswer.isNotBlank()) screenAnswer = liveAnswer
+            if (!liveServiceActive && liveUiState.status.lowercase() in setOf("stopped", "error") && granted) {
+                previewEnabled = true
+                fullScreenPreview = true
+                fullScreenPreviewReady = true
+            }
             if (!liveServiceActive && liveUiState.status.contains("credit", ignoreCase = true)) streamError = "Your current usage allowance is unavailable. Review plans and billing to continue."
         } else if (liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
             active = liveServiceActive
@@ -5235,6 +5240,9 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     if (screenActive) {
                         context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                         screenActive = false
+                        previewEnabled = granted
+                        fullScreenPreview = granted
+                        fullScreenPreviewReady = granted
                     } else if (!liveTermsAccepted) {
                         pendingLiveAction = "screen"
                         showLiveTerms = true
@@ -5639,6 +5647,9 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         if (screenActive) {
                             context.stopService(Intent(context, LiveMediaForegroundService::class.java))
                             screenActive = false
+                            previewEnabled = granted
+                            fullScreenPreview = granted
+                            fullScreenPreviewReady = granted
                         } else if (!liveTermsAccepted) {
                             pendingLiveAction = "screen"
                             showLiveTerms = true
