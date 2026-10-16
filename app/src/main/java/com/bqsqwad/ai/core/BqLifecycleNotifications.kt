@@ -36,6 +36,9 @@ object BqLifecycleNotifications {
     private const val BIRTHDAY_REQUEST_CODE = 4013
     const val ACTION_BIRTHDAY_MILESTONE = "com.bqsqwad.ai.ACTION_BIRTHDAY_MILESTONE"
 
+    fun notificationsEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFICATIONS_ENABLED, true)
+
     fun birthTimestamp(context: Context): Long {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val saved = prefs.getLong(FIRST_OPEN, 0L)
