@@ -2541,6 +2541,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             add(nextYearAt to if (elapsedYears == 0) "1 year" else "yearly")
                         }
                         val next = nextCandidates.minBy { it.first }
+                        val isBirthdayCelebrationToday = elapsedYears >= 1 &&
+                            nowCal.get(java.util.Calendar.MONTH) == birthCal.get(java.util.Calendar.MONTH) &&
+                            nowCal.get(java.util.Calendar.DAY_OF_MONTH) == birthCal.get(java.util.Calendar.DAY_OF_MONTH)
                         val previousCandidates = buildList {
                             add(aiBirthTimestamp)
                             if (oneDayAt <= nowAt) add(oneDayAt)
@@ -2556,6 +2559,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     FloatingLogo(Modifier)
+                                    if (isBirthdayCelebrationToday) {
+                                        BirthdayConfetti()
+                                        Text("Happy AI Birthday!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
                                     Text("Born ${java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))}")
                                     Text("Your AI is $ageDays days old.")
                                     CircularProgressIndicator(progress = progress)
@@ -6222,5 +6229,40 @@ private fun WallpaperBackground(index: Int) {
                 rotationZ = tilt
             }
         )
+    }
+}
+
+@Composable
+private fun BirthdayConfetti(modifier: Modifier = Modifier) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "birthday-confetti")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1800, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "confetti-fall"
+    )
+    Canvas(modifier.fillMaxWidth().height(48.dp)) {
+        val palette = listOf(
+            androidx.compose.ui.graphics.Color(0xFF2F80ED),
+            androidx.compose.ui.graphics.Color(0xFF18A999),
+            androidx.compose.ui.graphics.Color(0xFFFFB020),
+            androidx.compose.ui.graphics.Color(0xFFB56CE2),
+            androidx.compose.ui.graphics.Color(0xFFFF6B6B)
+        )
+        repeat(28) { index ->
+            val x = (index * 47.7f % size.width.coerceAtLeast(1f))
+            val startY = (index * 19.3f % size.height.coerceAtLeast(1f))
+            val y = (startY + phase * size.height) % size.height
+            val radius = 2.2f + (index % 3) * 1.2f
+            drawCircle(
+                color = palette[index % palette.size],
+                radius = radius,
+                center = androidx.compose.ui.geometry.Offset(x, y),
+                alpha = 0.9f
+            )
+        }
     }
 }
