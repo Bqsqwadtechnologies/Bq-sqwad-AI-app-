@@ -22,7 +22,7 @@ import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, aut
 import { orgWallet, orgTopUps, orgLiveStart, orgChargeAssistant, orgLiveGet, orgLiveHeartbeat, orgLiveStop, orgBillingConfig } from "./organization-billing-native.js";
 import { youtubeChannel, youtubeCreateLive, youtubeTransition, youtubeStatus, youtubeChat, youtubeReply } from "./youtube-native.js";
 import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runtime-native.js";
-import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization } from "./training-assets.js";
+import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const rateBuckets = new Map();
@@ -1826,13 +1826,77 @@ export default {
       }
 
 
+      if (url.pathname === "/file-box/upload-url" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const title = String(body.title || "").trim().slice(0, 180);
+        const fileName = String(body.fileName || "").trim().slice(0, 160);
+        const contentType = String(body.contentType || "application/octet-stream").trim().slice(0, 120);
+        const size = Math.max(0, Number(body.size || 0));
+        if (!title || !fileName || !size) return json({ error: "file_metadata_required" }, 400);
+        if (size > 25 * 1024 * 1024) return json({ error: "file_too_large" }, 413);
+        const id = crypto.randomUUID();
+        const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload";
+        const objectPath = "file-box/" + user.uid + "/" + id + "-" + safeName;
+        const session = await createTrainingAssetUploadSession({ fileName: safeName, contentType, objectPath });
+        await firestoreSet("fileBoxUploads/" + id, {
+          id, uid: user.uid, title, fileName: safeName, contentType, size, objectPath,
+          uploadPending: true, createdAt: new Date().toISOString()
+        }, false);
+        return json({ ok: true, id, uploadUrl: session.uploadUrl, authorizationToken: session.authorizationToken, objectPath });
+      }
+      if (url.pathname === "/file-box/finalize" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const id = String(body.id || "").trim();
+        const pending = await firestoreGet("fileBoxUploads/" + id);
+        if (!pending || String(pending.uid || "") !== user.uid) return json({ error: "file_upload_not_found" }, 404);
+        if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
+        const object = await inspectTrainingAssetObject(String(pending.objectPath || ""));
+        if (!object || Number(object.size) !== Number(pending.size)) return json({ error: "file_upload_not_complete" }, 409);
+        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
+        const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
+        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
+        const now = new Date();
+        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
+        const item = {
+          id: pending.id, uid: user.uid, title: String(pending.title || pending.fileName || "Uploaded file"),
+          fileName: String(pending.fileName || "upload"), mimeType: String(pending.contentType || object.contentType || "application/octet-stream"),
+          size: Number(object.size), objectPath: String(pending.objectPath), content: "",
+          createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + retentionDays * 86400000).toISOString(), retentionDays
+        };
+        items.push(item);
+        await firestoreSet("fileBox/" + user.uid, { uid: user.uid, items: items.slice(-20), retentionDays, updatedAt: now }, true);
+        await firestoreSet("fileBoxUploads/" + id, { uploadPending: false, finalizedAt: now.toISOString() }, true);
+        return json({ ok: true, item: { ...item, content: undefined }, count: Math.min(items.length, 20) });
+      }
+      if (url.pathname === "/file-box/download" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const id = String(url.searchParams.get("id") || "").trim();
+        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const item = (Array.isArray(doc.items) ? doc.items : []).find(entry => String(entry.id || "") === id);
+        if (!item || !item.objectPath) return json({ error: "stored_file_not_found" }, 404);
+        if (Date.parse(String(item.expiresAt || "")) <= Date.now()) return json({ error: "stored_file_expired" }, 410);
+        const stored = await downloadTrainingAssetObject(String(item.objectPath));
+        const safeName = String(item.fileName || item.title || "download").replace(/[\r\n"]/g, "_").slice(0, 160);
+        return new Response(stored.response.body, { status: 200, headers: {
+          ...corsHeaders(request), "content-type": stored.contentType,
+          "content-disposition": "attachment; filename=\"" + safeName + "\"",
+          "content-length": String(stored.size), "cache-control": "private, no-store"
+        }});
+      }
+
       if (url.pathname === "/file-box" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
         const now = Date.now();
-        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => {
+        const existingItems = Array.isArray(doc.items) ? doc.items : [];
+        const expiredItems = existingItems.filter(item => !Number.isFinite(Date.parse(String(item.expiresAt || ""))) || Date.parse(String(item.expiresAt || "")) <= now);
+        for (const expired of expiredItems) if (expired.objectPath) await deleteTrainingAssetObject(String(expired.objectPath)).catch(() => {});
+        const items = existingItems.filter(item => {
           const expiry = Date.parse(String(item.expiresAt || ""));
           return Number.isFinite(expiry) && expiry > now;
         }).slice(-100);
@@ -1877,7 +1941,10 @@ export default {
         const id = String(url.searchParams.get("id") || "").trim();
         if (!id) return json({ error:"file_id_required" }, 400);
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
-        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => item.id !== id);
+        const existingItems = Array.isArray(doc.items) ? doc.items : [];
+        const removed = existingItems.find(item => String(item.id || "") === id);
+        if (removed?.objectPath) await deleteTrainingAssetObject(String(removed.objectPath));
+        const items = existingItems.filter(item => item.id !== id);
         await firestoreSet("fileBox/" + user.uid, { ...doc, uid:user.uid, items, updatedAt:new Date() }, true);
         return json({ ok:true, count:items.length });
       }
