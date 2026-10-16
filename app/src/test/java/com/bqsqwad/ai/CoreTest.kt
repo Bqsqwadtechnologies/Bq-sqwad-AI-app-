@@ -27,8 +27,39 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.util.Calendar
 
 class CoreTest {
+
+    @Test fun birthdayMonthiversaryClampsMonthEndAndPreservesLocalTime() {
+        val start = Calendar.getInstance().apply {
+            clear()
+            set(2024, Calendar.JANUARY, 31, 12, 30, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val anniversary = Calendar.getInstance().apply {
+            timeInMillis = com.bqsqwad.ai.core.bqAnniversaryTimestamp(start, Calendar.MONTH, 1)
+        }
+        assertEquals(Calendar.FEBRUARY, anniversary.get(Calendar.MONTH))
+        assertEquals(29, anniversary.get(Calendar.DAY_OF_MONTH))
+        assertEquals(12, anniversary.get(Calendar.HOUR_OF_DAY))
+        assertEquals(30, anniversary.get(Calendar.MINUTE))
+    }
+
+    @Test fun birthdayYeariversaryHandlesLeapDayWithoutRollingIntoMarch() {
+        val start = Calendar.getInstance().apply {
+            clear()
+            set(2024, Calendar.FEBRUARY, 29, 9, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val anniversary = Calendar.getInstance().apply {
+            timeInMillis = com.bqsqwad.ai.core.bqAnniversaryTimestamp(start, Calendar.YEAR, 1)
+        }
+        assertEquals(2025, anniversary.get(Calendar.YEAR))
+        assertEquals(Calendar.FEBRUARY, anniversary.get(Calendar.MONTH))
+        assertEquals(28, anniversary.get(Calendar.DAY_OF_MONTH))
+    }
+
     @Test fun remoteImagesEmbeddedInAiTextAreNotRendered() {
         val blocks = parseBlocks("![private repository](https://github.com/private/repo/worker.png)")
         assertFalse(blocks.any { it is MdBlock.Image })
