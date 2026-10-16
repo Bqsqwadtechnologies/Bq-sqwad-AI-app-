@@ -715,6 +715,16 @@ class WorkspaceApiClient {
     suspend fun updateTrainingConsent(trainingConsent:Boolean):JSONObject =
         request("/consent/training",payload=JSONObject().put("trainingConsent",trainingConsent))
 
+    suspend fun submitTrainingContribution(prompt:String, response:String, workspace:String, privateMode:Boolean=false):JSONObject =
+        request("/training/contributions", payload=JSONObject().apply {
+            put("prompt", prompt.take(4000))
+            put("response", response.take(4000))
+            put("workspace", workspace.take(60))
+            put("privateMode", privateMode)
+        })
+
+    suspend fun adminTrainingLibrary():JSONObject = request("/admin/training-library", "GET")
+
     suspend fun truthGuardHistory(): List<JSONObject> {
         val body = request("/truthguard/history", "GET")
         val items = body.optJSONArray("items") ?: JSONArray()
