@@ -2500,11 +2500,22 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                     }
                     val ageDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
+                    val birthDateForChip = java.util.Calendar.getInstance().apply { timeInMillis = aiBirthTimestamp }
+                    val todayForChip = java.util.Calendar.getInstance()
+                    val isBirthdayTodayForChip = todayForChip.get(java.util.Calendar.YEAR) > birthDateForChip.get(java.util.Calendar.YEAR) &&
+                        todayForChip.get(java.util.Calendar.MONTH) == birthDateForChip.get(java.util.Calendar.MONTH) &&
+                        todayForChip.get(java.util.Calendar.DAY_OF_MONTH) == birthDateForChip.get(java.util.Calendar.DAY_OF_MONTH)
                     val ageLabel = when {
                         ageDays < 7 -> "$ageDays day${if (ageDays == 1L) "" else "s"} old"
                         ageDays < 30 -> "${(ageDays / 7).coerceAtLeast(1)} week${if (ageDays / 7 == 1L) "" else "s"} old"
                         ageDays < 365 -> "${(ageDays / 30).coerceAtLeast(1)} month${if (ageDays / 30 == 1L) "" else "s"} old"
                         else -> "${(ageDays / 365).coerceAtLeast(1)} year${if (ageDays / 365 == 1L) "" else "s"} old"
+                    }
+                    if (isBirthdayTodayForChip) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            BirthdayConfetti(Modifier.weight(1f))
+                            Text("Happy AI Birthday!", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                     TextButton(onClick = { birthdayCardOpen = true }, contentPadding = PaddingValues(0.dp)) {
                         Text(
