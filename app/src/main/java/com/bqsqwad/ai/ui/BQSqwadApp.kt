@@ -912,6 +912,20 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     val foregroundPushBanner by InAppNotificationBus.banner.collectAsState()
+    var dailyFeatureAnnouncement by remember(firebaseUser?.uid) { mutableStateOf<JSONObject?>(null) }
+    LaunchedEffect(firebaseUser?.uid) {
+        dailyFeatureAnnouncement = null
+        runCatching { WorkspaceApiClient().publicAppConfig() }.onSuccess { config ->
+            val announcement = config.optJSONObject("dailyFeatureAnnouncement")
+            val announcementId = announcement?.optString("id").orEmpty()
+            val ownerKey = firebaseUser?.uid?.takeIf { it.isNotBlank() } ?: "guest"
+            val seenPrefs = context.getSharedPreferences("bq_feature_announcements", Context.MODE_PRIVATE)
+            if (announcement != null && announcement.optBoolean("enabled", false) && announcementId.isNotBlank() &&
+                seenPrefs.getString("seen_$ownerKey", null) != announcementId) {
+                dailyFeatureAnnouncement = JSONObject(announcement.toString())
+            }
+        }
+    }
     LaunchedEffect(foregroundPushBanner) {
         val currentBanner = foregroundPushBanner?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
         kotlinx.coroutines.delay(8_000L)
@@ -1405,6 +1419,33 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
             }
+                }
+                dailyFeatureAnnouncement?.takeIf { foregroundPushBanner.isNullOrBlank() }?.let { announcement ->
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(16.dp),
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(announcement.optString("title").ifBlank { "Featured in BQ Sqwad AI" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                announcement.optString("feature").takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
+                                Text(announcement.optString("body"), style = MaterialTheme.typography.bodySmall)
+                            }
+                            IconButton(onClick = {
+                                val ownerKey = firebaseUser?.uid?.takeIf { it.isNotBlank() } ?: "guest"
+                                context.getSharedPreferences("bq_feature_announcements", Context.MODE_PRIVATE)
+                                    .edit().putString("seen_$ownerKey", announcement.optString("id")).apply()
+                                dailyFeatureAnnouncement = null
+                            }) { Icon(Icons.Default.Close, contentDescription = "Dismiss announcement") }
+                        }
+                    }
                 }
                 foregroundPushBanner?.takeIf { it.isNotBlank() }?.let { banner ->
                     Surface(
