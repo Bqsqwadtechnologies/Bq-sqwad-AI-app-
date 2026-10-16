@@ -325,6 +325,8 @@ class WorkspaceApiClient {
 
     suspend fun publicAppConfig():JSONObject = publicRequest("/public/app-config","GET")
 
+    suspend fun adminAppLayout(): JSONObject = request("/admin/app-layout", "GET")
+
     suspend fun setAdminAppLayout(workspaceOrder: List<String>, workspaceEnabled: JSONObject, themeMode: String = "system"): JSONObject =
         request("/admin/app-layout", payload = JSONObject().apply {
             put("workspaceOrder", JSONArray(workspaceOrder))
