@@ -102,13 +102,31 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     ) || {};
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
+
+  // The website admin dashboard and the Android app share Firebase project
+  // bqsqwadai. Website AI model metering is persisted at config/aiModels;
+  // use it as the common fallback when this Worker has no per-model registry
+  // price, while preserving an explicitly configured registry price as the
+  // highest-priority source.
+  const sharedAiConfig = await firestoreGet("config/aiModels").catch(() => null);
+  const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
+    ? sharedAiConfig.metering
+    : {};
+  const modelIdLower = String(modelId || "").toLowerCase();
+  const modelMultipliers = sharedMetering.modelMultipliers && typeof sharedMetering.modelMultipliers === "object"
+    ? Object.entries(sharedMetering.modelMultipliers)
+        .filter(([key, value]) => String(key).trim() && Number.isFinite(Number(value)) && Number(value) > 0)
+        .sort(([a], [b]) => String(b).length - String(a).length)
+    : [];
+  const sharedModelMultiplier = modelMultipliers.find(([key]) => modelIdLower.includes(String(key).toLowerCase()));
   const rates = {
-    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? 0),
-    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? 0),
+    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0),
+    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? 0),
     cachedInputPriceUsdPerMillion: embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
-  const customerMultiplier = Number(embedded.customerMultiplier ?? model.customerMultiplier ?? config.customerMultiplier ?? DEFAULT_CUSTOMER_MULTIPLIER);
+  const baseCustomerMultiplier = Number(embedded.customerMultiplier ?? model.customerMultiplier ?? config.customerMultiplier ?? DEFAULT_CUSTOMER_MULTIPLIER);
+  const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = Number(embedded.estimatedFeePercent ?? model.estimatedFeePercent ?? config.estimatedFeePercent ?? 15);
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
