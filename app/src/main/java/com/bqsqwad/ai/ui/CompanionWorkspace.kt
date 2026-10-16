@@ -2,6 +2,10 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -150,6 +154,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                CompanionFloatingWords(Modifier.fillMaxWidth().height(38.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -367,4 +372,55 @@ private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
             trialEligible = p.optBoolean("trialEligible", false)
         )
     }.filter { it.id.startsWith("companion") && it.id.isNotBlank() }
+}
+
+
+@Composable
+private fun CompanionFloatingWords(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val reduceMotion = remember {
+        runCatching {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) <= 0f
+        }.getOrDefault(false)
+    }
+    val transition = rememberInfiniteTransition(label = "companion-floating-words")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Restart),
+        label = "word-drift"
+    )
+    val words = remember {
+        listOf(
+            Triple("Care", .05f, .25f), Triple("Calm", .27f, .72f),
+            Triple("Hope", .48f, .40f), Triple("Joy", .68f, .82f),
+            Triple("Courage", .84f, .24f), Triple("Friend", .15f, .86f),
+            Triple("Trust", .38f, .18f), Triple("Growth", .58f, .66f),
+            Triple("Peace", .77f, .54f), Triple("Together", .92f, .90f),
+            Triple("Listen", .32f, .92f), Triple("Believe", .63f, .12f)
+        )
+    }
+    val paint = remember {
+        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        }
+    }
+    Canvas(modifier) {
+        val canvas = drawContext.canvas.nativeCanvas
+        val saveCount = canvas.save()
+        canvas.clipRect(0f, 0f, size.width, size.height)
+        words.forEachIndexed { index, word ->
+            paint.textSize = (10 + index % 4 * 2) * density
+            paint.alpha = if (reduceMotion) 58 else (36 + ((kotlin.math.sin((phase * 6.28318f) + index) + 1f) * 20f).toInt()).coerceIn(25, 78)
+            paint.color = if (index % 2 == 0) android.graphics.Color.rgb(70, 155, 245) else android.graphics.Color.rgb(73, 190, 183)
+            val yBase = word.third * size.height
+            val y = if (reduceMotion) yBase else (yBase - phase * size.height + size.height * 2f) % size.height
+            canvas.drawText(word.first, word.second * size.width, y, paint)
+        }
+        canvas.restoreToCount(saveCount)
+    }
 }
