@@ -39,7 +39,7 @@ class WebsiteApiClient(
             if (path != "/api/native/pricing" && path != "/api/public/catalog") {
                 setRequestProperty("Authorization", "Bearer " + token(forceRefresh))
             }
-            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Accept", if (path == "/api/chat") "text/event-stream, application/json" else "application/json")
         }
         if (payload != null && method != "GET" && method != "DELETE") {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
@@ -155,7 +155,6 @@ class WebsiteApiClient(
             try {
                 for (attempt in 0..1) {
                     connection = openJson("/api/chat", "POST", payload, forceRefresh = attempt == 1)
-                    connection!!.setRequestProperty("Accept", "text/event-stream, application/json")
                     val status = connection!!.responseCode
                     if (status == HttpURLConnection.HTTP_UNAUTHORIZED && attempt == 0) {
                         connection!!.disconnect()
