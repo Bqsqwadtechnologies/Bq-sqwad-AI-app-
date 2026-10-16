@@ -1826,6 +1826,36 @@ export default {
       }
 
 
+      if (url.pathname === "/chat-background/charge" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const uploadId = String(body.uploadId || "").trim();
+        if (!/^[A-Za-z0-9_-]{8,100}$/.test(uploadId)) return json({ error: "invalid_upload_id" }, 400);
+        const receiptPath = "chatBackgroundCharges/" + user.uid + "_" + uploadId;
+        const existing = await firestoreGet(receiptPath);
+        if (existing?.status === "charged" && String(existing.uid || "") === user.uid) {
+          return json({ ok: true, alreadyCharged: true, creditsCharged: 2 });
+        }
+        if (existing?.status === "pending") return json({ error: "charge_in_progress" }, 409);
+        try {
+          await firestoreCreate(receiptPath, { uid: user.uid, uploadId, status: "pending", createdAt: new Date() });
+        } catch {
+          const concurrent = await firestoreGet(receiptPath);
+          if (concurrent?.status === "charged" && String(concurrent.uid || "") === user.uid) return json({ ok: true, alreadyCharged: true, creditsCharged: 2 });
+          return json({ error: "charge_in_progress" }, 409);
+        }
+        let reservation = null;
+        try {
+          reservation = await chargeCredits(user.uid, 2, "chat_background_upload", user);
+          await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
+          await firestoreSet(receiptPath, { uid: user.uid, uploadId, status: "charged", creditsCharged: 2, chargedAt: new Date() }, true);
+          return json({ ok: true, creditsCharged: 2 });
+        } catch (error) {
+          if (reservation?.reservationId) await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          await firestoreSet(receiptPath, { uid: user.uid, uploadId, status: "failed", updatedAt: new Date() }, true).catch(() => {});
+          throw error;
+        }
+      }
       if (url.pathname === "/file-box/upload-url" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
