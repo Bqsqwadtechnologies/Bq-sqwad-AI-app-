@@ -4042,7 +4042,7 @@ private fun WorkspaceScreen(
                 Workspace.VOICE -> VoiceWorkspace(onOpenCredits)
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
-                Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans)
+                Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans, onOpenCredits = onOpenCredits)
                 Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans, onOpenMainChat = onOpenMainChat)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
