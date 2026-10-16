@@ -1932,7 +1932,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var savingChat by remember { mutableStateOf(false) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
     var customBackgroundUri by remember { mutableStateOf(prefs.getString("chat_background_uri", null)) }
-    var customBackgroundBrightness by remember { mutableStateOf(prefs.getFloat("chat_background_brightness", 1f).coerceIn(0.5f, 1.5f)) }
+    var customBackgroundBrightness by remember { mutableStateOf(prefs.getFloat("chat_background_brightness", 1f).coerceIn(0.35f, 1.8f)) }
     val customBackgroundBitmap = remember(customBackgroundUri) {
         runCatching {
             customBackgroundUri?.let { raw ->
@@ -1940,7 +1940,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val bytes = input.readBytes()
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    val sample = (maxOf(bounds.outWidth, bounds.outHeight) / 2000).coerceAtLeast(1)
+                    val sample = ((maxOf(bounds.outWidth, bounds.outHeight) + 2399) / 2400).coerceAtLeast(1)
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
                 }
             }
@@ -6160,6 +6160,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var settingsCategory by remember(uid) { mutableStateOf("Account") }
     val chatBackgroundPrefs = remember(uid) { accountPreferences(context, "bq_ui") }
     var customChatBackgroundUri by remember(uid) { mutableStateOf(chatBackgroundPrefs.getString("chat_background_uri", null)) }
+    var customChatBackgroundBrightness by remember(uid) { mutableStateOf(chatBackgroundPrefs.getFloat("chat_background_brightness", 1f).coerceIn(0.35f, 1.8f)) }
     var changingChatBackground by remember { mutableStateOf(false) }
     val chatBackgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && !changingChatBackground) {
@@ -6498,7 +6499,7 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                             customChatBackgroundBrightness = value
                             chatBackgroundPrefs.edit().putFloat("chat_background_brightness", value).apply()
                         },
-                        valueRange = 0.5f..1.5f
+                        valueRange = 0.35f..1.8f
                     )
                     Text("Adjust brightness without re-uploading or spending credits again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
