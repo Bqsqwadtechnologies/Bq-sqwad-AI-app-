@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import com.bqsqwad.ai.AppVisibility
 import com.bqsqwad.ai.R
+import com.google.firebase.auth.FirebaseAuth
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,8 +22,10 @@ import java.util.concurrent.TimeUnit
 /** Privacy-safe local lifecycle notices. Notification content never includes account or project details. */
 object BqLifecycleNotifications {
     private const val PREFS = "bq_lifecycle_notices"
-    private const val CHANNEL_ID = "bq_sqwad_lifecycle"
-    private const val CHANNEL_NAME = "BQ Sqwad AI updates"
+    private const val REMINDERS_CHANNEL_ID = "bq_sqwad_reminders"
+    private const val REPLIES_CHANNEL_ID = "bq_sqwad_replies"
+    private const val BIRTHDAY_CHANNEL_ID = "bq_sqwad_birthday"
+    private const val ACCOUNT_UID = "lifecycle_account_uid"
     private const val FIRST_OPEN = "first_open_at"
     private const val LAST_OPEN = "last_open_at"
     private const val NOTIFICATIONS_ENABLED = "notifications_enabled"
@@ -36,6 +39,20 @@ object BqLifecycleNotifications {
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null) {
+            val previousUid = prefs.getString(ACCOUNT_UID, null)
+            if (previousUid != currentUser.uid) {
+                val accountCreatedAt = currentUser.metadata?.creationTimestamp?.takeIf { it > 0L } ?: now
+                prefs.edit()
+                    .putString(ACCOUNT_UID, currentUser.uid)
+                    .putLong(FIRST_OPEN, accountCreatedAt)
+                    .remove(LAST_OPEN)
+                    .remove(SENT_MILESTONES)
+                    .putInt(COMEBACK_COUNT, 0)
+                    .apply()
+            }
+        }
         prefs.edit().putBoolean(NOTIFICATIONS_ENABLED, notificationsEnabled).apply()
         if (!notificationsEnabled) {
             prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
@@ -213,14 +230,26 @@ object BqLifecycleNotifications {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT))
+        val titleLower = title.lowercase()
+        val channelId = when {
+            titleLower.contains("birthday") || titleLower.contains("week together") || titleLower.contains("day old") -> BIRTHDAY_CHANNEL_ID
+            titleLower.contains("reply") -> REPLIES_CHANNEL_ID
+            else -> REMINDERS_CHANNEL_ID
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            listOf(
+                NotificationChannel(REPLIES_CHANNEL_ID, "Replies", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(REMINDERS_CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(BIRTHDAY_CHANNEL_ID, "Birthday", NotificationManager.IMPORTANCE_DEFAULT)
+            ).forEach { channel ->
+                if (manager.getNotificationChannel(channel.id) == null) manager.createNotificationChannel(channel)
+            }
         }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val id = prefs.getInt(NEXT_ID, 4000)
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
         if (AppVisibility.isForeground) return
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.bq_sqwad_logo))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
