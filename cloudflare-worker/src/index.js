@@ -1807,12 +1807,14 @@ export default {
       if (url.pathname === "/file-box" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
+        const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
         const now = Date.now();
         const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => {
           const expiry = Date.parse(String(item.expiresAt || ""));
           return Number.isFinite(expiry) && expiry > now;
         }).slice(-100);
-        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : 30;
+        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
         if (items.length !== (Array.isArray(doc.items) ? doc.items.length : 0)) await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items, retentionDays, updatedAt:new Date() }, true);
         return json({ items, retentionDays, count:items.length });
       }
