@@ -1961,6 +1961,33 @@ export default {
         });
       }
 
+      if (url.pathname === "/admin/feedback" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const rows = await firestoreQuery("aiFeedback", {
+          orderBy:{field:"createdAt",direction:"DESCENDING"},
+          limit:250
+        }).catch(() => []);
+        const items = rows.map(x => ({
+          id:String(x.id || String(x.__name || "").split("/").pop()).slice(0,120),
+          userId:String(x.uid || "").slice(0,128),
+          messageId:x.messageId == null ? null : String(x.messageId).slice(0,120),
+          category:String(x.category || "general").slice(0,40),
+          sentiment:x.sentiment == null ? null : String(x.sentiment).slice(0,20),
+          reason:x.reason == null ? null : String(x.reason).slice(0,80),
+          comment:x.comment == null ? null : String(x.comment).slice(0,1000),
+          messageHash:String(x.messageHash || "").slice(0,64),
+          createdAt:x.createdAt || null
+        }));
+        return json({
+          items,
+          helpfulCount:items.filter(x => x.sentiment === "helpful" || x.sentiment === "like").length,
+          notHelpfulCount:items.filter(x => x.sentiment === "not_helpful" || x.sentiment === "dislike").length,
+          complaintCount:items.filter(x => /complaint|report|safety|abuse/i.test(x.category) || Boolean(x.reason)).length,
+          checkedAt:new Date().toISOString()
+        });
+      }
+
       if (url.pathname === "/admin/diagnostics" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
