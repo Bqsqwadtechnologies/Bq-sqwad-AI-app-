@@ -33,6 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import android.provider.OpenableColumns
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import java.io.File
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -50,6 +55,37 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<JSONObject?>(null) }
+    val importAnyFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            busy = true
+            scope.launch {
+                runCatching {
+                    val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }?.take(160)?.ifBlank { "upload" } ?: "upload"
+                    val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                    val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                if (output.size() + count > 25 * 1024 * 1024) error("Files must be 25 MB or smaller.")
+                                output.write(buffer, 0, count)
+                            }
+                            output.toByteArray()
+                        } ?: error("Could not read the selected file.")
+                    }
+                    api.uploadFileBoxAsset(name, name, mime, bytes)
+                }.onSuccess {
+                    notice = "File uploaded to your File Box. It will expire after $retention days."
+                    refresh()
+                }.onFailure { notice = it.message?.take(180) ?: "File upload failed. Please try again." }
+                busy = false
+            }
+        }
+    }
     val importTextFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             busy = true
@@ -101,7 +137,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("File Box", style = MaterialTheme.typography.headlineSmall)
-            Text("Save text documents securely to your account. Files expire according to the selected retention period. Import supported text files, preview saved content, and export TXT, PDF, or DOCX documents to Downloads. Binary attachments are not stored in File Box yet.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text("Store uploaded pictures, documents and text files in your account, then return here to preview or download them when needed. Files expire according to your retention period (7, 14, 30 or 90 days).", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(7,14,30,90).forEach { days ->
                     FilterChip(selected = retention == days, onClick = {
@@ -117,6 +153,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
             }
             OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
             OutlinedTextField(value = content, onValueChange = { content = it.take(25000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
+            Button(enabled = !busy, onClick = { importAnyFile.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Upload file or picture") }
             OutlinedButton(enabled = !busy, onClick = { importTextFile.launch(arrayOf("text/*", "application/json", "application/xml")) }, modifier = Modifier.fillMaxWidth()) { Text("Import text file") }
             Button(enabled = !busy && title.isNotBlank() && content.isNotBlank(), onClick = {
                 busy = true
@@ -135,9 +172,39 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(row.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall)
+                         Text((row.optString("fileName").takeIf { it.isNotBlank() } ?: row.optString("mimeType", "Text document")) + " · " + row.optLong("size", row.optString("content").length.toLong()) + " bytes", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("Expires: " + row.optString("expiresAt", "not available"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { preview = row }) { Text("View") }
+                            if (row.optString("objectPath").isNotBlank()) {
+                                 TextButton(enabled = !busy, onClick = {
+                                     busy = true
+                                     scope.launch {
+                                         runCatching { api.downloadFileBoxAsset(row.optString("id")) }
+                                             .onSuccess { bytes ->
+                                                 runCatching {
+                                                     val fileName = row.optString("fileName", row.optString("title", "download")).replace(Regex("[/\\\\]"), "_")
+                                                     val values = ContentValues().apply {
+                                                         put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                                                         put(MediaStore.MediaColumns.MIME_TYPE, row.optString("mimeType", "application/octet-stream"))
+                                                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BQ Sqwad AI")
+                                                     }
+                                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                                         val destination = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("Could not create a Downloads file.")
+                                                         context.contentResolver.openOutputStream(destination)?.use { it.write(bytes) } ?: error("Could not write the downloaded file.")
+                                                     } else {
+                                                         val folder = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "BQ Sqwad AI").apply { mkdirs() }
+                                                         File(folder, fileName).writeBytes(bytes)
+                                                     }
+                                                     notice = "Saved to Downloads/BQ Sqwad AI."
+                                                 }.onFailure { notice = it.message ?: "Could not save the download." }
+                                             }
+                                             .onFailure { notice = it.message ?: "Download failed." }
+                                         busy = false
+                                     }
+                                 }) { Text("Download") }
+                             } else {
+                                 TextButton(onClick = { preview = row }) { Text("View") }
+                             }
                             TextButton(onClick = {
                                 scope.launch {
                                     runCatching { api.deleteFileBoxItem(row.optString("id")) }
