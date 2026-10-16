@@ -6337,7 +6337,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
         ModalBottomSheet(onDismissRequest = { if (!trainingSaving) showTrainingSettings = false }) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("AI Training & Data", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("This optional setting allows BQ Sqwad AI to contribute eligible text-only, non-private prompts and responses to a protected training-data library. Attachments, camera frames, live audio, and chats marked Private are excluded. The server checks your current consent before saving anything.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("This optional setting allows BQ Sqwad AI to contribute eligible text-only, non-private prompts and responses to a protected training-data library. Attachments, camera frames, live audio, and chats marked Private are excluded. The server checks your current consent before saving anything. Participation can only be enabled after a server-verified adult or parental-consent gate; a client checkbox alone is not treated as proof.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("This builds a reviewable data library; it does not automatically retrain a foundation model or change model weights.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
