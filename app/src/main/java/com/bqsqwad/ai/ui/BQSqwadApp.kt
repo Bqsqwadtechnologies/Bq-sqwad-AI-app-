@@ -6233,7 +6233,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Automatic expiry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Choose the retention period for supported text files saved to your File Box. Expired entries are removed when File Box is accessed; a scheduled background cleanup still requires a configured Cloudflare Cron Trigger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Choose the retention period for supported text files saved to your File Box. Expired entries are removed on access and by the Worker’s configured daily Cloudflare cleanup trigger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(7, 14, 30, 90).forEach { days ->
                             FilterChip(selected = fileBoxRetentionDays == days, onClick = {
