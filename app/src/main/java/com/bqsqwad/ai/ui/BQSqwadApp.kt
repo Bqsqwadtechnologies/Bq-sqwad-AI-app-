@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -1869,6 +1871,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var savingChat by remember { mutableStateOf(false) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
     var customBackgroundUri by remember { mutableStateOf(prefs.getString("chat_background_uri", null)) }
+    var customBackgroundBrightness by remember { mutableStateOf(prefs.getFloat("chat_background_brightness", 1f).coerceIn(0.5f, 1.5f)) }
     val customBackgroundBitmap = remember(customBackgroundUri) {
         runCatching {
             customBackgroundUri?.let { raw ->
@@ -1876,7 +1879,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val bytes = input.readBytes()
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    val sample = (maxOf(bounds.outWidth, bounds.outHeight) / 1400).coerceAtLeast(1)
+                    val sample = (maxOf(bounds.outWidth, bounds.outHeight) / 2000).coerceAtLeast(1)
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
                 }
             }
@@ -2654,7 +2657,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 contentDescription = "Custom chat background",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alpha = 0.32f
+                alpha = 1f,
+                colorFilter = ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
+                    customBackgroundBrightness, 0f, 0f, 0f, 0f,
+                    0f, customBackgroundBrightness, 0f, 0f, 0f,
+                    0f, 0f, customBackgroundBrightness, 0f, 0f,
+                    0f, 0f, 0f, 1f, 0f
+                )))
             )
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
@@ -2948,14 +2957,19 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 )
                             }
                         } else {
-                            Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 2.dp) {
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = if (m.mine) Color(0xFF173B55) else Color(0xFF080B10),
+                                tonalElevation = 0.dp,
+                                shadowElevation = 3.dp
+                            ) {
                                 SelectionContainer {
                                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (m.text.isNotBlank()) {
                                             if (m.mine || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
-                                                Text(m.text, color = MaterialTheme.colorScheme.onSurface)
+                                                Text(m.text, color = Color(0xFFF5F8FC))
                                             } else {
-                                                MarkdownText(m.text, sources = m.sources)
+                                                MarkdownText(m.text, color = Color(0xFFF5F8FC), sources = m.sources)
                                             }
                                         }
                                         m.attachments.forEach { attachment ->
@@ -6357,6 +6371,19 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                             (context as? android.app.Activity)?.recreate()
                         }) { Text("Remove") }
                     }
+                }
+                if (customChatBackgroundUri != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Background brightness · " + (customChatBackgroundBrightness * 100).roundToInt() + "%", style = MaterialTheme.typography.titleSmall)
+                    Slider(
+                        value = customChatBackgroundBrightness,
+                        onValueChange = { value ->
+                            customChatBackgroundBrightness = value
+                            chatBackgroundPrefs.edit().putFloat("chat_background_brightness", value).apply()
+                        },
+                        valueRange = 0.5f..1.5f
+                    )
+                    Text("Adjust brightness without re-uploading or spending credits again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             item {
