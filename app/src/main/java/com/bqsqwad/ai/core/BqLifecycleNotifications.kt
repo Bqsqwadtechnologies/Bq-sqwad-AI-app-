@@ -63,6 +63,7 @@ object BqLifecycleNotifications {
                     .putLong(FIRST_OPEN, accountCreatedAt)
                     .remove(LAST_OPEN)
                     .remove(SENT_MILESTONES)
+                    .remove(LAST_MILESTONE_DAY)
                     .putInt(COMEBACK_COUNT, 0)
                     .apply()
             }
