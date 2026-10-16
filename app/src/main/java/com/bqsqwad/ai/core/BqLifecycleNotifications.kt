@@ -168,16 +168,8 @@ object BqLifecycleNotifications {
     private fun monthAnniversary(firstOpen: Long, months: Int): Long = anniversary(firstOpen, Calendar.MONTH, months)
     private fun yearAnniversary(firstOpen: Long, years: Int): Long = anniversary(firstOpen, Calendar.YEAR, years)
 
-    private fun anniversary(firstOpen: Long, field: Int, amount: Int): Long {
-        val source = Calendar.getInstance().apply { timeInMillis = firstOpen }
-        val dayOfMonth = source.get(Calendar.DAY_OF_MONTH)
-        source.set(Calendar.DAY_OF_MONTH, 1)
-        source.add(field, amount)
-        val lastDay = source.getActualMaximum(Calendar.DAY_OF_MONTH)
-        source.set(Calendar.DAY_OF_MONTH, minOf(dayOfMonth, lastDay))
-        source.set(Calendar.HOUR_OF_DAY, source.get(Calendar.HOUR_OF_DAY))
-        return source.timeInMillis
-    }
+    private fun anniversary(firstOpen: Long, field: Int, amount: Int): Long =
+        bqAnniversaryTimestamp(firstOpen, field, amount)
 
     private fun scheduleNextBirthdayReminder(context: Context, firstOpen: Long, sent: Set<String>, now: Long = System.currentTimeMillis()) {
         val future = birthdayMilestones(firstOpen, now)
@@ -361,4 +353,17 @@ object BqLifecycleNotifications {
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
     }
+}
+
+
+/** Calendar anniversary helper shared by birthday scheduling and regression tests.
+ * Month-end dates clamp to the last valid day (for example, January 31 -> February 28/29).
+ */
+internal fun bqAnniversaryTimestamp(firstOpen: Long, field: Int, amount: Int): Long {
+    val source = Calendar.getInstance().apply { timeInMillis = firstOpen }
+    val dayOfMonth = source.get(Calendar.DAY_OF_MONTH)
+    source.set(Calendar.DAY_OF_MONTH, 1)
+    source.add(field, amount)
+    source.set(Calendar.DAY_OF_MONTH, minOf(dayOfMonth, source.getActualMaximum(Calendar.DAY_OF_MONTH)))
+    return source.timeInMillis
 }
