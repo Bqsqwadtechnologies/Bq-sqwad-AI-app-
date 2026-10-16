@@ -97,7 +97,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
             minimumBalanceToStart = config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)).toString(),
             minimumBalanceAuto = kotlin.math.abs(config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)) - config.optDouble("creditsPerMinute", 0.0)) < 0.000001,
             maxSessionMinutes = config.optInt("maxSessionMinutes", old.maxSessionMinutes.toIntOrNull() ?: 120).toString(),
-            modelId = config.optString("modelId", "").takeIf { it in setOf("gpt-realtime", "gpt-realtime-1.5", "gpt-realtime-2") }.orEmpty(),
+            modelId = config.optString("modelId", "").takeIf { it in setOf("gpt-realtime", "gpt-realtime-1.5", "gpt-realtime-2", "gpt-realtime-2.1", "gpt-realtime-2.1-mini", "gpt-realtime-mini", "gpt-realtime-mini-2025-12-15", "gpt-realtime-2025-08-28") }.orEmpty(),
             defaultVoice = config.optString("defaultVoice", "marin"),
             transcriptionModel = config.optString("transcriptionModel", "gpt-4o-mini-transcribe")
         )
@@ -200,7 +200,7 @@ private fun PricingCard(
                             Text(form.modelId.ifBlank { "Default — gpt-realtime" })
                         }
                         DropdownMenu(expanded = modelMenuExpanded, onDismissRequest = { modelMenuExpanded = false }) {
-                            listOf("" to "Default — gpt-realtime", "gpt-realtime" to "gpt-realtime", "gpt-realtime-1.5" to "gpt-realtime-1.5", "gpt-realtime-2" to "gpt-realtime-2").forEach { (id, label) ->
+                            listOf("" to "Default — gpt-realtime", "gpt-realtime" to "gpt-realtime", "gpt-realtime-1.5" to "gpt-realtime-1.5", "gpt-realtime-2" to "gpt-realtime-2", "gpt-realtime-2.1" to "gpt-realtime-2.1", "gpt-realtime-2.1-mini" to "gpt-realtime-2.1-mini", "gpt-realtime-mini" to "gpt-realtime-mini", "gpt-realtime-mini-2025-12-15" to "gpt-realtime-mini-2025-12-15", "gpt-realtime-2025-08-28" to "gpt-realtime-2025-08-28").forEach { (id, label) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = { onChange(form.copy(modelId = id)); modelMenuExpanded = false }
