@@ -925,6 +925,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
     var fileBoxOpen by remember { mutableStateOf(false) }
+    var pendingFileBoxAttachment by remember { mutableStateOf<PreparedChatAttachment?>(null) }
     var restoredChat by remember { mutableStateOf<Pair<String, List<HistoryMessage>>?>(null) }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
@@ -1260,11 +1261,25 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         sharedText = sharedText,
                         onSharedTextConsumed = onSharedTextConsumed,
                         onRegisterCancelActiveWork = { cancelActiveWorkOnSignOut = it },
-                        notificationsEnabled = notificationsEnabled
+                        notificationsEnabled = notificationsEnabled,
+                         incomingFileBoxAttachment = pendingFileBoxAttachment,
+                         onIncomingFileBoxAttachmentConsumed = { pendingFileBoxAttachment = null }
                     )
                 }
                 if (!showMainChat) when {
-            fileBoxOpen -> FileBoxPanel(onDismiss = { fileBoxOpen = false })
+            fileBoxOpen -> FileBoxPanel(
+                 onDismiss = { fileBoxOpen = false },
+                 onUseInChat = { attachment ->
+                     pendingFileBoxAttachment = attachment
+                     fileBoxOpen = false
+                     history = false
+                     settings = false
+                     plans = false
+                     featureHub = false
+                     workspace = null
+                     chatSessionNonce += 1
+                 }
+             )
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
                 onPlans = { featureHub = false; plansInitialSection = "all"; plans = true },
@@ -1835,7 +1850,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean, incomingFileBoxAttachment: PreparedChatAttachment?, onIncomingFileBoxAttachmentConsumed: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -1895,6 +1910,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    LaunchedEffect(incomingFileBoxAttachment) {
+        incomingFileBoxAttachment?.let { stored ->
+            attachments = attachments + stored
+            onIncomingFileBoxAttachmentConsumed()
+        }
+    }
     var historyId by rememberSaveable { mutableStateOf<String?>(null) }
     var publishedAiModels by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var selectedTextModelId by rememberSaveable { mutableStateOf("") }
