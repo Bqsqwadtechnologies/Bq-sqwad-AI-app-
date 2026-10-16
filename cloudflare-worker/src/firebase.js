@@ -240,7 +240,8 @@ export async function firestoreQuery(collection, {
   parent = null,
   filters = [],
   orderBy = null,
-  limit = 100
+  limit = 100,
+  offset = 0
 } = {}) {
   const project = encodeURIComponent(projectId());
   const parentPath = parent ? "/" + parent.split("/").map(encodeURIComponent).join("/") : "";
@@ -254,6 +255,7 @@ export async function firestoreQuery(collection, {
   }
   if (orderBy) structuredQuery.orderBy = [{ field: { fieldPath: orderBy.field }, direction: orderBy.direction || "DESCENDING" }];
   if (limit) structuredQuery.limit = Math.min(100, Math.max(1, Number(limit) || 100));
+  if (Number.isFinite(Number(offset)) && Number(offset) > 0) structuredQuery.offset = Math.max(0, Math.floor(Number(offset)));
   const token = await googleAccessToken();
   const response = await fetch(url, {
     method: "POST",
