@@ -2514,10 +2514,42 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         )
                     }
                     if (birthdayCardOpen) {
-                        val milestones = listOf(1L to "1 day", 7L to "1 week", 30L to "1 month", 365L to "1 year")
-                        val next = milestones.firstOrNull { ageDays < it.first } ?: (((ageDays / 30 + 1) * 30) to "monthly")
-                        val previousMilestone = milestones.lastOrNull { ageDays >= it.first }?.first ?: 0L
-                        val progress = ((ageDays - previousMilestone).toFloat() / (next.first - previousMilestone).coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
+                        val nowAt = System.currentTimeMillis()
+                        fun anniversaryAt(timestamp: Long, field: Int, amount: Int): Long {
+                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+                            val originalDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
+                            cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                            cal.add(field, amount)
+                            cal.set(java.util.Calendar.DAY_OF_MONTH, minOf(originalDay, cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)))
+                            return cal.timeInMillis
+                        }
+                        val birthCal = java.util.Calendar.getInstance().apply { timeInMillis = aiBirthTimestamp }
+                        val nowCal = java.util.Calendar.getInstance().apply { timeInMillis = nowAt }
+                        val elapsedMonths = ((nowCal.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)) * 12 +
+                            nowCal.get(java.util.Calendar.MONTH) - birthCal.get(java.util.Calendar.MONTH)).coerceAtLeast(0)
+                        val elapsedYears = (nowCal.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)).coerceAtLeast(0)
+                        val oneDayAt = aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(1)
+                        val oneWeekAt = aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(7)
+                        val currentMonthAt = anniversaryAt(aiBirthTimestamp, java.util.Calendar.MONTH, elapsedMonths.coerceAtLeast(1))
+                        val currentYearAt = anniversaryAt(aiBirthTimestamp, java.util.Calendar.YEAR, elapsedYears.coerceAtLeast(1))
+                        val nextMonthAt = if (currentMonthAt > nowAt) currentMonthAt else anniversaryAt(aiBirthTimestamp, java.util.Calendar.MONTH, elapsedMonths + 1)
+                        val nextYearAt = if (currentYearAt > nowAt) currentYearAt else anniversaryAt(aiBirthTimestamp, java.util.Calendar.YEAR, elapsedYears + 1)
+                        val nextCandidates = buildList {
+                            if (oneDayAt > nowAt) add(oneDayAt to "1 day")
+                            if (oneWeekAt > nowAt) add(oneWeekAt to "1 week")
+                            add(nextMonthAt to "monthly")
+                            add(nextYearAt to if (elapsedYears == 0) "1 year" else "yearly")
+                        }
+                        val next = nextCandidates.minBy { it.first }
+                        val previousCandidates = buildList {
+                            add(aiBirthTimestamp)
+                            if (oneDayAt <= nowAt) add(oneDayAt)
+                            if (oneWeekAt <= nowAt) add(oneWeekAt)
+                            if (currentMonthAt <= nowAt) add(currentMonthAt)
+                            if (currentYearAt <= nowAt) add(currentYearAt)
+                        }
+                        val previousAt = previousCandidates.maxOrNull() ?: aiBirthTimestamp
+                        val progress = ((nowAt - previousAt).toFloat() / (next.first - previousAt).coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
                         AlertDialog(
                             onDismissRequest = { birthdayCardOpen = false },
                             title = { Text("Your AI birthday") },
@@ -2527,7 +2559,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     Text("Born ${java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))}")
                                     Text("Your AI is $ageDays days old.")
                                     CircularProgressIndicator(progress = progress)
-                                    Text("Next milestone: ${next.second} · ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(next.first)))}")
+                                    Text("Next milestone: ${next.second} · ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(next.first))}")
+                                    Text("Monthly and yearly milestones repeat as your AI grows with you.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             },
                             confirmButton = { TextButton(onClick = { birthdayCardOpen = false }) { Text("Close") } }
