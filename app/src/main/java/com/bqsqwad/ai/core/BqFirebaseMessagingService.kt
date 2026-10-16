@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.bqsqwad.ai.MainActivity
 import com.bqsqwad.ai.AppVisibility
+import com.bqsqwad.ai.InAppNotificationBus
 import com.bqsqwad.ai.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -42,13 +43,17 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         // Respect the user's global notification preference and avoid foreground duplicates.
-        if (!BqLifecycleNotifications.notificationsEnabled(this) || AppVisibility.isForeground) return
+        if (!BqLifecycleNotifications.notificationsEnabled(this)) return
         val title = message.notification?.title
             ?: message.data["title"]
             ?: "BQ Sqwad AI"
         val body = message.notification?.body
             ?: message.data["body"]
             ?: "You have a new BQ Sqwad AI update."
+        if (AppVisibility.isForeground) {
+            InAppNotificationBus.show(if (title == "BQ Sqwad AI") body else "$title · $body")
+            return
+        }
         val workspace = message.data["workspace"].orEmpty()
         val category = (message.data["category"] ?: title).lowercase()
         val channelId = when {
