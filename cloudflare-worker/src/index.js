@@ -1528,10 +1528,18 @@ export default {
           return !Number.isFinite(expiry) || expiry <= Date.now();
         });
         for (const item of expired) if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath)).catch(() => {});
-        const items = row.items.filter(item => {
+        const items = [];
+        for (const item of row.items) {
           const expiry = Date.parse(String(item.expiresAt || ""));
-          return Number.isFinite(expiry) && expiry > Date.now();
-        });
+          if (Number.isFinite(expiry) && expiry > Date.now()) {
+            items.push(item);
+          } else if (item?.objectPath) {
+            // Expiry must remove the stored object as well as the Firestore index.
+            await deleteTrainingAssetObject(String(item.objectPath)).catch(error => {
+              console.error("file_box_object_expiry_failed", String(item.id || "").slice(0, 80), error?.message || "unknown");
+            });
+          }
+        }
         if (items.length !== row.items.length) {
           await firestoreSet("fileBox/" + uid, {
             uid, items,
