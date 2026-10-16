@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -37,6 +38,7 @@ import org.json.JSONObject
 @Composable
 internal fun FileBoxPanel(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val api = remember { WorkspaceApiClient() }
     val rows = remember { mutableStateListOf<JSONObject>() }
     var title by remember { mutableStateOf("") }
@@ -117,7 +119,22 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
     preview?.let { row ->
         AlertDialog(onDismissRequest = { preview = null }, title = { Text(row.optString("title", "Document")) },
             text = { Text(row.optString("content", "No text content available.")) },
-            confirmButton = { TextButton(onClick = { preview = null }) { Text("Close") } })
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Export to Downloads", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("txt", "pdf", "docx").forEach { format ->
+                            TextButton(onClick = {
+                                runCatching {
+                                    NativeDocumentExporter.export(context, row.optString("title", "Document"), row.optString("content", ""), format)
+                                }.onSuccess { notice = it }.onFailure { notice = "Export failed. Please try again." }
+                                preview = null
+                            }) { Text(format.uppercase()) }
+                        }
+                    }
+                    TextButton(onClick = { preview = null }) { Text("Close") }
+                }
+            })
     }
 }
 
