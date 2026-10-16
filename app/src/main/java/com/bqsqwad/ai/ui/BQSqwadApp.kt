@@ -943,7 +943,15 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else if (selected == Workspace.ADMIN) {
             // Never expose an admin-only destination as a user-facing plan/paywall option.
             if (adminAuthorized) workspace = selected
+        } else if (selected in setOf(
+            Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
+            Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS
+        )) {
+            // These destinations are free or credit-metered; entitlement loading
+            // must never block opening them or show a plan dialog.
+            workspace = selected
         } else if (accessLoading) {
+            // Only plan-gated destinations wait for the access snapshot.
             paywallWorkspace = selected
         } else if (workspaceAccess.hasVerifiedAccess(selected)) {
             workspace = selected
