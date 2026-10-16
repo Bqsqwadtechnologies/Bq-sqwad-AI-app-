@@ -1995,6 +1995,47 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             }
         }.getOrNull()
     }
+    var adminChatBackgroundBitmap by remember(customBackgroundUri) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(customBackgroundUri) {
+        adminChatBackgroundBitmap = null
+        if (customBackgroundUri.isNullOrBlank()) {
+            runCatching {
+                val config = WorkspaceApiClient().publicAppConfig()
+                val remoteUrl = config.optString("chatBackgroundUrl").takeIf { it.startsWith("https://", ignoreCase = true) }
+                    ?: return@runCatching null
+                withContext(Dispatchers.IO) {
+                    val connection = URL(remoteUrl).openConnection().apply { connectTimeout = 5000; readTimeout = 7000 }
+                    try {
+                        val bytes = connection.getInputStream().use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 10 * 1024 * 1024) { "Shared chat background is too large." }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toByteArray()
+                        }
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                        val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
+                        val sample = when {
+                            maxDimension > 9600 -> 4
+                            maxDimension > 6400 -> 3
+                            maxDimension > 3200 -> 2
+                            else -> 1
+                        }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            }.onSuccess { adminChatBackgroundBitmap = it }
+        }
+    }
     var message by rememberSaveable { mutableStateOf("") }
     // Text shared from another Android app is placed into the composer for user review.
     // It is never submitted automatically.
@@ -2761,6 +2802,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
+        if (customBackgroundBitmap == null) {
+            adminChatBackgroundBitmap?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Shared BQ Sqwad AI chat background",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
         customBackgroundBitmap?.let { bitmap ->
             Image(
                 bitmap = bitmap.asImageBitmap(),
