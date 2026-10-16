@@ -290,6 +290,22 @@ class WorkspaceApiClient {
         return request(path, payload = JSONObject().put("enabled", enabled).put("killSwitch", killSwitch).put("config", config))
     }
 
+    suspend fun fileBox(): JSONObject = request("/file-box", "GET")
+    suspend fun saveFileBoxItem(title: String, content: String, mimeType: String = "text/plain"): JSONObject =
+        request("/file-box", payload = JSONObject().put("title", title).put("content", content).put("mimeType", mimeType))
+    suspend fun deleteFileBoxItem(id: String): JSONObject =
+        request("/file-box?id=" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")
+    suspend fun setFileBoxRetentionDays(days: Int): JSONObject =
+        request("/file-box/settings", payload = JSONObject().put("retentionDays", days))
+    suspend fun projects(): JSONObject = request("/projects", "GET")
+    suspend fun saveProject(id: String? = null, title: String, description: String = "", content: String = ""): JSONObject =
+        request("/projects", payload = JSONObject().apply {
+            if (!id.isNullOrBlank()) put("id", id)
+            put("title", title); put("description", description); put("content", content)
+        })
+    suspend fun deleteProject(id: String): JSONObject =
+        request("/projects?id=" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")
+
     suspend fun plans():JSONObject = request("/plans","GET")
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
