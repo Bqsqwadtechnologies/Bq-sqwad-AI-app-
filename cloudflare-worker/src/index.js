@@ -1,4 +1,4 @@
-const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1";
+const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
@@ -253,10 +253,10 @@ async function adminReadinessSelfTest(env, adminUser) {
         },
         body: JSON.stringify({
           session: {
-            type: "realtime", model, voice: "marin", output_modalities: ["audio"],
+            type: "realtime", model, output_modalities: ["audio"],
             audio: {
               input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
-              output: { format: { type: "audio/pcm", rate: 24000 } }
+              output: { format: { type: "audio/pcm", rate: 24000 }, voice: "marin" }
             }
           }
         }),
@@ -2144,10 +2144,10 @@ export default {
              },
              body: JSON.stringify({
                session: {
-                 type: "realtime", model: sessionModel, voice, output_modalities: ["audio"],
+                 type: "realtime", model: sessionModel, output_modalities: ["audio"],
                  audio: {
                    input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
-                   output: { format: { type: "audio/pcm", rate: 24000 } }
+                   output: { format: { type: "audio/pcm", rate: 24000 }, voice }
                  }
                }
              })
