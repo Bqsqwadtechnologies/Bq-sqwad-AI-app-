@@ -5842,6 +5842,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var showTrainingSettings by remember { mutableStateOf(false) }
     var showFileBoxPanel by remember { mutableStateOf(false) }
     var showProjectsPanel by remember { mutableStateOf(false) }
+    var showAboutMePanel by remember { mutableStateOf(false) }
     var trainingSaving by remember { mutableStateOf(false) }
     var chatHistory by remember(uid) { mutableStateOf(prefs.getBoolean("chat_history", true)) }
     var autoSave by remember(uid) { mutableStateOf(prefs.getBoolean("auto_save", true)) }
@@ -6294,6 +6295,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     showSettingsPrivacyDirectory = false
                     showProjectsPanel = true
                 }
+                FeatureCard("About Me & AI Personality", "Choose your preferred response style and save optional notes locally on this device.") {
+                    showSettingsPrivacyDirectory = false
+                    showAboutMePanel = true
+                }
                 FeatureCard("AI Training & Data", if (trainingConsent) "Participation is enabled. Review the safeguards and turn it off whenever you want." else "Participation is off. Review the optional contribution controls.") {
                     showSettingsPrivacyDirectory = false
                     showTrainingSettings = true
@@ -6361,6 +6366,9 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     }
     if (showProjectsPanel) {
         ProjectsPanel(onDismiss = { showProjectsPanel = false })
+    }
+    if (showAboutMePanel) {
+        AboutMePanel(onDismiss = { showAboutMePanel = false })
     }
     if (showDeleteAccount) {
         AlertDialog(
