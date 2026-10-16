@@ -41,8 +41,8 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        // Foreground updates belong in the app UI, never as duplicate system notifications.
-        if (AppVisibility.isForeground) return
+        // Respect the user's global notification preference and avoid foreground duplicates.
+        if (!BqLifecycleNotifications.notificationsEnabled(this) || AppVisibility.isForeground) return
         val title = message.notification?.title
             ?: message.data["title"]
             ?: "BQ Sqwad AI"
