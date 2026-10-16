@@ -53,7 +53,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     val messages = remember { mutableStateListOf<CompanionMessage>() }
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id in ids
-    val memoryUnlocked = !accessLoadedSuccessfully || hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
+    val memoryUnlocked = accessLoadedSuccessfully && hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
     // Live Voice and Live Camera are credit-metered, never Companion-plan gated.
     val voiceUnlocked = true
     val cameraUnlocked = true
@@ -111,9 +111,12 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             val activePlanId = active?.optString("planId").orEmpty().ifBlank { "companionfree" }
             currentPlan = plans.firstOrNull { it.id == activePlanId }
                 ?: plans.firstOrNull { it.id == "companionfree" }
-            if (memoryUnlocked) {
+            val memoryPlanEligible = currentPlan?.id in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate")
+            if (memoryPlanEligible) {
                 runCatching { api.companionMemory() }
                     .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
+            } else {
+                memoryEnabled = false
             }
         }.onSuccess {
             accessLoadedSuccessfully = true
