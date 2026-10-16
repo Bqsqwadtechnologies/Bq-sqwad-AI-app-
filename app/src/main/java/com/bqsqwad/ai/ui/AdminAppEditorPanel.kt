@@ -268,6 +268,7 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                         Switch(checked = announcementEnabled, enabled = !busy, onCheckedChange = { announcementEnabled = it })
                     }
                     Button(enabled = !busy && (!announcementEnabled || (announcementTitle.isNotBlank() && announcementBody.isNotBlank())), onClick = {
+                        announcementId = UUID.randomUUID().toString()
                         busy = true
                         scope.launch {
                             runCatching { api.setAdminFeatureAnnouncement(announcementId, announcementTitle.trim(), announcementBody.trim(), announcementFeature.trim(), announcementEnabled) }
