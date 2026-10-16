@@ -8,10 +8,10 @@ import android.content.Intent
 class BqInactivityReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appContext = context.applicationContext
-        if (intent?.action == BqLifecycleNotifications.ACTION_BIRTHDAY_MILESTONE) {
-            BqLifecycleNotifications.onBirthdayAlarm(appContext)
-        } else {
-            BqLifecycleNotifications.onInactivityAlarm(appContext)
+        when (intent?.action) {
+            Intent.ACTION_BOOT_COMPLETED -> BqLifecycleNotifications.onBoot(appContext)
+            BqLifecycleNotifications.ACTION_BIRTHDAY_MILESTONE -> BqLifecycleNotifications.onBirthdayAlarm(appContext)
+            else -> BqLifecycleNotifications.onInactivityAlarm(appContext)
         }
     }
 }
