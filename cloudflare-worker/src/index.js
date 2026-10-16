@@ -267,7 +267,10 @@ async function adminReadinessSelfTest(env, adminUser) {
       try { body = raw ? JSON.parse(raw) : {}; } catch {}
       if (!response.ok) {
         return {
-          status: response.status === 401 || response.status === 403 ? "authentication_failed"
+          status: response.status === 401 ? "provider_key_missing"
+            : response.status === 429 ? "provider_billing"
+            : response.status === 400 || response.status === 422 ? "realtime_request_rejected"
+            : response.status === 403 ? "realtime_model_rejected"
             : response.status === 404 ? "model_or_endpoint_unavailable" : "session_creation_failed",
           model
         };
@@ -2173,13 +2176,22 @@ export default {
              } else {
                const fallbackCode = String(fallbackOut?.error?.code || fallbackOut?.error?.type || "fallback_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
                await notifyAdminOfIssue(env, url.pathname, 502, "realtime_fallback_rejected:" + fallbackCode, fallbackOut?.error?.message);
-               throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: fallbackResponse.status });
+               const fallbackSafeError = fallbackResponse.status === 401 ? "provider_key_missing"
+                 : fallbackResponse.status === 429 ? "provider_billing"
+                 : fallbackResponse.status === 400 || fallbackResponse.status === 422 ? "realtime_request_rejected"
+                 : "realtime_model_rejected";
+               throw Object.assign(new Error(fallbackSafeError), { httpStatus: 502, safeError: fallbackSafeError, providerStatus: fallbackResponse.status });
              }
            }
            if (!response.ok) {
              const providerCode = String(out?.error?.code || out?.error?.type || "provider_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
              await notifyAdminOfIssue(env, url.pathname, 502, "realtime_session_failed:" + response.status + ":" + providerCode, out?.error?.message);
-             throw Object.assign(new Error("realtime_session_failed"), { httpStatus: 502, safeError: "realtime_session_failed", providerStatus: response.status });
+             const safeError = response.status === 401 ? "provider_key_missing"
+               : response.status === 429 ? "provider_billing"
+               : response.status === 400 || response.status === 422 ? "realtime_request_rejected"
+               : response.status === 403 || response.status === 404 ? "realtime_model_rejected"
+               : "realtime_session_failed";
+             throw Object.assign(new Error(safeError), { httpStatus: 502, safeError, providerStatus: response.status });
            }
           const secret = out?.value || out?.client_secret?.value;
           if (!secret) {
