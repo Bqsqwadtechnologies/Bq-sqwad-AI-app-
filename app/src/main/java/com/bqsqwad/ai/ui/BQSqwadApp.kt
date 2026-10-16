@@ -5916,6 +5916,10 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     LaunchedEffect(uid) {
         loadingAccount = true
         val api = WorkspaceApiClient()
+        runCatching { api.consent() }.onSuccess { consent ->
+            trainingConsent = consent.optBoolean("trainingConsent", false)
+            prefs.edit().putBoolean("training_consent", trainingConsent).apply()
+        }
         runCatching { api.featureSettings() }.onSuccess { body ->
             val global = body.optJSONObject("settings")?.optJSONObject("global") ?: return@onSuccess
             val mapping = mapOf("web_search" to "web_search_enabled", "memory" to "memory_enabled", "notifications" to "notifications_enabled", "history" to "chat_history", "save_files" to "auto_save", "voice_responses" to "voice_replies", "camera_enhance" to "camera_enhance", "companion_memory" to "companion_memory", "truthguard_sources" to "truthguard_sources", "auto_run" to "auto_run", "streaming" to "streaming", "personalization" to "personalization", "background_jobs" to "background_jobs")
