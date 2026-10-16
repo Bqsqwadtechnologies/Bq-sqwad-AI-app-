@@ -2479,6 +2479,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     BqLifecycleNotifications.notifyResponseFinished(context, notificationsEnabled)
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
+                    if (!privateChat && selectedAttachments.isEmpty() && text.isNotBlank() && cleanReply.isNotBlank()) {
+                        scope.launch(Dispatchers.IO) {
+                            runCatching { WorkspaceApiClient().submitTrainingContribution(text, cleanReply, "main_chat", false) }
+                        }
+                    }
                     if (shouldAutoSaveHistory()) {
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
                         runCatching {
