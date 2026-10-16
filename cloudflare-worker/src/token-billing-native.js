@@ -125,8 +125,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     cachedInputPriceUsdPerMillion: embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
+  const hasExplicitCustomerMultiplier =
+    embedded.customerMultiplier != null || model.customerMultiplier != null || config.customerMultiplier != null;
   const baseCustomerMultiplier = Number(embedded.customerMultiplier ?? model.customerMultiplier ?? config.customerMultiplier ?? DEFAULT_CUSTOMER_MULTIPLIER);
-  const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
+  const customerMultiplier = baseCustomerMultiplier * (!hasExplicitCustomerMultiplier && sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = Number(embedded.estimatedFeePercent ?? model.estimatedFeePercent ?? config.estimatedFeePercent ?? 15);
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
