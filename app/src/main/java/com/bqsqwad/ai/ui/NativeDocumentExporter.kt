@@ -28,6 +28,12 @@ internal object NativeDocumentExporter {
             "docx" -> createDocx(text)
             else -> text.toByteArray(Charsets.UTF_8)
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val folder = java.io.File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "BQ Sqwad AI")
+            if (!folder.exists() && !folder.mkdirs()) throw IOException("Could not create the export folder.")
+            java.io.File(folder, "$safeBase.$normalized").writeBytes(bytes)
+            return "$safeBase.$normalized saved to app Downloads/BQ Sqwad AI"
+        }
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "$safeBase.$normalized")
