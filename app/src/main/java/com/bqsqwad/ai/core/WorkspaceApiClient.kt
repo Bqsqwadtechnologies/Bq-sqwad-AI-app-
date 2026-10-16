@@ -294,6 +294,9 @@ class WorkspaceApiClient {
         return request(path, payload = JSONObject().put("enabled", enabled).put("killSwitch", killSwitch).put("config", config))
     }
 
+    suspend fun chargeChatBackground(uploadId: String): JSONObject =
+        request("/chat-background/charge", payload = JSONObject().put("uploadId", uploadId.take(100)))
+
     suspend fun uploadFileBoxAsset(title: String, fileName: String, contentType: String, bytes: ByteArray): JSONObject = withContext(Dispatchers.IO) {
         require(bytes.isNotEmpty()) { "Choose a non-empty file." }
         require(bytes.size <= 25 * 1024 * 1024) { "Files must be 25 MB or smaller." }
