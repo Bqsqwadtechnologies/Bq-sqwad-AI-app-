@@ -168,8 +168,8 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
             }, modifier = Modifier.fillMaxWidth()) { Text("Save to File Box") }
             notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
             if (busy) CircularProgressIndicator()
-            Text("Saved documents", style = MaterialTheme.typography.titleMedium)
-            if (rows.isEmpty() && !busy) Text("No saved files yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Stored files & pictures", style = MaterialTheme.typography.titleMedium)
+            if (rows.isEmpty() && !busy) Text("No files or pictures stored yet. Upload them here to keep them available for quick reuse.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             rows.forEach { row ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
