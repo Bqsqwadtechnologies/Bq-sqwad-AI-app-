@@ -7,6 +7,9 @@ import android.content.Intent
 import android.content.ContentValues
 import android.graphics.BitmapFactory
 import android.graphics.Bitmap
+import android.graphics.SurfaceTexture
+import android.view.Surface
+import android.view.TextureView
 import android.util.LruCache
 import java.net.URL
 import android.net.Uri
@@ -20,7 +23,6 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Environment
 import android.speech.tts.TextToSpeech
-import android.widget.VideoView
 import java.util.UUID
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -662,11 +664,12 @@ private fun LegalConsentLinks() {
 @Composable
 private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
     var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
-    var authVideoView by remember { mutableStateOf<VideoView?>(null) }
     var authVideoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var authVideoSurface by remember { mutableStateOf<Surface?>(null) }
     var authVideoPrepared by remember { mutableStateOf(false) }
     var authVideoPaused by remember { mutableStateOf(false) }
     var authVideoMuted by remember { mutableStateOf(true) }
+
     LaunchedEffect(Unit) {
         runCatching { WorkspaceApiClient().publicAppConfig() }
             .onSuccess { config ->
@@ -675,32 +678,82 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                 }
             }
     }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            val player = authVideoPlayer
+            authVideoPlayer = null
+            authVideoPrepared = false
+            runCatching { player?.stop() }
+            runCatching { player?.release() }
+            val surface = authVideoSurface
+            authVideoSurface = null
+            runCatching { surface?.release() }
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         backgroundVideoUrl?.let { url ->
             AndroidView(
                 factory = { context ->
-                    VideoView(context).apply {
-                        authVideoView = this
-                        setVideoURI(Uri.parse(url))
-                        setOnPreparedListener { player ->
-                            authVideoPlayer = player
-                            authVideoPrepared = true
-                            player.isLooping = true
-                            player.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
-                            if (authVideoPaused) pause() else start()
-                        }
-                        setOnErrorListener { _, _, _ ->
-                            authVideoPrepared = false
-                            true
+                    TextureView(context).apply {
+                        isOpaque = false
+                        surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                            override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+                                val outputSurface = Surface(surfaceTexture)
+                                val player = android.media.MediaPlayer()
+                                authVideoSurface = outputSurface
+                                authVideoPlayer = player
+                                runCatching {
+                                    player.setSurface(outputSurface)
+                                    player.setDataSource(url)
+                                    player.isLooping = true
+                                    player.setOnPreparedListener { preparedPlayer ->
+                                        authVideoPrepared = true
+                                        preparedPlayer.isLooping = true
+                                        preparedPlayer.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                                        if (authVideoPaused) preparedPlayer.pause() else preparedPlayer.start()
+                                    }
+                                    player.setOnErrorListener { _, _, _ ->
+                                        authVideoPrepared = false
+                                        true
+                                    }
+                                    player.prepareAsync()
+                                }.onFailure {
+                                    authVideoPrepared = false
+                                    authVideoPlayer = null
+                                    runCatching { player.release() }
+                                    authVideoSurface = null
+                                    runCatching { outputSurface.release() }
+                                }
+                            }
+
+                            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) = Unit
+                            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+
+                            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                                val player = authVideoPlayer
+                                authVideoPlayer = null
+                                authVideoPrepared = false
+                                runCatching { player?.stop() }
+                                runCatching { player?.release() }
+                                val outputSurface = authVideoSurface
+                                authVideoSurface = null
+                                runCatching { outputSurface?.release() }
+                                return true
+                            }
                         }
                     }
                 },
-                update = { view ->
-                    authVideoView = view
-                    authVideoPlayer?.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
-                    if (authVideoPrepared) {
-                        if (authVideoPaused && view.isPlaying) view.pause()
-                        else if (!authVideoPaused && !view.isPlaying) view.start()
+                update = {
+                    authVideoPlayer?.let { player ->
+                        runCatching {
+                            player.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                            if (authVideoPrepared) {
+                                if (authVideoPaused && player.isPlaying) player.pause()
+                                else if (!authVideoPaused && !player.isPlaying) player.start()
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize().alpha(0.68f)
@@ -734,12 +787,18 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                 ) {
                     TextButton(onClick = {
                         authVideoPaused = !authVideoPaused
-                        val view = authVideoView
-                        if (authVideoPaused) view?.pause() else if (authVideoPrepared) view?.start()
+                        authVideoPlayer?.let { player ->
+                            runCatching {
+                                if (authVideoPaused) player.pause()
+                                else if (authVideoPrepared) player.start()
+                            }
+                        }
                     }) { Text(if (authVideoPaused) "Play video" else "Pause video", color = Color.White) }
                     TextButton(onClick = {
                         authVideoMuted = !authVideoMuted
-                        authVideoPlayer?.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                        authVideoPlayer?.let { player ->
+                            runCatching { player.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f) }
+                        }
                     }) { Text(if (authVideoMuted) "Unmute" else "Mute", color = Color.White) }
                 }
             }
@@ -5121,10 +5180,13 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                             captureEveryMs = frameCaptureIntervalMs,
                             torchEnabled = flashlightOn,
                             onFrame = ::handleCameraPreviewFrame,
-onPreviewUpdated = {
-    lastPreviewTextureUpdate = System.currentTimeMillis()
-    showPreviewBitmapFallback = false
-},
+                            onPreviewUpdated = {
+                                val now = System.currentTimeMillis()
+                                if (now - lastPreviewTextureUpdate >= 800L) {
+                                    lastPreviewTextureUpdate = now
+                                    if (showPreviewBitmapFallback) showPreviewBitmapFallback = false
+                                }
+                            },
                             onError = { message ->
                                 streamError = message
                                 reportCameraDiagnostic(cameraDiagnosticCode(message))
@@ -5363,10 +5425,13 @@ onPreviewUpdated = {
                         captureEveryMs = frameCaptureIntervalMs,
                         torchEnabled = flashlightOn,
                         onFrame = ::handleCameraPreviewFrame,
-onPreviewUpdated = {
-    lastPreviewTextureUpdate = System.currentTimeMillis()
-    showPreviewBitmapFallback = false
-},
+                        onPreviewUpdated = {
+                            val now = System.currentTimeMillis()
+                            if (now - lastPreviewTextureUpdate >= 800L) {
+                                lastPreviewTextureUpdate = now
+                                if (showPreviewBitmapFallback) showPreviewBitmapFallback = false
+                            }
+                        },
                         onError = { message ->
                             streamError = message
                             reportCameraDiagnostic(cameraDiagnosticCode(message))

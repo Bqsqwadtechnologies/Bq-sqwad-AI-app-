@@ -202,7 +202,11 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                         Switch(checked = authVideoEnabled, enabled = !busy, onCheckedChange = { authVideoEnabled = it })
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { publishVideoSettings(true) }, enabled = !busy && authVideoUrl.startsWith("https://", ignoreCase = true), modifier = Modifier.weight(1f)) { Text("Save video settings") }
+                        Button(
+                            onClick = { publishVideoSettings(authVideoEnabled) },
+                            enabled = !busy && (!authVideoEnabled || authVideoUrl.startsWith("https://", ignoreCase = true)),
+                            modifier = Modifier.weight(1f)
+                        ) { Text(if (authVideoEnabled) "Save & enable video" else "Save & disable video") }
                         OutlinedButton(onClick = { publishVideoSettings(false) }, enabled = !busy && authVideoEnabled, modifier = Modifier.weight(1f)) { Text("Disable video") }
                     }
                 }
