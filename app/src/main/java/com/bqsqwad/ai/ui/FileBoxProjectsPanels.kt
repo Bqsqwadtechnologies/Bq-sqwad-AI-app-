@@ -81,7 +81,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
                 }
             }
             OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
-            OutlinedTextField(value = content, onValueChange = { content = it.take(300000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
+            OutlinedTextField(value = content, onValueChange = { content = it.take(25000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
             Button(enabled = !busy && title.isNotBlank() && content.isNotBlank(), onClick = {
                 busy = true
                 scope.launch {
