@@ -26,7 +26,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         private const val REPLIES_CHANNEL_ID = "bq_sqwad_replies"
         private const val REMINDERS_CHANNEL_ID = "bq_sqwad_reminders"
         private const val BIRTHDAY_CHANNEL_ID = "bq_sqwad_birthday"
-        private const val LIVE_CHANNEL_ID = "bq_live_media_session"
+        private const val LIVE_CHANNEL_ID = "bq_live_media"
         private const val BASE_PATH = "/notifications/token"
     }
 
