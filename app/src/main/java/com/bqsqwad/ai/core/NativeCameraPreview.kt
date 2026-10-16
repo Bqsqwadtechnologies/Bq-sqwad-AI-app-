@@ -107,6 +107,15 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         mainHandler.post { if (!closed.get()) errorListener(message) }
     }
 
+    /** Release the single-camera lease after failures so Retry can actually reopen Camera2. */
+    private fun failCameraAndRelease(message: String) {
+        handler.post {
+            if (closed.get()) return@post
+            closeCamera { releaseCameraOwnership() }
+            reportCameraError(message)
+        }
+    }
+
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val thread = HandlerThread("bq-live-camera").also { it.start() }
     private val handler = Handler(thread.looper)
@@ -220,7 +229,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         }.getOrNull()
         val id = selection?.first
         if (id == null) {
-            reportCameraError("No usable camera was found on this device. Check Android camera settings and retry.")
+            failCameraAndRelease("No usable camera was found on this device. Check Android camera settings and retry.")
             return
         }
         // Track the actual camera selected when the requested lens is unavailable.
@@ -244,7 +253,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
                 override fun onDisconnected(device: CameraDevice) {
                     if (camera === device) camera = null
-                    if (closingCamera == null) closingCamera = device
+                    closingCamera = device
+                    pendingCloseCallbacks.add { releaseCameraOwnership() }
                     device.close()
                     reportCameraError("The camera disconnected. Reopen AI Live Camera and try again.")
                 }
@@ -260,6 +270,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
                 override fun onError(device: CameraDevice, error: Int) {
                     if (camera === device) camera = null
+                    closingCamera = device
+                    pendingCloseCallbacks.add { releaseCameraOwnership() }
                     device.close()
                     val message = when (error) {
                         CameraDevice.StateCallback.ERROR_CAMERA_IN_USE,
@@ -276,7 +288,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 }
             }, handler)
         }.onFailure {
-            reportCameraError("Android could not open the camera. Check camera permission and close other camera apps.")
+            failCameraAndRelease("Android could not open the camera. Check camera permission and close other camera apps.")
         }
     }
 
@@ -297,12 +309,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             }
         }.getOrNull()
         if (supportedSize == null) {
-            reportCameraError("Android did not report a supported preview size for this camera. Switch cameras or retry.")
+            failCameraAndRelease("Android did not report a supported preview size for this camera. Switch cameras or retry.")
             return
         }
         val bufferConfigured = runCatching { texture.setDefaultBufferSize(supportedSize.width, supportedSize.height) }.isSuccess
         if (!bufferConfigured) {
-            reportCameraError("The camera could not configure a supported preview size. Switch cameras or retry.")
+            failCameraAndRelease("The camera could not configure a supported preview size. Switch cameras or retry.")
             return
         }
 
@@ -339,7 +351,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                             }.build()
                             created.setRepeatingRequest(request, null, handler)
                         }.onFailure {
-                            closeCamera()
+                            closeCamera { releaseCameraOwnership() }
                             reportCameraError("The camera preview could not start. Close other camera apps and try again.")
                             return
                         }
@@ -349,13 +361,14 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                     override fun onConfigureFailed(created: CameraCaptureSession) {
                         if (session === created) session = null
                         created.close()
+                        closeCamera { releaseCameraOwnership() }
                         reportCameraError("The camera preview could not be configured. Try switching cameras or reopening AI Live Camera.")
                     }
                 },
                 handler
             )
         }.onFailure {
-            closeCamera()
+            closeCamera { releaseCameraOwnership() }
             reportCameraError("The camera preview could not be created. Reopen AI Live Camera and try again.")
         }
     }
