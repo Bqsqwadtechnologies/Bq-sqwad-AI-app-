@@ -6385,6 +6385,27 @@ item { SettingsSectionTitle("Privacy & data", "Open the dedicated privacy center
                     showSettingsPrivacyDirectory = true
                 }
             }
+            item {
+                FeatureCard("File Box", "Keep uploaded pictures and documents available for quick reuse.") {
+                    showFileBoxPanel = true
+                }
+            }
+            item {
+                FeatureCard("Projects", "Organize project notes and working documents.") {
+                    showProjectsPanel = true
+                }
+            }
+            item {
+                FeatureCard("AI Training & Data", if (trainingConsent) "Participation is enabled; you can review or withdraw consent." else "Participation is off by default. Review the optional controls.") {
+                    showTrainingSettings = true
+                }
+            }
+            item {
+                FeatureCard("Delete account and data", "Review the deletion grace period and schedule account-data deletion.") {
+                    showDeleteAccount = true
+                    deleteError = null
+                }
+            }
 
             
             }
