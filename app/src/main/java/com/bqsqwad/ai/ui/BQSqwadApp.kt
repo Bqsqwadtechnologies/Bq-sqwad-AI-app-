@@ -5852,6 +5852,8 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var notifications by remember(uid) { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
     var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)) }
+    var fileBoxRetentionDays by remember(uid) { mutableIntStateOf(prefs.getInt("file_box_retention_days", 30).let { if (it in listOf(7,14,30,90)) it else 30 }) }
+    var savingRetention by remember { mutableStateOf(false) }
     val aiBirthTimestamp = remember(uid) { BqLifecycleNotifications.birthTimestamp(context) }
     val aiAgeLabel = remember(aiBirthTimestamp) {
         val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
@@ -5927,6 +5929,11 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             notifications = prefs.getBoolean("notifications_enabled", true)
             textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
             bqTextScaleState.floatValue = textScale
+        }
+        runCatching { api.fileBox() }.onSuccess { body ->
+            val days = body.optInt("retentionDays", 30).let { if (it in listOf(7,14,30,90)) it else 30 }
+            fileBoxRetentionDays = days
+            prefs.edit().putInt("file_box_retention_days", days).apply()
         }
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
@@ -6217,6 +6224,34 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     notificationStatus?.let { Text(it, color = if (it.startsWith("Notification preferences could not")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                     Text("Notification permission is controlled by Android. Sound and vibration follow your device settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     settingsNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+
+            item { SettingsSectionTitle("File Box", "Control how long saved files remain available") }
+            item {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Automatic expiry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Choose the retention period for supported text files saved to your File Box. Expired entries are removed when File Box is accessed; a scheduled background cleanup still requires a configured Cloudflare Cron Trigger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(7, 14, 30, 90).forEach { days ->
+                            FilterChip(selected = fileBoxRetentionDays == days, onClick = {
+                                if (!savingRetention) {
+                                    savingRetention = true
+                                    scope.launch {
+                                        runCatching { WorkspaceApiClient().setFileBoxRetentionDays(days) }
+                                            .onSuccess {
+                                                fileBoxRetentionDays = days
+                                                prefs.edit().putInt("file_box_retention_days", days).apply()
+                                                settingsNotice = "File Box retention set to $days days."
+                                            }
+                                            .onFailure { settingsNotice = "Could not save File Box retention. Your previous server setting remains active." }
+                                        savingRetention = false
+                                    }
+                                }
+                            }, enabled = !savingRetention, label = { Text("$days days") })
+                        }
+                    }
+                    if (savingRetention) LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             }
 
