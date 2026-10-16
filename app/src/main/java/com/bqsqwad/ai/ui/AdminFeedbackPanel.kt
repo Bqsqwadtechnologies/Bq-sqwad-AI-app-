@@ -40,7 +40,7 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
         loading = false
     }
 
-    val items = body?.optJSONArray("items")
+    val feedbackRows = body?.optJSONArray("items")
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -62,12 +62,12 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
             Button(onClick = { refresh++ }, enabled = !loading) { Text("Refresh feedback") }
             if (loading) CircularProgressIndicator(Modifier.padding(12.dp))
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (!loading && error == null && (items == null || items.length() == 0)) {
+            if (!loading && error == null && (feedbackRows == null || feedbackRows.length() == 0)) {
                 Text("No feedback or reports have been submitted yet.", style = MaterialTheme.typography.bodyMedium)
             }
         }
-        if (items != null) {
-            items((0 until items.length()).map { items.getJSONObject(it) }) { row ->
+        if (feedbackRows != null) {
+            items((0 until feedbackRows.length()).map { feedbackRows.getJSONObject(it) }) { row ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(row.optString("category", "general"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
