@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -45,6 +46,7 @@ import com.bqsqwad.ai.core.PreparedChatAttachment
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttachment) -> Unit = {}) {
     val scope = rememberCoroutineScope()
@@ -57,6 +59,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<JSONObject?>(null) }
+    var refresh: () -> Unit = {}
     val importAnyFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             busy = true
@@ -121,7 +124,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
         }
     }
 
-    fun refresh() {
+    refresh = {
         busy = true
         scope.launch {
             runCatching { api.fileBox() }.onSuccess { body ->
@@ -260,6 +263,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProjectsPanel(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
