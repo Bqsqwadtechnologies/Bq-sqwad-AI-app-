@@ -9,7 +9,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
+import com.bqsqwad.ai.AppVisibility
+import com.bqsqwad.ai.R
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -22,6 +25,8 @@ object BqLifecycleNotifications {
     private const val CHANNEL_NAME = "BQ Sqwad AI updates"
     private const val FIRST_OPEN = "first_open_at"
     private const val LAST_OPEN = "last_open_at"
+    private const val NOTIFICATIONS_ENABLED = "notifications_enabled"
+    private const val COMEBACK_COUNT = "comeback_count"
     private const val SENT_MILESTONES = "sent_age_milestones"
     private const val NEXT_ID = "next_notification_id"
     private const val INACTIVITY_REQUEST_CODE = 4012
@@ -31,6 +36,7 @@ object BqLifecycleNotifications {
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
+        prefs.edit().putBoolean(NOTIFICATIONS_ENABLED, notificationsEnabled).apply()
         if (!notificationsEnabled) {
             prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
                 ?: prefs.edit().putLong(FIRST_OPEN, now).apply()
@@ -43,11 +49,12 @@ object BqLifecycleNotifications {
             if (saved > 0L) saved else now.also { prefs.edit().putLong(FIRST_OPEN, it).apply() }
         }
         val previousOpen = prefs.getLong(LAST_OPEN, 0L)
-        if (previousOpen > 0L && now - previousOpen >= TimeUnit.DAYS.toMillis(7)) {
-            post(context, "Your project is waiting", "Come back to BQ Sqwad AI and continue your project or pick up where you left off.")
+        if (previousOpen > 0L && now - previousOpen >= TimeUnit.DAYS.toMillis(2) && !AppVisibility.isForeground) {
+            post(context, "Your AI is waiting for you", "It has been a couple of days. Come back and pick up where you left off.")
         }
         prefs.edit().putLong(LAST_OPEN, now).apply()
-        scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(7))
+        prefs.edit().putInt(COMEBACK_COUNT, 0).apply()
+        scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
 
         val ageDays = TimeUnit.MILLISECONDS.toDays((now - firstOpen).coerceAtLeast(0L))
         val milestones = listOf(
@@ -118,18 +125,33 @@ object BqLifecycleNotifications {
     }
 
     fun notifyResponseFinished(context: Context, notificationsEnabled: Boolean) {
-        if (notificationsEnabled) post(context, "BQ Sqwad AI has replied", "Your response is ready. Return to the app to continue.")
+        if (notificationsEnabled && !AppVisibility.isForeground) {
+            post(context, "Your reply is ready", "BQ Sqwad AI has finished. Tap to read it.")
+        }
     }
 
     fun onInactivityAlarm(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val lastOpen = prefs.getLong(LAST_OPEN, 0L)
         val now = System.currentTimeMillis()
-        if (lastOpen > 0L && now - lastOpen >= TimeUnit.DAYS.toMillis(7)) {
-            post(context, "Your project is waiting", "Come back to BQ Sqwad AI and continue your project or pick up where you left off.")
-            scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(7))
-        } else if (lastOpen > 0L) {
-            scheduleInactivityReminder(context, lastOpen + TimeUnit.DAYS.toMillis(7))
+        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
+        if (AppVisibility.isForeground) {
+            scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
+            return
+        }
+        val count = prefs.getInt(COMEBACK_COUNT, 0)
+        if (lastOpen > 0L && now - lastOpen >= TimeUnit.DAYS.toMillis(2) && count < 3) {
+            val reminders = listOf(
+                "Your AI is waiting for you" to "It has been a couple of days. Come back and pick up where you left off.",
+                "A new idea is one tap away" to "Open BQ Sqwad AI and let your AI help with today's goals.",
+                "We saved your place" to "Your chats and projects are right where you left them."
+            )
+            val (title, body) = reminders[count.coerceIn(0, reminders.lastIndex)]
+            post(context, title, body)
+            prefs.edit().putInt(COMEBACK_COUNT, count + 1).apply()
+            if (count + 1 < 3) scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
+        } else if (lastOpen > 0L && count < 3) {
+            scheduleInactivityReminder(context, lastOpen + TimeUnit.DAYS.toMillis(2))
         }
     }
 
@@ -171,6 +193,21 @@ object BqLifecycleNotifications {
         pending.cancel()
     }
 
+    fun onBoot(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
+        val now = System.currentTimeMillis()
+        val lastOpen = prefs.getLong(LAST_OPEN, 0L)
+        if (lastOpen > 0L && prefs.getInt(COMEBACK_COUNT, 0) < 3) {
+            scheduleInactivityReminder(context, maxOf(now + 60_000L, lastOpen + TimeUnit.DAYS.toMillis(2)))
+        }
+        val firstOpen = prefs.getLong(FIRST_OPEN, 0L)
+        if (firstOpen > 0L) {
+            val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty()
+            scheduleNextBirthdayReminder(context, firstOpen, sent)
+        }
+    }
+
     private fun post(context: Context, title: String, body: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -182,8 +219,11 @@ object BqLifecycleNotifications {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val id = prefs.getInt(NEXT_ID, 4000)
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
+        if (AppVisibility.isForeground) return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.bq_notification_mark)
+            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.bq_sqwad_logo))
+            .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
