@@ -386,10 +386,9 @@ class WorkspaceApiClient {
     suspend fun deleteProject(id: String): JSONObject =
         request("/projects?id=" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")
 
-    // The website owns the authoritative plan and pricing catalogue shared with Android.
-    suspend fun plans():JSONObject = WebsiteApiClient().pricing()
+    suspend fun plans():JSONObject = request("/plans","GET")
 
-    suspend fun playCatalog():JSONObject = WebsiteApiClient().pricing()
+    suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
 
     suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
@@ -484,14 +483,10 @@ class WorkspaceApiClient {
 
     suspend fun entitlement():JSONObject = request("/entitlement","GET")
 
-    // Entitlements are read from the website's shared billing/account service.
-    suspend fun entitlements():JSONObject {
-        val billing = WebsiteApiClient().billing()
-        return billing.optJSONObject("entitlements") ?: billing
-    }
+    suspend fun entitlements():JSONObject = request("/entitlements","GET")
 
-    // Never treat the Worker balance as authoritative; use the website's shared account ledger.
-    suspend fun credits():JSONObject = WebsiteApiClient().creditSnapshot()
+    // The Worker reads/writes the same Firebase users/{uid} credit authority as the website.
+    suspend fun credits():JSONObject = request("/credits","GET")
 
     suspend fun playSubscriptionManagement():JSONObject = request("/play/subscription-management","GET")
 
