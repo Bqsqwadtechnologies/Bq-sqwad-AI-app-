@@ -1804,6 +1804,89 @@ export default {
       }
 
 
+      if (url.pathname === "/file-box" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const now = Date.now();
+        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => {
+          const expiry = Date.parse(String(item.expiresAt || ""));
+          return Number.isFinite(expiry) && expiry > now;
+        }).slice(-100);
+        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : 30;
+        if (items.length !== (Array.isArray(doc.items) ? doc.items.length : 0)) await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items, retentionDays, updatedAt:new Date() }, true);
+        return json({ items, retentionDays, count:items.length });
+      }
+      if (url.pathname === "/file-box/settings" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const retentionDays = Number(body.retentionDays);
+        if (![7,14,30,90].includes(retentionDays)) return json({ error:"invalid_retention_days" }, 400);
+        const current = await firestoreGet("fileBox/" + user.uid) || {};
+        const items = (Array.isArray(current.items) ? current.items : []).filter(item => {
+          const expiry = Date.parse(String(item.expiresAt || ""));
+          return Number.isFinite(expiry) && expiry > Date.now();
+        }).map(item => ({ ...item, expiresAt:new Date(Date.parse(String(item.createdAt || new Date().toISOString())) + retentionDays*86400000).toISOString(), retentionDays }));
+        await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items, retentionDays, updatedAt:new Date() }, true);
+        return json({ ok:true, retentionDays, count:items.length });
+      }
+      if (url.pathname === "/file-box" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const title = String(body.title || "").trim().slice(0,180);
+        const content = String(body.content || "");
+        const mimeType = String(body.mimeType || "text/plain").slice(0,100);
+        if (!title || !content.trim()) return json({ error:"file_title_and_content_required" }, 400);
+        if (content.length > 350000) return json({ error:"file_content_too_large" }, 413);
+        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : 30;
+        const now = new Date();
+        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
+        const item = { id:crypto.randomUUID(), uid:user.uid, title, mimeType, content, createdAt:now.toISOString(), expiresAt:new Date(now.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
+        items.push(item);
+        await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items:items.slice(-20), retentionDays, updatedAt:now }, true);
+        return json({ ok:true, item:{ ...item, content:undefined }, count:Math.min(items.length,20) });
+      }
+      if (url.pathname === "/file-box" && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        const id = String(url.searchParams.get("id") || "").trim();
+        if (!id) return json({ error:"file_id_required" }, 400);
+        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => item.id !== id);
+        await firestoreSet("fileBox/" + user.uid, { ...doc, uid:user.uid, items, updatedAt:new Date() }, true);
+        return json({ ok:true, count:items.length });
+      }
+      if (url.pathname === "/projects" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const doc = await firestoreGet("userProjects/" + user.uid) || {};
+        return json({ items:(Array.isArray(doc.items) ? doc.items : []).slice(-100) });
+      }
+      if (url.pathname === "/projects" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const title = String(body.title || "").trim().slice(0,160);
+        const description = String(body.description || "").trim().slice(0,4000);
+        const content = String(body.content || "").slice(0,30000);
+        if (!title) return json({ error:"project_title_required" }, 400);
+        const doc = await firestoreGet("userProjects/" + user.uid) || {};
+        const items = Array.isArray(doc.items) ? doc.items : [];
+        const requestedId = String(body.id || "").trim();
+        const index = requestedId ? items.findIndex(item => item.id === requestedId) : -1;
+        const now = new Date().toISOString();
+        const item = { id:index >= 0 ? requestedId : crypto.randomUUID(), title, description, content, createdAt:index >= 0 ? items[index].createdAt : now, updatedAt:now };
+        if (index >= 0) items[index] = item; else items.push(item);
+        await firestoreSet("userProjects/" + user.uid, { uid:user.uid, items:items.slice(-100), updatedAt:new Date() }, true);
+        return json({ ok:true, item });
+      }
+      if (url.pathname === "/projects" && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        const id = String(url.searchParams.get("id") || "").trim();
+        if (!id) return json({ error:"project_id_required" }, 400);
+        const doc = await firestoreGet("userProjects/" + user.uid) || {};
+        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => item.id !== id);
+        await firestoreSet("userProjects/" + user.uid, { uid:user.uid, items, updatedAt:new Date() }, true);
+        return json({ ok:true, count:items.length });
+      }
+
       if (url.pathname === "/memory" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         const memory = await firestoreGet("userMemory/" + user.uid);
