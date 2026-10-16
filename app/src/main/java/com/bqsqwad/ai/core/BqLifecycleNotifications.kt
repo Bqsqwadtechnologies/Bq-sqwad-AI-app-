@@ -33,6 +33,7 @@ object BqLifecycleNotifications {
     private const val NOTIFICATIONS_ENABLED = "notifications_enabled"
     private const val COMEBACK_COUNT = "comeback_count"
     private const val SENT_MILESTONES = "sent_age_milestones"
+    private const val LAST_MILESTONE_DAY = "last_milestone_local_day"
     private const val NEXT_ID = "next_notification_id"
     private const val INACTIVITY_REQUEST_CODE = 4012
     private const val BIRTHDAY_REQUEST_CODE = 4013
@@ -109,18 +110,24 @@ object BqLifecycleNotifications {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
         val candidates = birthdayMilestones(firstOpen, now)
-        val due = candidates.filter { it.at <= now && it.key !in sent }.maxWithOrNull(compareBy<AgeMilestone> { if (it.key.startsWith("year:")) 1 else 0 }.thenBy { it.at })
+        val overdue = candidates.filter { it.at <= now && it.key !in sent }
+        val todayKey = localMilestoneDay(now)
+        // One celebration per local calendar day. If several milestones were missed,
+        // catch up in chronological order on successive polite morning reminders.
+        val due = if (prefs.getString(LAST_MILESTONE_DAY, null) == todayKey) {
+            null
+        } else {
+            overdue.firstOrNull { it.key.startsWith("year:") }
+                ?: overdue.firstOrNull { it.key.startsWith("month:") }
+                ?: overdue.minByOrNull { it.at }
+        }
         if (due != null) {
             if (allowPost && !AppVisibility.isForeground) {
                 post(context, due.title, due.body)
             } else {
-                // Foreground celebrations stay in-app; never post a system notification
-                // while the user is already using BQ Sqwad AI.
                 InAppNotificationBus.show("${due.title} · ${due.body}")
             }
             sent.add(due.key)
-            // Do not flood users with old one-time notices when an account is first
-            // opened after months or years. A current monthly/yearly celebration wins.
             if (due.key.startsWith("year:")) {
                 sent.add("day:1")
                 sent.add("day:7")
@@ -130,9 +137,28 @@ object BqLifecycleNotifications {
                 sent.add("day:1")
                 sent.add("day:7")
             }
-            prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
+            prefs.edit()
+                .putStringSet(SENT_MILESTONES, sent)
+                .putString(LAST_MILESTONE_DAY, todayKey)
+                .apply()
         }
         scheduleNextBirthdayReminder(context, firstOpen, sent, now)
+    }
+
+    private fun localMilestoneDay(timestamp: Long): String {
+        val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return "${calendar.get(Calendar.YEAR)}-${calendar.get(Calendar.DAY_OF_YEAR)}"
+    }
+
+    private fun nextMilestoneCatchupTime(now: Long): Long {
+        val calendar = Calendar.getInstance().apply { timeInMillis = now }
+        val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+        if (currentHour >= 9) calendar.add(Calendar.DAY_OF_YEAR, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 9)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
     }
 
     private fun birthdayMilestones(firstOpen: Long, now: Long): List<AgeMilestone> {
@@ -175,29 +201,30 @@ object BqLifecycleNotifications {
         bqAnniversaryTimestamp(firstOpen, field, amount)
 
     private fun scheduleNextBirthdayReminder(context: Context, firstOpen: Long, sent: Set<String>, now: Long = System.currentTimeMillis()) {
-        val future = birthdayMilestones(firstOpen, now)
-            .filter { it.key !in sent && it.at > now }
-            .minByOrNull { it.at } ?: run {
-                // Monthly and yearly milestones repeat forever. Advance to the next
-                // monthly anniversary when this month's milestone has already passed.
+        val candidates = birthdayMilestones(firstOpen, now)
+        val overdue = candidates.any { it.key !in sent && it.at <= now }
+        val futureAt = if (overdue) {
+            nextMilestoneCatchupTime(now)
+        } else {
+            val future = candidates.filter { it.key !in sent && it.at > now }.minByOrNull { it.at }
+            future?.at ?: run {
+                // Monthly and yearly milestones repeat forever; advance to the next
+                // calendar anniversaries once the currently represented milestone is sent.
                 val monthIndex = (calendarMonthIndex(now) - calendarMonthIndex(firstOpen) + 1).coerceAtLeast(1)
                 val yearIndex = (Calendar.getInstance().get(Calendar.YEAR) -
                     Calendar.getInstance().apply { timeInMillis = firstOpen }.get(Calendar.YEAR) + 1).coerceAtLeast(1)
                 val monthAt = monthAnniversary(firstOpen, monthIndex)
                 val yearAt = yearAnniversary(firstOpen, yearIndex)
-                if (monthAt <= now && yearAt <= now) return
-                if (monthAt <= now) AgeMilestone("year:$yearIndex", yearAt, "Happy BQ Sqwad AI Birthday!", "Another year of growing together.", true)
-                else if (yearAt <= now) AgeMilestone("month:$monthIndex", monthAt, "BQ Sqwad AI monthiversary!", "Another month of growing together.", true)
-                else if (monthAt <= yearAt) AgeMilestone("month:$monthIndex", monthAt, "BQ Sqwad AI monthiversary!", "Another month of growing together.", true)
-                else AgeMilestone("year:$yearIndex", yearAt, "Happy BQ Sqwad AI Birthday!", "Another year of growing together.", true)
+                minOf(monthAt, yearAt).takeIf { it > now } ?: return
             }
+        }
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = Intent(context, BqInactivityReminderReceiver::class.java).setAction(ACTION_BIRTHDAY_MILESTONE)
         val pending = PendingIntent.getBroadcast(
             context, BIRTHDAY_REQUEST_CODE, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
-        val trigger = politeBirthdayTrigger(future.at, now)
+        val trigger = if (overdue) futureAt else politeBirthdayTrigger(futureAt, now)
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
             else alarmManager.set(AlarmManager.RTC_WAKEUP, trigger, pending)
