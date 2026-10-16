@@ -1519,44 +1519,63 @@ export default {
     // Daily File Box expiry cleanup shares the existing scheduled handler with
     // account-deletion processing; do not replace or bypass deletion processing.
     try {
-      const fileBoxRows = await firestoreQuery("fileBox", { limit:500 });
-      for (const row of fileBoxRows) {
-        const uid = String(row.uid || "");
-        if (!uid || !Array.isArray(row.items)) continue;
-        const items = [];
-        for (const item of row.items) {
-          const expiry = Date.parse(String(item.expiresAt || ""));
-          if (Number.isFinite(expiry) && expiry > Date.now()) {
-            items.push(item);
-          } else if (item?.objectPath) {
-            // Expiry must remove the stored object as well as the Firestore index.
-            await deleteTrainingAssetObject(String(item.objectPath)).catch(error => {
-              console.error("file_box_object_expiry_failed", String(item.id || "").slice(0, 80), error?.message || "unknown");
-            });
+      const cursor = await firestoreGet("adminAdvancedOptions/fileBoxCleanupCursor") || {};
+      let offset = Math.max(0, Math.floor(Number(cursor.offset || 0)));
+      for (let page = 0; page < 5; page++) {
+        const fileBoxRows = await firestoreQuery("fileBox", { limit:100, offset });
+        if (!fileBoxRows.length) { offset = 0; break; }
+        for (const row of fileBoxRows) {
+          const uid = String(row.uid || "");
+          if (!uid || !Array.isArray(row.items)) continue;
+          const items = [];
+          for (const item of row.items) {
+            const expiry = Date.parse(String(item.expiresAt || ""));
+            if (Number.isFinite(expiry) && expiry > Date.now()) {
+              items.push(item);
+            } else if (item?.objectPath) {
+              // Expiry must remove the stored object as well as the Firestore index.
+              await deleteTrainingAssetObject(String(item.objectPath)).catch(error => {
+                console.error("file_box_object_expiry_failed", String(item.id || "").slice(0, 80), error?.message || "unknown");
+              });
+            }
+          }
+          if (items.length !== row.items.length) {
+            await firestoreSet("fileBox/" + uid, {
+              uid, items,
+              retentionDays:[7,14,30,90].includes(Number(row.retentionDays)) ? Number(row.retentionDays) : 30,
+              updatedAt:new Date()
+            }, true);
           }
         }
-        if (items.length !== row.items.length) {
-          await firestoreSet("fileBox/" + uid, {
-            uid, items,
-            retentionDays:[7,14,30,90].includes(Number(row.retentionDays)) ? Number(row.retentionDays) : 30,
-            updatedAt:new Date()
-          }, true);
-        }
+        offset += fileBoxRows.length;
+        if (fileBoxRows.length < 100) { offset = 0; break; }
       }
+      await firestoreSet("adminAdvancedOptions/fileBoxCleanupCursor", { offset, updatedAt:new Date() }, true);
     } catch (error) {
       console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
     }
     // Remove abandoned upload sessions and any uploaded object after 24 hours.
     try {
-      const uploads = await firestoreQuery("fileBoxUploads", { limit: 500 });
       const staleBefore = Date.now() - 24 * 60 * 60 * 1000;
-      for (const upload of uploads) {
-        if (upload.uploadPending !== true) continue;
-        const created = Date.parse(String(upload.createdAt || ""));
-        if (!Number.isFinite(created) || created > staleBefore) continue;
-        if (upload.objectPath) await deleteTrainingAssetObject(String(upload.objectPath)).catch(() => {});
-        const id = String(upload.id || String(upload.__name || "").split("/").pop() || "");
-        if (id) await firestoreDelete("fileBoxUploads/" + id).catch(() => {});
+      for (let batch = 0; batch < 5; batch++) {
+        const uploads = await firestoreQuery("fileBoxUploads", {
+          filters: [{ field: { fieldPath: "uploadPending" }, op: "EQUAL", value: { booleanValue: true } }],
+          orderBy: { field: "createdAt", direction: "ASCENDING" },
+          limit: 100
+        });
+        if (!uploads.length) break;
+        let removed = 0;
+        for (const upload of uploads) {
+          const created = Date.parse(String(upload.createdAt || ""));
+          if (!Number.isFinite(created) || created > staleBefore) break;
+          if (upload.objectPath) await deleteTrainingAssetObject(String(upload.objectPath)).catch(() => {});
+          const id = String(upload.id || String(upload.__name || "").split("/").pop() || "");
+          if (id) {
+            await firestoreDelete("fileBoxUploads/" + id).catch(() => {});
+            removed++;
+          }
+        }
+        if (removed === 0) break;
       }
     } catch (error) {
       console.error("file_box_upload_cleanup_failed", error?.message || "unknown");
