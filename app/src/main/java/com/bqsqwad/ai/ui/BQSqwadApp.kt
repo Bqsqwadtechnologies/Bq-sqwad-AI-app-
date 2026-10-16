@@ -2551,7 +2551,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         .clickable(onClick = openFeatures)
                                     .padding(horizontal = 18.dp)
                             ) {
-                                BqLogo(76.dp)
+                                FloatingLogo(Modifier)
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
@@ -6012,6 +6012,60 @@ private fun WallpaperBackground(index: Int) {
 }
 
 @Composable private fun FloatingLogo(modifier: Modifier) {
-    // Use the single shared brand mark without a glowing or faded logo variant.
-    BqLogo(76.dp, modifier)
+    val context = LocalContext.current
+    val animationsEnabled = remember {
+        runCatching {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) > 0f
+        }.getOrDefault(true)
+    }
+    if (!animationsEnabled) {
+        BqLogo(76.dp, modifier)
+        return
+    }
+    val transition = rememberInfiniteTransition(label = "bq-floating-logo")
+    val floatY by transition.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "float-y"
+    )
+    val scale by transition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "breathe"
+    )
+    val tilt by transition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "tilt"
+    )
+    val glowAlpha by transition.animateFloat(
+        initialValue = 0.08f,
+        targetValue = 0.22f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "glow"
+    )
+    Box(modifier = modifier.size(104.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(94.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = glowAlpha))
+        )
+        BqLogo(
+            76.dp,
+            Modifier.graphicsLayer {
+                translationY = floatY
+                scaleX = scale
+                scaleY = scale
+                rotationZ = tilt
+            }
+        )
+    }
 }
