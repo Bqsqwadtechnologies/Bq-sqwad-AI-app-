@@ -53,9 +53,9 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricCard("Helpful", body?.optInt("helpfulCount") ?: 0)
-                MetricCard("Not helpful", body?.optInt("notHelpfulCount") ?: 0)
-                MetricCard("Complaints", body?.optInt("complaintCount") ?: 0)
+                MetricCard("Helpful", body?.optInt("helpfulCount") ?: 0, Modifier.weight(1f))
+                MetricCard("Not helpful", body?.optInt("notHelpfulCount") ?: 0, Modifier.weight(1f))
+                MetricCard("Complaints", body?.optInt("complaintCount") ?: 0, Modifier.weight(1f))
             }
         }
         item {
@@ -86,8 +86,8 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
 }
 
 @Composable
-private fun MetricCard(label: String, count: Int) {
-    Card(Modifier.weight(1f)) {
+private fun MetricCard(label: String, count: Int, modifier: Modifier = Modifier) {
+    Card(modifier) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(count.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(label, style = MaterialTheme.typography.labelSmall)
