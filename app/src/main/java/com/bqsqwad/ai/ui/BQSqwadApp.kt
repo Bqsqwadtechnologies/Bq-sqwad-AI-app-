@@ -1308,7 +1308,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenLegalCenter = { legalCenter = true },
                 onNotificationsChanged = { notificationsEnabled = it },
                 notificationStatus = notificationStatus,
-                onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) }
+                onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) },
+                onOpenPlans = { plansInitialSection = "all"; plans = true }
             )
             history -> HistoryScreen(
                 onBack = { history = false },
@@ -5856,7 +5857,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val prefs = remember(uid) { accountPreferences(context) }
@@ -6146,6 +6147,9 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
             }
             if (settingsCategory == "All settings" || settingsCategory == "Payments & Billing") {
 item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscriptions in Google Play") }
+            item {
+                FeatureCard("BQ Sqwad AI catalog", "Browse available plans, eligible add-ons and credit packs for your account.", onOpenPlans)
+            }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
