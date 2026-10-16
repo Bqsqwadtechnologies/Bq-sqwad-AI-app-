@@ -247,7 +247,7 @@ object BqLifecycleNotifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         val titleLower = title.lowercase()
         val channelId = when {
-            titleLower.contains("birthday") || titleLower.contains("week together") || titleLower.contains("day old") -> BIRTHDAY_CHANNEL_ID
+            titleLower.contains("birthday") || titleLower.contains("week together") || titleLower.contains("day old") || titleLower.contains("week old") || titleLower.contains("month old") || titleLower.contains("year old") -> BIRTHDAY_CHANNEL_ID
             titleLower.contains("reply") -> REPLIES_CHANNEL_ID
             else -> REMINDERS_CHANNEL_ID
         }
