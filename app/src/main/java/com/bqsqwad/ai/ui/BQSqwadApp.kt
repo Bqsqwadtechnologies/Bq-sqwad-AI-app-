@@ -979,7 +979,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureHub by remember { mutableStateOf(false) }
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
-    var adminAuthorized by remember { mutableStateOf(false) }
+    var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "bq_ui").getBoolean("admin", false)) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
     LaunchedEffect(notificationsEnabled) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
@@ -1031,17 +1031,22 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         performSignOut(context) { resetShellAfterSignOut() }
     }
 
-    LaunchedEffect(email) {
-        if (email.isBlank()) {
+    LaunchedEffect(email, firebaseUser?.uid) {
+        if (email.isBlank() || firebaseUser == null) {
             adminAuthorized = false
+            accountPreferences(context, "bq_ui").edit().putBoolean("admin", false).apply()
             return@LaunchedEffect
         }
-        // Keep startup work parallel: chat stays visible while authorization and
-        // notification registration load independently.
-        launch {
-            adminAuthorized = runCatching {
+        // A transient authorization-network failure must not make the admin entry
+        // disappear. Only persist a decision returned by the authenticated server.
+        while (true) {
+            runCatching {
                 WorkspaceApiClient().adminAccess().optBoolean("allowed")
-            }.getOrDefault(false)
+            }.onSuccess { allowed ->
+                adminAuthorized = allowed
+                accountPreferences(context, "bq_ui").edit().putBoolean("admin", allowed).apply()
+            }
+            delay(60_000L)
         }
     }
 
@@ -2099,6 +2104,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
+    var creditBalanceLabel by remember { mutableStateOf(if (FirebaseAuth.getInstance().currentUser == null) "Sign in for credits" else "Credits: checking…") }
+    var creditBalanceLoaded by remember { mutableStateOf(false) }
     var creditsExhausted by remember { mutableStateOf(false) }
     val messages = rememberSaveable(saver = ChatMessagesSaver) { mutableStateListOf<ChatMessage>() }
     // Keep Private Chat turns visible in this session but never include them in a saved history payload.
@@ -2202,12 +2209,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
 
     fun applyCreditSnapshot(snapshot: JSONObject) {
+        creditBalanceLoaded = true
         if (snapshot.optBoolean("adminUnlimited")) {
+            creditBalanceLabel = "Credits: Unlimited"
             creditNotice = null
             creditsExhausted = false
             return
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
+        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.3f", available).trimEnd('0').trimEnd('.')
         creditsExhausted = available <= 0.0
         val renewalTime = snapshot.optString("dailyFreeCreditsRenewalTime", "00:00").ifBlank { "00:00" }
         val renewalZone = snapshot.optString("dailyFreeCreditsTimeZone", "Africa/Lagos").ifBlank { "Africa/Lagos" }
@@ -2529,6 +2539,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
 
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
+        if (!creditBalanceLoaded) {
+            error = "Checking your live credit balance. Please wait a moment and try again."
+            return
+        }
         if (creditsExhausted) {
             error = "You need more credits to continue. Choose Buy credits to add credits."
             creditNotice = error
@@ -2724,13 +2738,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     val current = messages.getOrNull(aiIndex)
                     if (current != null) {
                         val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(reply.text) else reply.text
-                        val chargeNotice = if (reply.creditsCharged > 0.0) {
-                            val amount = String.format(java.util.Locale.US, "%.3f", reply.creditsCharged)
-                                .trimEnd('0').trimEnd('.')
-                            "\n\nCredits used: $amount"
-                        } else ""
                         messages[aiIndex] = current.copy(
-                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + chargeNotice,
+                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply,
                             sources = webSources
                         )
                     }
@@ -3066,6 +3075,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         "Ready for your next request",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        creditBalanceLabel,
+                        color = if (creditsExhausted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
                 }
@@ -3448,10 +3465,10 @@ val composerShape = RoundedCornerShape(26.dp)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(2.dp, composerBlue, composerShape),
+                        .border(1.dp, composerBlue, composerShape),
                     shape = composerShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    shadowElevation = 10.dp
+                    shadowElevation = 2.dp
                 ) {
                     Column(Modifier.fillMaxWidth()) {
                         if (dictationRecording || isListening) {
@@ -3551,7 +3568,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { if (!creditsExhausted) picker.launch(arrayOf("*/*")) }, enabled = !creditsExhausted) {
+                            IconButton(onClick = { if (creditBalanceLoaded && !creditsExhausted) picker.launch(arrayOf("*/*")) }, enabled = creditBalanceLoaded && !creditsExhausted) {
                                 Icon(
                                     Icons.Default.AttachFile,
                                     contentDescription = "Upload attachment",
@@ -3566,10 +3583,10 @@ val composerShape = RoundedCornerShape(26.dp)
                                 micError = null
                                 message = value
                             },
-                            enabled = !creditsExhausted,
+                            enabled = creditBalanceLoaded && !creditsExhausted,
                             placeholder = {
                                 Text(
-                                    if (creditsExhausted) "Usage limit reached — review plans to continue" else "Message BQ Sqwad AI",
+                                    if (!creditBalanceLoaded) "Checking live credits…" else if (creditsExhausted) "Usage limit reached — review plans to continue" else "Message BQ Sqwad AI",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
@@ -3600,7 +3617,7 @@ val composerShape = RoundedCornerShape(26.dp)
                         )
 
                         IconButton(
-                            enabled = busy || (!creditsExhausted && (message.isNotBlank() || attachments.isNotEmpty())),
+                            enabled = busy || (creditBalanceLoaded && !creditsExhausted && (message.isNotBlank() || attachments.isNotEmpty())),
                             onClick = {
                                 if (busy) {
                                     streamJob?.cancel()
