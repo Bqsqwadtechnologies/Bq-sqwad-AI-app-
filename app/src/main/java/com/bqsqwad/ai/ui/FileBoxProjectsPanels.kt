@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.provider.OpenableColumns
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -53,16 +54,30 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
         if (uri != null) {
             busy = true
             scope.launch {
+                var wasTruncated = false
                 runCatching {
                     val imported = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                            ?: error("Could not open the selected file.")
+                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                            val buffer = CharArray(4096)
+                            val output = StringBuilder()
+                            while (output.length <= 25000) {
+                                val count = reader.read(buffer, 0, minOf(buffer.size, 25001 - output.length))
+                                if (count <= 0) break
+                                output.append(buffer, 0, count)
+                            }
+                            output.toString()
+                        } ?: error("Could not open the selected file.")
                     }
+                    wasTruncated = imported.length > 25000
                     val safeContent = imported.take(25000)
-                    val displayName = uri.lastPathSegment?.substringAfterLast('/')?.take(180)?.ifBlank { "Imported text" } ?: "Imported text"
+                    val displayName = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    }?.take(180)?.ifBlank { "Imported text" } ?: "Imported text"
                     api.saveFileBoxItem(displayName, safeContent, context.contentResolver.getType(uri) ?: "text/plain")
-                }.onSuccess { notice = "Text file imported into File Box. Content over 25,000 characters is truncated."; refresh() }
-                    .onFailure { notice = "Import failed. Choose a readable text file and try again." }
+                }.onSuccess {
+                    notice = if (wasTruncated) "Text file imported. Content was capped at 25,000 characters." else "Text file imported into File Box."
+                    refresh()
+                }.onFailure { notice = "Import failed. Choose a readable text file and try again." }
                 busy = false
             }
         }
