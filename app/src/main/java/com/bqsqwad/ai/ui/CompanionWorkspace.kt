@@ -33,7 +33,7 @@ private data class CompanionPlan(
 )
 
 @Composable
-fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
+fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var personality by remember { mutableStateOf("Caring") }
     var mode by remember { mutableStateOf("Chat") }
@@ -202,11 +202,11 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
 
         when (mode) {
             "Voice" -> {
-                VoiceWorkspace()
+                VoiceWorkspace(onOpenCredits = onOpenCredits)
                 return@Column
             }
             "Camera" -> {
-                CameraWorkspace()
+                CameraWorkspace(onOpenCredits = onOpenCredits)
                 return@Column
             }
             "Memory" -> {
