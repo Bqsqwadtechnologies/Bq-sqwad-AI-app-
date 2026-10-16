@@ -149,7 +149,7 @@ fun BQSqwadApp(
     CompositionLocalProvider(
         LocalDensity provides Density(
             density = systemDensity.density,
-            fontScale = systemDensity.fontScale * bqTextScaleState.floatValue.coerceIn(0.85f, 1.4f)
+            fontScale = systemDensity.fontScale * bqTextScaleState.floatValue.coerceIn(0.85f, 1.8f)
         )
     ) {
         AuthGate(modifier, sharedText, onSharedTextConsumed)
@@ -327,6 +327,11 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
+            Text(
+                "Training is optional. Only turn it on if you agree to contribute eligible non-private text chats to a reviewable training-data library. You can change this later in Settings & Privacy; it does not automatically retrain model weights.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LegalConsentLinks()
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -698,12 +703,12 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                         else if (!authVideoPaused && !view.isPlaying) view.start()
                     }
                 },
-                modifier = Modifier.fillMaxSize().alpha(0.32f)
+                modifier = Modifier.fillMaxSize().alpha(0.68f)
             )
         }
         Surface(
             Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.56f)
+            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.48f)
         ) {
             Column(
                 Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -835,7 +840,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
     val email = firebaseUser?.email.orEmpty()
     LaunchedEffect(firebaseUser?.uid) {
-        bqTextScaleState.floatValue = accountPreferences(context).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)
+        bqTextScaleState.floatValue = accountPreferences(context).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
     }
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -4196,6 +4201,10 @@ private fun WorkspaceScreen(
 
 @Composable
 private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpenSettings: () -> Unit) {
+    if (feature.id == "god_ai_agent") {
+        GodAiAgentWorkspace(onOpenSettings = onOpenSettings)
+        return
+    }
     val entry = NativeFeatureRegistry.find(feature.id)
     Scaffold(
         topBar = {
@@ -4471,6 +4480,14 @@ private fun AiTaskWorkspace(
                             streamingResult += delta
                         })
                         result = reply.text
+                        if (prompt.trim().isNotBlank() && reply.text.isNotBlank()) {
+                            val trainingPrompt = prompt.trim()
+                            val trainingResponse = reply.text
+                            // Server-side consent is mandatory; this request is ignored when the user has not opted in.
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().submitTrainingContribution(trainingPrompt, trainingResponse, capability, false) }
+                            }
+                        }
                     } catch (t: Throwable) {
                         if (t is kotlinx.coroutines.CancellationException) {
                             result = streamingResult
@@ -4679,13 +4696,17 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     val scope = rememberCoroutineScope()
     val settingsPrefs = remember { accountPreferences(context) }
     val cameraEnhanceEnabled = remember { settingsPrefs.getBoolean("camera_enhance", true) }
-    val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 1800L else 2800L
+    // Sample occasionally for the Compose fallback image, while AI analysis remains throttled below.
+    val frameCaptureIntervalMs = if (cameraEnhanceEnabled) 500L else 800L
     val aiFrameIntervalMs = if (cameraEnhanceEnabled) 1600L else 2600L
     var granted by remember { mutableStateOf(androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     var active by remember { mutableStateOf(false) }
     var previewEnabled by remember { mutableStateOf(granted) }
     var fullScreenPreview by remember { mutableStateOf(false) }
     var fullScreenPreviewReady by remember { mutableStateOf(false) }
+    var previewFrame by remember { mutableStateOf<ImageBitmap?>(null) }
+    var lastPreviewTextureUpdate by remember { mutableLongStateOf(0L) }
+    var showPreviewBitmapFallback by remember { mutableStateOf(false) }
     var analyzing by remember { mutableStateOf(false) }
     var permissionExplanation by remember { mutableStateOf(false) }
     val cameraPreviewPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
@@ -4708,6 +4729,32 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var streamEndpoint by remember { mutableStateOf("") }
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(previewEnabled, granted, streamOnline) {
+        if (!previewEnabled || !granted || streamOnline) {
+            showPreviewBitmapFallback = false
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(700L)
+            showPreviewBitmapFallback = previewFrame != null &&
+                System.currentTimeMillis() - lastPreviewTextureUpdate > 1200L
+        }
+    }
+    fun handleCameraPreviewFrame(bytes: ByteArray) {
+        scope.launch(Dispatchers.Default) {
+            val options = BitmapFactory.Options().apply { inSampleSize = 2 }
+            val bitmap = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) }.getOrNull()
+            if (bitmap != null) {
+                val image = bitmap.asImageBitmap()
+                withContext(kotlinx.coroutines.Dispatchers.Main.immediate) { previewFrame = image }
+            }
+        }
+        val now = System.currentTimeMillis()
+        if (active && now - lastAnalysisAt >= aiFrameIntervalMs) {
+            lastAnalysisAt = now
+            LiveMediaForegroundService.submitVisualFrame(bytes)
+        }
+    }
     var tiktokHandoffNotice by remember { mutableStateOf<String?>(null) }
     var liveTermsAccepted by remember {
         val consentPrefs = accountPreferences(context, "bq_live_consent")
@@ -5073,13 +5120,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                             lensFacing = lens,
                             captureEveryMs = frameCaptureIntervalMs,
                             torchEnabled = flashlightOn,
-                            onFrame = { bytes ->
-                                val now = System.currentTimeMillis()
-                                if (active && now - lastAnalysisAt >= aiFrameIntervalMs) {
-                                    lastAnalysisAt = now
-                                    LiveMediaForegroundService.submitVisualFrame(bytes)
-                                }
-                            },
+                            onFrame = ::handleCameraPreviewFrame,
+onPreviewUpdated = {
+    lastPreviewTextureUpdate = System.currentTimeMillis()
+    showPreviewBitmapFallback = false
+},
                             onError = { message ->
                                 streamError = message
                                 reportCameraDiagnostic(cameraDiagnosticCode(message))
@@ -5087,6 +5132,9 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                             onClosed = { if (fullScreenPreview) fullScreenPreviewReady = true },
                             onLensSelected = { lens = it }
                         )
+                    }
+                    if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
+                        Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     }
                     TextButton(
                         onClick = {
@@ -5314,13 +5362,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         lensFacing = lens,
                         captureEveryMs = frameCaptureIntervalMs,
                         torchEnabled = flashlightOn,
-                        onFrame = { bytes ->
-                            val now = System.currentTimeMillis()
-                            if (active && now - lastAnalysisAt >= aiFrameIntervalMs) {
-                                lastAnalysisAt = now
-                                LiveMediaForegroundService.submitVisualFrame(bytes)
-                            }
-                        },
+                        onFrame = ::handleCameraPreviewFrame,
+onPreviewUpdated = {
+    lastPreviewTextureUpdate = System.currentTimeMillis()
+    showPreviewBitmapFallback = false
+},
                         onError = { message ->
                             streamError = message
                             reportCameraDiagnostic(cameraDiagnosticCode(message))
@@ -5329,6 +5375,9 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         onClosed = { if (fullScreenPreview && !fullScreenPreviewReady) fullScreenPreview = false },
                         onLensSelected = { lens = it }
                     )
+                }
+                if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
+                    Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 Row(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
@@ -5751,7 +5800,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var truthGuardSources by remember(uid) { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
     var notifications by remember(uid) { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
-    var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
+    var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)) }
     val aiBirthTimestamp = remember(uid) { BqLifecycleNotifications.birthTimestamp(context) }
     val aiAgeLabel = remember(aiBirthTimestamp) {
         val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
@@ -5815,7 +5864,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             val global = body.optJSONObject("settings")?.optJSONObject("global") ?: return@onSuccess
             val mapping = mapOf("web_search" to "web_search_enabled", "memory" to "memory_enabled", "notifications" to "notifications_enabled", "history" to "chat_history", "save_files" to "auto_save", "voice_responses" to "voice_replies", "camera_enhance" to "camera_enhance", "companion_memory" to "companion_memory", "truthguard_sources" to "truthguard_sources", "auto_run" to "auto_run", "streaming" to "streaming", "personalization" to "personalization", "background_jobs" to "background_jobs")
             mapping.forEach { (serverKey, localKey) -> if (global.has(serverKey) && global.opt(serverKey) is Boolean) prefs.edit().putBoolean(localKey, global.optBoolean(serverKey)).apply() }
-            if (global.has("text_scale") && global.opt("text_scale") is Number) prefs.edit().putFloat("text_scale", global.optDouble("text_scale").toFloat().coerceIn(0.85f, 1.4f)).apply()
+            if (global.has("text_scale") && global.opt("text_scale") is Number) prefs.edit().putFloat("text_scale", global.optDouble("text_scale").toFloat().coerceIn(0.85f, 1.8f)).apply()
             chatHistory = prefs.getBoolean("chat_history", true)
             autoSave = prefs.getBoolean("auto_save", true)
             memory = prefs.getBoolean("memory_enabled", true)
@@ -5825,7 +5874,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             companionMemory = prefs.getBoolean("companion_memory", true)
             truthGuardSources = prefs.getBoolean("truthguard_sources", true)
             notifications = prefs.getBoolean("notifications_enabled", true)
-            textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)
+            textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
         }
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
@@ -5912,6 +5961,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                             Column(Modifier.weight(1f)) {
                                 Text("Your account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                 Text(FirebaseAuth.getInstance().currentUser?.email ?: "Signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("AI age · $aiAgeLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -6030,13 +6080,27 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                         scope.launch {
                             runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put("text_scale", textScale.toDouble())) }
                                 .onFailure { settingsNotice = "Saved on this device, but could not sync text size yet." }
+                            // Recreate after persisting so all native screens recalculate text metrics.
+                            (context as? android.app.Activity)?.recreate()
                         }
-                    }, valueRange = 0.85f..1.4f, steps = 10)
+                    }, valueRange = 0.85f..1.8f, steps = 18)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Smaller", style = MaterialTheme.typography.labelSmall)
                         Text((textScale * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                         Text("Larger", style = MaterialTheme.typography.labelSmall)
                     }
+                    TextButton(
+                        onClick = {
+                            textScale = 1.0f
+                            bqTextScaleState.floatValue = 1.0f
+                            prefs.edit().putFloat("text_scale", 1.0f).apply()
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put("text_scale", 1.0)) }
+                                    .onFailure { settingsNotice = "Default text size was saved on this device but could not sync yet." }
+                                (context as? android.app.Activity)?.recreate()
+                            }
+                        }
+                    ) { Text("Reset text size") }
                 }
             }
             item { SettingsSectionTitle("Chat & intelligence", "Control how the assistant works for you") }

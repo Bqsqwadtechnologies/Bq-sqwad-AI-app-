@@ -34,3 +34,12 @@ test("live voice and camera defaults are free unless admin explicitly configures
   assert.match(source, /name === "live_voice" \|\| name === "live_camera"/);
   assert.match(source, /Number\(value\.creditCost == null \? 0 : value\.creditCost\)/);
 });
+
+
+test("opt-in training library is admin-only and checks explicit consent before returning examples", async () => {
+  const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  assert.match(source, /url\.pathname === \"\/admin\/training-library\" && request\.method === \"GET\"/);
+  assert.match(source, /if \(!isSuperAdmin\(u, env\)\) throw new Error\(\"Admin access required\"\)/);
+  assert.match(source, /fieldPath: \"trainingConsent\"[\s\S]*?booleanValue: true/);
+  assert.match(source, /firestoreGet\(\"aiTrainingContributions\/" \+ uid\)/);
+});

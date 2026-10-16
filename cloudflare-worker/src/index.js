@@ -2654,6 +2654,47 @@ export default {
       
       if (url.pathname === "/admin/web-search-pricing" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")||{}); }
       if (url.pathname === "/admin/web-search-pricing" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("adminAdvancedOptions/web_search_pricing",{enabled:b.enabled!==false,config:b.config&&typeof b.config==="object"?b.config:{},updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")); }
+      if (url.pathname === "/admin/training-library" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const consentRows = await firestoreQuery("userConsents", {
+          filters: [{ field: { fieldPath: "trainingConsent" }, op: "EQUAL", value: { booleanValue: true } }],
+          limit: 500
+        });
+        const eligibleUids = [...new Set(consentRows.map(row => String(row.uid || row.id || "").trim()).filter(Boolean))];
+        const docs = [];
+        for (let offset = 0; offset < eligibleUids.length; offset += 20) {
+          const batch = await Promise.all(eligibleUids.slice(offset, offset + 20).map(async uid => ({
+            uid,
+            doc: await firestoreGet("aiTrainingContributions/" + uid)
+          })));
+          docs.push(...batch);
+        }
+        const items = [];
+        for (const { uid, doc } of docs) {
+          if (!doc || !Array.isArray(doc.items)) continue;
+          for (const example of doc.items) {
+            const prompt = String(example?.prompt || "").trim();
+            const response = String(example?.response || "").trim();
+            if (!prompt || !response) continue;
+            items.push({
+              id: String(example.id || crypto.randomUUID()),
+              owner: uid.slice(0, 8) + "…",
+              workspace: String(example.workspace || "main_chat").slice(0, 60),
+              prompt: prompt.slice(0, 4000),
+              response: response.slice(0, 4000),
+              createdAt: String(example.createdAt || "")
+            });
+          }
+        }
+        items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+        return json({
+          items: items.slice(0, 2000),
+          userCount: docs.filter(row => Array.isArray(row.doc?.items) && row.doc.items.length > 0).length,
+          itemCount: items.length,
+          updatedAt: new Date().toISOString()
+        });
+      }
       if (url.pathname === "/admin/auth-background-video" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),enabled=b.enabled===true,urlValue=String(b.url||"").trim();if(enabled&&!/^https:\/\//i.test(urlValue))throw new Error("auth_background_video_url_required");await firestoreSet("publicAppConfig/app",{authBackgroundVideoUrl:enabled?urlValue:null,authBackgroundVideoEnabled:enabled,updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("publicAppConfig/app")); }
       if (url.pathname === "/admin/app-layout" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("publicAppConfig/app")||{}); }
       if (url.pathname === "/admin/app-layout" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),ids=["CHAT","VIDEO","SEARCH","TRUTH_GUARD","FRONTIER_LAB","CAMERA","VOICE","PERSONAL","LIFE","COMPANION","LEARNING","BUSINESS","ORGANIZATION_STUDIO","DATA_ANALYSIS","ADMIN"],order=[...new Set((Array.isArray(b.workspaceOrder)?b.workspaceOrder:String(b.workspaceOrder||"").split(",")).map(x=>String(x).toUpperCase()).filter(x=>ids.includes(x)))];for(const id of ids)if(!order.includes(id))order.push(id);const enabled=Object.fromEntries(ids.map(id=>[id,b.workspaceEnabled?.[id]!==false]));await firestoreSet("publicAppConfig/app",{workspaceOrder:order,workspaceEnabled:enabled,themeMode:["system","light","dark"].includes(String(b.themeMode||""))?String(b.themeMode):"system",updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("publicAppConfig/app")); }

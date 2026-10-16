@@ -59,6 +59,7 @@ fun NativeCameraPreview(
     onFrame: (ByteArray) -> Unit = {},
     onError: (String) -> Unit = {},
     onClosed: () -> Unit = {},
+    onPreviewUpdated: () -> Unit = {},
     onLensSelected: (Int) -> Unit = {}
 ) {
     AndroidView(
@@ -66,12 +67,14 @@ fun NativeCameraPreview(
         factory = { context ->
             LiveCameraTextureView(context).apply {
                 closedListener = onClosed
+                previewListener = onPreviewUpdated
                 lensListener = onLensSelected
                 updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
             }
         },
         update = { view ->
             view.closedListener = onClosed
+            view.previewListener = onPreviewUpdated
             view.lensListener = onLensSelected
             view.updateConfiguration(lensFacing, captureEveryMs, torchEnabled, onFrame, onError)
         }
@@ -93,6 +96,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     var frameListener: (ByteArray) -> Unit = {}
     var errorListener: (String) -> Unit = {}
     var closedListener: () -> Unit = {}
+    var previewListener: () -> Unit = {}
     var lensListener: (Int) -> Unit = {}
     private var lastErrorMessage: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -118,6 +122,13 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     private val closed = AtomicBoolean(false)
 
     init {
+        // Explicitly keep TextureView on the hardware-composited path used by camera2.
+        // Compose may place this view inside clipped/translucent workspace surfaces; the
+        // explicit layer/opacity settings avoid a black preview on affected Android devices.
+        isOpaque = false
+        alpha = 1f
+        visibility = android.view.View.VISIBLE
+        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
         surfaceTextureListener = this
     }
 
@@ -130,7 +141,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     ) {
         frameListener = listener
         errorListener = onError
-        intervalMs = newIntervalMs.coerceIn(1000L, 10000L)
+        intervalMs = newIntervalMs.coerceIn(250L, 10000L)
         val torchChanged = torchEnabled != newTorchEnabled
         torchEnabled = newTorchEnabled
         if (facing != newFacing) {
@@ -373,7 +384,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
                 }
             }
             scheduleFrame()
-        }, intervalMs.coerceIn(1000L, 10000L))
+        }, intervalMs.coerceIn(250L, 10000L))
     }
 
     private fun bitmapToJpeg(bitmap: Bitmap): ByteArray? {
@@ -423,7 +434,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         return true
     }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        if (closed.get()) return
+        lastErrorMessage = null
+        // TextureView updates are delivered by Android on the UI thread.
+        previewListener()
+    }
 
     private fun releaseCameraOwnership() {
         synchronized(ownerLock) {

@@ -359,7 +359,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 placeholder = { Text("Talk to your companion…") },
                 maxLines = 4
             )
-            IconButton(
+            OutlinedButton(
                 enabled = !busy,
                 onClick = {
                     if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -373,8 +373,13 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     } else {
                         dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
-                }
-            ) { Icon(Icons.Default.Mic, contentDescription = "Voice to text") }
+                },
+                modifier = Modifier.height(56.dp)
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("Voice to text")
+            }
             Button(
                 enabled = !busy && input.isNotBlank(),
                 onClick = {
@@ -390,6 +395,10 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             val answer = reply.optString("text").ifBlank { reply.optString("answer") }
                             if (answer.isNotBlank()) {
                                 messages.add(CompanionMessage(false, answer))
+                                // The Worker independently checks explicit account consent before storing anything.
+                                scope.launch {
+                                    runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
+                                }
                                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                     runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
                                 }

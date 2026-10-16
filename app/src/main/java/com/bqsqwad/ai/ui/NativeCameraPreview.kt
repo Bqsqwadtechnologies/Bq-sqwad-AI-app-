@@ -17,6 +17,7 @@ fun NativeCameraPreview(
     onFrame: (ByteArray) -> Unit = {},
     onError: (String) -> Unit = {},
     onClosed: () -> Unit = {},
+    onPreviewUpdated: () -> Unit = {},
     onLensSelected: (Int) -> Unit = {}
 ) {
     CoreNativeCameraPreview(
@@ -27,6 +28,7 @@ fun NativeCameraPreview(
         onFrame = onFrame,
         onError = onError,
         onClosed = onClosed,
+        onPreviewUpdated = onPreviewUpdated,
         onLensSelected = onLensSelected
     )
 }
