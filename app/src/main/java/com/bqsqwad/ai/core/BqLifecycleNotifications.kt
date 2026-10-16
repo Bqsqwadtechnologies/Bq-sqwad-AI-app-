@@ -90,18 +90,25 @@ object BqLifecycleNotifications {
                 30L -> "BQ Sqwad AI is one month old. Celebrate the journey and keep building!"
                 else -> "It is BQ Sqwad AI's birthday! Thank you for growing with your AI."
             }
-            post(context, title, body)
-            milestones.filter { it.first <= day }.forEach { sent.add(it.first.toString()) }
-            prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
+            if (!AppVisibility.isForeground) {
+                post(context, title, body)
+                milestones.filter { it.first <= day }.forEach { sent.add(it.first.toString()) }
+                prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
+            }
         }
         scheduleNextBirthdayReminder(context, firstOpen, sent)
     }
 
     fun onBirthdayAlarm(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
         val firstOpen = prefs.getLong(FIRST_OPEN, 0L)
         if (firstOpen <= 0L) return
         val now = System.currentTimeMillis()
+        if (AppVisibility.isForeground) {
+            scheduleNextBirthdayReminder(context, firstOpen, prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty())
+            return
+        }
         val ageDays = TimeUnit.MILLISECONDS.toDays((now - firstOpen).coerceAtLeast(0L))
         val milestones = listOf(
             365L to "BQ Sqwad AI Birthday",
