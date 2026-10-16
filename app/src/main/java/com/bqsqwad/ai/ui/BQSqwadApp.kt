@@ -935,6 +935,20 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var drawerHistoryLoading by remember { mutableStateOf(false) }
     var drawerHistoryError by remember { mutableStateOf<String?>(null) }
     var openingDrawerHistoryId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(drawerState.isOpen, firebaseUser?.uid, drawerHistoryLimit) {
+        if (!drawerState.isOpen) return@LaunchedEffect
+        if (firebaseUser == null) {
+            drawerHistoryItems = emptyList()
+            drawerHistoryError = null
+            return@LaunchedEffect
+        }
+        drawerHistoryLoading = true
+        drawerHistoryError = null
+        runCatching { HistoryApiClient().list(drawerHistoryLimit.coerceIn(1, 100)) }
+            .onSuccess { drawerHistoryItems = it }
+            .onFailure { drawerHistoryError = safeUserFacingIssue(it, "Recent chat history could not be loaded.") }
+        drawerHistoryLoading = false
+    }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
