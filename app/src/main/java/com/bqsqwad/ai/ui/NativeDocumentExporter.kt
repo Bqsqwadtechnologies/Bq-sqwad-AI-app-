@@ -91,7 +91,7 @@ internal object NativeDocumentExporter {
     }
 
     private fun createDocx(text: String): ByteArray {
-        val paragraphs = text.split("\\n").joinToString("") { line ->
+        val paragraphs = text.split("\n").joinToString("") { line ->
             "<w:p><w:r><w:t xml:space=\"preserve\">${xmlEscape(line)}</w:t></w:r></w:p>"
         }
         val entries = linkedMapOf(
