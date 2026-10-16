@@ -36,6 +36,19 @@ import java.time.temporal.ChronoUnit
 
 private data class PlayCatalogEntry(val planId:String,val productId:String,val basePlanId:String?,val productType:String,val enabled:Boolean,val priceUsd:Double?,val billingPeriod:String?)
 private data class LivePlan(val id:String,val name:String,val module:String,val features:List<String>,val limits:Map<String,String>,val price:Map<String,String> = emptyMap(),val priceNgn:Map<String,String> = emptyMap(),val productId:String? = null,val basePlans:List<String> = emptyList(),val trialDays:Int = 0,val trialEligible:Boolean = false,val offerId:String? = null,val paymentChannel:String = "play",val playEligible:Boolean = false,val contactSales:Boolean = false,val popular:Boolean = false,val sortOrder:Int = 0)
+private fun businessPlanTierOrder(plan: LivePlan): Int {
+    val key = (plan.id + " " + plan.name).lowercase(java.util.Locale.ROOT).filter { it.isLetterOrDigit() }
+    return when {
+        key.contains("bizstarter") || key.contains("businessstarter") -> 0
+        key.contains("bizbasic") || key.contains("businessbasic") -> 1
+        key.contains("bizstandard") || key.contains("businessstandard") -> 2
+        key.contains("bizprofessional") || key.contains("businessprofessional") || key.contains("professionalbusiness") -> 3
+        key.contains("bizbusiness") || key.contains("businessadvanced") -> 4
+        key.contains("bizenterprise") || key.contains("businessenterprise") -> 5
+        else -> 100
+    }
+}
+
 private data class CatalogFeature(val id:String,val name:String,val description:String,val group:String,val comingSoon:Boolean)
 private data class FeatureBinding(val planId:String,val featureId:String,val state:String,val quota:String?)
 private data class PublicContactOption(val name:String,val module:String,val billingPeriod:String,val price:String,val features:List<String>,val limits:Map<String,String>)
@@ -228,7 +241,15 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             .trim()
         val compactText = searchText.filter { it.isLetterOrDigit() }
         categoryMatch && (normalizedSearch.isBlank() || searchText.contains(normalizedSearch) || compactText.contains(compactSearch))
-    }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
+    }.sortedWith(
+        compareBy<LivePlan> {
+            if (it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true)) businessPlanTierOrder(it)
+            else it.sortOrder
+        }.thenBy {
+            if (it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true)) it.sortOrder
+            else 0
+        }.thenBy { it.name.lowercase(java.util.Locale.ROOT) }
+    )
 
     Scaffold(topBar={
         TopAppBar(
@@ -513,7 +534,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                categoryPlans.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) }).forEach { plan ->
+                                categoryPlans.sortedWith(compareBy<LivePlan> { if (it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true)) businessPlanTierOrder(it) else it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) }).forEach { plan ->
                                     item(key = "plan:" + plan.id) {
                                         LivePlanCard(
                                             plan,
