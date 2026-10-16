@@ -726,6 +726,8 @@ class WorkspaceApiClient {
 
     suspend fun adminTrainingLibrary():JSONObject = request("/admin/training-library", "GET")
 
+    suspend fun adminFeedback():JSONObject = request("/admin/feedback", "GET")
+
     suspend fun truthGuardHistory(): List<JSONObject> {
         val body = request("/truthguard/history", "GET")
         val items = body.optJSONArray("items") ?: JSONArray()
