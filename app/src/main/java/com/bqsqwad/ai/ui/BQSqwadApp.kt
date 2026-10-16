@@ -3020,7 +3020,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         } else {
                             Surface(
                                 shape = RoundedCornerShape(18.dp),
-                                color = if (m.mine) Color(0xFF173B55) else Color(0xFF080B10),
+                                color = if (m.mine) Color(0xFF101820) else Color(0xFF050608),
+                                border = if (m.mine) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B78A8)) else null,
                                 tonalElevation = 0.dp,
                                 shadowElevation = 3.dp
                             ) {
@@ -5600,10 +5601,54 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         }) { Text("Close", color = Color.White) }
                     }
                 }
+                Row(
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        enabled = granted && (!screenActive || active),
+                        onClick = {
+                            if (active) {
+                                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                active = false
+                                streamOnline = false
+                                previewEnabled = granted
+                            } else if (!screenActive) startLiveCamera()
+                        }
+                    ) {
+                        Icon(if (active) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (active) "Stop AI" else "Start AI")
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !active || screenActive,
+                        onClick = {
+                            fullScreenPreviewReady = false
+                            fullScreenPreview = false
+                            if (screenActive) {
+                                context.stopService(Intent(context, LiveMediaForegroundService::class.java))
+                                screenActive = false
+                                previewEnabled = granted
+                                fullScreenPreview = granted
+                                fullScreenPreviewReady = granted
+                            } else if (!liveTermsAccepted) {
+                                pendingLiveAction = "screen"
+                                showLiveTerms = true
+                            } else launchScreenWithMic()
+                        }
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (screenActive) "Stop share" else "Share screen")
+                    }
+                }
                 val visibleAnswer = liveAnswer.ifBlank { liveUiState.status.takeIf { it.isNotBlank() && it != "stopped" }.orEmpty() }
                 if (visibleAnswer.isNotBlank()) {
                     Surface(
-                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 82.dp),
                         color = Color.Black.copy(alpha = 0.62f),
                         shape = RoundedCornerShape(14.dp)
                     ) {
