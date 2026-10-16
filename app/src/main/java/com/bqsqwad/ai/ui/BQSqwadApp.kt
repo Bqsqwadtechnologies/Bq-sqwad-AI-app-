@@ -6066,6 +6066,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             deletionNotice?.let { notice ->
                 item { Text(notice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
             }
+            if (settingsCategory == "All settings" || settingsCategory == "Account") {
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -6118,6 +6119,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 }
             }
 
+            }
             if (settingsCategory == "All settings" || settingsCategory == "Account") {
 item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
             item {
