@@ -1381,6 +1381,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             legalCenter -> LegalCenterScreen { legalCenter = false }
             settings -> SettingsScreen(
                 onBack = { settings = false },
+                adminAuthorized = adminAuthorized,
+                onOpenAdminDashboard = { settings = false; workspace = Workspace.ADMIN },
                 onSignOut = { signOutFromShell() },
                 onOpenAccountProtection = { accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
@@ -6148,7 +6150,7 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenAdminDashboard: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val prefs = remember(uid) { accountPreferences(context) }
@@ -6452,6 +6454,11 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             }
             if (settingsCategory == "All settings" || settingsCategory == "Account") {
 item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
+            if (adminAuthorized && (settingsCategory == "All settings" || settingsCategory == "Account")) {
+                item {
+                    FeatureCard("Admin Dashboard", "Manage BQ Sqwad AI app configuration, announcements, media and feature settings.", onOpenAdminDashboard)
+                }
+            }
             item {
                 OutlinedButton(
                     onClick = { onSignOut() },
