@@ -2891,6 +2891,28 @@ export default {
       if (url.pathname === "/admin/staff/roles" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({roles:{moderator:["admin_console","moderate"],editor:["admin_console","content"],customer_agent:["admin_console","customer_support"],designer:["admin_console","design"],analyst:["admin_console","analytics"],operations:["admin_console","operations"]}}); }
       if (url.pathname === "/admin/staff" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({staff:await firestoreQuery("adminStaff",{limit:200})}); }
       if (url.pathname === "/admin/staff" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),uid=String(b.uid||"").trim(),role=String(b.role||"").trim();if(!uid||!role)throw new Error("admin_staff_uid_and_supported_role_required");await firestoreSet("adminStaff/"+uid,{uid,role,permissions:Array.isArray(b.permissions)?b.permissions.map(String).slice(0,40):[],active:b.active!==false,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true,uid,role,active:b.active!==false}); }
+      if (url.pathname === "/admin/file-box-retention" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const config = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
+        const rows = await firestoreQuery("fileBox", { limit:500 }).catch(() => []);
+        const now = Date.now();
+        let activeItems = 0, expiredItems = 0;
+        for (const row of rows) for (const item of (Array.isArray(row.items) ? row.items : [])) {
+          if (Date.parse(String(item.expiresAt || "")) > now) activeItems++; else expiredItems++;
+        }
+        return json({ defaultRetentionDays:[7,14,30,90].includes(Number(config.defaultRetentionDays)) ? Number(config.defaultRetentionDays) : 30, scannedAccounts:rows.length, activeItems, expiredItems, updatedAt:config.updatedAt || null });
+      }
+      if (url.pathname === "/admin/file-box-retention" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const body = await readBody(request);
+        const days = Number(body.defaultRetentionDays);
+        if (![7,14,30,90].includes(days)) return json({ error:"invalid_retention_days" }, 400);
+        const result = { defaultRetentionDays:days, updatedBy:u.uid, updatedAt:new Date().toISOString() };
+        await firestoreSet("adminAdvancedOptions/fileBoxRetention", result, true);
+        return json({ ok:true, ...result });
+      }
       if (url.pathname === "/admin/config" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreGet("adminAdvancedOptions/config"); return json(x||{}); }
       if (url.pathname === "/admin/controls" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreQuery("adminAdvancedOptions",{limit:100}); return json({items:x}); }
       if (url.pathname === "/admin/advanced-options" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); return json({options:await firestoreQuery("adminAdvancedOptions",{limit:200})}); }
