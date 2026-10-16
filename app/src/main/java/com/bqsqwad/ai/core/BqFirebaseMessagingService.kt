@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.bqsqwad.ai.MainActivity
+import com.bqsqwad.ai.AppVisibility
 import com.bqsqwad.ai.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -38,6 +39,8 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // Foreground updates belong in the app UI, never as duplicate system notifications.
+        if (AppVisibility.isForeground) return
         val title = message.notification?.title
             ?: message.data["title"]
             ?: "BQ Sqwad AI"
