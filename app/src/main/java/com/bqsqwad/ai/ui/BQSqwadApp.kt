@@ -110,7 +110,7 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (message.isBlank()) return fallback
     val lower = message.lowercase()
     if (lower.contains("insufficient credits") || lower.contains("insufficient_credits") || lower.contains("credit_balance")) {
-        return "Your current usage allowance is unavailable. Open Plans & Billing to continue."
+        return "You need more credits to continue. Choose Buy credits to add credits."
     }
     if (lower.contains("capability_disabled") || lower.contains("capability_killed") ||
         lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
@@ -2123,7 +2123,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     fun sendAuthenticatedMessage(text: String) {
         if ((text.isBlank() && attachments.isEmpty()) || busy) return
         if (creditsExhausted) {
-            error = "Your current usage allowance is unavailable. Review plans and billing to continue."
+            error = "You need more credits to continue. Choose Buy credits to add credits."
             creditNotice = error
             return
         }
@@ -2515,7 +2515,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             Text(if (creditsExhausted) "Usage limit reached" else "Usage notice", fontWeight = FontWeight.Bold)
                             Text(notice, style = MaterialTheme.typography.bodySmall)
                         }
-                        TextButton(onClick = openPlans) { Text("View plans") }
+                        TextButton(onClick = { if (creditsExhausted) openCredits() else openPlans() }) { Text(if (creditsExhausted) "Buy credits" else "View plans") }
                     }
                 }
             }
@@ -2998,7 +2998,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
                                     if (dictationNeedsCredits) {
-                                        Button(onClick = { openCredits() }) { Text("View plans") }
+                                        Button(onClick = { openCredits() }) { Text("Buy credits") }
                                     }
                                 }
                             }
@@ -4999,7 +4999,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(message, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                             if (message.contains("credit", ignoreCase = true)) {
-                                TextButton(onClick = onOpenCredits) { Text("View plans") }
+                                TextButton(onClick = onOpenCredits) { Text("Buy credits") }
                             }
                             TextButton(onClick = {
                                 streamError = null
@@ -5386,7 +5386,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
         }
         if (!active && state.contains("credit", ignoreCase = true)) {
             Text("Your current usage allowance is unavailable. Review plans and billing to continue.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("View plans") }
+            Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
         }
 
         Button(
