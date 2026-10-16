@@ -327,7 +327,6 @@ class WorkspaceApiClient {
         try {
             connection.outputStream.use { it.write(bytes) }
             val status = connection.responseCode
-            val raw = (if (status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (status !in 200..299) error("File upload failed. Please retry.")
         } finally {
             connection.disconnect()
