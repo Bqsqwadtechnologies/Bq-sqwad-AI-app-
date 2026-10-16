@@ -782,6 +782,12 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var chatSessionNonce by remember { mutableIntStateOf(0) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
+    val foregroundPushBanner by InAppNotificationBus.banner.collectAsState()
+    LaunchedEffect(foregroundPushBanner, workspace) {
+        if (!foregroundPushBanner.isNullOrBlank() && workspace != null) {
+            android.widget.Toast.makeText(context, foregroundPushBanner, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     val pendingWorkspaceRedirect by WorkspaceRedirectStore.redirect.collectAsState()
     LaunchedEffect(sharedText) {
         if (!sharedText.isNullOrBlank()) workspace = null
