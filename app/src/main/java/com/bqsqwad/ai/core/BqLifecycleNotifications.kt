@@ -109,7 +109,7 @@ object BqLifecycleNotifications {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
         val candidates = birthdayMilestones(firstOpen, now)
-        val due = candidates.filter { it.at <= now && it.key !in sent }.maxWithOrNull(compareBy<AgeMilestone> { it.at }.thenBy { if (it.key.startsWith("year:")) 1 else 0 })
+        val due = candidates.filter { it.at <= now && it.key !in sent }.maxWithOrNull(compareBy<AgeMilestone> { if (it.key.startsWith("year:")) 1 else 0 }.thenBy { it.at })
         if (due != null) {
             if (allowPost && !AppVisibility.isForeground) {
                 post(context, due.title, due.body)
