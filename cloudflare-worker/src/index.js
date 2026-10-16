@@ -1880,7 +1880,6 @@ export default {
         const id = crypto.randomUUID();
         const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "upload";
         const objectPath = "file-box/" + user.uid + "/" + id + "-" + safeName;
-        const session = await createTrainingAssetUploadSession({ fileName: safeName, contentType, objectPath });
         await firestoreSet("fileBoxUploads/" + id, {
           id, uid: user.uid, title, fileName: safeName, contentType, size, objectPath,
           uploadPending: true, createdAt: new Date().toISOString()
