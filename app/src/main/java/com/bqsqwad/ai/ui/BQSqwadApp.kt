@@ -6077,7 +6077,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
                         availableLiveVoices.forEach { (id, label) -> DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voicePickerExpanded = false }) }
                     }
                 }
-                Text("Volume uses the device media playback level. A voice change applies the next time you start a live session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Live Voice uses the device call-speaker stream. Adjust the slider or device volume buttons during the session; a voice change applies the next time you start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         val serviceVoiceError = liveUiState.answer.takeIf {
