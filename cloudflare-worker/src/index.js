@@ -2144,9 +2144,14 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         if (body.requiredAccepted !== true) return json({error:"required_consent_missing"},400);
-        // Training is a separate, affirmative opt-in. Adult confirmation or a verified
-        // parental-consent record is required before training consent can become active.
-        const ageGatePassed = body.ageConfirmedAdult === true || body.parentalConsentVerified === true;
+        // Never trust age/parental-consent booleans supplied by the client.
+        // Training remains disabled unless Firebase custom attributes or a server-owned
+        // verification record establishes an adult/parental gate.
+        const ageRecord = await firestoreGet("userAgeVerification/" + user.uid);
+        const parentalRecord = await firestoreGet("parentalConsent/" + user.uid);
+        const ageGatePassed = user.customAttributes?.ageVerifiedAdult === true ||
+          (ageRecord?.verified === true && ageRecord?.isAdult === true) ||
+          parentalRecord?.verified === true;
         const trainingConsent = body.trainingConsent === true && ageGatePassed;
         const policyVersion = String(body.policyVersion || "2026-09").slice(0,40);
         const previous = await firestoreGet("userConsents/" + user.uid);
@@ -2210,7 +2215,11 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const trainingConsent = body.trainingConsent === true;
-        const ageGatePassed = body.ageConfirmedAdult === true || body.parentalConsentVerified === true;
+        const ageRecord = await firestoreGet("userAgeVerification/" + user.uid);
+        const parentalRecord = await firestoreGet("parentalConsent/" + user.uid);
+        const ageGatePassed = user.customAttributes?.ageVerifiedAdult === true ||
+          (ageRecord?.verified === true && ageRecord?.isAdult === true) ||
+          parentalRecord?.verified === true;
         if (trainingConsent && !ageGatePassed) return json({ok:false,trainingConsent:false,reason:"age_gate_required"},400);
         const previous = await firestoreGet("userConsents/" + user.uid);
         const now = new Date();
