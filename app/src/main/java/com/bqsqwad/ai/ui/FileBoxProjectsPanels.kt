@@ -40,11 +40,13 @@ import android.provider.MediaStore
 import java.io.File
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
+import com.bqsqwad.ai.core.ChatAttachmentReader
+import com.bqsqwad.ai.core.PreparedChatAttachment
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 @Composable
-internal fun FileBoxPanel(onDismiss: () -> Unit) {
+internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttachment) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val api = remember { WorkspaceApiClient() }
@@ -176,6 +178,23 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
                         Text("Expires: " + row.optString("expiresAt", "not available"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (row.optString("objectPath").isNotBlank()) {
+                                 TextButton(enabled = !busy, onClick = {
+                                     busy = true
+                                     scope.launch {
+                                         runCatching {
+                                             val bytes = api.downloadFileBoxAsset(row.optString("id"))
+                                             ChatAttachmentReader.readBytes(
+                                                 row.optString("fileName", row.optString("title", "attachment")),
+                                                 row.optString("mimeType", "application/octet-stream"),
+                                                 bytes
+                                             )
+                                         }.onSuccess { attachment ->
+                                             onUseInChat(attachment)
+                                             notice = "Added to the new chat composer."
+                                         }.onFailure { notice = it.message?.take(180) ?: "This file could not be attached to chat." }
+                                         busy = false
+                                     }
+                                 }) { Text("Use in New Chat") }
                                  TextButton(enabled = !busy, onClick = {
                                      busy = true
                                      scope.launch {
