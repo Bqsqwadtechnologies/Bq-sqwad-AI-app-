@@ -5,6 +5,8 @@ import android.app.Activity
 import android.os.Bundle
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Process-wide visibility signal used to suppress background-style notifications while visible. */
 object AppVisibility {
@@ -42,5 +44,18 @@ class BqApplication : Application() {
             }
             previous?.uncaughtException(thread, error)
         }
+    }
+}
+
+object InAppNotificationBus {
+    private val _banner = MutableStateFlow<String?>(null)
+    val banner: StateFlow<String?> = _banner
+
+    fun show(message: String) {
+        _banner.value = message.take(240)
+    }
+
+    fun clear() {
+        _banner.value = null
     }
 }
