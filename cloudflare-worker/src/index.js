@@ -1417,11 +1417,15 @@ async function stream(request, user, body) {
 
 
 async function permanentlyDeleteAccount(uid) {
-  // Delete Auth first: if the service account lacks firebaseauth.users.delete,
-  // the scheduled job fails before any user data is removed. Retries are safe.
+  // Remove private File Box objects before the account identity is deleted.
+  const fileBoxBeforeDeletion = await firestoreGet("fileBox/" + uid);
+  for (const item of (Array.isArray(fileBoxBeforeDeletion?.items) ? fileBoxBeforeDeletion.items : [])) {
+    if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath)).catch(() => {});
+  }
+  // Delete Auth first for the rest of the account-deletion operation; retries are safe.
   await deleteFirebaseAuthUser(uid);
   const cols = [
-    "chatHistory", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
+    "chatHistory", "fileBox", "fileBoxUploads", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
     "creditReservations", "creditLedger", "creditTransactions", "creditBalances",
     "billingReceipts", "payments", "playPurchases", "passkeys", "passkeyChallenges",
     "socialAccounts", "notificationTokens", "adminStepUp", "adminBiometricChallenges", "organizationProductionEvents", "aiJobs",
@@ -1519,6 +1523,11 @@ export default {
       for (const row of fileBoxRows) {
         const uid = String(row.uid || "");
         if (!uid || !Array.isArray(row.items)) continue;
+        const expired = row.items.filter(item => {
+          const expiry = Date.parse(String(item.expiresAt || ""));
+          return !Number.isFinite(expiry) || expiry <= Date.now();
+        });
+        for (const item of expired) if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath)).catch(() => {});
         const items = row.items.filter(item => {
           const expiry = Date.parse(String(item.expiresAt || ""));
           return Number.isFinite(expiry) && expiry > Date.now();
