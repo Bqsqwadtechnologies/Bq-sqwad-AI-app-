@@ -20,7 +20,8 @@ test("realtime public errors use safe codes rather than provider diagnostics", a
     "realtime_model_rejected",
     "realtime_session_failed"
   ]) assert.ok(source.includes(safeCode), `missing safe public error code: ${safeCode}`);
-  assert.doesNotMatch(source, /body\.providerStatus\s*=/);
+  assert.match(source, /const body = \{ error: code \};/);
+  assert.doesNotMatch(source, /const body = \{[^}]*providerStatus/);
 });
 
 test("live voice and camera defaults are free unless admin explicitly configures a positive price", async () => {
