@@ -565,15 +565,14 @@ class LiveMediaForegroundService : Service() {
             lower.contains("organization_insufficient_balance")
         val permissionProblem = lower.contains("permission")
         val technicalProblem = Regex("https?://|\\bhttp\\s*\\d{3}\\b|exception|websocket|realtime_session_failed|client_secret_missing|provider_not_configured|not_configured|temporarily unavailable|could not start|failed|internal server|\\b(?:401|403|404|500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)
-        val actionableProviderError = lower.contains("provider status ") ||
-            lower.contains("provider is not configured") ||
+        val actionableProviderError = lower.contains("provider is not configured") ||
             lower.contains("ai provider is not configured") ||
             lower.contains("currently disabled") ||
             lower.contains("review and accept the required") ||
             lower.contains("please sign in again")
         val friendly = when {
-            creditProblem -> "Your current usage allowance is unavailable. Open Plans & Billing to continue."
-            actionableProviderError -> raw.take(220)
+            creditProblem -> "You need more credits to continue. Choose Buy credits to add credits."
+            actionableProviderError -> "Live Voice is getting ready. Please try again in a moment."
             technicalProblem -> "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
             else -> raw.take(180).ifBlank { "BQ Sqwad AI could not start this session. Please try again." }
         }
@@ -590,7 +589,8 @@ class LiveMediaForegroundService : Service() {
                 lower.contains("busy") || lower.contains("in use") -> "camera_busy"
                 lower.contains("no camera") || lower.contains("camera unavailable") -> "camera_unavailable"
                 lower.contains("timeout") -> if (mode == MODE_CAMERA) "live_camera_timeout" else "live_session_timeout"
-                lower.contains("provider") || lower.contains("configured") -> "provider_not_configured"
+                lower.contains("provider_key_missing") || lower.contains("provider is not configured") || lower.contains("not_configured") -> "provider_not_configured"
+                lower.contains("provider status 400") || lower.contains("realtime_request_rejected") -> "realtime_request_rejected"
                 mode == MODE_CAMERA -> "live_camera_runtime_error"
                 mode == MODE_SCREEN -> "screen_share_runtime_error"
                 else -> "live_voice_runtime_error"
