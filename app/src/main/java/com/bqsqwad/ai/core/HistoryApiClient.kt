@@ -1,57 +1,64 @@
 package com.bqsqwad.ai.core
 
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.nio.charset.StandardCharsets
-import java.util.UUID
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class HistoryItem(val id: String, val title: String, val updatedAt: String, val messageCount: Int)
 data class HistoryMessage(val mine: Boolean, val text: String, val id: String, val prompt: String?, val attachmentNames: List<String> = emptyList(), val imageUrl: String? = null)
 
-/**
- * Chat history is stored by the website backend and shared with the website frontend.
- * Stable IDs make upserts safe when a save is retried after a network failure.
- */
 class HistoryApiClient {
-    private val website = WebsiteApiClient()
+    private val baseUrl = "${ApiConfig.baseUrl}"
+
+    private suspend fun request(path: String, method: String = "GET", payload: JSONObject = JSONObject()): JSONObject =
+        withContext(Dispatchers.IO) {
+            val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
+            val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
+            val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+                requestMethod = method
+                connectTimeout = 15000
+                readTimeout = 120000
+                doInput = true
+                if (method != "GET") {
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                setRequestProperty("Authorization", "Bearer " + token)
+            }
+            try {
+                if (method != "GET") connection.outputStream.use { it.write(payload.toString().toByteArray()) }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
+                if (status !in 200..299) error(body.optString("error", "History request failed"))
+                body
+            } finally {
+                connection.disconnect()
+            }
+        }
 
     suspend fun list(limit: Int = 50): List<HistoryItem> {
-        val body = website.listChats()
-        val rows = body.optJSONArray("chats") ?: body.optJSONArray("items") ?: JSONArray()
+        val body = request("/history?limit=" + limit.coerceIn(1, 100))
+        val rows = body.optJSONArray("items") ?: JSONArray()
         return List(rows.length()) { i ->
             val item = rows.getJSONObject(i)
-            HistoryItem(
-                id = item.optString("chatId").ifBlank { item.optString("id") },
-                title = item.optString("title", "New chat").ifBlank { "New chat" },
-                updatedAt = item.optString("updatedAt").ifBlank { item.optString("updated_at") },
-                messageCount = item.optInt("messageCount", item.optInt("message_count", 0))
-            )
-        }.filter { it.id.isNotBlank() }.take(limit.coerceIn(1, 100))
+            HistoryItem(item.optString("id"), item.optString("title", "New chat"), item.optString("updatedAt"), item.optInt("messageCount", 0))
+        }
     }
 
     suspend fun load(id: String): List<HistoryMessage> {
-        val body = website.getChat(id)
-        val chat = body.optJSONObject("chat") ?: body
-        val rows = chat.optJSONArray("messages") ?: JSONArray()
+        val body = request("/history/" + java.net.URLEncoder.encode(id, "UTF-8"))
+        val rows = body.optJSONArray("messages") ?: JSONArray()
         return List(rows.length()) { i ->
             val item = rows.getJSONObject(i)
-            val role = item.optString("role")
-            val mine = item.optBoolean("mine", role.equals("user", true))
-            val text = item.optString("content").ifBlank { item.optString("text") }.ifBlank { textFromParts(item.optJSONArray("parts")) }
-            val attachments = item.optJSONArray("attachments")?.let { array ->
-                List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
-            } ?: emptyList()
-            HistoryMessage(
-                mine = mine,
-                text = text,
-                id = item.optString("id").ifBlank { UUID.randomUUID().toString() },
-                prompt = item.optString("prompt").ifBlank { null },
-                attachmentNames = attachments,
-                imageUrl = item.optString("imageUrl").ifBlank { null }
-            )
+            HistoryMessage(item.optBoolean("mine"), item.optString("text"), item.optString("id"), item.optString("prompt").ifBlank { null }, item.optJSONArray("attachments")?.let { array -> List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() } } ?: emptyList(), item.optString("imageUrl").ifBlank { null })
         }
     }
 
@@ -70,48 +77,31 @@ class HistoryApiClient {
                 "The generated image link cannot be saved safely."
             }
         }
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: error("Sign in is required")
-        // The first message ID is stable for the conversation, so retries after a
-        // failed save reuse the same chatId instead of creating duplicate records.
-        val firstMessageId = messages.firstOrNull()?.id?.takeIf { it.isNotBlank() }
-        val stableId = id?.takeIf { it.isNotBlank() } ?: if (firstMessageId != null) {
-            UUID.nameUUIDFromBytes("$uid:$firstMessageId".toByteArray(StandardCharsets.UTF_8)).toString()
-        } else UUID.randomUUID().toString()
-
         val array = JSONArray()
-        messages.forEach { message ->
-            val role = if (message.mine) "user" else "assistant"
-            val item = JSONObject()
-                .put("id", message.id.ifBlank { UUID.randomUUID().toString() })
-                .put("role", role)
-                .put("content", message.text)
-                .put("parts", JSONArray().put(JSONObject().put("type", "text").put("text", message.text)))
-                .put("mine", message.mine)
-            if (message.prompt != null) item.put("prompt", message.prompt)
-            if (message.attachmentNames.isNotEmpty()) item.put("attachments", JSONArray(message.attachmentNames))
-            if (!message.imageUrl.isNullOrBlank()) item.put("imageUrl", message.imageUrl)
-            array.put(item)
+        messages.forEach { m ->
+            array.put(JSONObject().apply {
+                put("id", m.id)
+                put("mine", m.mine)
+                put("text", m.text)
+                if (m.prompt != null) put("prompt", m.prompt)
+                if (m.attachmentNames.isNotEmpty()) put("attachments", JSONArray(m.attachmentNames))
+                if (!m.imageUrl.isNullOrBlank()) put("imageUrl", m.imageUrl)
+            })
         }
-        val payloadSize = array.toString().toByteArray(StandardCharsets.UTF_8).size
-        require(payloadSize <= 700000) {
+        val payload = JSONObject().apply {
+            if (!id.isNullOrBlank()) put("id", id)
+            put("title", title.take(180))
+            put("messages", array)
+        }
+        require(payload.toString().toByteArray(Charsets.UTF_8).size <= 700000) {
             "This conversation is too large to save as one history item. Start a new chat to keep history complete."
         }
-        website.saveChat(stableId, title, array)
-        return stableId
+        val body = request("/history", "POST", payload)
+        return body.optString("id")
     }
 
     suspend fun delete(id: String): Boolean {
-        website.deleteChat(id)
+        request("/history/" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")
         return true
-    }
-
-    private fun textFromParts(parts: JSONArray?): String {
-        if (parts == null) return ""
-        return buildString {
-            for (i in 0 until parts.length()) {
-                val part = parts.optJSONObject(i) ?: continue
-                if (part.optString("type") == "text") append(part.optString("text"))
-            }
-        }
     }
 }
