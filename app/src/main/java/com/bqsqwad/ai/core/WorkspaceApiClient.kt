@@ -415,6 +415,8 @@ class WorkspaceApiClient {
         request("/admin/feature-announcement", payload=JSONObject().apply {
             put("id", id); put("title", title); put("body", body); put("feature", feature); put("enabled", enabled)
         })
+    suspend fun setAdminChatBackground(url:String, enabled:Boolean=true):JSONObject =
+        request("/admin/chat-background", payload=JSONObject().put("url", url).put("enabled", enabled))
 
     suspend fun adminStaff():JSONObject = request("/admin/staff","GET")
     suspend fun adminStaffRoles():JSONObject = request("/admin/staff/roles","GET")
