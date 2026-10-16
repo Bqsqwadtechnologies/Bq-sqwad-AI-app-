@@ -40,7 +40,7 @@ object NativeFeatureRegistry {
 
     val advanced: List<NativeFeatureEntry> = AdvancedCapabilities.advanced
         // BQ Sqwad AI Agent is an internal/admin capability and must never appear in the end-user feature catalog.
-        .filterNot { id -> id == "ai_agent" || core.any { it.id == id } }
+        .filterNot { id -> id == "ai_agent" || id == "god_ai_agent" || core.any { it.id == id } }
         .sorted()
         .map { id ->
             NativeFeatureEntry(

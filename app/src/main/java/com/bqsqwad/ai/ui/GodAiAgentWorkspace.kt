@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 private data class GodAgentRun(val title: String, val result: String, val approved: Boolean)
 
 @Composable
-fun GodAiAgentWorkspace(onOpenSettings: () -> Unit = {}) {
+fun GodAiAgentWorkspace(onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var objective by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf("Plan") }
@@ -179,6 +179,6 @@ fun GodAiAgentWorkspace(onOpenSettings: () -> Unit = {}) {
                 }
             }
         }
-        item { OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Open Settings & Privacy") } }
+        item { OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to Admin Dashboard") } }
     }
 }

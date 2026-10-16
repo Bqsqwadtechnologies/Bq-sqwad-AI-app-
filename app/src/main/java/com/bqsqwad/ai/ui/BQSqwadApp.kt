@@ -4261,10 +4261,6 @@ private fun WorkspaceScreen(
 
 @Composable
 private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpenSettings: () -> Unit) {
-    if (feature.id == "god_ai_agent") {
-        GodAiAgentWorkspace(onOpenSettings = onOpenSettings)
-        return
-    }
     val entry = NativeFeatureRegistry.find(feature.id)
     Scaffold(
         topBar = {
@@ -5941,6 +5937,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             truthGuardSources = prefs.getBoolean("truthguard_sources", true)
             notifications = prefs.getBoolean("notifications_enabled", true)
             textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
+            bqTextScaleState.floatValue = textScale
         }
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {

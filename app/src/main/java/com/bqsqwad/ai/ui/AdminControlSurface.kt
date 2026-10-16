@@ -63,6 +63,7 @@ fun AdminControlCenter() {
     var showAdminOperations by remember { mutableStateOf(false) }
     var showAppEditor by remember { mutableStateOf(false) }
     var showTrainingLibrary by remember { mutableStateOf(false) }
+    var showGodAiAgent by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
     var testModeAvailable by remember { mutableStateOf(false) }
@@ -200,6 +201,10 @@ fun AdminControlCenter() {
     }
     if (showTrainingLibrary) {
         AdminTrainingLibraryPanel { showTrainingLibrary = false }
+        return
+    }
+    if (showGodAiAgent) {
+        GodAiAgentWorkspace(onBack = { showGodAiAgent = false })
         return
     }
 
@@ -525,6 +530,7 @@ fun AdminControlCenter() {
         OutlinedButton(onClick = { showAdminOperations = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Admin Operations, Notifications & Staff") }
         OutlinedButton(onClick = { showAppEditor = true }, modifier = Modifier.fillMaxWidth()) { Text("Open App Editor & Publish") }
         OutlinedButton(onClick = { showTrainingLibrary = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Opt-in AI Training Library") }
+        OutlinedButton(onClick = { showGodAiAgent = true }, modifier = Modifier.fillMaxWidth()) { Text("Open God AI Agent") }
         SurfaceCard(
             "Admin Control Center",
             "Single authoritative control plane. Backend services read adminAdvancedOptions; the retired adminControls store is no longer used."
