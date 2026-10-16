@@ -1324,7 +1324,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     paywallWorkspace?.let { selected ->
         AlertDialog(
             onDismissRequest = { paywallWorkspace = null },
-            title = { Text("Plan required") },
+            title = { Text(if (accessLoading) "Checking your plan" else "Plan required") },
             text = {
                 Text(
                     if (accessLoading) "Checking verified access for " + selected.title + "…"
@@ -1332,7 +1332,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 )
             },
             confirmButton = {
-                Button(onClick = { paywallWorkspace = null; plans = true }) { Text("View Plans & Billing") }
+                Button(enabled = !accessLoading, onClick = { paywallWorkspace = null; plans = true }) {
+                    Text(if (accessLoading) "Checking…" else "View Plans & Billing")
+                }
             },
             dismissButton = {
                 TextButton(onClick = { paywallWorkspace = null }) { Text("Cancel") }
