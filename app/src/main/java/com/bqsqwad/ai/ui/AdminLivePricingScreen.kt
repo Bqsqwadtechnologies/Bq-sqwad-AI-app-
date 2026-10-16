@@ -97,7 +97,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
             minimumBalanceToStart = config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)).toString(),
             minimumBalanceAuto = kotlin.math.abs(config.optDouble("minimumBalanceToStart", config.optDouble("creditsPerMinute", 0.0)) - config.optDouble("creditsPerMinute", 0.0)) < 0.000001,
             maxSessionMinutes = config.optInt("maxSessionMinutes", old.maxSessionMinutes.toIntOrNull() ?: 120).toString(),
-            modelId = config.optString("modelId", ""),
+            modelId = config.optString("modelId", "").takeIf { it in setOf("gpt-realtime", "gpt-realtime-1.5", "gpt-realtime-2") }.orEmpty(),
             defaultVoice = config.optString("defaultVoice", "marin"),
             transcriptionModel = config.optString("transcriptionModel", "gpt-4o-mini-transcribe")
         )
