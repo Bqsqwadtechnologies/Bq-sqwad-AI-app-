@@ -281,7 +281,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         when{
             loading->ProductLoading(Modifier.padding(padding))
             error!=null->ProductError(Modifier.padding(padding),::load)
-            else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+            else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 credits?.let { balance ->
                     item {
                         Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(18.dp), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)) {
@@ -723,10 +723,10 @@ private fun LivePlanCard(
     }
     Card(
         Modifier.fillMaxWidth(),
-        shape=RoundedCornerShape(22.dp),
+        shape=RoundedCornerShape(18.dp),
         border=if(plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(7.dp)) {
             if (truthGuard) {
                 Surface(
                     color=tierContainer,
