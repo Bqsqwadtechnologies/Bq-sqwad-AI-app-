@@ -712,7 +712,8 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                                         authVideoPrepared = true
                                         preparedPlayer.isLooping = true
                                         preparedPlayer.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
-                                        if (authVideoPaused) preparedPlayer.pause() else preparedPlayer.start()
+                                        preparedPlayer.start()
+                                        if (authVideoPaused) preparedPlayer.pause()
                                     }
                                     player.setOnErrorListener { _, _, _ ->
                                         authVideoPrepared = false

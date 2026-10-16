@@ -120,7 +120,16 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                     answer = null
                 } else {
                     workspaceRedirect = null
-                    answer = response.optString("text").ifBlank { response.optString("answer") }
+                    val learningAnswer = response.optString("text").ifBlank { response.optString("answer") }
+                    answer = learningAnswer
+                    if (input.trim().isNotBlank() && learningAnswer.isNotBlank()) {
+                        val trainingPrompt = input.trim()
+                        scope.launch {
+                            runCatching {
+                                WorkspaceApiClient().submitTrainingContribution(trainingPrompt, learningAnswer, "learning_studio", false)
+                            }
+                        }
+                    }
                 }
                 refreshKey++
             }.onFailure {
