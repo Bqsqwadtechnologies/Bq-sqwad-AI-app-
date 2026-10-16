@@ -6065,7 +6065,6 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FeatureCard("Account protection", "Password, Google sign-in, passkeys and device protection.", onOpenAccountProtection)
-                    FeatureCard("Privacy & Legal Center", "Consent, privacy topics, Terms and data controls.", onOpenLegalCenter)
                     FeatureCard("Android permissions", "Review camera, microphone, notifications and other OS permissions.") {
                         context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)))
                     }
@@ -6110,9 +6109,6 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
 
             item {
                 SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
-            }
-            item {
-                FeatureCard("Settings & Privacy", "Manage AI training participation, payment methods, account protection, privacy policy and personal data controls.") { showSettingsPrivacyDirectory = true }
             }
             item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
             item {

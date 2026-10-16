@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -108,7 +107,7 @@ fun GodAiAgentWorkspace(onBack: () -> Unit = {}) {
                             Text("God AI Agent", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             Text("Plan, coordinate and review work across enabled BQ Sqwad AI capabilities.", color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        TextButton(onClick = onBack) { Text("Back", color = MaterialTheme.colorScheme.onPrimaryContainer) }
                     }
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         modes.forEach { item -> FilterChip(selected = mode == item, onClick = { mode = item }, label = { Text(item) }) }
