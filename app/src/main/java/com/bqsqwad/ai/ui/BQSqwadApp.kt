@@ -924,6 +924,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
+    var fileBoxOpen by remember { mutableStateOf(false) }
     var restoredChat by remember { mutableStateOf<Pair<String, List<HistoryMessage>>?>(null) }
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
@@ -1198,40 +1199,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         )
                     }
                     item {
-                        Text(
-                            "AI Features",
-                            modifier = Modifier.padding(start = 28.dp, top = 14.dp, bottom = 6.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    items(orderedDrawerWorkspaces(appLayoutOrder, appLayoutEnabled, adminAuthorized)) { w ->
                         NavigationDrawerItem(
-                            label = { Text(w.title) },
-                            selected = workspace == w,
-                            onClick = { openWorkspace(w) },
-                            icon = {
-                                Icon(
-                                    when (w) {
-                                        Workspace.VIDEO -> Icons.Default.VideoLibrary
-                                        Workspace.SEARCH -> Icons.Default.Search
-                                        Workspace.TRUTH_GUARD -> Icons.Default.Verified
-                                        Workspace.FRONTIER_LAB -> Icons.Default.Science
-                                        Workspace.DATA_ANALYSIS -> Icons.Default.Analytics
-                                        Workspace.CAMERA -> Icons.Default.CameraAlt
-                                        Workspace.VOICE -> Icons.Default.Mic
-                                        Workspace.PERSONAL -> Icons.Default.Psychology
-                                        Workspace.LIFE -> Icons.Default.FavoriteBorder
-                                        Workspace.COMPANION -> Icons.Default.Face
-                                        Workspace.LEARNING -> Icons.Default.School
-                                        Workspace.BUSINESS -> Icons.Default.Business
-                                        Workspace.ORGANIZATION_STUDIO -> Icons.Default.Dashboard
-                                        Workspace.ADMIN -> Icons.Default.AdminPanelSettings
-                                        else -> Icons.Default.AutoAwesome
-                                    },
-                                    contentDescription = null
-                                )
-                            }
+                            label = { Text("File Box") },
+                            selected = fileBoxOpen,
+                            onClick = { shellScope.launch { drawerState.close(); fileBoxOpen = true; history = false; settings = false; plans = false; workspace = null; featureHub = false } },
+                            icon = { Icon(Icons.Default.FolderOpen, null) }
                         )
                     }
                     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
@@ -1269,7 +1241,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else {
             val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
                 !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
-                !legalCenter && !settings && !history && workspace == null
+                !legalCenter && !settings && !history && !fileBoxOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
                 key(firebaseUser?.uid, chatSessionNonce) {
                     MainChatScreen(
@@ -1292,6 +1264,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
                 if (!showMainChat) when {
+            fileBoxOpen -> FileBoxPanel(onDismiss = { fileBoxOpen = false })
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
                 onPlans = { featureHub = false; plansInitialSection = "all"; plans = true },
@@ -6211,12 +6184,14 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                                 .onFailure { settingsNotice = "TruthGuard source preferences could not be synced. Open TruthGuard settings and save again." }
                         }
                     }
-                    FeatureCard(Workspace.LEARNING.title, Workspace.LEARNING.description) { selectedAiFeature = Workspace.LEARNING }
-                    FeatureCard(Workspace.LIFE.title, Workspace.LIFE.description) { selectedAiFeature = Workspace.LIFE }
-                    FeatureCard(Workspace.BUSINESS.title, Workspace.BUSINESS.description) { selectedAiFeature = Workspace.BUSINESS }
-                    FeatureCard(Workspace.ORGANIZATION_STUDIO.title, Workspace.ORGANIZATION_STUDIO.description) { selectedAiFeature = Workspace.ORGANIZATION_STUDIO }
-                    FeatureCard(Workspace.DATA_ANALYSIS.title, Workspace.DATA_ANALYSIS.description) { selectedAiFeature = Workspace.DATA_ANALYSIS }
-                    FeatureCard(Workspace.FRONTIER_LAB.title, Workspace.FRONTIER_LAB.description) { selectedAiFeature = Workspace.FRONTIER_LAB }
+                    listOf(
+                        Workspace.SEARCH, Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB,
+                        Workspace.DATA_ANALYSIS, Workspace.CAMERA, Workspace.VOICE, Workspace.VIDEO,
+                        Workspace.PERSONAL, Workspace.LIFE, Workspace.COMPANION, Workspace.LEARNING,
+                        Workspace.BUSINESS, Workspace.ORGANIZATION_STUDIO
+                    ).forEach { feature ->
+                        FeatureCard(feature.title, feature.description) { selectedAiFeature = feature }
+                    }
                 }
             }
 
@@ -6291,7 +6266,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Settings & Privacy", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("You control what is remembered, contributed and connected. AI training is optional and can be switched off at any time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FeatureCard("File Box", "Save and manage text documents with an expiry date.") {
+                FeatureCard("File Box", "Store uploaded files, pictures and text documents for quick access until they expire.") {
                     showSettingsPrivacyDirectory = false
                     showFileBoxPanel = true
                 }
