@@ -265,6 +265,10 @@ class WorkspaceApiClient {
         transcript
     }
 
+    suspend fun adminFileBoxRetention(): JSONObject = request("/admin/file-box-retention", "GET")
+    suspend fun saveAdminFileBoxRetention(days: Int): JSONObject =
+        request("/admin/file-box-retention", payload = JSONObject().put("defaultRetentionDays", days))
+
     suspend fun adminWorkspaceScopeGuards(): JSONObject = request("/admin/workspace-scope-guards", "GET")
 
     suspend fun saveAdminWorkspaceScopeGuards(enabledByWorkspace: JSONObject): JSONObject =
