@@ -1523,11 +1523,6 @@ export default {
       for (const row of fileBoxRows) {
         const uid = String(row.uid || "");
         if (!uid || !Array.isArray(row.items)) continue;
-        const expired = row.items.filter(item => {
-          const expiry = Date.parse(String(item.expiresAt || ""));
-          return !Number.isFinite(expiry) || expiry <= Date.now();
-        });
-        for (const item of expired) if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath)).catch(() => {});
         const items = [];
         for (const item of row.items) {
           const expiry = Date.parse(String(item.expiresAt || ""));
