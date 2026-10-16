@@ -79,7 +79,6 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else "all") }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = 0)
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
-    var showAllCapabilities by remember { mutableStateOf(true) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
     var bindings by remember { mutableStateOf(emptyList<FeatureBinding>()) }
     var playProducts by remember { mutableStateOf(emptyList<ProductDetails>()) }
@@ -264,11 +263,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 if (listState.layoutInfo.totalItemsCount > 1) listState.animateScrollToItem(1)
             }
         }
-        LaunchedEffect(selectedCategory, filteredCustomerPlans.size, showAllCapabilities, contactOptions.size) {
+        LaunchedEffect(selectedCategory, filteredCustomerPlans.size, contactOptions.size) {
             if (selectedCategory != "all" && selectedCategory != "credits" && filteredCustomerPlans.isNotEmpty()) {
                 kotlinx.coroutines.delay(80)
                 val trailingItems = 1 +
-                    (if (showAllCapabilities) 2 + NativeFeatureRegistry.core.size + NativeFeatureRegistry.advanced.size else 0) +
                     (if (contactOptions.isNotEmpty()) 1 + contactOptions.size else 0)
                 val target = catalogCategoryHeaderIndex(
                     listState.layoutInfo.totalItemsCount,
@@ -549,34 +547,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                             }
                     }
                 }
-                item {
-                    Text("BQ Sqwad AI Feature Directory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Browse registered core workspaces and advanced capabilities. A registered name does not by itself guarantee that its live service is configured or available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { showAllCapabilities = !showAllCapabilities }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (showAllCapabilities) "Hide feature directory" else "Show all AI features")
-                    }
-                }
-                if (showAllCapabilities) {
-                    item { Text("Core workspaces", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-                    items(NativeFeatureRegistry.core, key = { "core-" + it.id }) { feature ->
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(feature.title, fontWeight = FontWeight.SemiBold)
-                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    item { Text("Advanced capability registry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-                    items(NativeFeatureRegistry.advanced, key = { "advanced-" + it.id }) { feature ->
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(feature.title, fontWeight = FontWeight.SemiBold)
-                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Registered capability — live availability must be verified", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                            }
-                        }
-                    }
-                }
+                // Customer catalog intentionally contains plans, credits, and Contact Sales only.
                 // Google Play's product/base-plan projection is intentionally not rendered
                 // as a second catalog. It is an internal checkout mapping only. Users see
                 // the BQ Sqwad AI catalog above; Play details are queried only to resolve
