@@ -59,6 +59,8 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var dailyFreeCreditsText by remember { mutableStateOf("5") }
+    var dailyFreeCreditsEnabled by remember { mutableStateOf(true) }
 
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedVideoUri = uri
@@ -86,6 +88,10 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                 announcementEnabled = announcement.optBoolean("enabled", false)
             }
             chatBackgroundUrl = cfg.optString("chatBackgroundUrl").takeIf { it.startsWith("https://", ignoreCase = true) }.orEmpty()
+        }
+        runCatching { api.adminDailyFreeCredits() }.onSuccess { config ->
+            dailyFreeCreditsText = config.optInt("credits", 5).toString()
+            dailyFreeCreditsEnabled = config.optBoolean("enabled", true)
         }
     }
 
@@ -315,6 +321,37 @@ fun AdminAppEditorPanel(onBack: () -> Unit) {
                         ) { Text(if (authVideoEnabled) "Save & enable video" else "Save & disable video") }
                         OutlinedButton(onClick = { publishVideoSettings(false) }, enabled = !busy && authVideoEnabled, modifier = Modifier.weight(1f)) { Text("Disable video") }
                     }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Daily Free Credits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Configure the daily free-credit allowance enforced by the backend. This setting affects credit grants; it does not change paid plan entitlements.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = dailyFreeCreditsText,
+                        onValueChange = { value -> if (value.isEmpty() || value.all(Char::isDigit)) dailyFreeCreditsText = value.take(6) },
+                        label = { Text("Credits granted per day (0–100000)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Enable daily free credits", fontWeight = FontWeight.SemiBold)
+                            Text(if (dailyFreeCreditsEnabled) "Daily allowance enabled" else "Daily allowance disabled", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = dailyFreeCreditsEnabled, enabled = !busy, onCheckedChange = { dailyFreeCreditsEnabled = it })
+                    }
+                    Button(enabled = !busy && dailyFreeCreditsText.toIntOrNull()?.let { it in 0..100000 } == true, onClick = {
+                        busy = true
+                        scope.launch {
+                            runCatching { api.setAdminDailyFreeCredits(dailyFreeCreditsText.toInt(), dailyFreeCreditsEnabled) }
+                                .onSuccess { status = "Daily free-credit configuration saved on the server." }
+                                .onFailure { status = safeUserFacingIssue(it, "Daily free-credit configuration could not be saved.") }
+                            busy = false
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save daily free-credit settings") }
                 }
             }
         }
