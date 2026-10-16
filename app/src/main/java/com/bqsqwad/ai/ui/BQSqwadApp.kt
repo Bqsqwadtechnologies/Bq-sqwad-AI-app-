@@ -69,6 +69,9 @@ import androidx.compose.ui.layout.ContentScale
 import com.bqsqwad.ai.R
 import com.bqsqwad.ai.InAppNotificationBus
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
@@ -134,12 +137,24 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     return "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
 }
 
+private val bqTextScaleState = mutableFloatStateOf(1.0f)
+
 @Composable
 fun BQSqwadApp(
     modifier: Modifier = Modifier,
     sharedText: String? = null,
     onSharedTextConsumed: () -> Unit = {}
-) = AuthGate(modifier, sharedText, onSharedTextConsumed)
+) {
+    val systemDensity = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(
+            density = systemDensity.density,
+            fontScale = systemDensity.fontScale * bqTextScaleState.floatValue.coerceIn(0.85f, 1.4f)
+        )
+    ) {
+        AuthGate(modifier, sharedText, onSharedTextConsumed)
+    }
+}
 
 @Composable
 private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
@@ -642,6 +657,11 @@ private fun LegalConsentLinks() {
 @Composable
 private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
     var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
+    var authVideoView by remember { mutableStateOf<VideoView?>(null) }
+    var authVideoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var authVideoPrepared by remember { mutableStateOf(false) }
+    var authVideoPaused by remember { mutableStateOf(false) }
+    var authVideoMuted by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         runCatching { WorkspaceApiClient().publicAppConfig() }
             .onSuccess { config ->
@@ -655,20 +675,35 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
             AndroidView(
                 factory = { context ->
                     VideoView(context).apply {
+                        authVideoView = this
                         setVideoURI(Uri.parse(url))
                         setOnPreparedListener { player ->
+                            authVideoPlayer = player
+                            authVideoPrepared = true
                             player.isLooping = true
-                            player.setVolume(0f, 0f)
-                            start()
+                            player.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                            if (authVideoPaused) pause() else start()
+                        }
+                        setOnErrorListener { _, _, _ ->
+                            authVideoPrepared = false
+                            true
                         }
                     }
                 },
-                modifier = Modifier.fillMaxSize().alpha(0.18f)
+                update = { view ->
+                    authVideoView = view
+                    authVideoPlayer?.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                    if (authVideoPrepared) {
+                        if (authVideoPaused && view.isPlaying) view.pause()
+                        else if (!authVideoPaused && !view.isPlaying) view.start()
+                    }
+                },
+                modifier = Modifier.fillMaxSize().alpha(0.32f)
             )
         }
         Surface(
             Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.90f)
+            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.56f)
         ) {
             Column(
                 Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -680,6 +715,29 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                     content()
                 }
             )
+        }
+        if (backgroundVideoUrl != null) {
+            Surface(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                color = Color.Black.copy(alpha = 0.68f),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(onClick = {
+                        authVideoPaused = !authVideoPaused
+                        val view = authVideoView
+                        if (authVideoPaused) view?.pause() else if (authVideoPrepared) view?.start()
+                    }) { Text(if (authVideoPaused) "Play video" else "Pause video", color = Color.White) }
+                    TextButton(onClick = {
+                        authVideoMuted = !authVideoMuted
+                        authVideoPlayer?.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
+                    }) { Text(if (authVideoMuted) "Unmute" else "Mute", color = Color.White) }
+                }
+            }
         }
     }
 }
@@ -776,6 +834,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         onDispose { auth.removeAuthStateListener(listener) }
     }
     val email = firebaseUser?.email.orEmpty()
+    LaunchedEffect(firebaseUser?.uid) {
+        bqTextScaleState.floatValue = accountPreferences(context).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)
+    }
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     BackHandler(enabled = drawerState.isOpen) { shellScope.launch { drawerState.close() } }
@@ -3604,10 +3665,12 @@ private val PRIMARY_ADVANCED_FEATURES = listOf(
     AppFeature("conversation_intelligence", "Conversation Intelligence", "Extract important facts, topics, actions and summaries from conversations.", "conversation_intelligence"),
     AppFeature("project_workspaces", "Project Workspaces", "Keep related conversations, files, instructions and memory together.", "project_workspaces"),
     AppFeature("ai_generated_reports", "AI-Generated Reports", "Turn conversations and structured data into organized reports and exports.", "ai_generated_reports"),
-    AppFeature("scheduled_ai_tasks", "Scheduled AI Tasks", "Run supported AI tasks on a schedule and keep execution history.", "scheduled_ai_tasks")
+    AppFeature("scheduled_ai_tasks", "Scheduled AI Tasks", "Run supported AI tasks on a schedule and keep execution history.", "scheduled_ai_tasks"),
+    AppFeature("god_ai_agent", "God AI Agent", "Coordinate research, planning and enabled BQ Sqwad AI capabilities in one supervised workflow. External actions still require your confirmation.", "agent_tool_use", true)
 )
 
 private val FEATURE_DISPLAY_NAMES = mapOf(
+    "god_ai_agent" to "God AI Agent",
     "ai_task_planner" to "AI Task Planner",
     "agent_tool_use" to "Agent Tool Use",
     "agent_sandbox" to "Agent Sandbox",
@@ -4984,7 +5047,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
             if (!fullScreenPreview) {
                 Box(
                     Modifier.fillMaxWidth().weight(1f).heightIn(min = 360.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        
                         .background(Color.Black)
                 ) {
                     if (streamOnline) {
@@ -5930,6 +5993,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                     Text("Adjust text across the app from smaller to larger.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Slider(value = textScale, onValueChange = { value ->
                         textScale = value
+                        bqTextScaleState.floatValue = value
                         prefs.edit().putFloat("text_scale", value).apply()
                     }, onValueChangeFinished = {
                         scope.launch {
