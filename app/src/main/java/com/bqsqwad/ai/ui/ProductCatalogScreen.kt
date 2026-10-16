@@ -953,7 +953,9 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
                 compact.contains("ailivem")
             val anyNonCanonicalCreditPlan =
                 Regex("(^| )credits?( |$)").containsMatchIn(searchable) && !canonicalCreditPack
-            plan.id.isNotBlank() && !featureSpecificLiveCredit && !anyNonCanonicalCreditPlan &&
+            val hiddenCustomerAddon = plan.module.equals("business-addon", ignoreCase = true) ||
+                plan.module.equals("learning-exam-addon", ignoreCase = true)
+            plan.id.isNotBlank() && !hiddenCustomerAddon && !featureSpecificLiveCredit && !anyNonCanonicalCreditPlan &&
                 (!plan.module.equals("credits", ignoreCase = true) || canonicalCreditPack)
         }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 }
