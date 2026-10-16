@@ -783,10 +783,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
     val foregroundPushBanner by InAppNotificationBus.banner.collectAsState()
-    LaunchedEffect(foregroundPushBanner, workspace) {
-        if (!foregroundPushBanner.isNullOrBlank() && workspace != null) {
-            android.widget.Toast.makeText(context, foregroundPushBanner, android.widget.Toast.LENGTH_LONG).show()
-        }
+    LaunchedEffect(foregroundPushBanner) {
+        val currentBanner = foregroundPushBanner?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(8_000L)
+        if (InAppNotificationBus.banner.value == currentBanner) InAppNotificationBus.clear()
     }
     val pendingWorkspaceRedirect by WorkspaceRedirectStore.redirect.collectAsState()
     LaunchedEffect(sharedText) {
@@ -1226,6 +1226,30 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
             }
+                }
+                foregroundPushBanner?.takeIf { it.isNotBlank() }?.let { banner ->
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(16.dp),
+                        tonalElevation = 6.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Column(
+                                Modifier.weight(1f).padding(vertical = 9.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text("BQ Sqwad AI", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                Text(banner, style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { InAppNotificationBus.clear() }) { Text("Dismiss") }
+                        }
+                    }
                 }
             }
         }
@@ -1719,7 +1743,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     val scope = rememberCoroutineScope()
     val prefs = remember { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
-    val pushBanner by InAppNotificationBus.banner.collectAsState()
     var birthdayCardOpen by remember { mutableStateOf(false) }
     val aiBirthTimestamp = remember(FirebaseAuth.getInstance().currentUser?.uid) {
         BqLifecycleNotifications.birthTimestamp(context)
@@ -2491,14 +2514,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    pushBanner?.let { banner ->
-                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(10.dp)) {
-                            Row(Modifier.fillMaxWidth().padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(banner, Modifier.weight(1f).padding(vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
-                                TextButton(onClick = { InAppNotificationBus.clear() }) { Text("Dismiss") }
-                            }
-                        }
-                    }
                     val ageDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
                     val birthDateForChip = java.util.Calendar.getInstance().apply { timeInMillis = aiBirthTimestamp }
                     val todayForChip = java.util.Calendar.getInstance()
