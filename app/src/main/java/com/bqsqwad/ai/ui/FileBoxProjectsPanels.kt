@@ -86,7 +86,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("File Box", style = MaterialTheme.typography.headlineSmall)
-            Text("Save text documents securely to your account. Files expire according to the retention period. This native panel currently stores text content; binary attachments and PDF/DOCX export are not yet connected.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text("Save text documents securely to your account. Files expire according to the selected retention period. Import supported text files, preview saved content, and export TXT, PDF, or DOCX documents to Downloads. Binary attachments are not stored in File Box yet.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(7,14,30,90).forEach { days ->
                     FilterChip(selected = retention == days, onClick = {
