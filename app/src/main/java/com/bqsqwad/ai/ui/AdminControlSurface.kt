@@ -65,6 +65,7 @@ fun AdminControlCenter() {
     var showTrainingLibrary by remember { mutableStateOf(false) }
     var showAdminFeedback by remember { mutableStateOf(false) }
     var showFileBoxRetention by remember { mutableStateOf(false) }
+    var showAuthBackgroundVideo by remember { mutableStateOf(false) }
     var showGodAiAgent by remember { mutableStateOf(false) }
     var playCatalog by remember { mutableStateOf<List<AdminPlayCatalogItem>>(emptyList()) }
     var testMode by remember { mutableStateOf(false) }
@@ -211,6 +212,10 @@ fun AdminControlCenter() {
     }
     if (showFileBoxRetention) {
         AdminFileBoxRetentionPanel(onBack = { showFileBoxRetention = false })
+        return
+    }
+    if (showAuthBackgroundVideo) {
+        AdminAuthBackgroundVideoPanel(onBack = { showAuthBackgroundVideo = false })
         return
     }
     if (showGodAiAgent) {
@@ -542,6 +547,7 @@ fun AdminControlCenter() {
         OutlinedButton(onClick = { showTrainingLibrary = true }, modifier = Modifier.fillMaxWidth()) { Text("Open Opt-in AI Training Library") }
         OutlinedButton(onClick = { showAdminFeedback = true }, modifier = Modifier.fillMaxWidth()) { Text("Open User Feedback & Reports") }
         OutlinedButton(onClick = { showFileBoxRetention = true }, modifier = Modifier.fillMaxWidth()) { Text("File Box Retention & Expiry") }
+        OutlinedButton(onClick = { showAuthBackgroundVideo = true }, modifier = Modifier.fillMaxWidth()) { Text("Authentication Background Video") }
         OutlinedButton(onClick = { showGodAiAgent = true }, modifier = Modifier.fillMaxWidth()) { Text("Open God AI Agent") }
         SurfaceCard(
             "Admin Control Center",
