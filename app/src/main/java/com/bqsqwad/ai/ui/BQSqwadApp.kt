@@ -979,13 +979,17 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 workspace = null
             }
         }.onFailure {
-            workspaceAccess = WorkspaceAccessSnapshot.empty()
+            if (!workspaceAccess.loaded) workspaceAccess = WorkspaceAccessSnapshot.empty()
             accessLoadFailed = true
             val current = workspace
+            val dataAnalystIsPlanGated = current == Workspace.DATA_ANALYSIS &&
+                workspaceAccess.planModules["data-analysis"].orEmpty().isNotEmpty()
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.DATA_ANALYSIS, Workspace.ADMIN
-                )) accessRetryWorkspace = current
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ADMIN
+                ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
+                accessRetryWorkspace = current
+            }
         }
         accessLoading = false
     }
