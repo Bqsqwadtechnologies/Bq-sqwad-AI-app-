@@ -430,8 +430,17 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-        handler.post { closeCamera { releaseCameraOwnership() } }
-        return true
+        // Camera teardown runs on the camera HandlerThread. Returning true here lets
+        // TextureView release the SurfaceTexture immediately, before CameraCaptureSession
+        // and its Surface have finished closing; that race can leave the next preview black.
+        // Return false and release the texture only after camera ownership is relinquished.
+        handler.post {
+            closeCamera {
+                releaseCameraOwnership()
+                runCatching { surface.release() }
+            }
+        }
+        return false
     }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
