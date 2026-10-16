@@ -22,7 +22,7 @@ import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, aut
 import { orgWallet, orgTopUps, orgLiveStart, orgChargeAssistant, orgLiveGet, orgLiveHeartbeat, orgLiveStop, orgBillingConfig } from "./organization-billing-native.js";
 import { youtubeChannel, youtubeCreateLive, youtubeTransition, youtubeStatus, youtubeChat, youtubeReply } from "./youtube-native.js";
 import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runtime-native.js";
-import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject } from "./training-assets.js";
+import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
 const rateBuckets = new Map();
@@ -1885,7 +1885,30 @@ export default {
           id, uid: user.uid, title, fileName: safeName, contentType, size, objectPath,
           uploadPending: true, createdAt: new Date().toISOString()
         }, false);
-        return json({ ok: true, id, uploadUrl: session.uploadUrl, authorizationToken: session.authorizationToken, objectPath });
+        return json({ ok: true, id });
+      }
+      if (url.pathname === "/file-box/upload" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const id = String(url.searchParams.get("id") || "").trim();
+        const pending = await firestoreGet("fileBoxUploads/" + id);
+        if (!pending || String(pending.uid || "") !== user.uid) return json({ error: "file_upload_not_found" }, 404);
+        if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
+        const declaredSize = Number(request.headers.get("content-length") || 0);
+        if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0 || declaredSize > 25 * 1024 * 1024 || declaredSize !== Number(pending.size)) {
+          return json({ error: "file_upload_size_mismatch" }, 400);
+        }
+        const sha1 = String(request.headers.get("x-bq-content-sha1") || "").toLowerCase();
+        if (!/^[a-f0-9]{40}$/.test(sha1)) return json({ error: "file_upload_checksum_required" }, 400);
+        const bytes = await request.arrayBuffer();
+        if (bytes.byteLength !== declaredSize) return json({ error: "file_upload_size_mismatch" }, 400);
+        const stored = await uploadTrainingAssetObject({
+          objectPath: String(pending.objectPath || ""),
+          contentType: String(pending.contentType || "application/octet-stream"),
+          sha1,
+          bytes
+        });
+        if (Number(stored.size) !== Number(pending.size)) return json({ error: "file_upload_size_mismatch" }, 409);
+        return json({ ok: true, id, size: stored.size });
       }
       if (url.pathname === "/file-box/finalize" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
