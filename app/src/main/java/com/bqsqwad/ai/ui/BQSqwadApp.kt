@@ -2687,7 +2687,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
             }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
+                LazyColumn(Modifier.fillMaxSize().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (messages.isEmpty()) {
                     item {
                         Box(
@@ -2973,6 +2975,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                             }
                         }
                     }
+                }
                 }
             }
             if (attachments.isNotEmpty()) {
