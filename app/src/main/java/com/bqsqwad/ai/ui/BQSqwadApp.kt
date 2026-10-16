@@ -6179,8 +6179,10 @@ item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscrip
                 }
             }
 
-            item {
-                SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
+            if (settingsCategory == "All settings" || settingsCategory == "Account") {
+                item {
+                    SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
+                }
             }
             
             }
