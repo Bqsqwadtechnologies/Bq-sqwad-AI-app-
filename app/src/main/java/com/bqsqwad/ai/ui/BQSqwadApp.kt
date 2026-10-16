@@ -1851,6 +1851,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var voiceRepliesEnabled by remember { mutableStateOf(settingsPrefs.getBoolean("voice_replies", true)) }
     var savingChat by remember { mutableStateOf(false) }
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
+    var customBackgroundUri by remember { mutableStateOf(prefs.getString("chat_background_uri", null)) }
+    val customBackgroundBitmap = remember(customBackgroundUri) {
+        runCatching {
+            customBackgroundUri?.let { raw ->
+                context.contentResolver.openInputStream(Uri.parse(raw))?.use { input ->
+                    val bytes = input.readBytes()
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val sample = (maxOf(bounds.outWidth, bounds.outHeight) / 1400).coerceAtLeast(1)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                }
+            }
+        }.getOrNull()
+    }
     var message by rememberSaveable { mutableStateOf("") }
     // Text shared from another Android app is placed into the composer for user review.
     // It is never submitted automatically.
@@ -2600,6 +2614,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
+        customBackgroundBitmap?.let { bitmap ->
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Custom chat background",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.22f
+            )
+        }
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
             Row(
                 Modifier.fillMaxWidth().height(36.dp),
@@ -5858,6 +5881,31 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var deletionNotice by remember { mutableStateOf<String?>(null) }
     var playManagement by remember { mutableStateOf<JSONObject?>(null) }
     var selectedAiFeature by remember { mutableStateOf<Workspace?>(null) }
+    val chatBackgroundPrefs = remember(uid) { accountPreferences(context, "bq_ui") }
+    var customChatBackgroundUri by remember(uid) { mutableStateOf(chatBackgroundPrefs.getString("chat_background_uri", null)) }
+    var changingChatBackground by remember { mutableStateOf(false) }
+    val chatBackgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && !changingChatBackground) {
+            changingChatBackground = true
+            scope.launch {
+                var persistedPermission = false
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    persistedPermission = true
+                    val uploadId = java.util.UUID.randomUUID().toString()
+                    WorkspaceApiClient().chargeChatBackground(uploadId)
+                    chatBackgroundPrefs.edit().putString("chat_background_uri", uri.toString()).apply()
+                    customChatBackgroundUri = uri.toString()
+                    settingsNotice = "Chat background updated. Two credits were charged."
+                    (context as? android.app.Activity)?.recreate()
+                }.onFailure {
+                    if (persistedPermission) runCatching { context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    settingsNotice = safeUserFacingIssue(it, "Chat background was not changed. You need at least 2 credits.")
+                }
+                changingChatBackground = false
+            }
+        }
+    }
 
     fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
@@ -6100,6 +6148,23 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     items(accents) { name ->
                         FilterChip(selected = accent == name, onClick = { saveAccent(name) }, label = { Text(name.replaceFirstChar { it.uppercase() }) })
+                    }
+                }
+            }
+            item {
+                SurfaceCard("Chat background", "Choose a picture from your device to display behind Main Chat. Each successful change costs 2 credits; your chosen image stays on this device.")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = !changingChatBackground, onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) }) {
+                        Icon(Icons.Default.Image, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (changingChatBackground) "Applying…" else "Choose picture · 2 credits")
+                    }
+                    if (customChatBackgroundUri != null) {
+                        OutlinedButton(enabled = !changingChatBackground, onClick = {
+                            chatBackgroundPrefs.edit().remove("chat_background_uri").apply()
+                            customChatBackgroundUri = null
+                            (context as? android.app.Activity)?.recreate()
+                        }) { Text("Remove") }
                     }
                 }
             }
