@@ -263,25 +263,39 @@ class PlayBillingClient(
                     .put("basePlanId", "")
                     .put("offerId", "")
                     .put("obfuscatedAccountId", purchase.accountIdentifiers?.obfuscatedAccountId ?: "")
-                val connection = (URL("$baseUrl/play/verify").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 15000
-                    readTimeout = 30000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Authorization", "Bearer $token")
+                // Google Play purchase verification and credit granting must happen on
+                // the same website backend that owns the shared account balance.
+                val verifyUrl = "https://bqsqwadai.com/api/native/play-verify"
+                var raw: String? = null
+                for (attempt in 0..1) {
+                    val requestToken = if (attempt == 0) token else Tasks.await(user.getIdToken(true)).token
+                        ?: error("Authentication token unavailable.")
+                    val connection = (URL(verifyUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 15000
+                        readTimeout = 30000
+                        doOutput = true
+                        setRequestProperty("Content-Type", "application/json")
+                        setRequestProperty("Authorization", "Bearer $requestToken")
+                    }
+                    try {
+                        connection.outputStream.use { it.write(payload.toString().toByteArray()) }
+                        val status = connection.responseCode
+                        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                        if (status == HttpURLConnection.HTTP_UNAUTHORIZED && attempt == 0) continue
+                        if (status !in 200..299) {
+                            val detail = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
+                            throw IllegalStateException(detail.ifBlank { "Purchase verification failed (HTTP $status)." })
+                        }
+                        raw = text
+                        break
+                    } finally {
+                        connection.disconnect()
+                    }
                 }
-                val raw = try {
-                    connection.outputStream.use { it.write(payload.toString().toByteArray()) }
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                    val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    if (status !in 200..299) throw IllegalStateException(runCatching { JSONObject(text).optString("error") }.getOrDefault("Purchase verification failed"))
-                    text
-                } finally {
-                    connection.disconnect()
-                }
-                val verifiedBody = JSONObject(raw)
+                val verifiedResponse = raw ?: error("Purchase verification could not be completed.")
+                val verifiedBody = JSONObject(verifiedResponse)
                 val verified = verifiedBody.optBoolean("ok", false)
                 if (!verified) throw IllegalStateException("The server did not confirm this Google Pay purchase.")
 
