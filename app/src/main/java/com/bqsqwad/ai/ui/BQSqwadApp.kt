@@ -979,7 +979,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureHub by remember { mutableStateOf(false) }
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
-    var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "bq_ui").getBoolean("admin", false)) }
+    var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "workspace_access_cache").getBoolean("admin", false)) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
     LaunchedEffect(notificationsEnabled) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
@@ -1034,7 +1034,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     LaunchedEffect(email, firebaseUser?.uid) {
         if (email.isBlank() || firebaseUser == null) {
             adminAuthorized = false
-            accountPreferences(context, "bq_ui").edit().putBoolean("admin", false).apply()
+            accountPreferences(context, "workspace_access_cache").edit().putBoolean("admin", false).apply()
             return@LaunchedEffect
         }
         // A transient authorization-network failure must not make the admin entry
@@ -1044,7 +1044,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 WorkspaceApiClient().adminAccess().optBoolean("allowed")
             }.onSuccess { allowed ->
                 adminAuthorized = allowed
-                accountPreferences(context, "bq_ui").edit().putBoolean("admin", allowed).apply()
+                accountPreferences(context, "workspace_access_cache").edit().putBoolean("admin", allowed).apply()
             }
             delay(60_000L)
         }
