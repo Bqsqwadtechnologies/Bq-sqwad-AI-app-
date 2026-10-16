@@ -1512,6 +1512,28 @@ export default {
         }, true);
       }
     }
+    // Daily File Box expiry cleanup shares the existing scheduled handler with
+    // account-deletion processing; do not replace or bypass deletion processing.
+    try {
+      const fileBoxRows = await firestoreQuery("fileBox", { limit:500 });
+      for (const row of fileBoxRows) {
+        const uid = String(row.uid || "");
+        if (!uid || !Array.isArray(row.items)) continue;
+        const items = row.items.filter(item => {
+          const expiry = Date.parse(String(item.expiresAt || ""));
+          return Number.isFinite(expiry) && expiry > Date.now();
+        });
+        if (items.length !== row.items.length) {
+          await firestoreSet("fileBox/" + uid, {
+            uid, items,
+            retentionDays:[7,14,30,90].includes(Number(row.retentionDays)) ? Number(row.retentionDays) : 30,
+            updatedAt:new Date()
+          }, true);
+        }
+      }
+    } catch (error) {
+      console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
+    }
   },
   async fetch(request, env) {
     configureFirebaseEnv(env);
@@ -3209,33 +3231,5 @@ export default {
       const body = { error: code };
       return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
-  },
-  async scheduled(controller, env, ctx) {
-    // Configure a Cloudflare Cron Trigger (for example, every hour) for this handler.
-    // Expiry is also enforced on every File Box read/write, so missed scheduled runs
-    // cannot make expired items visible to the owner.
-    ctx.waitUntil((async () => {
-      try {
-        const rows = await firestoreQuery("fileBox", { limit:500 });
-        const now = Date.now();
-        for (const row of rows) {
-          const uid = String(row.uid || "");
-          if (!uid || !Array.isArray(row.items)) continue;
-          const items = row.items.filter(item => {
-            const expiresAt = Date.parse(String(item.expiresAt || ""));
-            return Number.isFinite(expiresAt) && expiresAt > now;
-          });
-          if (items.length !== row.items.length) {
-            await firestoreSet("fileBox/" + uid, {
-              uid, items,
-              retentionDays:[7,14,30,90].includes(Number(row.retentionDays)) ? Number(row.retentionDays) : 30,
-              updatedAt:new Date()
-            }, true);
-          }
-        }
-      } catch (error) {
-        console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
-      }
-    })());
   }
 };
