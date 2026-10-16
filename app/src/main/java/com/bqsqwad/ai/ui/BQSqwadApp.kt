@@ -6662,11 +6662,15 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                         Text("BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("The AI That Grows With You")
                         Text("BQ Sqwad Technologies", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
+                    }
+                }
+            }
+            item {
+                FeatureCard("About Me & AI Personality", "Choose your preferred response style and save optional notes locally on this device.") {
+                    showAboutMePanel = true
                 }
             }
             }
-            
         }
     }
 
@@ -6682,10 +6686,6 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                 FeatureCard("Projects", "Create and manage project notes and working documents.") {
                     showSettingsPrivacyDirectory = false
                     showProjectsPanel = true
-                }
-                FeatureCard("About Me & AI Personality", "Choose your preferred response style and save optional notes locally on this device.") {
-                    showSettingsPrivacyDirectory = false
-                    showAboutMePanel = true
                 }
                 FeatureCard("AI Training & Data", if (trainingConsent) "Participation is enabled. Review the safeguards and turn it off whenever you want." else "Participation is off. Review the optional contribution controls.") {
                     showSettingsPrivacyDirectory = false
