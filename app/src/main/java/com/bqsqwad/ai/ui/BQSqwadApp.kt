@@ -5571,7 +5571,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         lens = if (lens == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT else android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK
                         flashlightOn = false
                     }, modifier = Modifier.fillMaxWidth(), enabled = granted) {
-                        Icon(Icons.Default.Cameraswitch, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Flip camera")
+                        Icon(Icons.Default.CameraAlt, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Flip camera")
                     }
                     OutlinedButton(onClick = {
                         showCameraSettings = false
@@ -5583,7 +5583,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                             showLiveTerms = true
                         } else launchScreenWithMic()
                     }, modifier = Modifier.fillMaxWidth(), enabled = !active || screenActive) {
-                        Icon(Icons.Default.ScreenShare, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (screenActive) "Stop screen sharing" else "Share screen with AI")
+                        Icon(Icons.Default.Share, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(if (screenActive) "Stop screen sharing" else "Share screen with AI")
                     }
                     OutlinedButton(onClick = {
                         showCameraSettings = false
