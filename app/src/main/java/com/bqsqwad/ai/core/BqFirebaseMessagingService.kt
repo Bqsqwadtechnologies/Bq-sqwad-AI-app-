@@ -23,8 +23,10 @@ import java.net.URL
 
 class BqFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
-        private const val CHANNEL_ID = "bq_sqwad_ai_updates"
-        private const val CHANNEL_NAME = "BQ Sqwad AI updates"
+        private const val REPLIES_CHANNEL_ID = "bq_sqwad_replies"
+        private const val REMINDERS_CHANNEL_ID = "bq_sqwad_reminders"
+        private const val BIRTHDAY_CHANNEL_ID = "bq_sqwad_birthday"
+        private const val LIVE_CHANNEL_ID = "bq_live_media_session"
         private const val BASE_PATH = "/notifications/token"
     }
 
@@ -48,6 +50,14 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             ?: message.data["body"]
             ?: "You have a new BQ Sqwad AI update."
         val workspace = message.data["workspace"].orEmpty()
+        val category = (message.data["category"] ?: title).lowercase()
+        val channelId = when {
+            category.contains("live") -> LIVE_CHANNEL_ID
+            category.contains("birthday") || category.contains("milestone") -> BIRTHDAY_CHANNEL_ID
+            category.contains("reply") -> REPLIES_CHANNEL_ID
+            else -> REMINDERS_CHANNEL_ID
+        }
+        val displayBody = if (title.equals("BQ Sqwad AI", ignoreCase = true)) body else "$title · $body"
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -59,12 +69,13 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
             .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.bq_sqwad_logo))
-            .setContentTitle(title.take(120))
-            .setContentText(body.take(500))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body.take(2000)))
+            .setColor(android.graphics.Color.rgb(39, 112, 235))
+            .setContentTitle("BQ Sqwad AI")
+            .setContentText(displayBody.take(500))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(displayBody.take(2000)))
             .setAutoCancel(true)
             .setContentIntent(pending)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -77,9 +88,15 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT)
-            )
+            val manager = getSystemService(NotificationManager::class.java)
+            listOf(
+                NotificationChannel(REPLIES_CHANNEL_ID, "Replies", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(REMINDERS_CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(BIRTHDAY_CHANNEL_ID, "Birthday", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(LIVE_CHANNEL_ID, "Live sessions", NotificationManager.IMPORTANCE_LOW)
+            ).forEach { channel ->
+                if (manager.getNotificationChannel(channel.id) == null) manager.createNotificationChannel(channel)
+            }
         }
     }
 
