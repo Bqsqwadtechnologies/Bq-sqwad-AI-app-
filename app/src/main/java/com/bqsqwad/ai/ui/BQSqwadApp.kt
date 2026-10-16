@@ -4792,12 +4792,6 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         val maxVolume = liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         liveAudioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (liveVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
     }
-    LaunchedEffect(granted, previewEnabled) {
-        if (granted && previewEnabled && !streamOnline && !screenActive) {
-            fullScreenPreview = true
-            fullScreenPreviewReady = true
-        }
-    }
     var previewFrame by remember { mutableStateOf<ImageBitmap?>(null) }
     var lastPreviewTextureUpdate by remember { mutableLongStateOf(0L) }
     var showPreviewBitmapFallback by remember { mutableStateOf(false) }
@@ -4823,6 +4817,13 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var streamEndpoint by remember { mutableStateOf("") }
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(granted, previewEnabled) {
+        if (granted && previewEnabled && !streamOnline && !screenActive) {
+            fullScreenPreview = true
+            fullScreenPreviewReady = true
+        }
+    }
+
     LaunchedEffect(previewEnabled, granted, streamOnline) {
         if (!previewEnabled || !granted || streamOnline) {
             showPreviewBitmapFallback = false
