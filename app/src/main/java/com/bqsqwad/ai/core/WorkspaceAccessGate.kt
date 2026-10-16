@@ -17,6 +17,8 @@ data class WorkspaceAccessSnapshot(
         val module = workspaceModule(workspace) ?: return true
         val plans = planModules[module].orEmpty()
         if (plans.isEmpty()) {
+            // Data Analyst is credit-metered unless the live catalog explicitly adds a plan.
+            if (module == "data-analysis") return true
             // A module with no commercial catalog entry is not treated as free.
             // Existing website/legacy entitlements can still authorize it by module.
             return entitlementModules.contains(module)
@@ -27,7 +29,8 @@ data class WorkspaceAccessSnapshot(
 
     fun requiresPaidAccess(workspace: Workspace): Boolean {
         val module = workspaceModule(workspace) ?: return false
-        return planModules[module].orEmpty().none { it.endsWith(":free") }
+        val plans = planModules[module].orEmpty()
+        return plans.isNotEmpty() && plans.none { it.endsWith(":free") }
     }
 
     companion object {
