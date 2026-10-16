@@ -42,6 +42,13 @@ object ChatAttachmentReader {
             }
             out.toByteArray()
         } ?: error("Could not open '" + name + "'.")
+        return readBytes(name, mime, bytes)
+    }
+
+    fun readBytes(name: String, mimeType: String, bytes: ByteArray): PreparedChatAttachment {
+        val mime = mimeType.lowercase()
+        require(bytes.isNotEmpty()) { "The selected file is empty." }
+        require(bytes.size <= MAX_BYTES) { "Attachment '" + name + "' is larger than 5 MB." }
         return when {
             mime.startsWith("image/") -> {
                 require(mime in setOf("image/jpeg", "image/jpg", "image/png", "image/webp")) {
@@ -69,8 +76,6 @@ object ChatAttachmentReader {
                 PreparedChatAttachment(name, mime, text = text)
             }
             else -> error("Unsupported attachment type for '" + name + "'. Use an image, PDF, DOCX, XLSX, PPTX, or text-based document.")
-        }
-    }
 
 
     internal fun extractOfficeText(bytes: ByteArray, extension: String): String {
