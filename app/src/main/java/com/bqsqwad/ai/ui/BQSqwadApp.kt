@@ -5840,6 +5840,8 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
     var trainingConsent by remember(uid) { mutableStateOf(prefs.getBoolean("training_consent", false)) }
     var showSettingsPrivacyDirectory by remember { mutableStateOf(false) }
     var showTrainingSettings by remember { mutableStateOf(false) }
+    var showFileBoxPanel by remember { mutableStateOf(false) }
+    var showProjectsPanel by remember { mutableStateOf(false) }
     var trainingSaving by remember { mutableStateOf(false) }
     var chatHistory by remember(uid) { mutableStateOf(prefs.getBoolean("chat_history", true)) }
     var autoSave by remember(uid) { mutableStateOf(prefs.getBoolean("auto_save", true)) }
@@ -6284,6 +6286,14 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Settings & Privacy", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("You control what is remembered, contributed and connected. AI training is optional and can be switched off at any time.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FeatureCard("File Box", "Save and manage text documents with an expiry date.") {
+                    showSettingsPrivacyDirectory = false
+                    showFileBoxPanel = true
+                }
+                FeatureCard("Projects", "Create and manage project notes and working documents.") {
+                    showSettingsPrivacyDirectory = false
+                    showProjectsPanel = true
+                }
                 FeatureCard("AI Training & Data", if (trainingConsent) "Participation is enabled. Review the safeguards and turn it off whenever you want." else "Participation is off. Review the optional contribution controls.") {
                     showSettingsPrivacyDirectory = false
                     showTrainingSettings = true
@@ -6345,6 +6355,12 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenAcco
                 Spacer(Modifier.height(14.dp))
             }
         }
+    }
+    if (showFileBoxPanel) {
+        FileBoxPanel(onDismiss = { showFileBoxPanel = false })
+    }
+    if (showProjectsPanel) {
+        ProjectsPanel(onDismiss = { showProjectsPanel = false })
     }
     if (showDeleteAccount) {
         AlertDialog(
