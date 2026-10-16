@@ -4038,8 +4038,8 @@ private fun WorkspaceScreen(
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
-                Workspace.CAMERA -> CameraWorkspace(onOpenCredits)
-                Workspace.VOICE -> VoiceWorkspace(onOpenCredits)
+                Workspace.CAMERA -> CameraWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = adminAuthorized)
+                Workspace.VOICE -> VoiceWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = adminAuthorized)
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans, onOpenCredits = onOpenCredits)
@@ -4533,7 +4533,7 @@ private fun SearchWorkspace(onOpenSettings: () -> Unit = {}) {
 private const val LIVE_MEDIA_CONSENT_VERSION = "2026-10-11"
 
 @Composable
-fun CameraWorkspace(onOpenCredits: () -> Unit = {}) {
+fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsPrefs = remember { accountPreferences(context) }
@@ -5361,7 +5361,7 @@ private fun BqLiveAudioOrb(
 }
 
 @Composable
-fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
+fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var active by remember { mutableStateOf(false) }
@@ -5448,7 +5448,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}) {
         (startError ?: serviceVoiceError)?.let {
             Text(it, color = MaterialTheme.colorScheme.tertiary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
-        if (liveUiState.mode == LiveMediaForegroundService.MODE_VOICE && liveUiState.log.isNotEmpty()) {
+        if (showDiagnostics && liveUiState.mode == LiveMediaForegroundService.MODE_VOICE && liveUiState.log.isNotEmpty()) {
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(
                     Modifier.fillMaxWidth().padding(12.dp),
