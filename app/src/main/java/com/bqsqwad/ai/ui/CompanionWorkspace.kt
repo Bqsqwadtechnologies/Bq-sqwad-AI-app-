@@ -38,6 +38,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
     var memoryEnabled by remember { mutableStateOf(true) }
     var notice by remember { mutableStateOf<String?>(null) }
     var loadingAccess by remember { mutableStateOf(true) }
+    var accessRefresh by remember { mutableIntStateOf(0) }
     var settingsOpen by remember { mutableStateOf(false) }
     var saveHistory by remember { mutableStateOf(true) }
     var notifications by remember { mutableStateOf(true) }
@@ -70,7 +71,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(accessRefresh) {
         loadingAccess = true
         runCatching {
             val api = WorkspaceApiClient()
@@ -166,7 +167,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
 
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
-                        Text(currentPlan?.name ?: if (loadingAccess) "Checking plan…" else "Plan details unavailable", fontWeight = FontWeight.Bold)
+                        Text(currentPlan?.name ?: if (loadingAccess) "Checking plan…" else "Could not check plan", fontWeight = FontWeight.Bold)
                         currentPlan?.price?.entries?.joinToString(" • ") { (period, value) ->
                             period.replaceFirstChar { it.uppercase() } + ": " + value
                         }?.takeIf { it.isNotBlank() }?.let {
@@ -176,8 +177,10 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}) {
                             Text(currentPlan?.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    if (currentPlan?.id != "companionultimate") {
-                        OutlinedButton(onClick = onOpenPlans) { Text("View plans") }
+                    if (currentPlan == null && !loadingAccess) {
+                        TextButton(onClick = { accessRefresh++ }) { Text("Retry") }
+                    } else if (currentPlan?.id != "companionultimate") {
+                        OutlinedButton(onClick = onOpenPlans) { Text("Upgrade") }
                     }
                 }
                 Row(
