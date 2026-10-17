@@ -1,0 +1,6 @@
+name = "bq-sqwad-ai-app"
+main = "src/index.js"
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets are configured separately in Cloudflare and must never be committed.
