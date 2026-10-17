@@ -512,7 +512,15 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
   const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
     ? 0.0862607826
     : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.43767970996 : 0);
-  const creditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
+  const configuredCreditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
+  // Migrate the previously shipped 110%-markup defaults to the new 130% card,
+  // while preserving custom rates that differ from those known legacy defaults.
+  const legacyDefaultRate = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
+    ? 0.0788
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.3127 : null);
+  const creditsPerMinute = legacyDefaultRate != null && Math.abs(configuredCreditsPerMinute - legacyDefaultRate) < 0.0000001
+    ? defaultCreditsPerMinute
+    : configuredCreditsPerMinute;
   const defaultVoice = String(source.defaultVoice ?? previous.defaultVoice ?? "marin").toLowerCase();
   const allowedVoices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
   return {
