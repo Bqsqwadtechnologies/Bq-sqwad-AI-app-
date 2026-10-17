@@ -73,6 +73,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var billingSafetyMargin by remember { mutableStateOf("20") }
     var billingApplyFee by remember { mutableStateOf(false) }
     var billingRatesJson by remember { mutableStateOf("{}") }
+    var billingModelRatesJson by remember { mutableStateOf("{}") }
     var billingAnalytics by remember { mutableStateOf(JSONObject()) }
     var billingUpdatedAt by remember { mutableStateOf("Not refreshed yet") }
     var billingSaving by remember { mutableStateOf(false) }
@@ -130,6 +131,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
         billingApplyFee = config.optBoolean("applyFeeToUsage", false)
         billingRatesJson = (config.optJSONObject("capabilityRates") ?: JSONObject()).toString(2)
+        billingModelRatesJson = (config.optJSONObject("providerModelRates") ?: JSONObject()).toString(2)
     }
 
     fun saveBillingConfig() {
@@ -146,13 +148,15 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                     "Pricing values are outside the allowed range."
                 }
                 val rates = JSONObject(billingRatesJson)
+                val modelRates = JSONObject(billingModelRatesJson)
                 val result = api.saveAdminDynamicBillingConfig(JSONObject()
                     .put("profitMarkup", markup)
                     .put("feeRate", fee)
                     .put("applyFeeToUsage", billingApplyFee)
                     .put("creditValueUsd", creditValue)
                     .put("reservationSafetyMargin", margin)
-                    .put("capabilityRates", rates))
+                    .put("capabilityRates", rates)
+                    .put("providerModelRates", modelRates))
                 val config = result.optJSONObject("config") ?: JSONObject()
                 billingMarkup = (config.optDouble("profitMarkup", markup) * 100).toString()
                 billingFeeRate = (config.optDouble("feeRate", fee) * 100).toString()
@@ -243,6 +247,8 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 onApplyFee = { billingApplyFee = it },
                 ratesJson = billingRatesJson,
                 onRatesJson = { billingRatesJson = it },
+                modelRatesJson = billingModelRatesJson,
+                onModelRatesJson = { billingModelRatesJson = it },
                 saving = billingSaving,
                 status = billingStatus,
                 error = billingError,
@@ -280,6 +286,8 @@ private fun BillingAnalyticsAndSettings(
     onApplyFee: (Boolean) -> Unit,
     ratesJson: String,
     onRatesJson: (String) -> Unit,
+    modelRatesJson: String,
+    onModelRatesJson: (String) -> Unit,
     saving: Boolean,
     status: String?,
     error: String?,
@@ -341,6 +349,14 @@ private fun BillingAnalyticsAndSettings(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 4,
                 label = { Text("Provider cost overrides JSON") }
+            )
+            Text("Provider/model rates JSON. Keys can be provider IDs or provider:model IDs; set providerCostUsd per operation, or token rates inputUsdPer1M, cachedInputUsdPer1M and outputUsdPer1M with estimated token counts.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(
+                value = modelRatesJson,
+                onValueChange = onModelRatesJson,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4,
+                label = { Text("Provider/model rates JSON") }
             )
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
