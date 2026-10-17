@@ -14,7 +14,8 @@ const DEFAULTS = Object.freeze({
   // Admins may enter providerCostUsd per capability. When absent, the
   // existing server-configured capability credit cost is used as a conservative
   // cost proxy and explicitly marked estimated; it is never labelled actual.
-  capabilityRates: {}
+  capabilityRates: {},
+  providerModelRates: {}
 });
 
 function finite(value, fallback) {
@@ -42,6 +43,15 @@ function validateConfig(raw = {}) {
     if (!/^[a-z0-9_-]{1,80}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_capability_rate_invalid");
     if (rate.providerCostUsd != null && (!Number.isFinite(Number(rate.providerCostUsd)) || Number(rate.providerCostUsd) < 0)) {
       throw new Error("billing_provider_cost_invalid");
+    }
+  }
+  if (!config.providerModelRates || typeof config.providerModelRates !== "object" || Array.isArray(config.providerModelRates)) {
+    throw new Error("billing_provider_model_rates_invalid");
+  }
+  for (const [key, rate] of Object.entries(config.providerModelRates)) {
+    if (!/^[a-z0-9_.:-]{1,180}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_provider_model_rate_invalid");
+    for (const field of ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "estimatedInputTokens", "estimatedOutputTokens"]) {
+      if (rate[field] != null && (!Number.isFinite(Number(rate[field])) || Number(rate[field]) < 0)) throw new Error("billing_provider_model_rate_invalid");
     }
   }
   return config;
@@ -76,22 +86,42 @@ export function calculateDynamicCharge({ providerCostUsd, config, estimated = tr
 export async function priceOperation(capability, legacyCreditEstimate = 0) {
   const config = await getDynamicBillingConfig();
   const key = String(capability || "chat").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80);
-  const configured = config.capabilityRates[key];
+  const db = getFirestore();
+  const routeSnap = await db.collection("adminAdvancedOptions").doc("capability_" + key).get();
+  const route = routeSnap.exists ? (routeSnap.data() || {}) : {};
+  const providerId = String(route.providerId || "openai").toLowerCase();
+  const modelId = String(route.modelId || "unknown").toLowerCase();
+  const modelRate = config.providerModelRates[providerId + ":" + modelId] || config.providerModelRates[providerId];
+  const capabilityRate = config.capabilityRates[key];
+  const configured = modelRate || capabilityRate;
   const legacy = Math.max(0, finite(legacyCreditEstimate, 0));
-  const providerCostUsd = configured && configured.providerCostUsd != null
-    ? Number(configured.providerCostUsd)
-    : legacy * config.creditValueUsd;
+  let providerCostUsd;
+  if (configured && configured.providerCostUsd != null) {
+    providerCostUsd = Number(configured.providerCostUsd);
+  } else if (modelRate && ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(field => modelRate[field] != null)) {
+    const inputTokens = finite(modelRate.estimatedInputTokens, 1000);
+    const outputTokens = finite(modelRate.estimatedOutputTokens, 500);
+    providerCostUsd = (
+      inputTokens * finite(modelRate.inputUsdPer1M, 0) +
+      inputTokens * finite(modelRate.cachedInputUsdPer1M, 0) +
+      outputTokens * finite(modelRate.outputUsdPer1M, 0)
+    ) / 1_000_000;
+  } else {
+    providerCostUsd = legacy * config.creditValueUsd;
+  }
   const base = calculateDynamicCharge({ providerCostUsd, config, estimated: true });
-  // If no explicit per-capability provider cost is configured, preserve the
-  // existing server-owned credit estimate as the floor while applying markup.
-  const credits = configured && configured.providerCostUsd != null
+  // Without a model-specific provider rate, retain the existing server-owned
+  // capability estimate as a floor. The resulting amount remains explicitly estimated.
+  const credits = configured
     ? base.credits
     : Math.max(base.credits, Math.ceil(legacy * (1 + config.profitMarkup) * 100) / 100);
   const safetyCredits = Math.ceil(credits * (1 + config.reservationSafetyMargin) * 100) / 100;
   return {
     ...base,
     capability: key,
-    estimateSource: configured && configured.providerCostUsd != null ? "admin_configured_provider_cost" : "legacy_capability_estimate",
+    providerId,
+    modelId,
+    estimateSource: modelRate ? "admin_configured_provider_model_rate" : (capabilityRate && capabilityRate.providerCostUsd != null ? "admin_configured_provider_cost" : "legacy_capability_estimate"),
     credits,
     reservedCredits: Math.min(config.maximumCredits, safetyCredits),
     pricingVersion: config.version
