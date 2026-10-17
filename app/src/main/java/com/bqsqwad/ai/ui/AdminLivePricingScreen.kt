@@ -69,7 +69,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var saving by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var billingMarkup by remember { mutableStateOf("130") }
+    var billingMarkup by remember { mutableStateOf("300") }
     var openAiInputRate by remember { mutableStateOf("0.05") }
     var openAiOutputRate by remember { mutableStateOf("0.25") }
     var openAiCachedRate by remember { mutableStateOf("0.005") }
