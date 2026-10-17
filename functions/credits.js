@@ -2,12 +2,12 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { priceOperation, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
 
-const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
+const ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || "isaacoshiomole0@gmail.com").trim().toLowerCase();
 
 async function isSuperAdmin(uid) {
   const user = await getAuth().getUser(uid);
   const claims = user.customClaims || {};
-  return user.email === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
+  return String(user.email || "").trim().toLowerCase() === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
 }
 
 function liveSubscriptionCredits(profile) {
