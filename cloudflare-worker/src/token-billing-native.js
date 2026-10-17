@@ -1,7 +1,7 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 
 const DEFAULT_CREDIT_REFERENCE_USD = 0.07999;
-const DEFAULT_CUSTOMER_MULTIPLIER = 1.8;
+const DEFAULT_CUSTOMER_MULTIPLIER = 2.1;
 
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
@@ -36,7 +36,7 @@ export function normalizeProviderUsage(providerId, raw = {}) {
   };
 }
 
-export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD, multiplier = DEFAULT_CUSTOMER_MULTIPLIER, estimatedFeePercent = Number(pricing?.estimatedFeePercent ?? 15) }) {
+export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD, multiplier = DEFAULT_CUSTOMER_MULTIPLIER, estimatedFeePercent = Number(pricing?.estimatedFeePercent ?? 0) }) {
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
   const cachedInputTokens = Math.min(inputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
@@ -64,14 +64,14 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const providerCostCredits = providerCostUsd / creditValue;
   // Dynamic admin billing config is shared through Firestore. Provider token
   // rates remain provider/model registry data; admins only control profit markup.
-  // Default profit markup is 80%, plus the configured fee allowance when enabled.
+  // The admin-controlled percentage is the only customer price multiplier.
+  // Default markup is 110%; no second fee multiplier is applied to usage.
   const markupPercent = Number(pricing?.profitMarkupPercent ?? ((Number(multiplier) - 1) * 100));
   if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
     throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   const markup = 1 + markupPercent / 100;
-  const feeMultiplier = pricing?.applyFeeToUsage === true ? (1 + estimatedFeePercent / 100) : 1;
-  const customerCredits = providerCostCredits * markup * feeMultiplier;
+  const customerCredits = providerCostCredits * markup;
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
@@ -113,9 +113,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.profitMarkup ?? 0.8) * 100));
-  const feeRate = Math.max(0, Math.min(100, Number(dynamicBilling.feeRate ?? 0.30) * 100));
-  const applyFeeToUsage = dynamicBilling.applyFeeToUsage !== false;
+  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.profitMarkup ?? 1.1) * 100));
+  const feeRate = 0;
+  const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
   // bqsqwadai. Website AI model metering is persisted at config/aiModels;
@@ -143,7 +143,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Website model multipliers are deliberate relative cost weights (Luna,
   // Terra, Sol, Gemini) and must affect actual Worker settlement too.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
-  const estimatedFeePercent = feeRate;
+  const estimatedFeePercent = 0;
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
