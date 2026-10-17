@@ -506,19 +506,19 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  // Defaults use the shared billing card: $0.07999 per credit and 300% markup.
+  // Defaults use the shared billing card: $0.07999 per credit and 600% markup.
   // Live rates are credits per minute internally, settled as elapsed seconds.
   const normalizedFeature = String(feature || "").toLowerCase();
   const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? 0.15001875234
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 2.50031253907 : 0);
+    ? 0.2625328168
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 4.37554693587 : 0);
   const configuredCreditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
-  // Migrate shipped 110% and 130% markup defaults to the new 300% card,
+  // Migrate shipped 110%, 130%, and 300% markup defaults to the new 600% card,
   // while preserving custom rates that differ from those known legacy defaults.
   const legacyDefaultRate = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? (Math.abs(configuredCreditsPerMinute - 0.0788) < 0.0000001 ? 0.0788 : 0.0862607826)
+    ? ([0.0788, 0.0862607826, 0.15001875234].some(rate => Math.abs(configuredCreditsPerMinute - rate) < 0.0000001) ? configuredCreditsPerMinute : null)
     : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice")
-      ? (Math.abs(configuredCreditsPerMinute - 1.3127) < 0.0000001 ? 1.3127 : 1.43767970996) : null);
+      ? ([1.3127, 1.43767970996, 2.50031253907].some(rate => Math.abs(configuredCreditsPerMinute - rate) < 0.0000001) ? configuredCreditsPerMinute : null) : null);
   const creditsPerMinute = legacyDefaultRate != null && Math.abs(configuredCreditsPerMinute - legacyDefaultRate) < 0.0000001
     ? defaultCreditsPerMinute
     : configuredCreditsPerMinute;
@@ -722,7 +722,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (charge > 0 && options.markupApplied !== true) {
     const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
       || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : ([1.1, 1.3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
+    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 5 ? (billingConfig.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 6 : billingConfig.profitMarkup))));
     charge *= 1 + markup;
   }
   // Chat is never free because an old capability record is missing a price.
@@ -3189,7 +3189,7 @@ export default {
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 4 ? (stored.profitMarkup ?? 3) : ([1.1, 1.3].includes(Number(stored.profitMarkup)) || !Number.isFinite(Number(stored.profitMarkup)) ? 3 : stored.profitMarkup))));
+        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 5 ? (stored.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(stored.profitMarkup)) || !Number.isFinite(Number(stored.profitMarkup)) ? 6 : stored.profitMarkup))));
         const openAiRates = {
           inputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.inputPriceUsdPerMillion)) ? Number(stored.openAiRates.inputPriceUsdPerMillion) : 0.05,
           outputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.outputPriceUsdPerMillion)) ? Number(stored.openAiRates.outputPriceUsdPerMillion) : 0.25,
@@ -3246,7 +3246,7 @@ export default {
         if (Object.values(featureRates).some(value => !Number.isFinite(value) || value < 0 || value > 1000000)) {
           return json({ error: "invalid_feature_rates", message: "Feature rates must be finite, non-negative numbers within supported limits." }, 400);
         }
-        const config = { profitMarkup, pricingVersion: 4, creditValueUsd: 0.07999, openAiRates, featureRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        const config = { profitMarkup, pricingVersion: 5, creditValueUsd: 0.07999, openAiRates, featureRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
         await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
         return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, featureRates, updatedAt: config.updatedAt } });
       }
