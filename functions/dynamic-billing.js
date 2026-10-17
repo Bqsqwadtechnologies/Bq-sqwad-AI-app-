@@ -259,6 +259,8 @@ export async function getBillingAnalytics(limit = 500) {
     const status = String(x.status || "reserved");
     const add = target => {
       target.providerCostUsd += cost;
+      if (x.costType === "calculated_from_actual_usage") target.usageCalculatedCostUsd += cost;
+      else target.estimatedProviderCostUsd += cost;
       target.customerProviderCostUsd += customerCost;
       target.revenueUsd += revenue;
       target.estimatedProfitUsd += profit;
