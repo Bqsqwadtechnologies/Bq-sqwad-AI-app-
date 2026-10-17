@@ -247,7 +247,7 @@ export async function getBillingAnalytics(limit = 500) {
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const totals = () => ({ providerCostUsd: 0, revenueUsd: 0, estimatedProfitUsd: 0, creditsCharged: 0, creditsRefunded: 0, requests: 0, succeeded: 0, failed: 0, adminCostUsd: 0, subscriptionCostUsd: 0, outstandingReservations: 0, unsettled: 0, costOverruns: 0, costOverrunCredits: 0 });
+  const totals = () => ({ providerCostUsd: 0, estimatedProviderCostUsd: 0, usageCalculatedCostUsd: 0, customerProviderCostUsd: 0, revenueUsd: 0, estimatedProfitUsd: 0, creditsCharged: 0, creditsRefunded: 0, requests: 0, succeeded: 0, failed: 0, adminCostUsd: 0, subscriptionCostUsd: 0, outstandingReservations: 0, unsettled: 0, costOverruns: 0, costOverrunCredits: 0 });
   const today = totals(), month = totals(), all = totals();
   const byProvider = {}, byCapability = {}, transactions = [];
   for (const doc of snap.docs) {
