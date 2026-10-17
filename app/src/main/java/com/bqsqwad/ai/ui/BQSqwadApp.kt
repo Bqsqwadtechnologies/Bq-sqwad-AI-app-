@@ -5009,14 +5009,14 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     val liveAudioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
     var liveVolume by remember {
         mutableStateOf(
-            (liveAudioManager.getStreamVolume(android.media.AudioManager.STREAM_VOICE_CALL).toFloat() /
-                liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)).coerceIn(0f, 1f)
+            (liveAudioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() /
+                liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)).coerceIn(0f, 1f)
         )
     }
     fun setLiveVolume(value: Float) {
         liveVolume = value.coerceIn(0f, 1f)
-        val maxVolume = liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-        liveAudioManager.setStreamVolume(android.media.AudioManager.STREAM_VOICE_CALL, (liveVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
+        val maxVolume = liveAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        liveAudioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (liveVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
     }
     var previewFrame by remember { mutableStateOf<ImageBitmap?>(null) }
     var lastPreviewTextureUpdate by remember { mutableLongStateOf(0L) }
@@ -6000,15 +6000,15 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     val scope = rememberCoroutineScope()
     val voiceAudioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager }
     var voiceVolume by remember {
-        mutableStateOf((voiceAudioManager.getStreamVolume(android.media.AudioManager.STREAM_VOICE_CALL).toFloat() / voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)).coerceIn(0f, 1f))
+        mutableStateOf((voiceAudioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)).coerceIn(0f, 1f))
     }
     var selectedVoice by remember { mutableStateOf("marin") }
     var voicePickerExpanded by remember { mutableStateOf(false) }
     val availableLiveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
     fun setVoiceVolume(value: Float) {
         voiceVolume = value.coerceIn(0f, 1f)
-        val maxVolume = voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_VOICE_CALL).coerceAtLeast(1)
-        voiceAudioManager.setStreamVolume(android.media.AudioManager.STREAM_VOICE_CALL, (voiceVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
+        val maxVolume = voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        voiceAudioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, (voiceVolume * maxVolume).roundToInt().coerceIn(0, maxVolume), 0)
     }
     var active by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("stopped") }
@@ -6100,7 +6100,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
                 Text("AI voice settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Live speaker volume · " + (voiceVolume * 100).roundToInt() + "%", style = MaterialTheme.typography.bodyMedium)
                 Slider(value = voiceVolume, onValueChange = ::setVoiceVolume, valueRange = 0f..1f)
-                Text("This controls the live AI call-speaker stream. Device volume buttons remain available during the session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("This controls the live AI speaker volume. Device media-volume buttons remain available during the session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Box {
                     OutlinedButton(onClick = { voicePickerExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("AI voice: " + (availableLiveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
@@ -6109,7 +6109,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
                         availableLiveVoices.forEach { (id, label) -> DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voicePickerExpanded = false }) }
                     }
                 }
-                Text("Live Voice uses the device call-speaker stream. Adjust the slider or device volume buttons during the session; a voice change applies the next time you start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Live Voice and Live Camera speech use the device media-speaker stream for stronger speaker output. Adjust the slider or device media-volume buttons during the session; a voice change applies the next time you start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         val serviceVoiceError = liveUiState.answer.takeIf {
