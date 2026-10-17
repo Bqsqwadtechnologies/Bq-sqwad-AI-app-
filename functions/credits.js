@@ -138,11 +138,12 @@ export async function reserveCredits(uid, amount, capability) {
   };
 }
 
-export async function commitCredits(uid, reservationId, providerId) {
+export async function commitCredits(uid, reservationId, providerId, metadata = {}) {
   if (!reservationId) return;
   if (String(reservationId).startsWith("admin_")) {
     await updateBillingTransaction(reservationId, {
-      providerId: providerId || null, status: "committed", creditsCharged: 0,
+      providerId: providerId || null, modelId: metadata.modelId || null, usage: metadata.usage || null,
+      status: "committed", creditsCharged: 0,
       sellingPriceUsd: 0, exemptType: "admin_exempt", costType: "estimated",
       committedAt: FieldValue.serverTimestamp()
     });
@@ -205,6 +206,8 @@ export async function commitCredits(uid, reservationId, providerId) {
     const data = committed.data() || {};
     await updateBillingTransaction(reservationId, {
       providerId: providerId || null,
+      modelId: metadata.modelId || data.modelId || null,
+      usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
       status: data.status === "committed" ? "committed" : "reserved",
       creditsCharged: data.status === "committed" ? Number(data.finalCharge ?? data.amount ?? 0) : 0,
       creditsReserved: Number(data.amount || 0),
