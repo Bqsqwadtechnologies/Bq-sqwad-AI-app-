@@ -76,7 +76,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.bq_sqwad_logo))
+            .setLargeIcon(BitmapFactory.decodeResource(resources, notificationLogoResourceId()))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(displayBody.take(500))
@@ -90,6 +90,13 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             notification
         )
     }
+
+    // Upload the full notification logo to:
+    // app/src/main/res/drawable-nodpi/bq_notification_logo.png
+    // The app uses it automatically after the next build; existing logo is fallback.
+    private fun notificationLogoResourceId(): Int =
+        resources.getIdentifier("bq_notification_logo", "drawable", packageName)
+            .takeIf { it != 0 } ?: R.drawable.bq_sqwad_logo
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
