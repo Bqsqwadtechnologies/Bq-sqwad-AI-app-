@@ -3009,7 +3009,7 @@ export const bqSqwadApi = onRequest(
         const admin = await adminFromRequest(req);
         const allowed = [
           "enabled", "profitMarkup", "feeRate", "applyFeeToUsage", "creditValueUsd",
-          "reservationSafetyMargin", "minimumCredits", "maximumCredits", "capabilityRates"
+          "reservationSafetyMargin", "minimumCredits", "maximumCredits", "capabilityRates", "providerModelRates"
         ];
         const update = {};
         for (const key of allowed) if (Object.prototype.hasOwnProperty.call(body, key)) update[key] = body[key];
