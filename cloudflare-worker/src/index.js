@@ -1137,7 +1137,7 @@ async function configuredMediaProviderCost(control, units, expectedUnit, trackin
   const creditValue = 0.07999;
   const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : (Number(billingConfig.profitMarkup) === 1.3 || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
+  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 5 ? (billingConfig.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 6 : billingConfig.profitMarkup))));
   const multiplier = 1 + markup;
   const feePercent = 0;
   if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
@@ -3213,7 +3213,7 @@ export default {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const b = await readBody(request);
-        const profitMarkup = Number(b.profitMarkup ?? 3);
+        const profitMarkup = Number(b.profitMarkup ?? 6);
         if (!Number.isFinite(profitMarkup) || profitMarkup < 0 || profitMarkup > 10) {
           return json({ error: "invalid_profit_markup", message: "Markup must be between 0% and 1000%." }, 400);
         }
