@@ -50,7 +50,7 @@ function validateConfig(raw = {}) {
   }
   for (const [key, rate] of Object.entries(config.providerModelRates)) {
     if (!/^[a-z0-9_.:-]{1,180}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_provider_model_rate_invalid");
-    for (const field of ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "estimatedInputTokens", "estimatedOutputTokens"]) {
+    for (const field of ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens"]) {
       if (rate[field] != null && (!Number.isFinite(Number(rate[field])) || Number(rate[field]) < 0)) throw new Error("billing_provider_model_rate_invalid");
     }
   }
@@ -101,9 +101,10 @@ export async function priceOperation(capability, legacyCreditEstimate = 0) {
   } else if (modelRate && ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(field => modelRate[field] != null)) {
     const inputTokens = finite(modelRate.estimatedInputTokens, 1000);
     const outputTokens = finite(modelRate.estimatedOutputTokens, 500);
+    const cachedInputTokens = Math.min(inputTokens, finite(modelRate.estimatedCachedInputTokens, 0));
     providerCostUsd = (
-      inputTokens * finite(modelRate.inputUsdPer1M, 0) +
-      inputTokens * finite(modelRate.cachedInputUsdPer1M, 0) +
+      (inputTokens - cachedInputTokens) * finite(modelRate.inputUsdPer1M, 0) +
+      cachedInputTokens * finite(modelRate.cachedInputUsdPer1M, 0) +
       outputTokens * finite(modelRate.outputUsdPer1M, 0)
     ) / 1_000_000;
   } else {
