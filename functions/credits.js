@@ -146,17 +146,44 @@ export async function reserveCredits(uid, amount, capability) {
 
 export async function commitCredits(uid, reservationId, providerId, metadata = {}) {
   if (!reservationId) return;
+  const db = getFirestore();
   if (String(reservationId).startsWith("admin_")) {
+    const adminRef = db.collection("aiBillingTransactions").doc(reservationId);
+    const adminSnap = await adminRef.get();
+    const adminData = adminSnap.exists ? adminSnap.data() || {} : {};
+    const actualCost = providerCostFromUsage(metadata.usage, adminData.rateSnapshot);
     await updateBillingTransaction(reservationId, {
-      providerId: providerId || null, modelId: metadata.modelId || null, usage: metadata.usage || null,
+      providerId: providerId || null,
+      modelId: metadata.modelId || adminData.modelId || null,
+      usage: metadata.usage || null,
+      providerCostUsd: actualCost == null ? Number(adminData.providerCostUsd || 0) : actualCost,
+      costType: actualCost == null ? "estimated" : "calculated_from_actual_usage",
       status: "committed", creditsCharged: 0,
-      sellingPriceUsd: 0, exemptType: "admin_exempt", costType: "estimated",
+      sellingPriceUsd: 0, exemptType: "admin_exempt",
       committedAt: FieldValue.serverTimestamp()
     });
     return;
   }
-  const db = getFirestore();
   const reservationRef = db.collection("creditReservations").doc(reservationId);
+  const initialSnap = await reservationRef.get();
+  const initialData = initialSnap.exists ? initialSnap.data() || {} : {};
+  let actualProviderCost = null;
+  let actualQuote = null;
+  try {
+    actualProviderCost = providerCostFromUsage(metadata.usage, initialData.rateSnapshot);
+    if (actualProviderCost != null) {
+      const currentConfig = await getDynamicBillingConfig();
+      const pricingSnapshot = initialData.pricingSnapshot || {};
+      actualQuote = calculateDynamicCharge({
+        providerCostUsd: actualProviderCost,
+        config: { ...currentConfig, ...pricingSnapshot, version: pricingSnapshot.version || initialData.pricingVersion || currentConfig.version },
+        estimated: false
+      });
+    }
+  } catch {
+    actualProviderCost = null;
+    actualQuote = null;
+  }
 
   await db.runTransaction(async tx => {
     const snap = await tx.get(reservationRef);
@@ -173,13 +200,17 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const balance = canonicalBalance(profile);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
     const reservedAmount = Math.max(0, Number(data.amount || 0));
-    const finalCharge = Math.min(reservedAmount, Math.max(0, Number(data.finalCharge ?? reservedAmount)));
+    const finalCharge = Math.max(0, Number(actualQuote?.credits ?? data.finalCharge ?? reservedAmount));
     const unused = Math.max(0, reservedAmount - finalCharge);
+    const additional = Math.max(0, finalCharge - reservedAmount);
+    if (additional > totalBalance(balance)) throw new Error("insufficient_credits_for_actual_usage");
+    const additionalSubscription = Math.min(balance.subscription, additional);
+    const additionalPermanent = additional - additionalSubscription;
     // Refund unused safety-margin credits to the same buckets originally debited.
     const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
     const refundSubscription = Math.max(0, unused - refundPermanent);
-    const nextPermanent = balance.permanent + refundPermanent;
-    const nextSubscription = balance.subscription + refundSubscription;
+    const nextPermanent = balance.permanent - additionalPermanent + refundPermanent;
+    const nextSubscription = balance.subscription - additionalSubscription + refundSubscription;
     const nextBalance = { permanent: nextPermanent, subscription: nextSubscription };
 
     tx.update(userRef, {
@@ -215,6 +246,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
         providerId: providerId || null,
         modelId: metadata.modelId || data.modelId || null,
         usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
+        providerCostUsd: actualProviderCost == null ? Number(data.providerCostUsd || 0) : actualProviderCost,
+        costType: actualProviderCost == null ? "estimated" : "calculated_from_actual_usage",
+        sellingPriceUsd: actualQuote?.sellingPriceUsd ?? Number(data.sellingPriceUsd || 0),
         status: "committed",
         creditsCharged: Number(data.finalCharge ?? data.amount ?? 0),
         creditsReserved: Number(data.amount || 0),
