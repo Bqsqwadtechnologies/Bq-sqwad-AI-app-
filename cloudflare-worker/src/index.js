@@ -2534,7 +2534,7 @@ export default {
            if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
            throw error;
          }
-         const trackedCost = configuredMediaProviderCost(modelControl, isCameraMode ? 60 : 1, expectedCostUnit, true);
+         const trackedCost = await configuredMediaProviderCost(modelControl, isCameraMode ? 60 : 1, expectedCostUnit, true);
          if (trackedCost) {
            await recordConfiguredMediaCost(user.uid, capabilityName, modelControl, {
              providerId: modelControl.providerId || "openai",
@@ -2895,7 +2895,7 @@ export default {
           control = { ...control, ...selected, config: control.config || {} };
         }
         body.model = control.modelId || "gpt-image-2";
-        const mediaCost = configuredMediaProviderCost(control, 1, "image");
+        const mediaCost = await configuredMediaProviderCost(control, 1, "image");
         body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         const result = await editImageNative(
           env, u, body,
@@ -2916,7 +2916,7 @@ export default {
           const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        const mediaCost = configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
+        const mediaCost = await configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
         b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         b.model = control.modelId;
         const result = await createVideoNative(env, u, b,
