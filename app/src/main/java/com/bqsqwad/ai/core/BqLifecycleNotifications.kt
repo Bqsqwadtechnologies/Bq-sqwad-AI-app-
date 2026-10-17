@@ -348,6 +348,13 @@ object BqLifecycleNotifications {
         }
     }
 
+    // Upload the full notification logo to:
+    // app/src/main/res/drawable-nodpi/bq_notification_logo.png
+    // Resource lookup is optional until that image is uploaded; bundled logo is fallback.
+    private fun notificationLogoResourceId(context: Context): Int =
+        context.resources.getIdentifier("bq_notification_logo", "drawable", context.packageName)
+            .takeIf { it != 0 } ?: R.drawable.bq_sqwad_logo
+
     private fun post(context: Context, title: String, body: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -374,7 +381,7 @@ object BqLifecycleNotifications {
         if (AppVisibility.isForeground) return
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
-            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.drawable.bq_sqwad_logo))
+            .setLargeIcon(BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context)))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
             .setContentText("$title · $body")
