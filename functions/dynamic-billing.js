@@ -247,7 +247,7 @@ export async function getBillingAnalytics(limit = 500) {
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const totals = () => ({ providerCostUsd: 0, revenueUsd: 0, estimatedProfitUsd: 0, creditsCharged: 0, creditsRefunded: 0, requests: 0, succeeded: 0, failed: 0, adminCostUsd: 0, subscriptionCostUsd: 0, outstandingReservations: 0, unsettled: 0 });
+  const totals = () => ({ providerCostUsd: 0, revenueUsd: 0, estimatedProfitUsd: 0, creditsCharged: 0, creditsRefunded: 0, requests: 0, succeeded: 0, failed: 0, adminCostUsd: 0, subscriptionCostUsd: 0, outstandingReservations: 0, unsettled: 0, costOverruns: 0, costOverrunCredits: 0 });
   const today = totals(), month = totals(), all = totals();
   const byProvider = {}, byCapability = {}, transactions = [];
   for (const doc of snap.docs) {
@@ -276,6 +276,7 @@ export async function getBillingAnalytics(limit = 500) {
       target.requests += 1;
       if (status === "committed") target.succeeded += 1;
       if (status === "failed" || status === "reversed") target.failed += 1;
+      if (Number(x.costOverrunCredits || 0) > 0) { target.costOverruns += 1; target.costOverrunCredits += Number(x.costOverrunCredits || 0); }
       if (exempt) target.adminCostUsd += cost;
       if (subscription) target.subscriptionCostUsd += cost;
       if (status === "reserved") target.outstandingReservations += 1;
@@ -295,7 +296,9 @@ export async function getBillingAnalytics(limit = 500) {
       modelId: x.modelId || null, providerCostUsd: cost, costType: x.costType || "estimated",
       sellingPriceUsd: revenue, creditsReserved: finite(x.creditsReserved, 0),
       creditsCharged: charged, creditsRefunded: refunded, status, exemptType: x.exemptType || "credit_billed",
-      pricingVersion: finite(x.pricingVersion, 1), usage: x.usage || null, createdAt: created.toISOString()
+      pricingVersion: finite(x.pricingVersion, 1), usage: x.usage || null,
+      costOverrun: Boolean(x.costOverrun), costOverrunCredits: finite(x.costOverrunCredits, 0),
+      createdAt: created.toISOString()
     });
   }
   const round = obj => Object.fromEntries(Object.entries(obj).map(([k,v]) => [k, typeof v === "number" ? Math.round(v * 10000) / 10000 : v]));
