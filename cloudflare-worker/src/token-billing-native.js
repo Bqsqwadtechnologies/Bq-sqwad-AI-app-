@@ -1,7 +1,7 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 
 const DEFAULT_CREDIT_REFERENCE_USD = 0.07999;
-const DEFAULT_CUSTOMER_MULTIPLIER = 2.3;
+const DEFAULT_CUSTOMER_MULTIPLIER = 4.0;
 
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
@@ -113,7 +113,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 3 ? (dynamicBilling.profitMarkup ?? 1.3) : 1.3) * 100));
+  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 4 ? (dynamicBilling.profitMarkup ?? 3) : (Number(dynamicBilling.profitMarkup) === 1.3 || !Number.isFinite(Number(dynamicBilling.profitMarkup)) ? 3 : dynamicBilling.profitMarkup)) * 100));
   const feeRate = 0;
   const applyFeeToUsage = false;
 
