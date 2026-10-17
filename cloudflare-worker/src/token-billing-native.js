@@ -40,11 +40,19 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
   const cachedInputTokens = Math.min(inputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
-  const inputRate = Number(pricing?.inputPriceUsdPerMillion);
-  const outputRate = Number(pricing?.outputPriceUsdPerMillion);
-  const cachedRate = pricing?.cachedInputPriceUsdPerMillion == null
-    ? inputRate
-    : Number(pricing.cachedInputPriceUsdPerMillion);
+  // Canonical provider prices are USD per token. The legacy per-million fields
+  // remain supported for existing model registry/admin documents.
+  const inputRate = pricing?.inputPriceUsdPerToken != null
+    ? Number(pricing.inputPriceUsdPerToken) * 1_000_000
+    : Number(pricing?.inputPriceUsdPerMillion);
+  const outputRate = pricing?.outputPriceUsdPerToken != null
+    ? Number(pricing.outputPriceUsdPerToken) * 1_000_000
+    : Number(pricing?.outputPriceUsdPerMillion);
+  const cachedRate = pricing?.cachedInputPriceUsdPerToken != null
+    ? Number(pricing.cachedInputPriceUsdPerToken) * 1_000_000
+    : pricing?.cachedInputPriceUsdPerMillion == null
+      ? inputRate
+      : Number(pricing.cachedInputPriceUsdPerMillion);
   if (![inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0) ||
       inputRate + outputRate + cachedRate <= 0) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
@@ -65,7 +73,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   // Dynamic admin billing config is shared through Firestore. Provider token
   // rates remain provider/model registry data; admins only control profit markup.
   // The admin-controlled percentage is the only customer price multiplier.
-  // Default markup is 130%; no second fee multiplier is applied to usage.
+  // Default markup is 600%; no second fee multiplier is applied to usage.
   const markupPercent = Number(pricing?.profitMarkupPercent ?? ((Number(multiplier) - 1) * 100));
   if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
     throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
@@ -135,14 +143,23 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const sharedModelMultiplier = modelMultipliers.find(([key]) => modelIdLower.includes(String(key).toLowerCase()));
   // Built-in OpenAI text-chat rate card keeps Main Chat operational on a fresh
   // install before an administrator has populated per-model registry prices.
-  // Rates are USD per million tokens; provider-specific registry/admin values
-  // always override these defaults. Other providers still require their own rates.
+  // Canonical defaults are USD per token; legacy admin/registry prices are
+  // normalized to USD per million tokens for backwards compatibility. Other providers still require their own rates.
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
   const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
+  const inputTokenRate = embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken ?? (isOpenAi ? 0.00000005 : undefined);
+  const outputTokenRate = embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken ?? (isOpenAi ? 0.00000025 : undefined);
+  const cachedTokenRate = embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken ?? (isOpenAi ? 0.000000005 : undefined);
+  const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0);
+  const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0);
+  const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? 0.005 : undefined);
   const rates = {
-    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0)),
-    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0)),
-    cachedInputPriceUsdPerMillion: Number(embedded.cachedInputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? 0.005 : (embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0)))
+    inputPriceUsdPerToken: inputTokenRate == null ? undefined : Number(inputTokenRate),
+    outputPriceUsdPerToken: outputTokenRate == null ? undefined : Number(outputTokenRate),
+    cachedInputPriceUsdPerToken: cachedTokenRate == null ? undefined : Number(cachedTokenRate),
+    inputPriceUsdPerMillion: inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : Number(inputPerMillionLegacy),
+    outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy),
+    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy)
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
   const baseCustomerMultiplier = 1 + profitMarkup / 100;
