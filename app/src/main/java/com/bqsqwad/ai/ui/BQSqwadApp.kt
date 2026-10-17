@@ -6016,6 +6016,9 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     var permissionExplanation by remember { mutableStateOf(false) }
 
     fun startVoice() {
+        // Raise the media stream before opening the realtime session so remote
+        // assistant audio is not left at a low music-stream volume.
+        runCatching { setVoiceVolume(1f) }
         if (androidx.core.content.ContextCompat.checkSelfPermission(
                 context, Manifest.permission.RECORD_AUDIO
             ) != android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -7056,6 +7059,13 @@ private fun shareText(context: Context, text: String) {
 
 private fun speakTextWhenReady(context: Context, text: String, onError: (String) -> Unit) {
     if (text.isBlank()) return
+    // Standard chat read-aloud uses the media stream; set it to the requested
+    // loud level before speaking instead of inheriting a previously low volume.
+    runCatching {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        val maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, maxVolume, 0)
+    }
     lateinit var engine: TextToSpeech
     engine = TextToSpeech(context) { status ->
         if (status != TextToSpeech.SUCCESS) {
