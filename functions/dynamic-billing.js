@@ -132,6 +132,26 @@ export async function priceOperation(capability, legacyCreditEstimate = 0) {
   };
 }
 
+export function providerCostFromUsage(usage, rate) {
+  if (!usage || typeof usage !== "object" || !rate || typeof rate !== "object") return null;
+  const hasTokenRates = ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(key => rate[key] != null);
+  if (!hasTokenRates || rate.providerCostUsd != null) return null;
+  const input = finite(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens, NaN);
+  const output = finite(usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens, NaN);
+  if (!Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return null;
+  const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
+  const cached = Math.min(input, Math.max(0, finite(
+    details.cached_tokens ?? usage.cached_input_tokens ?? usage.cachedInputTokens,
+    finite(rate.estimatedCachedInputTokens, 0)
+  )));
+  const cost = (
+    (input - cached) * finite(rate.inputUsdPer1M, 0) +
+    cached * finite(rate.cachedInputUsdPer1M, 0) +
+    output * finite(rate.outputUsdPer1M, 0)
+  ) / 1_000_000;
+  return Number.isFinite(cost) && cost >= 0 ? cost : null;
+}
+
 export async function recordBillingTransaction(id, data) {
   try {
     const ref = getFirestore().collection("aiBillingTransactions").doc(String(id));
@@ -145,6 +165,8 @@ export async function recordBillingTransaction(id, data) {
         providerId: data.providerId || null,
         modelId: data.modelId || null,
         providerCostUsd: Number(data.providerCostUsd || 0),
+        rateSnapshot: data.rateSnapshot && typeof data.rateSnapshot === "object" ? data.rateSnapshot : null,
+        pricingSnapshot: data.pricingSnapshot && typeof data.pricingSnapshot === "object" ? data.pricingSnapshot : null,
         costType: data.costType || "estimated",
         sellingPriceUsd: Number(data.sellingPriceUsd || 0),
         profitMarkup: Number(data.profitMarkup || 0),
