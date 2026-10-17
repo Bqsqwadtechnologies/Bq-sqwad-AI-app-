@@ -125,6 +125,13 @@ export async function priceOperation(capability, legacyCreditEstimate = 0) {
     capability: key,
     providerId,
     modelId,
+    rateSnapshot: configured ? { ...configured } : null,
+    pricingSnapshot: {
+      profitMarkup: config.profitMarkup, feeRate: config.feeRate,
+      applyFeeToUsage: config.applyFeeToUsage, creditValueUsd: config.creditValueUsd,
+      minimumCredits: config.minimumCredits, maximumCredits: config.maximumCredits,
+      version: config.version
+    },
     estimateSource: modelRate ? "admin_configured_provider_model_rate" : (capabilityRate && capabilityRate.providerCostUsd != null ? "admin_configured_provider_cost" : "legacy_capability_estimate"),
     credits,
     reservedCredits: Math.min(config.maximumCredits, safetyCredits),
