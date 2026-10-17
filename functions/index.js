@@ -1720,12 +1720,10 @@ export const bqSqwadApi = onRequest(
           const system = remembered
             ? [(body.system ? String(body.system) : ""), "Relevant user memory (use only when helpful and do not invent details):", remembered].filter(Boolean).join("\n")
             : (body.system ? String(body.system) : undefined);
-          res.status(200);
-          res.set("Cache-Control", "no-cache");
-          res.set("Connection", "keep-alive");
-          res.set("Content-Type", "text/event-stream");
-          res.flushHeaders?.();
           let completed = false;
+          let streamUsage = null;
+          const bufferedEvents = [];
+          let bufferedCharacters = 0;
           let streamResult = null;
           streamResult = await route.streamAi({
             capability,
@@ -1733,19 +1731,34 @@ export const bqSqwadApi = onRequest(
             system,
             onEvent: event => {
               if (event.type === "delta") {
-                res.write("data: " + JSON.stringify({ type: "delta", text: event.text }) + "\n\n");
+                const text = String(event.text || "");
+                bufferedCharacters += text.length;
+                if (bufferedCharacters > 1_000_000) throw new Error("AI response exceeded the safe response limit.");
+                bufferedEvents.push({ type: "delta", text });
               } else if (event.type === "completed") {
                 completed = true;
-                res.write("data: " + JSON.stringify({ type: "completed" }) + "\n\n");
+                streamUsage = event.response?.usage || null;
               } else if (event.type === "error") {
-                res.write("data: " + JSON.stringify({ type: "error", message: event.message }) + "\n\n");
+                throw new Error(String(event.message || "AI stream failed"));
               }
             }
           });
           if (!completed || !streamResult?.providerId) throw new Error("The AI stream ended before completion.");
-          await commitCredits(user.uid, reservation?.reservationId, streamResult.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, streamResult.providerId, {
+            modelId: streamResult.modelId,
+            usage: streamUsage
+          });
           gate.commit();
           await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "success", metadata: { provider: streamResult.providerId, model: streamResult.modelId || "" } });
+          res.status(200);
+          res.set("Cache-Control", "no-cache");
+          res.set("Connection", "keep-alive");
+          res.set("Content-Type", "text/event-stream");
+          res.flushHeaders?.();
+          for (const event of bufferedEvents) {
+            res.write("data: " + JSON.stringify(event) + "\n\n");
+          }
+          res.write("data: " + JSON.stringify({ type: "completed" }) + "\n\n");
           res.write("data: [DONE]\n\n");
           return res.end();
         } catch (error) {
