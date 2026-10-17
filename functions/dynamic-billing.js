@@ -51,9 +51,9 @@ function validateConfig(raw = {}) {
   }
   for (const [key, rate] of Object.entries(config.providerModelRates)) {
     if (!/^[a-z0-9_.:-]{1,180}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_provider_model_rate_invalid");
-    const rateFields = ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"];
+    const rateFields = ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "apiCreditUsd"];
     if (!rateFields.some(field => rate[field] != null)) throw new Error("billing_provider_model_rate_required");
-    for (const field of [...rateFields, "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens"]) {
+    for (const field of [...rateFields, "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens", "apiCreditUsd", "estimatedApiCredits"]) {
       if (rate[field] != null && (!Number.isFinite(Number(rate[field])) || Number(rate[field]) < 0)) throw new Error("billing_provider_model_rate_invalid");
     }
   }
@@ -101,6 +101,8 @@ export async function priceOperation(capability, legacyCreditEstimate = 0) {
   let providerCostUsd;
   if (configured && configured.providerCostUsd != null) {
     providerCostUsd = Number(configured.providerCostUsd);
+  } else if (modelRate && modelRate.apiCreditUsd != null) {
+    providerCostUsd = finite(modelRate.apiCreditUsd, 0) * finite(modelRate.estimatedApiCredits, 1);
   } else if (modelRate && ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(field => modelRate[field] != null)) {
     const inputTokens = finite(modelRate.estimatedInputTokens, 1000);
     const outputTokens = finite(modelRate.estimatedOutputTokens, 500);
@@ -141,6 +143,10 @@ export async function priceOperation(capability, legacyCreditEstimate = 0) {
 
 export function providerCostFromUsage(usage, rate) {
   if (!usage || typeof usage !== "object" || !rate || typeof rate !== "object") return null;
+  if (rate.apiCreditUsd != null) {
+    const credits = finite(usage.api_credits ?? usage.credits_used ?? usage.creditsUsed, NaN);
+    return Number.isFinite(credits) && credits >= 0 ? credits * finite(rate.apiCreditUsd, 0) : null;
+  }
   const hasTokenRates = ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(key => rate[key] != null);
   if (!hasTokenRates || rate.providerCostUsd != null) return null;
   const input = finite(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens, NaN);
