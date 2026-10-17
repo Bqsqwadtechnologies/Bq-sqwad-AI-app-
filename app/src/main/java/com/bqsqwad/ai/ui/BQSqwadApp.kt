@@ -6059,7 +6059,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     ) { granted -> if (granted) startVoice() }
 
     Column(
-        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -6087,6 +6087,14 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
         )
+        Button(
+            onClick = { if (active) stopVoice() else startVoice() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(if (active) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (active) "End conversation" else "Start conversation")
+        }
         Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI voice settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -6128,15 +6136,6 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
         if (!active && state.contains("credit", ignoreCase = true)) {
             Text("Your current usage allowance is unavailable. Review plans and billing to continue.", color = MaterialTheme.colorScheme.onSurface, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Button(onClick = onOpenCredits, modifier = Modifier.fillMaxWidth()) { Text("Buy credits") }
-        }
-
-        Button(
-            onClick = { if (active) stopVoice() else startVoice() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(if (active) Icons.Default.Stop else Icons.Default.Mic, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (active) "End conversation" else "Start conversation")
         }
 
         if (active) {
