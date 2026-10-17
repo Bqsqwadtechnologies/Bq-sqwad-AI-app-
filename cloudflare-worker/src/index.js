@@ -3174,13 +3174,25 @@ export default {
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 2 ? (stored.profitMarkup ?? 1.1) : 1.1)));
+        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 3 ? (stored.profitMarkup ?? 1.3) : 1.3)));
         const openAiRates = {
           inputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.inputPriceUsdPerMillion)) ? Number(stored.openAiRates.inputPriceUsdPerMillion) : 0.05,
           outputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.outputPriceUsdPerMillion)) ? Number(stored.openAiRates.outputPriceUsdPerMillion) : 0.25,
           cachedInputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.cachedInputPriceUsdPerMillion)) ? Number(stored.openAiRates.cachedInputPriceUsdPerMillion) : 0.005
         };
-        return json({ config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
+        const featureRates = {
+          audioInputUsdPerToken: Number(stored.featureRates?.audioInputUsdPerToken ?? 0.000032),
+          audioOutputUsdPerToken: Number(stored.featureRates?.audioOutputUsdPerToken ?? 0.000064),
+          transcriptionUsdPerMinute: Number(stored.featureRates?.transcriptionUsdPerMinute ?? 0.003),
+          liveVoiceConnectionUsdPerMinute: Number(stored.featureRates?.liveVoiceConnectionUsdPerMinute ?? 0.05),
+          liveCameraConnectionUsdPerMinute: Number(stored.featureRates?.liveCameraConnectionUsdPerMinute ?? 0.05),
+          imageOutputUsdPerToken: Number(stored.featureRates?.imageOutputUsdPerToken ?? 0.000015),
+          imageInputUsdPerToken: Number(stored.featureRates?.imageInputUsdPerToken ?? 0.000004),
+          imageTextInputUsdPerToken: Number(stored.featureRates?.imageTextInputUsdPerToken ?? 0.0000025),
+          tavilyCreditsPerSearch: Number(stored.featureRates?.tavilyCreditsPerSearch ?? 1.7),
+          deepResearchCredits: Number(stored.featureRates?.deepResearchCredits ?? 5)
+        };
+        return json({ config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, featureRates, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
       }
       if (url.pathname === "/admin/ai-billing/config" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -3198,12 +3210,30 @@ export default {
           outputPriceUsdPerMillion: Number(rawRates.outputPriceUsdPerMillion ?? oldRates.outputPriceUsdPerMillion ?? 0.25),
           cachedInputPriceUsdPerMillion: Number(rawRates.cachedInputPriceUsdPerMillion ?? oldRates.cachedInputPriceUsdPerMillion ?? 0.005)
         };
+        const oldFeatureRates = current.featureRates && typeof current.featureRates === "object" ? current.featureRates : {};
+        const rawFeatureRates = b.featureRates && typeof b.featureRates === "object" ? b.featureRates : {};
+        const defaults = {
+          audioInputUsdPerToken: 0.000032,
+          audioOutputUsdPerToken: 0.000064,
+          transcriptionUsdPerMinute: 0.003,
+          liveVoiceConnectionUsdPerMinute: 0.05,
+          liveCameraConnectionUsdPerMinute: 0.05,
+          imageOutputUsdPerToken: 0.000015,
+          imageInputUsdPerToken: 0.000004,
+          imageTextInputUsdPerToken: 0.0000025,
+          tavilyCreditsPerSearch: 1.7,
+          deepResearchCredits: 5
+        };
+        const featureRates = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, Number(rawFeatureRates[key] ?? oldFeatureRates[key] ?? fallback)]));
         if (Object.values(openAiRates).some(value => !Number.isFinite(value) || value < 0 || value > 10000)) {
           return json({ error: "invalid_openai_rates", message: "OpenAI token rates must be between 0 and 10000 USD per million tokens." }, 400);
         }
-        const config = { profitMarkup, pricingVersion: 2, creditValueUsd: 0.07999, openAiRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        if (Object.values(featureRates).some(value => !Number.isFinite(value) || value < 0 || value > 1000000)) {
+          return json({ error: "invalid_feature_rates", message: "Feature rates must be finite, non-negative numbers within supported limits." }, 400);
+        }
+        const config = { profitMarkup, pricingVersion: 3, creditValueUsd: 0.07999, openAiRates, featureRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
         await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
-        return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, updatedAt: config.updatedAt } });
+        return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, featureRates, updatedAt: config.updatedAt } });
       }
       if (url.pathname === "/admin/ai-billing/analytics" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
@@ -3463,7 +3493,7 @@ export default {
         const deepResearch = Boolean(body.deepResearch);
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
-        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 0.2625), Number(control.creditCost || 0));
+        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 1.7), Number(control.creditCost || 0));
         const reservation = await chargeCredits(user.uid, charge, capabilityName, user);
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
