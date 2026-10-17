@@ -115,6 +115,8 @@ export async function reserveCredits(uid, amount, capability) {
       fromSubscription,
       fromPermanent,
       status: "reserved",
+      providerId: pricing.providerId || null,
+      modelId: pricing.modelId || null,
       providerCostUsd: pricing.providerCostUsd,
       sellingPriceUsd: pricing.sellingPriceUsd,
       profitMarkup: pricing.profitMarkup,
