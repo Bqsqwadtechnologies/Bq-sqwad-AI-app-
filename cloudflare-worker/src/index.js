@@ -1114,14 +1114,17 @@ const BQ_APP_KNOWLEDGE = [
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
 
-function configuredMediaProviderCost(control, units, expectedUnit, trackingOnly = false) {
+async function configuredMediaProviderCost(control, units, expectedUnit, trackingOnly = false) {
   if (trackingOnly ? control?.providerCostTrackingEnabled !== true : String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
   const unit = String(control?.providerCostUnit || "");
   const count = Number(units);
   const unitPrice = Number(control?.priceUsd || 0);
-  const creditValue = Number(control?.creditReferenceValueUsd || 0.07999);
-  const multiplier = Number(control?.customerMultiplier || 8);
-  const feePercent = Number(control?.estimatedFeePercent ?? 15);
+  const creditValue = 0.07999;
+  const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
+    || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
+  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 2 ? (billingConfig.profitMarkup ?? 1.1) : 1.1)));
+  const multiplier = 1 + markup;
+  const feePercent = 0;
   if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
       !Number.isFinite(unitPrice) || unitPrice <= 0 ||
       !Number.isFinite(creditValue) || creditValue <= 0 ||
@@ -2843,11 +2846,11 @@ export default {
           const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        const mediaCost = configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
+        const mediaCost = await configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
         b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         b.model = control.modelId;
         const result = await createVideoNative(env, u, b,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id));
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
@@ -2870,11 +2873,11 @@ export default {
           control = { ...control, ...selected, config: control.config || {} };
         }
         body.model = control.modelId || "gpt-image-2";
-        const mediaCost = configuredMediaProviderCost(control, 1, "image");
+        const mediaCost = await configuredMediaProviderCost(control, 1, "image");
         body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         const result = await generateImageNative(
           env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id)
         );
@@ -2896,7 +2899,7 @@ export default {
         body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         const result = await editImageNative(
           env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id)
         );
@@ -2917,7 +2920,7 @@ export default {
         b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
         b.model = control.modelId;
         const result = await createVideoNative(env, u, b,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id));
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
