@@ -163,7 +163,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy),
     cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy)
   };
-  // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.\n  // This is the canonical conversion value; stale per-model/config values must not override it.\n  const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
+  // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.
+  // This is the canonical conversion value; stale per-model/config values must not override it.
+  const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
   const baseCustomerMultiplier = 1 + profitMarkup / 100;
   // Website model multipliers are deliberate relative cost weights (Luna,
   // Terra, Sol, Gemini) and must affect actual Worker settlement too.
