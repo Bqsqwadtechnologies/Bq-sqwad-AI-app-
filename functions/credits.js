@@ -69,8 +69,9 @@ export async function reserveCredits(uid, amount, capability) {
     });
     return { reservationId: adminTransactionId, amount: 0, adminUnlimited: true, billingEstimate: pricing };
   }
-  const charge = Math.max(0, Number(pricing.credits || 0));
-  if (charge === 0) return { reservationId: null, amount: 0, billingEstimate: pricing };
+  const finalCharge = Math.max(0, Number(pricing.credits || 0));
+  const charge = Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge));
+  if (finalCharge === 0) return { reservationId: null, amount: 0, billingEstimate: pricing };
   const userRef = db.collection("users").doc(uid);
   const balanceRef = db.collection("creditBalances").doc(uid);
   const reservationRef = db.collection("creditReservations").doc();
@@ -110,6 +111,7 @@ export async function reserveCredits(uid, amount, capability) {
       uid,
       capability,
       amount: charge,
+      finalCharge,
       fromSubscription,
       fromPermanent,
       status: "reserved",
@@ -132,7 +134,7 @@ export async function reserveCredits(uid, amount, capability) {
     exemptType: "credit_billed", status: "reserved", estimateSource: pricing.estimateSource
   });
   return {
-    reservationId: reservationRef.id, amount: charge, billingEstimate: pricing
+    reservationId: reservationRef.id, amount: finalCharge, reservedAmount: charge, billingEstimate: pricing
   };
 }
 
@@ -163,21 +165,36 @@ export async function commitCredits(uid, reservationId, providerId) {
     const profile = userSnap.data() || {};
     const balance = canonicalBalance(profile);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
+    const reservedAmount = Math.max(0, Number(data.amount || 0));
+    const finalCharge = Math.min(reservedAmount, Math.max(0, Number(data.finalCharge ?? reservedAmount)));
+    const unused = Math.max(0, reservedAmount - finalCharge);
+    // Refund unused safety-margin credits to the same buckets originally debited.
+    const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
+    const refundSubscription = Math.max(0, unused - refundPermanent);
+    const nextPermanent = balance.permanent + refundPermanent;
+    const nextSubscription = balance.subscription + refundSubscription;
+    const nextBalance = { permanent: nextPermanent, subscription: nextSubscription };
 
+    tx.update(userRef, {
+      credits: nextPermanent,
+      subCredits: nextSubscription,
+      updatedAt: FieldValue.serverTimestamp()
+    });
     tx.update(balanceRef, {
-      available: totalBalance(balance),
-      reserved: Math.max(0, Number(legacy.reserved || 0) - Number(data.amount || 0)),
+      available: totalBalance(nextBalance),
+      reserved: Math.max(0, Number(legacy.reserved || 0) - reservedAmount),
       updatedAt: FieldValue.serverTimestamp()
     });
     tx.update(reservationRef, {
       status: "committed",
+      finalCharge,
       providerId: providerId || null,
       committedAt: FieldValue.serverTimestamp()
     });
     tx.create(db.collection("creditLedger").doc(), {
       uid,
       capability: data.capability,
-      amount: Number(data.amount),
+      amount: finalCharge,
       kind: "usage",
       providerId: providerId || null,
       createdAt: FieldValue.serverTimestamp()
@@ -189,8 +206,9 @@ export async function commitCredits(uid, reservationId, providerId) {
     await updateBillingTransaction(reservationId, {
       providerId: providerId || null,
       status: data.status === "committed" ? "committed" : "reserved",
-      creditsCharged: data.status === "committed" ? Number(data.amount || 0) : 0,
+      creditsCharged: data.status === "committed" ? Number(data.finalCharge ?? data.amount ?? 0) : 0,
       creditsReserved: Number(data.amount || 0),
+      creditsRefunded: data.status === "committed" ? Math.max(0, Number(data.amount || 0) - Number(data.finalCharge ?? data.amount ?? 0)) : 0,
       committedAt: FieldValue.serverTimestamp()
     });
   }
