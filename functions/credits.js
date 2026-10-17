@@ -1,5 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { priceOperation, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
 
 const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
 
@@ -33,11 +34,43 @@ function totalBalance(balance) {
  * mirror for older backend consumers.
  */
 export async function reserveCredits(uid, amount, capability) {
-  const charge = Math.max(0, Number(amount));
-  if (await isSuperAdmin(uid)) return { reservationId: null, amount: 0, adminUnlimited: true };
-  if (charge === 0) return { reservationId: null, amount: 0 };
-
+  const legacyEstimate = Math.max(0, Number(amount) || 0);
+  let pricing;
+  try {
+    pricing = await priceOperation(capability, legacyEstimate);
+  } catch (error) {
+    // Keep requests billable if the optional dynamic configuration is temporarily
+    // unavailable: use the server-provided capability estimate plus the 80% markup.
+    const fallbackCharge = Math.ceil(legacyEstimate * 1.8 * 100) / 100;
+    pricing = {
+      capability: String(capability || "unknown"),
+      providerCostUsd: legacyEstimate * 0.07999,
+      sellingPriceUsd: fallbackCharge * 0.07999,
+      credits: fallbackCharge,
+      reservedCredits: fallbackCharge,
+      profitMarkup: 0.8,
+      feeRateApplied: 0,
+      creditValueUsd: 0.07999,
+      estimated: true,
+      estimateSource: "safe_fallback_legacy_estimate",
+      pricingVersion: 1
+    };
+  }
+  const adminExempt = await isSuperAdmin(uid);
   const db = getFirestore();
+  if (adminExempt) {
+    const adminTransactionId = "admin_" + db.collection("aiBillingTransactions").doc().id;
+    await recordBillingTransaction(adminTransactionId, {
+      uid, capability, providerCostUsd: pricing.providerCostUsd, costType: "estimated",
+      sellingPriceUsd: 0, profitMarkup: pricing.profitMarkup, feeRateApplied: pricing.feeRateApplied,
+      creditValueUsd: pricing.creditValueUsd, creditsReserved: 0, creditsCharged: 0,
+      pricingVersion: pricing.pricingVersion, exemptType: "admin_exempt",
+      status: "reserved", estimateSource: pricing.estimateSource
+    });
+    return { reservationId: adminTransactionId, amount: 0, adminUnlimited: true, billingEstimate: pricing };
+  }
+  const charge = Math.max(0, Number(pricing.credits || 0));
+  if (charge === 0) return { reservationId: null, amount: 0, billingEstimate: pricing };
   const userRef = db.collection("users").doc(uid);
   const balanceRef = db.collection("creditBalances").doc(uid);
   const reservationRef = db.collection("creditReservations").doc();
@@ -80,15 +113,39 @@ export async function reserveCredits(uid, amount, capability) {
       fromSubscription,
       fromPermanent,
       status: "reserved",
+      providerCostUsd: pricing.providerCostUsd,
+      sellingPriceUsd: pricing.sellingPriceUsd,
+      profitMarkup: pricing.profitMarkup,
+      feeRateApplied: pricing.feeRateApplied,
+      creditValueUsd: pricing.creditValueUsd,
+      pricingVersion: pricing.pricingVersion,
+      estimateSource: pricing.estimateSource,
       createdAt: FieldValue.serverTimestamp()
     });
   });
 
-  return { reservationId: reservationRef.id, amount: charge };
+  await recordBillingTransaction(reservationRef.id, {
+    uid, capability, providerCostUsd: pricing.providerCostUsd, costType: "estimated",
+    sellingPriceUsd: pricing.sellingPriceUsd, profitMarkup: pricing.profitMarkup,
+    feeRateApplied: pricing.feeRateApplied, creditValueUsd: pricing.creditValueUsd,
+    creditsReserved: charge, creditsCharged: 0, pricingVersion: pricing.pricingVersion,
+    exemptType: "credit_billed", status: "reserved", estimateSource: pricing.estimateSource
+  });
+  return {
+    reservationId: reservationRef.id, amount: charge, billingEstimate: pricing
+  };
 }
 
 export async function commitCredits(uid, reservationId, providerId) {
   if (!reservationId) return;
+  if (String(reservationId).startsWith("admin_")) {
+    await updateBillingTransaction(reservationId, {
+      providerId: providerId || null, status: "committed", creditsCharged: 0,
+      sellingPriceUsd: 0, exemptType: "admin_exempt", costType: "estimated",
+      committedAt: FieldValue.serverTimestamp()
+    });
+    return;
+  }
   const db = getFirestore();
   const reservationRef = db.collection("creditReservations").doc(reservationId);
 
@@ -126,6 +183,17 @@ export async function commitCredits(uid, reservationId, providerId) {
       createdAt: FieldValue.serverTimestamp()
     });
   });
+  const committed = await reservationRef.get();
+  if (committed.exists) {
+    const data = committed.data() || {};
+    await updateBillingTransaction(reservationId, {
+      providerId: providerId || null,
+      status: data.status === "committed" ? "committed" : "reserved",
+      creditsCharged: data.status === "committed" ? Number(data.amount || 0) : 0,
+      creditsReserved: Number(data.amount || 0),
+      committedAt: FieldValue.serverTimestamp()
+    });
+  }
 }
 
 export async function grantCredits(adminUid, targetUid, amount, reason = "admin_grant") {
@@ -172,6 +240,13 @@ export async function grantCredits(adminUid, targetUid, amount, reason = "admin_
 
 export async function reverseCredits(uid, reservationId) {
   if (!reservationId) return;
+  if (String(reservationId).startsWith("admin_")) {
+    await updateBillingTransaction(reservationId, {
+      status: "failed", creditsCharged: 0, creditsRefunded: 0,
+      errorClass: "provider_or_operation_failed", updatedAt: FieldValue.serverTimestamp()
+    });
+    return;
+  }
   const db = getFirestore();
   const reservationRef = db.collection("creditReservations").doc(reservationId);
 
@@ -207,5 +282,10 @@ export async function reverseCredits(uid, reservationId) {
       status: "reversed",
       reversedAt: FieldValue.serverTimestamp()
     });
+  });
+  await updateBillingTransaction(reservationId, {
+    status: "reversed", creditsCharged: 0,
+    creditsRefunded: Number((await reservationRef.get()).data()?.amount || 0),
+    reversedAt: FieldValue.serverTimestamp()
   });
 }
