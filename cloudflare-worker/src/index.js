@@ -1722,8 +1722,10 @@ export default {
         const durationSeconds = Math.min(120, Math.max(1, Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : Math.ceil((audioBytes.byteLength - 44) / 32000)));
         const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
         const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
-        const minutes = Math.max(1, Math.ceil(durationSeconds / 60));
-        const chargeAmount = startFee + rate * minutes;
+        // Bill transcription proportionally to the actual recorded duration;
+        // a short clip must not be rounded up to a whole minute.
+        const billedMinutes = durationSeconds / 60;
+        const chargeAmount = startFee + rate * billedMinutes;
         if (chargeAmount > 0 && !isSuperAdmin(user, env)) {
           const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
           const minimum = Math.max(Number(pricing.minimumBalanceToStart || 0), chargeAmount);
