@@ -38,12 +38,12 @@ import { listAdminStaff, setAdminStaff, removeAdminStaff, broadcastAdminNotifica
 import { advancedAiTask, listAdvancedAiJobs, supportedBusinessIntegrations, getBusinessIntegrationConfig, configureBusinessIntegration, getEnterpriseConfig, updateEnterpriseConfig } from "./business-advanced.js";
 initializeApp();
 
-const ADMIN_EMAIL = "isaacoshiomole0@gmail.com";
+const ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || "isaacoshiomole0@gmail.com").trim().toLowerCase();
 
 async function assertSuperAdmin(user) {
   const token = await getAuth().getUser(user.uid);
   const claims = token.customClaims || {};
-  if (user.email !== ADMIN_EMAIL || (claims.admin !== true && claims.superAdmin !== true && claims.role !== "admin" && claims.role !== "super_admin")) {
+  if (String(user.email || "").trim().toLowerCase() !== ADMIN_EMAIL || (claims.admin !== true && claims.superAdmin !== true && claims.role !== "admin" && claims.role !== "super_admin")) {
     throw new Error("Admin access required");
   }
   return user;
