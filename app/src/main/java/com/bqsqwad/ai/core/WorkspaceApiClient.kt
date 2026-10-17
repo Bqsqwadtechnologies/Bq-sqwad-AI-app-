@@ -904,6 +904,9 @@ class WorkspaceApiClient {
     suspend fun adminDynamicBillingAnalytics(limit: Int = 500): JSONObject =
         request("/admin/ai-billing/analytics?limit=${limit.coerceIn(1, 1000)}", "GET")
 
+    suspend fun rollbackAdminDynamicBillingConfig(): JSONObject =
+        request("/admin/ai-billing/rollback", "POST", JSONObject())
+
     suspend fun adminAiModels(): JSONObject = request("/admin/ai-models", "GET")
     suspend fun adminAiUsage(limit: Int = 100): JSONObject = request("/admin/ai-usage?limit=${limit.coerceIn(1, 500)}", "GET")
     suspend fun validateAdminAiModel(model: JSONObject): JSONObject = request("/admin/ai-models/validate", "POST", JSONObject().put("model", model))
