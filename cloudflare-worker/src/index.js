@@ -3151,6 +3151,33 @@ export default {
       if (url.pathname === "/admin/config" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreGet("adminAdvancedOptions/config"); return json(x||{}); }
       if (url.pathname === "/admin/controls" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); const x=await firestoreQuery("adminAdvancedOptions",{limit:100}); return json({items:x}); }
       if (url.pathname === "/admin/advanced-options" && request.method === "GET") { const u=await verifyFirebaseUser(request); if(!isSuperAdmin(u,env))throw new Error("Admin access required"); return json({options:await firestoreQuery("adminAdvancedOptions",{limit:200})}); }
+      if (url.pathname === "/admin/ai-billing/config" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
+          || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
+        const profitMarkup = Math.max(0, Math.min(1000, Number(stored.profitMarkup ?? 1.1)));
+        return json({ config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
+      }
+      if (url.pathname === "/admin/ai-billing/config" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const b = await readBody(request);
+        const profitMarkup = Number(b.profitMarkup);
+        if (!Number.isFinite(profitMarkup) || profitMarkup < 0 || profitMarkup > 10) {
+          return json({ error: "invalid_profit_markup", message: "Markup must be between 0% and 1000%." }, 400);
+        }
+        const current = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null) || {};
+        const config = { ...current, profitMarkup, creditValueUsd: 0.07999, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
+        return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: config.updatedAt } });
+      }
+      if (url.pathname === "/admin/ai-billing/analytics" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || 100)));
+        return json({ analytics: await getTokenUsageReport({ limit }), lastRefreshedAt: new Date().toISOString() });
+      }
       if (url.pathname === "/admin/ai-usage" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
