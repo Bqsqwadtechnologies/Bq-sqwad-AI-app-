@@ -1,7 +1,7 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 
 const DEFAULT_CREDIT_REFERENCE_USD = 0.07999;
-const DEFAULT_CUSTOMER_MULTIPLIER = 8;
+const DEFAULT_CUSTOMER_MULTIPLIER = 1.8;
 
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
@@ -63,28 +63,11 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
-  const sharedMetering = pricing?.sharedCreditMetering && typeof pricing.sharedCreditMetering === "object"
-    ? pricing.sharedCreditMetering
-    : null;
-  let customerCredits;
-  if (sharedMetering) {
-    // Match the website's creditsForUsage() formula exactly: fractional per-token
-    // rates, cached-input discount, model weight, global conversion, minimum,
-    // and decimal precision all come from config/aiModels in Firebase.
-    const precision = Math.min(6, Math.max(0, Math.round(Number(sharedMetering.precision ?? 4))));
-    const weight = Math.max(0, Number(sharedMetering.conversionRate ?? 1)) *
-      Math.max(0, Number(pricing.sharedModelMultiplier ?? 1));
-    const rawCredits = (
-      Math.max(0, inputTokens - cachedInputTokens) * Math.max(0, Number(sharedMetering.creditsPerInputToken ?? 0)) +
-      cachedInputTokens * Math.max(0, Number(sharedMetering.creditsPerCachedInputToken ?? 0)) +
-      outputTokens * Math.max(0, Number(sharedMetering.creditsPerOutputToken ?? 0))
-    ) * weight;
-    const minimumCredits = Math.max(0, Number(sharedMetering.minimumCredits ?? 0));
-    const factor = 10 ** precision;
-    customerCredits = Math.round(Math.max(minimumCredits, rawCredits) * factor) / factor;
-  } else {
-    customerCredits = providerCostCredits * markup;
-  }
+  // Product rule: charge actual measured provider cost plus an 80% markup.
+  // Do not let legacy website shared-metering tables or old model multipliers
+  // silently replace the provider-cost formula with a fixed per-message charge.
+  const markup = 1.8;
+  const customerCredits = providerCostCredits * markup;
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
