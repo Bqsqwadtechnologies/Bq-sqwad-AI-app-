@@ -44,13 +44,16 @@ function validateConfig(raw = {}) {
     if (rate.providerCostUsd != null && (!Number.isFinite(Number(rate.providerCostUsd)) || Number(rate.providerCostUsd) < 0)) {
       throw new Error("billing_provider_cost_invalid");
     }
+    if (rate.providerCostUsd == null) throw new Error("billing_capability_provider_cost_required");
   }
   if (!config.providerModelRates || typeof config.providerModelRates !== "object" || Array.isArray(config.providerModelRates)) {
     throw new Error("billing_provider_model_rates_invalid");
   }
   for (const [key, rate] of Object.entries(config.providerModelRates)) {
     if (!/^[a-z0-9_.:-]{1,180}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_provider_model_rate_invalid");
-    for (const field of ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens"]) {
+    const rateFields = ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"];
+    if (!rateFields.some(field => rate[field] != null)) throw new Error("billing_provider_model_rate_required");
+    for (const field of [...rateFields, "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens"]) {
       if (rate[field] != null && (!Number.isFinite(Number(rate[field])) || Number(rate[field]) < 0)) throw new Error("billing_provider_model_rate_invalid");
     }
   }
