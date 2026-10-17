@@ -506,18 +506,19 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  // Defaults use the shared billing card: $0.07999 per credit and 130% markup.
+  // Defaults use the shared billing card: $0.07999 per credit and 300% markup.
   // Live rates are credits per minute internally, settled as elapsed seconds.
   const normalizedFeature = String(feature || "").toLowerCase();
   const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? 0.0862607826
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.43767970996 : 0);
+    ? 0.15001875234
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 2.50031253907 : 0);
   const configuredCreditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
-  // Migrate the previously shipped 110%-markup defaults to the new 130% card,
+  // Migrate shipped 110% and 130% markup defaults to the new 300% card,
   // while preserving custom rates that differ from those known legacy defaults.
   const legacyDefaultRate = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? 0.0788
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.3127 : null);
+    ? (Math.abs(configuredCreditsPerMinute - 0.0788) < 0.0000001 ? 0.0788 : 0.0862607826)
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice")
+      ? (Math.abs(configuredCreditsPerMinute - 1.3127) < 0.0000001 ? 1.3127 : 1.43767970996) : null);
   const creditsPerMinute = legacyDefaultRate != null && Math.abs(configuredCreditsPerMinute - legacyDefaultRate) < 0.0000001
     ? defaultCreditsPerMinute
     : configuredCreditsPerMinute;
@@ -721,7 +722,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (charge > 0 && options.markupApplied !== true) {
     const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
       || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : (Number(billingConfig.profitMarkup) === 1.3 || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
+    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : ([1.1, 1.3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
     charge *= 1 + markup;
   }
   // Chat is never free because an old capability record is missing a price.
@@ -1219,7 +1220,7 @@ async function ai(request, user, body) {
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
-      fallbackProviderIds: tokenBilling ? [] : (control.config?.fallbackProviderIds || []),
+      fallbackProviderIds: control.config?.fallbackProviderIds || control.fallbackProviderIds || (tokenBilling ? ["gemini"] : []),
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
@@ -3188,7 +3189,7 @@ export default {
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 4 ? (stored.profitMarkup ?? 3) : (Number(stored.profitMarkup) === 1.3 || !Number.isFinite(Number(stored.profitMarkup)) ? 3 : stored.profitMarkup))));
+        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 4 ? (stored.profitMarkup ?? 3) : ([1.1, 1.3].includes(Number(stored.profitMarkup)) || !Number.isFinite(Number(stored.profitMarkup)) ? 3 : stored.profitMarkup))));
         const openAiRates = {
           inputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.inputPriceUsdPerMillion)) ? Number(stored.openAiRates.inputPriceUsdPerMillion) : 0.05,
           outputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.outputPriceUsdPerMillion)) ? Number(stored.openAiRates.outputPriceUsdPerMillion) : 0.25,
