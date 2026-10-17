@@ -8,6 +8,7 @@ import { getProviderSecret, setProviderSecret, deleteProviderSecret, providerSec
 import { paymentPreview, initializePayment, verifyPayment, setAutoRenew, handlePaystackWebhook } from "./payments.js";
 import { DEVICE_COMMAND_SYSTEM, parseDeviceActions } from "./device-commands.js";
 import { reserveCredits, commitCredits, reverseCredits, grantCredits } from "./credits.js";
+import { getDynamicBillingConfig, saveDynamicBillingConfig, getBillingAnalytics, calculateDynamicCharge } from "./dynamic-billing.js";
 import { authorizeCapability } from "./capability-runtime.js";
 import { writeActivity, createManagedRecord, updateManagedRecord, COLLECTIONS } from "./runtime-controls.js";
 import { listAdvancedAdminOptions, updateAdvancedAdminOption, getAdminControlConfig } from "./advanced-admin.js";
@@ -2996,6 +2997,41 @@ export const bqSqwadApi = onRequest(
             config: { fallbackProviderIds: route.fallbackProviderIds }
           }, admin.uid)
         });
+      }
+
+      if (req.method === "GET" && path === "admin/ai-billing/config") {
+        const admin = await adminFromRequest(req);
+        const config = await getDynamicBillingConfig();
+        return send(res, 200, { ok: true, config, readAt: new Date().toISOString(), actorUid: admin.uid });
+      }
+
+      if (req.method === "POST" && path === "admin/ai-billing/config") {
+        const admin = await adminFromRequest(req);
+        const allowed = [
+          "enabled", "profitMarkup", "feeRate", "applyFeeToUsage", "creditValueUsd",
+          "reservationSafetyMargin", "minimumCredits", "maximumCredits", "capabilityRates"
+        ];
+        const update = {};
+        for (const key of allowed) if (Object.prototype.hasOwnProperty.call(body, key)) update[key] = body[key];
+        const config = await saveDynamicBillingConfig(update, admin.uid);
+        return send(res, 200, { ok: true, config, savedAt: new Date().toISOString() });
+      }
+
+      if (req.method === "POST" && path === "admin/ai-billing/preview") {
+        await adminFromRequest(req);
+        const config = await getDynamicBillingConfig();
+        const providerCostUsd = Number(body.providerCostUsd);
+        if (!Number.isFinite(providerCostUsd) || providerCostUsd < 0) {
+          return send(res, 400, { error: "valid_provider_cost_required" });
+        }
+        return send(res, 200, { ok: true, quote: calculateDynamicCharge({ providerCostUsd, config, estimated: true }) });
+      }
+
+      if (req.method === "GET" && path === "admin/ai-billing/analytics") {
+        await adminFromRequest(req);
+        const limit = Math.min(1000, Math.max(1, Number(req.query?.limit || 500)));
+        const analytics = await getBillingAnalytics(limit);
+        return send(res, 200, { ok: true, analytics, lastRefreshedAt: new Date().toISOString() });
       }
 
       if (req.method === "GET" && path === "admin/advanced-options") {
