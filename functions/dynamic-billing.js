@@ -149,8 +149,9 @@ export function providerCostFromUsage(usage, rate) {
   }
   const hasTokenRates = ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(key => rate[key] != null);
   if (!hasTokenRates || rate.providerCostUsd != null) return null;
-  const input = finite(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens, NaN);
-  const output = finite(usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens, NaN);
+  const usageMetadata = usage.usageMetadata || usage.usage_metadata || {};
+  const input = finite(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens ?? usage.promptTokenCount ?? usageMetadata.promptTokenCount, NaN);
+  const output = finite(usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens ?? usage.candidatesTokenCount ?? usageMetadata.candidatesTokenCount, NaN);
   if (!Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return null;
   const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
   const cached = Math.min(input, Math.max(0, finite(
