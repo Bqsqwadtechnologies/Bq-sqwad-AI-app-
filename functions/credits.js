@@ -73,7 +73,19 @@ export async function reserveCredits(uid, amount, capability) {
   }
   const finalCharge = Math.max(0, Number(pricing.credits || 0));
   const charge = Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge));
-  if (finalCharge === 0) return { reservationId: null, amount: 0, billingEstimate: pricing };
+  if (legacyEstimate === 0 || finalCharge === 0) {
+    const includedTransactionId = "included_" + db.collection("aiBillingTransactions").doc().id;
+    await recordBillingTransaction(includedTransactionId, {
+      uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
+      providerCostUsd: pricing.providerCostUsd, rateSnapshot: pricing.rateSnapshot || null,
+      pricingSnapshot: pricing.pricingSnapshot || null, costType: "estimated",
+      sellingPriceUsd: 0, profitMarkup: pricing.profitMarkup, feeRateApplied: pricing.feeRateApplied,
+      creditValueUsd: pricing.creditValueUsd, creditsReserved: 0, creditsCharged: 0,
+      pricingVersion: pricing.pricingVersion, exemptType: "subscription_or_free",
+      status: "reserved", estimateSource: pricing.estimateSource
+    });
+    return { reservationId: includedTransactionId, amount: 0, billingEstimate: pricing, subscriptionIncluded: true };
+  }
   const userRef = db.collection("users").doc(uid);
   const balanceRef = db.collection("creditBalances").doc(uid);
   const reservationRef = db.collection("creditReservations").doc();
@@ -162,6 +174,23 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       costType: actualCost == null ? "estimated" : "calculated_from_actual_usage",
       status: "committed", creditsCharged: 0,
       sellingPriceUsd: 0, exemptType: "admin_exempt",
+      committedAt: FieldValue.serverTimestamp()
+    });
+    return;
+  }
+  if (String(reservationId).startsWith("included_")) {
+    const includedRef = db.collection("aiBillingTransactions").doc(reservationId);
+    const includedSnap = await includedRef.get();
+    const includedData = includedSnap.exists ? includedSnap.data() || {} : {};
+    const actualCost = providerCostFromUsage(metadata.usage, includedData.rateSnapshot);
+    await updateBillingTransaction(reservationId, {
+      providerId: providerId || null,
+      modelId: metadata.modelId || includedData.modelId || null,
+      usage: metadata.usage || null,
+      providerCostUsd: actualCost == null ? Number(includedData.providerCostUsd || 0) : actualCost,
+      costType: actualCost == null ? "estimated" : "calculated_from_actual_usage",
+      status: "committed", creditsCharged: 0, sellingPriceUsd: 0,
+      exemptType: includedData.exemptType || "subscription_or_free",
       committedAt: FieldValue.serverTimestamp()
     });
     return;
@@ -313,6 +342,13 @@ export async function reverseCredits(uid, reservationId) {
     return;
   }
   const db = getFirestore();
+  if (String(reservationId).startsWith("included_")) {
+    await updateBillingTransaction(reservationId, {
+      status: "failed", creditsCharged: 0, creditsRefunded: 0,
+      errorClass: "provider_or_operation_failed", updatedAt: FieldValue.serverTimestamp()
+    });
+    return;
+  }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
 
   await db.runTransaction(async tx => {
