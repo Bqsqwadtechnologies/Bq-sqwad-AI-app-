@@ -71,6 +71,8 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var billingFeeRate by remember { mutableStateOf("15") }
     var billingCreditValue by remember { mutableStateOf("0.07999") }
     var billingSafetyMargin by remember { mutableStateOf("20") }
+    var billingMinimumCredits by remember { mutableStateOf("0.01") }
+    var billingMaximumCredits by remember { mutableStateOf("100000") }
     var billingApplyFee by remember { mutableStateOf(false) }
     var billingRatesJson by remember { mutableStateOf("{}") }
     var billingModelRatesJson by remember { mutableStateOf("{}") }
@@ -129,6 +131,8 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         billingFeeRate = (config.optDouble("feeRate", 0.15) * 100).toString()
         billingCreditValue = config.optDouble("creditValueUsd", 0.07999).toString()
         billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
+        billingMinimumCredits = config.optDouble("minimumCredits", 0.01).toString()
+        billingMaximumCredits = config.optDouble("maximumCredits", 100000.0).toString()
         billingApplyFee = config.optBoolean("applyFeeToUsage", false)
         billingRatesJson = (config.optJSONObject("capabilityRates") ?: JSONObject()).toString(2)
         billingModelRatesJson = (config.optJSONObject("providerModelRates") ?: JSONObject()).toString(2)
@@ -144,7 +148,9 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 val fee = (billingFeeRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid fee percentage.")) / 100.0
                 val creditValue = billingCreditValue.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid credit value.")
                 val margin = (billingSafetyMargin.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid safety margin.")) / 100.0
-                require(markup in 0.0..1000.0 && fee in 0.0..99.99 && creditValue > 0.0 && margin in 0.0..500.0) {
+                val minimumCredits = billingMinimumCredits.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid minimum charge.")
+                val maximumCredits = billingMaximumCredits.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid maximum charge.")
+                require(markup in 0.0..1000.0 && fee in 0.0..99.99 && creditValue > 0.0 && margin in 0.0..500.0 && minimumCredits >= 0.0 && maximumCredits >= minimumCredits) {
                     "Pricing values are outside the allowed range."
                 }
                 val rates = JSONObject(billingRatesJson)
@@ -155,6 +161,8 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                     .put("applyFeeToUsage", billingApplyFee)
                     .put("creditValueUsd", creditValue)
                     .put("reservationSafetyMargin", margin)
+                    .put("minimumCredits", minimumCredits)
+                    .put("maximumCredits", maximumCredits)
                     .put("capabilityRates", rates)
                     .put("providerModelRates", modelRates))
                 val config = result.optJSONObject("config") ?: JSONObject()
@@ -243,6 +251,10 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 onCreditValue = { billingCreditValue = it },
                 safetyMargin = billingSafetyMargin,
                 onSafetyMargin = { billingSafetyMargin = it },
+                minimumCredits = billingMinimumCredits,
+                onMinimumCredits = { billingMinimumCredits = it },
+                maximumCredits = billingMaximumCredits,
+                onMaximumCredits = { billingMaximumCredits = it },
                 applyFee = billingApplyFee,
                 onApplyFee = { billingApplyFee = it },
                 ratesJson = billingRatesJson,
@@ -282,6 +294,10 @@ private fun BillingAnalyticsAndSettings(
     onCreditValue: (String) -> Unit,
     safetyMargin: String,
     onSafetyMargin: (String) -> Unit,
+    minimumCredits: String,
+    onMinimumCredits: (String) -> Unit,
+    maximumCredits: String,
+    onMaximumCredits: (String) -> Unit,
     applyFee: Boolean,
     onApplyFee: (Boolean) -> Unit,
     ratesJson: String,
@@ -313,7 +329,7 @@ private fun BillingAnalyticsAndSettings(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("AI Billing, Costs & Revenue Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Provider costs and profit are estimates unless the provider supplies verifiable usage and billing data. Analytics refresh every 30 seconds while this screen is open.")
+            Text("Provider costs and profit are estimates unless the provider supplies verifiable usage and billing data. Analytics refresh every 30 seconds while this screen is open; totals aggregate the latest 500 transaction records, not an unlimited historical ledger.")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     metric("Provider cost today", money(today.optDouble("providerCostUsd")))
@@ -338,6 +354,8 @@ private fun BillingAnalyticsAndSettings(
             PriceField("Fee allowance percentage (15 = 15%)", feeRate, onFeeRate)
             PriceField("USD value per credit", creditValue, onCreditValue)
             PriceField("Reservation safety margin percentage", safetyMargin, onSafetyMargin)
+            PriceField("Minimum charge (credits)", minimumCredits, onMinimumCredits)
+            PriceField("Maximum charge (credits)", maximumCredits, onMaximumCredits)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Apply fee allowance to each AI operation")
                 Switch(checked = applyFee, onCheckedChange = onApplyFee)
