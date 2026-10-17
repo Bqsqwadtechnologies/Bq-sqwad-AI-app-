@@ -702,6 +702,14 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
+  // Apply shared admin markup to fixed-unit features. Token-billed calls are
+  // explicitly marked as already priced from actual provider usage.
+  if (charge > 0 && options.markupApplied !== true) {
+    const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
+      || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
+    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 2 ? (billingConfig.profitMarkup ?? 1.1) : 1.1)));
+    charge *= 1 + markup;
+  }
   // Chat is never free because an old capability record is missing a price.
   if (String(capabilityName || "") === "chat" && charge < 1 && options.allowFractional !== true) charge = 1;
   if (!charge) {
@@ -1189,7 +1197,7 @@ async function ai(request, user, body) {
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
-  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling });
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
   try {
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
@@ -1358,7 +1366,7 @@ async function stream(request, user, body) {
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
-  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling });
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
   try {
     const provider = await runProviderStream(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
