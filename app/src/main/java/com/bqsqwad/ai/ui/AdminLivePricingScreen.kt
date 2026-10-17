@@ -337,7 +337,7 @@ private fun BillingAnalyticsAndSettings(
     val all = analytics.optJSONObject("all") ?: JSONObject()
     var confirmRollback by remember { mutableStateOf(false) }
     fun money(value: Double) = "$" + String.format(java.util.Locale.US, "%.4f", value)
-    fun metric(label: String, value: String) {
+    val metric: @Composable (String, String) -> Unit = { label, value ->
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(label, style = MaterialTheme.typography.labelMedium)
