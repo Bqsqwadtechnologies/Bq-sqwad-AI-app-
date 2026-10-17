@@ -7,7 +7,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check admin-security.js && node --check advanced-admin.js && node --check business-advanced.js && node --check business-phases.js && node --check capability-runtime.js && node --check credits.js && node --check device-commands.js && node --check generation.js && node --check google-play.js && node --check index.js && node --check memory.js && node --check organization-production.js && node --check organization-scheduler.js && node --check organization.js && node --check passkeys.js && node --check payments.js && node --check plan-catalog.js && node --check play-catalog.js && node --check provider-gateway.js && node --check runtime-controls.js && node --check secret-store.js && node --check social-integrations.js && node --check user-settings.js"
+    "check": "node --check admin-security.js && node --check advanced-admin.js && node --check business-advanced.js && node --check business-phases.js && node --check capability-runtime.js && node --check credits.js && node --check device-commands.js && node --check dynamic-billing.js && node --check generation.js && node --check google-play.js && node --check index.js && node --check memory.js && node --check organization-production.js && node --check organization-scheduler.js && node --check organization.js && node --check passkeys.js && node --check payments.js && node --check plan-catalog.js && node --check play-catalog.js && node --check provider-gateway.js && node --check runtime-controls.js && node --check secret-store.js && node --check social-integrations.js && node --check user-settings.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",
