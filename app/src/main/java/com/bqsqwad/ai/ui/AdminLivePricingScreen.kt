@@ -370,7 +370,7 @@ private fun BillingAnalyticsAndSettings(
             Text("All loaded transactions: ${all.optInt("requests")} requests · ${all.optInt("succeeded")} successful · ${all.optInt("failed")} failed")
             Text("Credits charged: ${String.format(java.util.Locale.US, "%.2f", all.optDouble("creditsCharged"))} · refunded: ${String.format(java.util.Locale.US, "%.2f", all.optDouble("creditsRefunded"))}")
             Text("Outstanding reservations: ${all.optInt("outstandingReservations")} · unsettled: ${all.optInt("unsettled")}")
-            Text("Confirmed profit: unavailable until actual provider invoices/payment-fee settlement are reconciled. The displayed profit is estimated.", style = MaterialTheme.typography.bodySmall)
+            Text("Provider cost source — today: ${money(today.optDouble("estimatedProviderCostUsd"))} estimated, ${money(today.optDouble("usageCalculatedCostUsd"))} calculated from returned usage. Confirmed profit is unavailable until actual provider invoices/payment-fee settlement are reconciled.", style = MaterialTheme.typography.bodySmall)
             Text("Last refresh: $updatedAt", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Refresh analytics now") }
             val transactions = analytics.optJSONArray("transactions")
@@ -382,7 +382,7 @@ private fun BillingAnalyticsAndSettings(
                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("${tx.optString("capability")} · ${tx.optString("status")}", fontWeight = FontWeight.SemiBold)
                             Text("User: ${tx.optString("uid")} · Provider/model: ${tx.optString("providerId", "unknown")}/${tx.optString("modelId", "unknown")}")
-                            Text("Estimated cost: ${money(tx.optDouble("providerCostUsd"))} · charged: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsCharged"))} credits · refunded: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsRefunded"))} credits")
+                            Text("Provider cost (${tx.optString("costType", "estimated")}): ${money(tx.optDouble("providerCostUsd"))} · charged: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsCharged"))} credits · refunded: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsRefunded"))} credits")
                             Text("ID: ${tx.optString("transactionId")} · pricing v${tx.optInt("pricingVersion", 1)}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
