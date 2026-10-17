@@ -1,7 +1,7 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 
 const DEFAULT_CREDIT_REFERENCE_USD = 0.07999;
-const DEFAULT_CUSTOMER_MULTIPLIER = 2.1;
+const DEFAULT_CUSTOMER_MULTIPLIER = 2.3;
 
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
@@ -65,7 +65,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   // Dynamic admin billing config is shared through Firestore. Provider token
   // rates remain provider/model registry data; admins only control profit markup.
   // The admin-controlled percentage is the only customer price multiplier.
-  // Default markup is 110%; no second fee multiplier is applied to usage.
+  // Default markup is 130%; no second fee multiplier is applied to usage.
   const markupPercent = Number(pricing?.profitMarkupPercent ?? ((Number(multiplier) - 1) * 100));
   if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
     throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
@@ -113,7 +113,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 2 ? (dynamicBilling.profitMarkup ?? 1.1) : 1.1) * 100));
+  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 3 ? (dynamicBilling.profitMarkup ?? 1.3) : 1.3) * 100));
   const feeRate = 0;
   const applyFeeToUsage = false;
 
@@ -140,9 +140,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
   const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
   const rates = {
-    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0)),
-    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0)),
-    cachedInputPriceUsdPerMillion: Number(embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? (isOpenAi ? 0.005 : (embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0)))
+    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0)),
+    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0)),
+    cachedInputPriceUsdPerMillion: Number(embedded.cachedInputPriceUsdPerMillion ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? 0.005 : (embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0)))
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
   const baseCustomerMultiplier = 1 + profitMarkup / 100;
