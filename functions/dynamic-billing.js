@@ -60,7 +60,7 @@ export function calculateDynamicCharge({ providerCostUsd, config, estimated = tr
   const feeRate = cfg.applyFeeToUsage === true ? cfg.feeRate : 0;
   const sellingPriceUsd = cost * (1 + cfg.profitMarkup) / (1 - feeRate);
   const rawCredits = sellingPriceUsd / cfg.creditValueUsd;
-  const credits = Math.min(cfg.maximumCredits, Math.max(0, Math.ceil(rawCredits * 100) / 100));
+  const credits = cost === 0 ? 0 : Math.min(cfg.maximumCredits, Math.max(cfg.minimumCredits, Math.ceil(rawCredits * 100) / 100));
   return {
     providerCostUsd: cost,
     sellingPriceUsd,
@@ -190,11 +190,13 @@ export async function getBillingAnalytics(limit = 500) {
     const subscription = x.exemptType === "subscription_included";
     const revenue = exempt || subscription ? 0 : Math.max(0, finite(x.sellingPriceUsd, charged * creditValue));
     const fee = Math.max(0, finite(x.feeRateApplied, 0)) * revenue;
-    const profit = revenue - cost - fee;
+    const customerCost = exempt || subscription ? 0 : cost;
+    const profit = revenue - customerCost - fee;
     const created = asDate(x.createdAt);
     const status = String(x.status || "reserved");
     const add = target => {
       target.providerCostUsd += cost;
+      target.customerProviderCostUsd += customerCost;
       target.revenueUsd += revenue;
       target.estimatedProfitUsd += profit;
       target.creditsCharged += charged;
@@ -221,7 +223,7 @@ export async function getBillingAnalytics(limit = 500) {
       modelId: x.modelId || null, providerCostUsd: cost, costType: x.costType || "estimated",
       sellingPriceUsd: revenue, creditsReserved: finite(x.creditsReserved, 0),
       creditsCharged: charged, creditsRefunded: refunded, status, exemptType: x.exemptType || "credit_billed",
-      pricingVersion: finite(x.pricingVersion, 1), createdAt: created.toISOString()
+      pricingVersion: finite(x.pricingVersion, 1), usage: x.usage || null, createdAt: created.toISOString()
     });
   }
   const round = obj => Object.fromEntries(Object.entries(obj).map(([k,v]) => [k, typeof v === "number" ? Math.round(v * 10000) / 10000 : v]));
