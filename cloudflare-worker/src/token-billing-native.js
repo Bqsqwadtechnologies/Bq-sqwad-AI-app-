@@ -113,7 +113,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.profitMarkup ?? 1.1) * 100));
+  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 2 ? (dynamicBilling.profitMarkup ?? 1.1) : 1.1) * 100));
   const feeRate = 0;
   const applyFeeToUsage = false;
 
