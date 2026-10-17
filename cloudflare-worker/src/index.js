@@ -3156,7 +3156,7 @@ export default {
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-        const profitMarkup = Math.max(0, Math.min(1000, Number(stored.profitMarkup ?? 1.1)));
+        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 2 ? (stored.profitMarkup ?? 1.1) : 1.1)));
         return json({ config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
       }
       if (url.pathname === "/admin/ai-billing/config" && request.method === "POST") {
@@ -3168,7 +3168,7 @@ export default {
           return json({ error: "invalid_profit_markup", message: "Markup must be between 0% and 1000%." }, 400);
         }
         const current = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null) || {};
-        const config = { ...current, profitMarkup, creditValueUsd: 0.07999, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        const config = { profitMarkup, pricingVersion: 2, creditValueUsd: 0.07999, updatedBy: u.uid, updatedAt: new Date().toISOString() };
         await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
         return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: config.updatedAt } });
       }
