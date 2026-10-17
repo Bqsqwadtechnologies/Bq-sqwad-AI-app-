@@ -69,7 +69,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var saving by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var billingMarkup by remember { mutableStateOf("80") }
+    var billingMarkup by remember { mutableStateOf("110") }
     var billingFeeRate by remember { mutableStateOf("15") }
     var billingCreditValue by remember { mutableStateOf("0.07999") }
     var billingSafetyMargin by remember { mutableStateOf("20") }
@@ -129,7 +129,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     suspend fun loadBillingConfig() {
         val response = api.adminDynamicBillingConfig()
         val config = response.optJSONObject("config") ?: JSONObject()
-        billingMarkup = (config.optDouble("profitMarkup", 0.8) * 100).toString()
+        billingMarkup = (config.optDouble("profitMarkup", 1.1) * 100).toString()
         billingFeeRate = (config.optDouble("feeRate", 0.15) * 100).toString()
         billingCreditValue = config.optDouble("creditValueUsd", 0.07999).toString()
         billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
@@ -146,36 +146,16 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         billingError = null
         scope.launch {
             try {
-                val markup = (billingMarkup.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid markup percentage.")) / 100.0
-                val fee = (billingFeeRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid fee percentage.")) / 100.0
-                val creditValue = billingCreditValue.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid credit value.")
-                val margin = (billingSafetyMargin.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid safety margin.")) / 100.0
-                val minimumCredits = billingMinimumCredits.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid minimum charge.")
-                val maximumCredits = billingMaximumCredits.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid maximum charge.")
-                require(markup in 0.0..1000.0 && fee in 0.0..99.99 && creditValue > 0.0 && margin in 0.0..500.0 && minimumCredits >= 0.0 && maximumCredits >= minimumCredits) {
-                    "Pricing values are outside the allowed range."
-                }
-                val rates = JSONObject(billingRatesJson)
-                val modelRates = JSONObject(billingModelRatesJson)
-                val result = api.saveAdminDynamicBillingConfig(JSONObject()
-                    .put("profitMarkup", markup)
-                    .put("feeRate", fee)
-                    .put("applyFeeToUsage", billingApplyFee)
-                    .put("creditValueUsd", creditValue)
-                    .put("reservationSafetyMargin", margin)
-                    .put("minimumCredits", minimumCredits)
-                    .put("maximumCredits", maximumCredits)
-                    .put("capabilityRates", rates)
-                    .put("providerModelRates", modelRates))
+                val markupPercent = billingMarkup.toDoubleOrNull()
+                    ?: throw IllegalArgumentException("Enter a valid markup percentage.")
+                require(markupPercent in 0.0..1000.0) { "Markup must be between 0% and 1000%." }
+                val result = api.saveAdminDynamicBillingConfig(JSONObject().put("profitMarkup", markupPercent / 100.0))
                 val config = result.optJSONObject("config") ?: JSONObject()
-                billingMarkup = (config.optDouble("profitMarkup", markup) * 100).toString()
-                billingFeeRate = (config.optDouble("feeRate", fee) * 100).toString()
-                billingCreditValue = config.optDouble("creditValueUsd", creditValue).toString()
-                billingSafetyMargin = (config.optDouble("reservationSafetyMargin", margin) * 100).toString()
-                billingStatus = "Dynamic billing settings saved. New reservations use the new configuration."
+                billingMarkup = (config.optDouble("profitMarkup", markupPercent / 100.0) * 100).toString()
+                billingStatus = "Markup saved. New AI usage is priced using this percentage."
                 refreshBillingAnalytics()
             } catch (t: Throwable) {
-                billingError = t.message ?: "Could not save billing settings."
+                billingError = t.message ?: "Could not save markup percentage."
             } finally {
                 billingSaving = false
             }
@@ -265,27 +245,10 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 updatedAt = billingUpdatedAt,
                 markup = billingMarkup,
                 onMarkup = { billingMarkup = it },
-                feeRate = billingFeeRate,
-                onFeeRate = { billingFeeRate = it },
-                creditValue = billingCreditValue,
-                onCreditValue = { billingCreditValue = it },
-                safetyMargin = billingSafetyMargin,
-                onSafetyMargin = { billingSafetyMargin = it },
-                minimumCredits = billingMinimumCredits,
-                onMinimumCredits = { billingMinimumCredits = it },
-                maximumCredits = billingMaximumCredits,
-                onMaximumCredits = { billingMaximumCredits = it },
-                applyFee = billingApplyFee,
-                onApplyFee = { billingApplyFee = it },
-                ratesJson = billingRatesJson,
-                onRatesJson = { billingRatesJson = it },
-                modelRatesJson = billingModelRatesJson,
-                onModelRatesJson = { billingModelRatesJson = it },
                 saving = billingSaving,
                 status = billingStatus,
                 error = billingError,
                 onSave = { saveBillingConfig() },
-                onRollback = { rollbackBillingConfig() },
                 onRefresh = {
                     scope.launch {
                         runCatching { refreshBillingAnalytics() }
@@ -309,33 +272,15 @@ private fun BillingAnalyticsAndSettings(
     updatedAt: String,
     markup: String,
     onMarkup: (String) -> Unit,
-    feeRate: String,
-    onFeeRate: (String) -> Unit,
-    creditValue: String,
-    onCreditValue: (String) -> Unit,
-    safetyMargin: String,
-    onSafetyMargin: (String) -> Unit,
-    minimumCredits: String,
-    onMinimumCredits: (String) -> Unit,
-    maximumCredits: String,
-    onMaximumCredits: (String) -> Unit,
-    applyFee: Boolean,
-    onApplyFee: (Boolean) -> Unit,
-    ratesJson: String,
-    onRatesJson: (String) -> Unit,
-    modelRatesJson: String,
-    onModelRatesJson: (String) -> Unit,
     saving: Boolean,
     status: String?,
     error: String?,
     onSave: () -> Unit,
-    onRollback: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val today = analytics.optJSONObject("today") ?: JSONObject()
     val month = analytics.optJSONObject("month") ?: JSONObject()
     val all = analytics.optJSONObject("all") ?: JSONObject()
-    var confirmRollback by remember { mutableStateOf(false) }
     fun money(value: Double) = "$" + String.format(java.util.Locale.US, "%.4f", value)
     val metric: @Composable (String, String) -> Unit = { label, value ->
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
@@ -390,50 +335,10 @@ private fun BillingAnalyticsAndSettings(
                 }
             }
             Text("Dynamic pricing settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            PriceField("Profit markup percentage (80 = 80%)", markup, onMarkup)
-            PriceField("Fee allowance percentage (15 = 15%)", feeRate, onFeeRate)
-            PriceField("USD value per credit", creditValue, onCreditValue)
-            PriceField("Reservation safety margin percentage", safetyMargin, onSafetyMargin)
-            PriceField("Minimum charge (credits)", minimumCredits, onMinimumCredits)
-            PriceField("Maximum charge (credits)", maximumCredits, onMaximumCredits)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Apply fee allowance to each AI operation")
-                Switch(checked = applyFee, onCheckedChange = onApplyFee)
-            }
-            Text("Capability-specific provider cost overrides (JSON). Use providerCostUsd for each capability key.", style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(
-                value = ratesJson,
-                onValueChange = onRatesJson,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4,
-                label = { Text("Provider cost overrides JSON") }
-            )
-            Text("Provider/model rates JSON. Keys can be provider IDs or provider:model IDs; set providerCostUsd per operation, or token rates inputUsdPer1M, cachedInputUsdPer1M and outputUsdPer1M with estimated token counts.", style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(
-                value = modelRatesJson,
-                onValueChange = onModelRatesJson,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4,
-                label = { Text("Provider/model rates JSON") }
-            )
+            Text("Admin controls only the markup percentage. Provider rates and the $0.07999 reference value per credit are controlled by billing configuration, not edited here.", style = MaterialTheme.typography.bodySmall)
+            PriceField("Profit markup percentage (110 = 110%)", markup, onMarkup)
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
-            }
-            OutlinedButton(onClick = { confirmRollback = true }, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
-                Text("Roll back to previous valid billing configuration")
-            }
-            if (confirmRollback) {
-                AlertDialog(
-                    onDismissRequest = { confirmRollback = false },
-                    title = { Text("Roll back billing settings?") },
-                    text = { Text("The last saved configuration will be restored as a new version. This will affect new reservations, not transactions already in progress.") },
-                    confirmButton = {
-                        TextButton(onClick = { confirmRollback = false; onRollback() }) { Text("Roll back") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { confirmRollback = false }) { Text("Cancel") }
-                    }
-                )
             }
             status?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
