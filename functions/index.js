@@ -2747,7 +2747,7 @@ export const bqSqwadApi = onRequest(
         let reservation = null;
         try {
           // Organization live voice is charged from the separate Organization USD wallet.
-          if (!organizationRealtime) reservation = await reserveCredits(user.uid, gate.creditCost, "chat");
+          if (!organizationRealtime) reservation = await reserveCredits(user.uid, gate.creditCost, "live_voice");
           const option = await getFirestore().collection("adminAdvancedOptions").doc("live_voice_pricing").get();
           const cfg = option.exists ? (option.data()?.config || {}) : {};
           if (option.exists && option.data()?.enabled === false) {
