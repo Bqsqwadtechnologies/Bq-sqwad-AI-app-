@@ -506,7 +506,14 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  const creditsPerMinute = number("creditsPerMinute", 0, 10000);
+  // Default credit rates are precomputed from the OpenAI provider cost card,
+  // the $0.07999 reference value per credit, and the default 110% markup.
+  // Persisted admin values override these defaults immediately.
+  const normalizedFeature = String(feature || "").toLowerCase();
+  const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
+    ? 0.0788
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.3127 : 0);
+  const creditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
   const defaultVoice = String(source.defaultVoice ?? previous.defaultVoice ?? "marin").toLowerCase();
   const allowedVoices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
   return {
@@ -3441,7 +3448,7 @@ export default {
         const deepResearch = Boolean(body.deepResearch);
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
-        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 1), Number(control.creditCost || 0));
+        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 0.2625), Number(control.creditCost || 0));
         const reservation = await chargeCredits(user.uid, charge, capabilityName, user);
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
