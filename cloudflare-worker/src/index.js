@@ -3175,7 +3175,12 @@ export default {
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
         const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 2 ? (stored.profitMarkup ?? 1.1) : 1.1)));
-        return json({ config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
+        const openAiRates = {
+          inputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.inputPriceUsdPerMillion)) ? Number(stored.openAiRates.inputPriceUsdPerMillion) : 0.05,
+          outputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.outputPriceUsdPerMillion)) ? Number(stored.openAiRates.outputPriceUsdPerMillion) : 0.25,
+          cachedInputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.cachedInputPriceUsdPerMillion)) ? Number(stored.openAiRates.cachedInputPriceUsdPerMillion) : 0.005
+        };
+        return json({ config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, updatedAt: stored.updatedAt || null }, updatedAt: stored.updatedAt || null });
       }
       if (url.pathname === "/admin/ai-billing/config" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -3186,9 +3191,19 @@ export default {
           return json({ error: "invalid_profit_markup", message: "Markup must be between 0% and 1000%." }, 400);
         }
         const current = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null) || {};
-        const config = { profitMarkup, pricingVersion: 2, creditValueUsd: 0.07999, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        const oldRates = current.openAiRates && typeof current.openAiRates === "object" ? current.openAiRates : {};
+        const rawRates = b.openAiRates && typeof b.openAiRates === "object" ? b.openAiRates : {};
+        const openAiRates = {
+          inputPriceUsdPerMillion: Number(rawRates.inputPriceUsdPerMillion ?? oldRates.inputPriceUsdPerMillion ?? 0.05),
+          outputPriceUsdPerMillion: Number(rawRates.outputPriceUsdPerMillion ?? oldRates.outputPriceUsdPerMillion ?? 0.25),
+          cachedInputPriceUsdPerMillion: Number(rawRates.cachedInputPriceUsdPerMillion ?? oldRates.cachedInputPriceUsdPerMillion ?? 0.005)
+        };
+        if (Object.values(openAiRates).some(value => !Number.isFinite(value) || value < 0 || value > 10000)) {
+          return json({ error: "invalid_openai_rates", message: "OpenAI token rates must be between 0 and 10000 USD per million tokens." }, 400);
+        }
+        const config = { profitMarkup, pricingVersion: 2, creditValueUsd: 0.07999, openAiRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
         await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
-        return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, updatedAt: config.updatedAt } });
+        return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, updatedAt: config.updatedAt } });
       }
       if (url.pathname === "/admin/ai-billing/analytics" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
