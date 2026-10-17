@@ -721,7 +721,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (charge > 0 && options.markupApplied !== true) {
     const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
       || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 2 ? (billingConfig.profitMarkup ?? 1.1) : 1.1)));
+    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : (Number(billingConfig.profitMarkup) === 1.3 || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
     charge *= 1 + markup;
   }
   // Chat is never free because an old capability record is missing a price.
@@ -1136,7 +1136,7 @@ async function configuredMediaProviderCost(control, units, expectedUnit, trackin
   const creditValue = 0.07999;
   const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 2 ? (billingConfig.profitMarkup ?? 1.1) : 1.1)));
+  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 4 ? (billingConfig.profitMarkup ?? 3) : (Number(billingConfig.profitMarkup) === 1.3 || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 3 : billingConfig.profitMarkup))));
   const multiplier = 1 + markup;
   const feePercent = 0;
   if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
@@ -3188,7 +3188,7 @@ export default {
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const stored = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
           || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 3 ? (stored.profitMarkup ?? 1.3) : 1.3)));
+        const profitMarkup = Math.max(0, Math.min(10, Number(stored.pricingVersion >= 4 ? (stored.profitMarkup ?? 3) : (Number(stored.profitMarkup) === 1.3 || !Number.isFinite(Number(stored.profitMarkup)) ? 3 : stored.profitMarkup))));
         const openAiRates = {
           inputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.inputPriceUsdPerMillion)) ? Number(stored.openAiRates.inputPriceUsdPerMillion) : 0.05,
           outputPriceUsdPerMillion: Number.isFinite(Number(stored.openAiRates?.outputPriceUsdPerMillion)) ? Number(stored.openAiRates.outputPriceUsdPerMillion) : 0.25,
@@ -3212,7 +3212,7 @@ export default {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const b = await readBody(request);
-        const profitMarkup = Number(b.profitMarkup);
+        const profitMarkup = Number(b.profitMarkup ?? 3);
         if (!Number.isFinite(profitMarkup) || profitMarkup < 0 || profitMarkup > 10) {
           return json({ error: "invalid_profit_markup", message: "Markup must be between 0% and 1000%." }, 400);
         }
@@ -3245,7 +3245,7 @@ export default {
         if (Object.values(featureRates).some(value => !Number.isFinite(value) || value < 0 || value > 1000000)) {
           return json({ error: "invalid_feature_rates", message: "Feature rates must be finite, non-negative numbers within supported limits." }, 400);
         }
-        const config = { profitMarkup, pricingVersion: 3, creditValueUsd: 0.07999, openAiRates, featureRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
+        const config = { profitMarkup, pricingVersion: 4, creditValueUsd: 0.07999, openAiRates, featureRates, updatedBy: u.uid, updatedAt: new Date().toISOString() };
         await firestoreSet("adminAdvancedOptions/dynamic_billing_config", config, true);
         return json({ ok: true, config: { profitMarkup, creditValueUsd: 0.07999, openAiRates, featureRates, updatedAt: config.updatedAt } });
       }
