@@ -30,6 +30,6 @@ Both push notifications and local reminder notifications now look for the option
 
 ## Provider-cost billing
 
-Text chat now defaults to provider-usage billing when token rates are configured. The server computes measured input/output/cached-token provider cost, converts it using the configured credit reference value (default USD 0.07999 per credit), then charges provider cost × 1.80 (provider cost plus 80%). If model/token pricing is missing, the Worker returns a configuration error rather than silently falling back to one fixed credit per chat message.
+All text-chat requests now use provider-usage billing when token rates are configured. The server computes measured input/output/cached-token provider cost, converts it using the configured credit reference value (default USD 0.07999 per credit), then charges provider cost × 1.80 (provider cost plus 80%). If model/token pricing is missing, the Worker returns a configuration error rather than silently falling back to one fixed credit per chat message.
 
 Active, unexpired subscriptions for matching TruthGuard, Learning, Companion, and Business capability names are exempt from credit deductions. The verified configured super administrator remains exempt. Other features continue using their configured billing mode and prices.
