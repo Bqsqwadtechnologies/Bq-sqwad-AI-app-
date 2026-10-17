@@ -115,7 +115,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     || {};
   const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.profitMarkup ?? 0.8) * 100));
   const feeRate = Math.max(0, Math.min(100, Number(dynamicBilling.feeRate ?? 0.30) * 100));
-  const applyFeeToUsage = dynamicBilling.applyFeeToUsage === true;
+  const applyFeeToUsage = dynamicBilling.applyFeeToUsage !== false;
 
   // The website admin dashboard and the Android app share Firebase project
   // bqsqwadai. Website AI model metering is persisted at config/aiModels;
