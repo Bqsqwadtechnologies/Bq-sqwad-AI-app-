@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 
 private data class LivePriceForm(
@@ -66,6 +67,17 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var saving by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var billingMarkup by remember { mutableStateOf("80") }
+    var billingFeeRate by remember { mutableStateOf("15") }
+    var billingCreditValue by remember { mutableStateOf("0.07999") }
+    var billingSafetyMargin by remember { mutableStateOf("20") }
+    var billingApplyFee by remember { mutableStateOf(false) }
+    var billingRatesJson by remember { mutableStateOf("{}") }
+    var billingAnalytics by remember { mutableStateOf(JSONObject()) }
+    var billingUpdatedAt by remember { mutableStateOf("Not refreshed yet") }
+    var billingSaving by remember { mutableStateOf(false) }
+    var billingStatus by remember { mutableStateOf<String?>(null) }
+    var billingError by remember { mutableStateOf<String?>(null) }
 
     fun parseForm(feature: String, form: LivePriceForm): JSONObject {
         val rate = form.creditsPerMinute.toDoubleOrNull() ?: throw IllegalArgumentException("$feature: enter a valid credits-per-minute value.")
@@ -103,6 +115,59 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         )
     }
 
+    suspend fun refreshBillingAnalytics() {
+        val response = api.adminDynamicBillingAnalytics(500)
+        billingAnalytics = response.optJSONObject("analytics") ?: JSONObject()
+        billingUpdatedAt = response.optString("lastRefreshedAt", "Refresh time unavailable")
+    }
+
+    suspend fun loadBillingConfig() {
+        val response = api.adminDynamicBillingConfig()
+        val config = response.optJSONObject("config") ?: JSONObject()
+        billingMarkup = (config.optDouble("profitMarkup", 0.8) * 100).toString()
+        billingFeeRate = (config.optDouble("feeRate", 0.15) * 100).toString()
+        billingCreditValue = config.optDouble("creditValueUsd", 0.07999).toString()
+        billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
+        billingApplyFee = config.optBoolean("applyFeeToUsage", false)
+        billingRatesJson = (config.optJSONObject("capabilityRates") ?: JSONObject()).toString(2)
+    }
+
+    fun saveBillingConfig() {
+        billingSaving = true
+        billingStatus = null
+        billingError = null
+        scope.launch {
+            try {
+                val markup = (billingMarkup.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid markup percentage.")) / 100.0
+                val fee = (billingFeeRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid fee percentage.")) / 100.0
+                val creditValue = billingCreditValue.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid credit value.")
+                val margin = (billingSafetyMargin.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid safety margin.")) / 100.0
+                require(markup in 0.0..1000.0 && fee in 0.0..99.99 && creditValue > 0.0 && margin in 0.0..500.0) {
+                    "Pricing values are outside the allowed range."
+                }
+                val rates = JSONObject(billingRatesJson)
+                val result = api.saveAdminDynamicBillingConfig(JSONObject()
+                    .put("profitMarkup", markup)
+                    .put("feeRate", fee)
+                    .put("applyFeeToUsage", billingApplyFee)
+                    .put("creditValueUsd", creditValue)
+                    .put("reservationSafetyMargin", margin)
+                    .put("capabilityRates", rates))
+                val config = result.optJSONObject("config") ?: JSONObject()
+                billingMarkup = (config.optDouble("profitMarkup", markup) * 100).toString()
+                billingFeeRate = (config.optDouble("feeRate", fee) * 100).toString()
+                billingCreditValue = config.optDouble("creditValueUsd", creditValue).toString()
+                billingSafetyMargin = (config.optDouble("reservationSafetyMargin", margin) * 100).toString()
+                billingStatus = "Dynamic billing settings saved. New reservations use the new configuration."
+                refreshBillingAnalytics()
+            } catch (t: Throwable) {
+                billingError = t.message ?: "Could not save billing settings."
+            } finally {
+                billingSaving = false
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         try {
             voice = formFrom(api.adminLivePricing("voice"), voice)
@@ -112,6 +177,21 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
             error = t.message ?: "Could not load live pricing."
         } finally {
             loading = false
+        }
+        runCatching { loadBillingConfig() }.onFailure {
+            billingError = it.message ?: "Billing settings are temporarily unavailable."
+        }
+        runCatching { refreshBillingAnalytics() }.onFailure {
+            billingError = it.message ?: "Analytics are temporarily unavailable."
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            runCatching { refreshBillingAnalytics() }.onFailure {
+                billingError = it.message ?: "Analytics refresh failed."
+            }
         }
     }
 
@@ -148,12 +228,141 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text("Prices apply immediately through the server. Zero credits means free; minute charges use the main BQ credit balance.", color = MaterialTheme.colorScheme.onSurface)
+            BillingAnalyticsAndSettings(
+                analytics = billingAnalytics,
+                updatedAt = billingUpdatedAt,
+                markup = billingMarkup,
+                onMarkup = { billingMarkup = it },
+                feeRate = billingFeeRate,
+                onFeeRate = { billingFeeRate = it },
+                creditValue = billingCreditValue,
+                onCreditValue = { billingCreditValue = it },
+                safetyMargin = billingSafetyMargin,
+                onSafetyMargin = { billingSafetyMargin = it },
+                applyFee = billingApplyFee,
+                onApplyFee = { billingApplyFee = it },
+                ratesJson = billingRatesJson,
+                onRatesJson = { billingRatesJson = it },
+                saving = billingSaving,
+                status = billingStatus,
+                error = billingError,
+                onSave = { saveBillingConfig() },
+                onRefresh = {
+                    scope.launch {
+                        runCatching { refreshBillingAnalytics() }
+                            .onFailure { billingError = it.message ?: "Analytics refresh failed." }
+                    }
+                }
+            )
             if (loading) Text("Loading pricing…", color = MaterialTheme.colorScheme.primary)
             status?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.tertiary) }
             PricingCard("Live Voice", voice, onChange = { voice = it }, onSave = { save("voice", voice) }, saving = saving == "voice")
             PricingCard("Live Camera and Screen Share", camera, onChange = { camera = it }, onSave = { save("camera", camera) }, saving = saving == "camera")
             PricingCard("Main Chat Dictation", dictation, onChange = { dictation = it }, onSave = { save("dictation", dictation) }, saving = saving == "dictation", showVoiceSettings = false)
+        }
+    }
+}
+
+@Composable
+private fun BillingAnalyticsAndSettings(
+    analytics: JSONObject,
+    updatedAt: String,
+    markup: String,
+    onMarkup: (String) -> Unit,
+    feeRate: String,
+    onFeeRate: (String) -> Unit,
+    creditValue: String,
+    onCreditValue: (String) -> Unit,
+    safetyMargin: String,
+    onSafetyMargin: (String) -> Unit,
+    applyFee: Boolean,
+    onApplyFee: (Boolean) -> Unit,
+    ratesJson: String,
+    onRatesJson: (String) -> Unit,
+    saving: Boolean,
+    status: String?,
+    error: String?,
+    onSave: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    val today = analytics.optJSONObject("today") ?: JSONObject()
+    val month = analytics.optJSONObject("month") ?: JSONObject()
+    val all = analytics.optJSONObject("all") ?: JSONObject()
+    fun money(value: Double) = "$" + String.format(java.util.Locale.US, "%.4f", value)
+    fun metric(label: String, value: String) {
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, style = MaterialTheme.typography.labelMedium)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("AI Billing, Costs & Revenue Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Provider costs and profit are estimates unless the provider supplies verifiable usage and billing data. Analytics refresh every 30 seconds while this screen is open.")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    metric("Provider cost today", money(today.optDouble("providerCostUsd")))
+                    metric("Customer revenue today", money(today.optDouble("revenueUsd")))
+                    metric("Estimated profit today", money(today.optDouble("estimatedProfitUsd")))
+                    metric("Admin-exempt cost today", money(today.optDouble("adminCostUsd")))
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    metric("Provider cost this month", money(month.optDouble("providerCostUsd")))
+                    metric("Customer revenue this month", money(month.optDouble("revenueUsd")))
+                    metric("Estimated profit this month", money(month.optDouble("estimatedProfitUsd")))
+                    metric("Subscription usage cost", money(month.optDouble("subscriptionCostUsd")))
+                }
+            }
+            Text("All loaded transactions: ${all.optInt("requests")} requests · ${all.optInt("succeeded")} successful · ${all.optInt("failed")} failed")
+            Text("Credits charged: ${String.format(java.util.Locale.US, "%.2f", all.optDouble("creditsCharged"))} · refunded: ${String.format(java.util.Locale.US, "%.2f", all.optDouble("creditsRefunded"))}")
+            Text("Outstanding reservations: ${all.optInt("outstandingReservations")} · unsettled: ${all.optInt("unsettled")}")
+            Text("Last refresh: $updatedAt", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Refresh analytics now") }
+            Text("Dynamic pricing settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            PriceField("Profit markup percentage (80 = 80%)", markup, onMarkup)
+            PriceField("Fee allowance percentage (15 = 15%)", feeRate, onFeeRate)
+            PriceField("USD value per credit", creditValue, onCreditValue)
+            PriceField("Reservation safety margin percentage", safetyMargin, onSafetyMargin)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Apply fee allowance to each AI operation")
+                Switch(checked = applyFee, onCheckedChange = onApplyFee)
+            }
+            Text("Capability-specific provider cost overrides (JSON). Use providerCostUsd for each capability key.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(
+                value = ratesJson,
+                onValueChange = onRatesJson,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4,
+                label = { Text("Provider cost overrides JSON") }
+            )
+            Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
+                Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
+            }
+            status?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            val providers = analytics.optJSONArray("byProvider")
+            if (providers != null && providers.length() > 0) {
+                Text("Provider cost breakdown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                for (i in 0 until minOf(providers.length(), 5)) {
+                    val row = providers.optJSONObject(i) ?: continue
+                    Text("${row.optString("providerId")}: ${money(row.optDouble("providerCostUsd"))} · ${row.optInt("requests")} requests")
+                }
+            }
+            val capabilities = analytics.optJSONArray("byCapability")
+            if (capabilities != null && capabilities.length() > 0) {
+                Text("Highest-cost features", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                for (i in 0 until minOf(capabilities.length(), 5)) {
+                    val row = capabilities.optJSONObject(i) ?: continue
+                    Text("${row.optString("capability")}: ${money(row.optDouble("providerCostUsd"))} · ${row.optInt("requests")} requests")
+                }
+            }
         }
     }
 }
