@@ -129,7 +129,8 @@ export async function reserveCredits(uid, amount, capability) {
   });
 
   await recordBillingTransaction(reservationRef.id, {
-    uid, capability, providerCostUsd: pricing.providerCostUsd, costType: "estimated",
+    uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
+    providerCostUsd: pricing.providerCostUsd, costType: "estimated",
     sellingPriceUsd: pricing.sellingPriceUsd, profitMarkup: pricing.profitMarkup,
     feeRateApplied: pricing.feeRateApplied, creditValueUsd: pricing.creditValueUsd,
     creditsReserved: charge, creditsCharged: 0, pricingVersion: pricing.pricingVersion,
@@ -206,16 +207,18 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
   const committed = await reservationRef.get();
   if (committed.exists) {
     const data = committed.data() || {};
-    await updateBillingTransaction(reservationId, {
-      providerId: providerId || null,
-      modelId: metadata.modelId || data.modelId || null,
-      usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
-      status: data.status === "committed" ? "committed" : "reserved",
-      creditsCharged: data.status === "committed" ? Number(data.finalCharge ?? data.amount ?? 0) : 0,
-      creditsReserved: Number(data.amount || 0),
-      creditsRefunded: data.status === "committed" ? Math.max(0, Number(data.amount || 0) - Number(data.finalCharge ?? data.amount ?? 0)) : 0,
-      committedAt: FieldValue.serverTimestamp()
-    });
+    if (data.status === "committed") {
+      await updateBillingTransaction(reservationId, {
+        providerId: providerId || null,
+        modelId: metadata.modelId || data.modelId || null,
+        usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
+        status: "committed",
+        creditsCharged: Number(data.finalCharge ?? data.amount ?? 0),
+        creditsReserved: Number(data.amount || 0),
+        creditsRefunded: Math.max(0, Number(data.amount || 0) - Number(data.finalCharge ?? data.amount ?? 0)),
+        committedAt: FieldValue.serverTimestamp()
+      });
+    }
   }
 }
 
@@ -306,9 +309,12 @@ export async function reverseCredits(uid, reservationId) {
       reversedAt: FieldValue.serverTimestamp()
     });
   });
-  await updateBillingTransaction(reservationId, {
-    status: "reversed", creditsCharged: 0,
-    creditsRefunded: Number((await reservationRef.get()).data()?.amount || 0),
-    reversedAt: FieldValue.serverTimestamp()
-  });
+  const reversed = await reservationRef.get();
+  if (reversed.exists && reversed.data()?.status === "reversed") {
+    await updateBillingTransaction(reservationId, {
+      status: "reversed", creditsCharged: 0,
+      creditsRefunded: Number(reversed.data()?.amount || 0),
+      reversedAt: FieldValue.serverTimestamp()
+    });
+  }
 }
