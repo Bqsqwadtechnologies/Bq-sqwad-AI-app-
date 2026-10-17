@@ -55,8 +55,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const outputCostUsd = (outputTokens / 1_000_000) * outputRate;
   const providerCostUsd = inputCostUsd + cachedInputCostUsd + outputCostUsd;
   const creditValue = Number(creditReferenceValueUsd);
-  const markup = Number(multiplier);
-  if (!Number.isFinite(creditValue) || creditValue <= 0 || !Number.isFinite(markup) || markup < 1) {
+  if (!Number.isFinite(creditValue) || creditValue <= 0) {
     throw Object.assign(new Error("token_billing_config_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) {
