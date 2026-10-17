@@ -364,7 +364,7 @@ private fun BillingAnalyticsAndSettings(
                     metric("Provider cost this month", money(month.optDouble("providerCostUsd")))
                     metric("Customer revenue this month", money(month.optDouble("revenueUsd")))
                     metric("Estimated profit this month", money(month.optDouble("estimatedProfitUsd")))
-                    metric("Subscription usage cost", money(month.optDouble("subscriptionCostUsd")))
+                    metric("Subscription/free usage cost", money(month.optDouble("subscriptionCostUsd")))
                 }
             }
             Text("All loaded transactions: ${all.optInt("requests")} requests · ${all.optInt("succeeded")} successful · ${all.optInt("failed")} failed")
