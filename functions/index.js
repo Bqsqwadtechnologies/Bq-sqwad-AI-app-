@@ -3017,6 +3017,17 @@ export const bqSqwadApi = onRequest(
         return send(res, 200, { ok: true, config, savedAt: new Date().toISOString() });
       }
 
+      if (req.method === "POST" && path === "admin/ai-billing/rollback") {
+        const admin = await adminFromRequest(req);
+        const latest = await getFirestore().collection("aiBillingConfigAudit")
+          .orderBy("createdAt", "desc").limit(1).get();
+        if (latest.empty) return send(res, 409, { error: "no_previous_billing_configuration" });
+        const previous = latest.docs[0].data()?.previous;
+        if (!previous || typeof previous !== "object") return send(res, 409, { error: "previous_billing_configuration_unavailable" });
+        const config = await saveDynamicBillingConfig(previous, admin.uid);
+        return send(res, 200, { ok: true, rolledBack: true, config, savedAt: new Date().toISOString() });
+      }
+
       if (req.method === "POST" && path === "admin/ai-billing/preview") {
         await adminFromRequest(req);
         const config = await getDynamicBillingConfig();
