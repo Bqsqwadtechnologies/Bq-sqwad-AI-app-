@@ -1137,8 +1137,11 @@ async function ai(request, user, body) {
     control = { ...control, ...selected, config: control.config || {} };
   }
   const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  // Text chat defaults to measured provider-cost billing. An explicit admin
+  // setting can still opt a capability out; model pricing must be configured
+  // or the request fails safely instead of silently charging one fixed credit.
   const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
-    String(control.billingMode || "fixed_credit") === "token";
+    String(control.billingMode || (capabilityName === "chat" ? "token" : "fixed_credit")) === "token";
   const tokenPricing = tokenBilling
     ? await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control)
     : null;
