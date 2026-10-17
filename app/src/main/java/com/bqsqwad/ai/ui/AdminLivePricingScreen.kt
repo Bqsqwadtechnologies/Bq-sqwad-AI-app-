@@ -382,7 +382,7 @@ private fun BillingAnalyticsAndSettings(
             PriceField("OpenAI input USD per 1M tokens", inputRate, onInputRate)
             PriceField("OpenAI output USD per 1M tokens", outputRate, onOutputRate)
             PriceField("OpenAI cached input USD per 1M tokens", cachedRate, onCachedRate)
-            PriceField("Profit markup percentage (130 = 130%)", markup, onMarkup)
+            PriceField("Profit markup percentage (300 = 300%)", markup, onMarkup)
             Text("Additional feature rates (JSON). Prices stay in the admin dashboard; live connection rates are provider USD/minute, transcription is USD/minute, image/audio rates are USD/token, and Tavily is credits/search.", style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(value = featureRatesJson, onValueChange = onFeatureRatesJson, modifier = Modifier.fillMaxWidth(), label = { Text("Feature rates JSON") }, minLines = 8, maxLines = 16)
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
