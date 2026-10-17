@@ -1181,7 +1181,7 @@ export const bqSqwadApi = onRequest(
             knowledgeText || "(No business knowledge has been added yet.)"
           ].join("\n");
           const result = await runAi({ capability: "chat", message, system });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           await getFirestore().collection("businessWorkspaces").doc(workspace.workspaceId).set({
             usage: { messages: FieldValue.increment(1) },
@@ -1695,7 +1695,7 @@ export const bqSqwadApi = onRequest(
             message: String(body.message || ""),
             system
           });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0, incidentId: crypto.randomUUID() });
@@ -1781,7 +1781,7 @@ export const bqSqwadApi = onRequest(
               mimeType: String(body.mimeType || "image/jpeg").slice(0, 80)
             });
           })();
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           await writeActivity({ uid: user.uid, capability: "live_camera", action: "live_camera_vision", status: "success", metadata: { provider: result.providerId || "", model: result.modelId || "" } });
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
@@ -1805,7 +1805,7 @@ export const bqSqwadApi = onRequest(
             message: String(body.message || ""),
             system: DEVICE_COMMAND_SYSTEM
           });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           let parsed = { actions: [], message: "No supported device action." };
           try { parsed = JSON.parse(result.text); } catch {}
