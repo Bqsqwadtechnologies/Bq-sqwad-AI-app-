@@ -69,7 +69,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var saving by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var billingMarkup by remember { mutableStateOf("300") }
+    var billingMarkup by remember { mutableStateOf("600") }
     var openAiInputRate by remember { mutableStateOf("0.05") }
     var openAiOutputRate by remember { mutableStateOf("0.25") }
     var openAiCachedRate by remember { mutableStateOf("0.005") }
@@ -133,7 +133,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     suspend fun loadBillingConfig() {
         val response = api.adminDynamicBillingConfig()
         val config = response.optJSONObject("config") ?: JSONObject()
-        billingMarkup = (config.optDouble("profitMarkup", 1.3) * 100).toString()
+        billingMarkup = (config.optDouble("profitMarkup", 6.0) * 100).toString()
         val openAiRates = config.optJSONObject("openAiRates") ?: JSONObject()
         openAiInputRate = openAiRates.optDouble("inputPriceUsdPerMillion", 0.05).toString()
         openAiOutputRate = openAiRates.optDouble("outputPriceUsdPerMillion", 0.25).toString()
@@ -382,7 +382,7 @@ private fun BillingAnalyticsAndSettings(
             PriceField("OpenAI input USD per 1M tokens", inputRate, onInputRate)
             PriceField("OpenAI output USD per 1M tokens", outputRate, onOutputRate)
             PriceField("OpenAI cached input USD per 1M tokens", cachedRate, onCachedRate)
-            PriceField("Profit markup percentage (300 = 300%)", markup, onMarkup)
+            PriceField("Profit markup percentage (600 = 600%)", markup, onMarkup)
             Text("Additional feature rates (JSON). Prices stay in the admin dashboard; live connection rates are provider USD/minute, transcription is USD/minute, image/audio rates are USD/token, and Tavily is credits/search.", style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(value = featureRatesJson, onValueChange = onFeatureRatesJson, modifier = Modifier.fillMaxWidth(), label = { Text("Feature rates JSON") }, minLines = 8, maxLines = 16)
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
