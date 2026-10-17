@@ -231,17 +231,18 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const balance = canonicalBalance(profile);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
     const reservedAmount = Math.max(0, Number(data.amount || 0));
-    const finalCharge = Math.max(0, Number(actualQuote?.credits ?? data.finalCharge ?? reservedAmount));
+    const requestedFinalCharge = Math.max(0, Number(actualQuote?.credits ?? data.finalCharge ?? reservedAmount));
+    // Never surprise-charge beyond the pre-authorized reservation. If actual
+    // usage exceeds the reserved ceiling, deliver the completed result and record
+    // the provider-cost overrun for administrator review instead of failing late.
+    const finalCharge = Math.min(reservedAmount, requestedFinalCharge);
+    const costOverrunCredits = Math.max(0, requestedFinalCharge - reservedAmount);
     const unused = Math.max(0, reservedAmount - finalCharge);
-    const additional = Math.max(0, finalCharge - reservedAmount);
-    if (additional > totalBalance(balance)) throw new Error("insufficient_credits_for_actual_usage");
-    const additionalSubscription = Math.min(balance.subscription, additional);
-    const additionalPermanent = additional - additionalSubscription;
     // Refund unused safety-margin credits to the same buckets originally debited.
     const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
     const refundSubscription = Math.max(0, unused - refundPermanent);
-    const nextPermanent = balance.permanent - additionalPermanent + refundPermanent;
-    const nextSubscription = balance.subscription - additionalSubscription + refundSubscription;
+    const nextPermanent = balance.permanent + refundPermanent;
+    const nextSubscription = balance.subscription + refundSubscription;
     const nextBalance = { permanent: nextPermanent, subscription: nextSubscription };
 
     tx.update(userRef, {
@@ -257,6 +258,8 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     tx.update(reservationRef, {
       status: "committed",
       finalCharge,
+      costOverrunCredits,
+      providerCostUsd: actualProviderCost == null ? Number(data.providerCostUsd || 0) : actualProviderCost,
       providerId: providerId || null,
       committedAt: FieldValue.serverTimestamp()
     });
@@ -279,7 +282,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
         usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
         providerCostUsd: actualProviderCost == null ? Number(data.providerCostUsd || 0) : actualProviderCost,
         costType: actualProviderCost == null ? "estimated" : "calculated_from_actual_usage",
-        sellingPriceUsd: actualQuote?.sellingPriceUsd ?? Number(data.sellingPriceUsd || 0),
+        sellingPriceUsd: actualQuote ? finalCharge * Number(data.creditValueUsd || actualQuote.creditValueUsd) : Number(data.sellingPriceUsd || 0),
+        costOverrunCredits: Number(data.costOverrunCredits || 0),
+        costOverrun: Number(data.costOverrunCredits || 0) > 0,
         status: "committed",
         creditsCharged: Number(data.finalCharge ?? data.amount ?? 0),
         creditsReserved: Number(data.amount || 0),
