@@ -70,6 +70,9 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var billingMarkup by remember { mutableStateOf("110") }
+    var openAiInputRate by remember { mutableStateOf("0.05") }
+    var openAiOutputRate by remember { mutableStateOf("0.25") }
+    var openAiCachedRate by remember { mutableStateOf("0.005") }
     var billingFeeRate by remember { mutableStateOf("15") }
     var billingCreditValue by remember { mutableStateOf("0.07999") }
     var billingSafetyMargin by remember { mutableStateOf("20") }
@@ -130,6 +133,10 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         val response = api.adminDynamicBillingConfig()
         val config = response.optJSONObject("config") ?: JSONObject()
         billingMarkup = (config.optDouble("profitMarkup", 1.1) * 100).toString()
+        val openAiRates = config.optJSONObject("openAiRates") ?: JSONObject()
+        openAiInputRate = openAiRates.optDouble("inputPriceUsdPerMillion", 0.05).toString()
+        openAiOutputRate = openAiRates.optDouble("outputPriceUsdPerMillion", 0.25).toString()
+        openAiCachedRate = openAiRates.optDouble("cachedInputPriceUsdPerMillion", 0.005).toString()
         billingFeeRate = (config.optDouble("feeRate", 0.15) * 100).toString()
         billingCreditValue = config.optDouble("creditValueUsd", 0.07999).toString()
         billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
@@ -149,10 +156,23 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 val markupPercent = billingMarkup.toDoubleOrNull()
                     ?: throw IllegalArgumentException("Enter a valid markup percentage.")
                 require(markupPercent in 0.0..1000.0) { "Markup must be between 0% and 1000%." }
-                val result = api.saveAdminDynamicBillingConfig(JSONObject().put("profitMarkup", markupPercent / 100.0))
+                val inputRate = openAiInputRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI input rate.")
+                val outputRate = openAiOutputRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI output rate.")
+                val cachedRate = openAiCachedRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI cached-input rate.")
+                require(listOf(inputRate, outputRate, cachedRate).all { it in 0.0..10000.0 }) { "OpenAI rates must be between 0 and 10000 USD per million tokens." }
+                val result = api.saveAdminDynamicBillingConfig(JSONObject()
+                    .put("profitMarkup", markupPercent / 100.0)
+                    .put("openAiRates", JSONObject()
+                        .put("inputPriceUsdPerMillion", inputRate)
+                        .put("outputPriceUsdPerMillion", outputRate)
+                        .put("cachedInputPriceUsdPerMillion", cachedRate)))
                 val config = result.optJSONObject("config") ?: JSONObject()
                 billingMarkup = (config.optDouble("profitMarkup", markupPercent / 100.0) * 100).toString()
-                billingStatus = "Markup saved. New AI usage is priced using this percentage."
+                val savedRates = config.optJSONObject("openAiRates") ?: JSONObject()
+                openAiInputRate = savedRates.optDouble("inputPriceUsdPerMillion", inputRate).toString()
+                openAiOutputRate = savedRates.optDouble("outputPriceUsdPerMillion", outputRate).toString()
+                openAiCachedRate = savedRates.optDouble("cachedInputPriceUsdPerMillion", cachedRate).toString()
+                billingStatus = "OpenAI rates and markup saved. New usage uses these settings."
                 refreshBillingAnalytics()
             } catch (t: Throwable) {
                 billingError = t.message ?: "Could not save markup percentage."
@@ -245,6 +265,12 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 updatedAt = billingUpdatedAt,
                 markup = billingMarkup,
                 onMarkup = { billingMarkup = it },
+                inputRate = openAiInputRate,
+                onInputRate = { openAiInputRate = it },
+                outputRate = openAiOutputRate,
+                onOutputRate = { openAiOutputRate = it },
+                cachedRate = openAiCachedRate,
+                onCachedRate = { openAiCachedRate = it },
                 saving = billingSaving,
                 status = billingStatus,
                 error = billingError,
@@ -272,6 +298,12 @@ private fun BillingAnalyticsAndSettings(
     updatedAt: String,
     markup: String,
     onMarkup: (String) -> Unit,
+    inputRate: String,
+    onInputRate: (String) -> Unit,
+    outputRate: String,
+    onOutputRate: (String) -> Unit,
+    cachedRate: String,
+    onCachedRate: (String) -> Unit,
     saving: Boolean,
     status: String?,
     error: String?,
@@ -335,7 +367,10 @@ private fun BillingAnalyticsAndSettings(
                 }
             }
             Text("Dynamic pricing settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Admin controls only the markup percentage. Provider rates and the $0.07999 reference value per credit are controlled by billing configuration, not edited here.", style = MaterialTheme.typography.bodySmall)
+            Text("OpenAI rates are USD per million tokens. The default credit reference remains $0.07999 per credit. Customer prices apply the markup percentage to these configured provider rates.", style = MaterialTheme.typography.bodySmall)
+            PriceField("OpenAI input USD per 1M tokens", inputRate, onInputRate)
+            PriceField("OpenAI output USD per 1M tokens", outputRate, onOutputRate)
+            PriceField("OpenAI cached input USD per 1M tokens", cachedRate, onCachedRate)
             PriceField("Profit markup percentage (110 = 110%)", markup, onMarkup)
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
