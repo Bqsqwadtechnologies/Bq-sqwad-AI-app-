@@ -69,10 +69,11 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     var saving by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var billingMarkup by remember { mutableStateOf("110") }
+    var billingMarkup by remember { mutableStateOf("130") }
     var openAiInputRate by remember { mutableStateOf("0.05") }
     var openAiOutputRate by remember { mutableStateOf("0.25") }
     var openAiCachedRate by remember { mutableStateOf("0.005") }
+    var featureRatesJson by remember { mutableStateOf("""{"audioInputUsdPerToken":0.000032,"audioOutputUsdPerToken":0.000064,"transcriptionUsdPerMinute":0.003,"liveVoiceConnectionUsdPerMinute":0.05,"liveCameraConnectionUsdPerMinute":0.05,"imageOutputUsdPerToken":0.000015,"imageInputUsdPerToken":0.000004,"imageTextInputUsdPerToken":0.0000025,"tavilyCreditsPerSearch":1.7,"deepResearchCredits":5}""") }
     var billingFeeRate by remember { mutableStateOf("15") }
     var billingCreditValue by remember { mutableStateOf("0.07999") }
     var billingSafetyMargin by remember { mutableStateOf("20") }
@@ -132,11 +133,12 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
     suspend fun loadBillingConfig() {
         val response = api.adminDynamicBillingConfig()
         val config = response.optJSONObject("config") ?: JSONObject()
-        billingMarkup = (config.optDouble("profitMarkup", 1.1) * 100).toString()
+        billingMarkup = (config.optDouble("profitMarkup", 1.3) * 100).toString()
         val openAiRates = config.optJSONObject("openAiRates") ?: JSONObject()
         openAiInputRate = openAiRates.optDouble("inputPriceUsdPerMillion", 0.05).toString()
         openAiOutputRate = openAiRates.optDouble("outputPriceUsdPerMillion", 0.25).toString()
         openAiCachedRate = openAiRates.optDouble("cachedInputPriceUsdPerMillion", 0.005).toString()
+        featureRatesJson = (config.optJSONObject("featureRates") ?: JSONObject("""{"audioInputUsdPerToken":0.000032,"audioOutputUsdPerToken":0.000064,"transcriptionUsdPerMinute":0.003,"liveVoiceConnectionUsdPerMinute":0.05,"liveCameraConnectionUsdPerMinute":0.05,"imageOutputUsdPerToken":0.000015,"imageInputUsdPerToken":0.000004,"imageTextInputUsdPerToken":0.0000025,"tavilyCreditsPerSearch":1.7,"deepResearchCredits":5}""")).toString(2)
         billingFeeRate = (config.optDouble("feeRate", 0.15) * 100).toString()
         billingCreditValue = config.optDouble("creditValueUsd", 0.07999).toString()
         billingSafetyMargin = (config.optDouble("reservationSafetyMargin", 0.2) * 100).toString()
@@ -159,15 +161,20 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 val inputRate = openAiInputRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI input rate.")
                 val outputRate = openAiOutputRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI output rate.")
                 val cachedRate = openAiCachedRate.toDoubleOrNull() ?: throw IllegalArgumentException("Enter a valid OpenAI cached-input rate.")
+                val featureRates = try { JSONObject(featureRatesJson) } catch (_: Throwable) { throw IllegalArgumentException("Feature rates must be valid JSON.") }
+                val requiredFeatureRates = listOf("audioInputUsdPerToken", "audioOutputUsdPerToken", "transcriptionUsdPerMinute", "liveVoiceConnectionUsdPerMinute", "liveCameraConnectionUsdPerMinute", "imageOutputUsdPerToken", "imageInputUsdPerToken", "imageTextInputUsdPerToken", "tavilyCreditsPerSearch", "deepResearchCredits")
+                require(requiredFeatureRates.all { featureRates.has(it) && featureRates.optDouble(it, -1.0) >= 0.0 }) { "Enter every required feature rate as a non-negative number." }
                 require(listOf(inputRate, outputRate, cachedRate).all { it in 0.0..10000.0 }) { "OpenAI rates must be between 0 and 10000 USD per million tokens." }
                 val result = api.saveAdminDynamicBillingConfig(JSONObject()
                     .put("profitMarkup", markupPercent / 100.0)
                     .put("openAiRates", JSONObject()
                         .put("inputPriceUsdPerMillion", inputRate)
                         .put("outputPriceUsdPerMillion", outputRate)
-                        .put("cachedInputPriceUsdPerMillion", cachedRate)))
+                        .put("cachedInputPriceUsdPerMillion", cachedRate))
+                    .put("featureRates", featureRates))
                 val config = result.optJSONObject("config") ?: JSONObject()
                 billingMarkup = (config.optDouble("profitMarkup", markupPercent / 100.0) * 100).toString()
+                featureRatesJson = (config.optJSONObject("featureRates") ?: featureRates).toString(2)
                 val savedRates = config.optJSONObject("openAiRates") ?: JSONObject()
                 openAiInputRate = savedRates.optDouble("inputPriceUsdPerMillion", inputRate).toString()
                 openAiOutputRate = savedRates.optDouble("outputPriceUsdPerMillion", outputRate).toString()
@@ -271,6 +278,8 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 onOutputRate = { openAiOutputRate = it },
                 cachedRate = openAiCachedRate,
                 onCachedRate = { openAiCachedRate = it },
+                featureRatesJson = featureRatesJson,
+                onFeatureRatesJson = { featureRatesJson = it },
                 saving = billingSaving,
                 status = billingStatus,
                 error = billingError,
@@ -304,6 +313,8 @@ private fun BillingAnalyticsAndSettings(
     onOutputRate: (String) -> Unit,
     cachedRate: String,
     onCachedRate: (String) -> Unit,
+    featureRatesJson: String,
+    onFeatureRatesJson: (String) -> Unit,
     saving: Boolean,
     status: String?,
     error: String?,
@@ -371,7 +382,9 @@ private fun BillingAnalyticsAndSettings(
             PriceField("OpenAI input USD per 1M tokens", inputRate, onInputRate)
             PriceField("OpenAI output USD per 1M tokens", outputRate, onOutputRate)
             PriceField("OpenAI cached input USD per 1M tokens", cachedRate, onCachedRate)
-            PriceField("Profit markup percentage (110 = 110%)", markup, onMarkup)
+            PriceField("Profit markup percentage (130 = 130%)", markup, onMarkup)
+            Text("Additional feature rates (JSON). Prices stay in the admin dashboard; live connection rates are provider USD/minute, transcription is USD/minute, image/audio rates are USD/token, and Tavily is credits/search.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(value = featureRatesJson, onValueChange = onFeatureRatesJson, modifier = Modifier.fillMaxWidth(), label = { Text("Feature rates JSON") }, minLines = 8, maxLines = 16)
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
             }
