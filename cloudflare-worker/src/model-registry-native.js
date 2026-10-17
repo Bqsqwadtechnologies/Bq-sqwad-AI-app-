@@ -27,7 +27,7 @@ function normalizeModel(raw, actorUid) {
   const outputPriceUsdPerMillion = Number(raw?.outputPriceUsdPerMillion ?? 0);
   const cachedInputPriceUsdPerMillion = raw?.cachedInputPriceUsdPerMillion == null || raw?.cachedInputPriceUsdPerMillion === "" ? null : Number(raw.cachedInputPriceUsdPerMillion);
   const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.07999);
-  const customerMultiplier = Number(raw?.customerMultiplier ?? 8);
+  const customerMultiplier = Number(raw?.customerMultiplier ?? 1.8);
   const estimatedFeePercent = Number(raw?.estimatedFeePercent ?? 15);
   const maxOutputTokens = Number(raw?.maxOutputTokens ?? 2048);
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
