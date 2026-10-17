@@ -62,11 +62,16 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
-  // Product rule: charge actual measured provider cost plus an 80% markup.
-  // Do not let legacy website shared-metering tables or old model multipliers
-  // silently replace the provider-cost formula with a fixed per-message charge.
-  const markup = 1.8;
-  const customerCredits = providerCostCredits * markup;
+  // Dynamic admin billing config is shared through Firestore. Provider token
+  // rates remain provider/model registry data; admins only control profit markup.
+  // Default profit markup is 80%, plus the configured fee allowance when enabled.
+  const markupPercent = Number(pricing?.profitMarkupPercent ?? ((Number(multiplier) - 1) * 100));
+  if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
+    throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+  }
+  const markup = 1 + markupPercent / 100;
+  const feeMultiplier = pricing?.applyFeeToUsage === true ? (1 + estimatedFeePercent / 100) : 1;
+  const customerCredits = providerCostCredits * markup * feeMultiplier;
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
@@ -105,6 +110,12 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     ) || {};
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
+  const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
+    || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
+    || {};
+  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.profitMarkup ?? 0.8) * 100));
+  const feeRate = Math.max(0, Math.min(100, Number(dynamicBilling.feeRate ?? 0.30) * 100));
+  const applyFeeToUsage = dynamicBilling.applyFeeToUsage === true;
 
   // The website admin dashboard and the Android app share Firebase project
   // bqsqwadai. Website AI model metering is persisted at config/aiModels;
@@ -128,11 +139,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     cachedInputPriceUsdPerMillion: embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
-  const baseCustomerMultiplier = Number(embedded.customerMultiplier ?? model.customerMultiplier ?? config.customerMultiplier ?? DEFAULT_CUSTOMER_MULTIPLIER);
+  const baseCustomerMultiplier = 1 + profitMarkup / 100;
   // Website model multipliers are deliberate relative cost weights (Luna,
   // Terra, Sol, Gemini) and must affect actual Worker settlement too.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
-  const estimatedFeePercent = Number(embedded.estimatedFeePercent ?? model.estimatedFeePercent ?? config.estimatedFeePercent ?? 15);
+  const estimatedFeePercent = feeRate;
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
@@ -151,7 +162,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
       }
     : null;
   return {
-    ...rates, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens, configured,
+    ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
+    applyFeeToUsage, estimatedFeePercent, maxOutputTokens, configured,
     sharedCreditMetering,
     sharedModelMultiplier: sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1,
     billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
