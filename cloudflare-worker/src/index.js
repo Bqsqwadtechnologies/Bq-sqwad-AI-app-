@@ -1204,9 +1204,22 @@ async function ai(request, user, body) {
   const tokenBilling = capabilityName === "chat" ||
     (["device_commands", "device-commands"].includes(capabilityName) &&
       String(control.billingMode || "fixed_credit") === "token");
-  const tokenPricing = tokenBilling
+  let tokenPricing = tokenBilling
     ? await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control)
     : null;
+  // A missing price card for an admin-selected chat provider must not strand
+  // Main Chat. Fall back to the built-in OpenAI text-chat rate card only when
+  // the selected provider has no usable rates; preserve configured choices.
+  if (tokenBilling && !tokenPricing.configured && capabilityName === "chat" &&
+      String(control.providerId || "").toLowerCase() !== "openai") {
+    const fallbackModelId = String(DEFAULT_MODELS.openai || "gpt-4o-mini");
+    const fallbackControl = { ...control, providerId: "openai", modelId: fallbackModelId, tokenPricing: null };
+    const fallbackPricing = await resolveTokenPricing("openai", fallbackModelId, pricingFeature, fallbackControl);
+    if (fallbackPricing.configured) {
+      control = fallbackControl;
+      tokenPricing = fallbackPricing;
+    }
+  }
   if (tokenBilling && !tokenPricing.configured) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
   }
