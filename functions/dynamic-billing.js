@@ -257,7 +257,7 @@ export async function getBillingAnalytics(limit = 500) {
     const refunded = Math.max(0, finite(x.creditsRefunded, 0));
     const creditValue = Math.max(0, finite(x.creditValueUsd, DEFAULTS.creditValueUsd));
     const exempt = x.exemptType === "admin_exempt";
-    const subscription = x.exemptType === "subscription_included";
+    const subscription = x.exemptType === "subscription_included" || x.exemptType === "subscription_or_free";
     const revenue = exempt || subscription ? 0 : Math.max(0, finite(x.sellingPriceUsd, charged * creditValue));
     const fee = Math.max(0, finite(x.feeRateApplied, 0)) * revenue;
     const customerCost = exempt || subscription ? 0 : cost;
