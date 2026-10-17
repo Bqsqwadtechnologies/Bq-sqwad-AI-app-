@@ -1,6 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { priceOperation, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
+import { priceOperation, recordBillingTransaction, updateBillingTransaction, getDynamicBillingConfig, calculateDynamicCharge, providerCostFromUsage } from "./dynamic-billing.js";
 
 const ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || "isaacoshiomole0@gmail.com").trim().toLowerCase();
 
@@ -118,6 +118,8 @@ export async function reserveCredits(uid, amount, capability) {
       providerId: pricing.providerId || null,
       modelId: pricing.modelId || null,
       providerCostUsd: pricing.providerCostUsd,
+      rateSnapshot: pricing.rateSnapshot || null,
+      pricingSnapshot: pricing.pricingSnapshot || null,
       sellingPriceUsd: pricing.sellingPriceUsd,
       profitMarkup: pricing.profitMarkup,
       feeRateApplied: pricing.feeRateApplied,
@@ -130,7 +132,8 @@ export async function reserveCredits(uid, amount, capability) {
 
   await recordBillingTransaction(reservationRef.id, {
     uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
-    providerCostUsd: pricing.providerCostUsd, costType: "estimated",
+    providerCostUsd: pricing.providerCostUsd, rateSnapshot: pricing.rateSnapshot || null,
+    pricingSnapshot: pricing.pricingSnapshot || null, costType: "estimated",
     sellingPriceUsd: pricing.sellingPriceUsd, profitMarkup: pricing.profitMarkup,
     feeRateApplied: pricing.feeRateApplied, creditValueUsd: pricing.creditValueUsd,
     creditsReserved: charge, creditsCharged: 0, pricingVersion: pricing.pricingVersion,
