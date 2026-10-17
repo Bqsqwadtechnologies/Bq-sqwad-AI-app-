@@ -383,7 +383,7 @@ private fun BillingAnalyticsAndSettings(
                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text("${tx.optString("capability")} · ${tx.optString("status")}", fontWeight = FontWeight.SemiBold)
                             Text("User: ${tx.optString("uid")} · Provider/model: ${tx.optString("providerId", "unknown")}/${tx.optString("modelId", "unknown")}")
-                            Text("Provider cost (${tx.optString("costType", "estimated")}): ${money(tx.optDouble("providerCostUsd"))} · charged: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsCharged"))} credits · refunded: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsRefunded"))} credits" + if (tx.optBoolean("costOverrun")) " · COST OVERRUN" else "")
+                            Text("Provider cost (${tx.optString("costType", "estimated")}): ${money(tx.optDouble("providerCostUsd"))} · charged: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsCharged"))} credits · refunded: ${String.format(java.util.Locale.US, "%.2f", tx.optDouble("creditsRefunded"))} credits${if (tx.optBoolean("costOverrun")) " · COST OVERRUN" else ""}")
                             Text("ID: ${tx.optString("transactionId")} · pricing v${tx.optInt("pricingVersion", 1)}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
