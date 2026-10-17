@@ -270,7 +270,7 @@ export const bqSqwadApi = onRequest(
               "Business brief:\n" + brief
             ].join("\n")
           });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           await writeActivity({ uid: user.uid, capability: "business_plan_builder", action: "plan_generated", status: "success", metadata: { workspaceId: workspace.workspaceId, planId: plan.plan.id } });
           return send(res, 200, { ok: true, planId: plan.plan.id, answer: result.text, creditsCharged: reservation?.amount || 0 });
@@ -1209,7 +1209,7 @@ export const bqSqwadApi = onRequest(
             size: body.size,
             quality: body.quality
           });
-          await commitCredits(user.uid, reservation.reservationId, result.providerId);
+          await commitCredits(user.uid, reservation.reservationId, result.providerId, { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           return send(res, 200, { ...result, creditsCharged: reservation.amount });
         } catch (error) {
@@ -1397,7 +1397,7 @@ export const bqSqwadApi = onRequest(
               updatedAt: FieldValue.serverTimestamp()
             });
           }
-          await commitCredits(user.uid, reservation.reservationId, result.providerId || "truth_guard");
+          await commitCredits(user.uid, reservation.reservationId, result.providerId || "truth_guard", { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           return send(res, 200, {
             ok: true,
@@ -1513,7 +1513,7 @@ export const bqSqwadApi = onRequest(
           batch.set(userRef,{uid:user.uid,role:"user",text:message,createdAt:FieldValue.serverTimestamp()});
           batch.set(assistantRef,{uid:user.uid,role:"assistant",text:result.text || "",createdAt:FieldValue.serverTimestamp(),providerId:result.providerId || null,modelId:result.modelId || null});
           await batch.commit();
-          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion");
+          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion", { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           return send(res,200,{ok:true,text:result.text || "",answer:result.text || "",creditsCharged:reservation?.amount || 0});
         } catch(error) {
@@ -1536,7 +1536,7 @@ export const bqSqwadApi = onRequest(
           const result=await runAi({capability:"companion_checkin",message:prompt,system:"Give a brief reflective check-in prompt. Do not present yourself as a human."});
           const ref=getFirestore().collection("companionCheckins").doc();
           await ref.set({uid:user.uid,prompt,response:result.text||"",createdAt:FieldValue.serverTimestamp()});
-          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion_checkin");
+          await commitCredits(user.uid,reservation?.reservationId,result.providerId || "companion_checkin", { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           return send(res,200,{ok:true,text:result.text||"",creditsCharged:reservation?.amount||0});
         }catch(error){await reverseCredits(user.uid,reservation?.reservationId);throw error;}
@@ -1663,7 +1663,7 @@ export const bqSqwadApi = onRequest(
             providerId: result.providerId || null, modelId: result.modelId || null,
             createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
           });
-          await commitCredits(user.uid, reservation?.reservationId, result.providerId || "learning_studio");
+          await commitCredits(user.uid, reservation?.reservationId, result.providerId || "learning_studio", { modelId: result.modelId, usage: result.rawUsage });
           gate.commit();
           return send(res, 200, {
             ok: true, id: ref.id, planId, mode, subject,
