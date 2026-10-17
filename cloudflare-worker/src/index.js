@@ -1220,7 +1220,7 @@ async function ai(request, user, body) {
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
       primaryModelId: control.modelId,
-      fallbackProviderIds: control.config?.fallbackProviderIds || control.fallbackProviderIds || (tokenBilling ? ["gemini"] : []),
+      fallbackProviderIds: tokenBilling && String(control.providerId || "").toLowerCase() === "openai" ? ["gemini"] : (control.config?.fallbackProviderIds || control.fallbackProviderIds || []),
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
