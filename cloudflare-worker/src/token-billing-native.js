@@ -138,10 +138,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Rates are USD per million tokens; provider-specific registry/admin values
   // always override these defaults. Other providers still require their own rates.
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
+  const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
   const rates = {
-    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0)),
-    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0)),
-    cachedInputPriceUsdPerMillion: Number(embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? 0.005 : (embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0)))
+    inputPriceUsdPerMillion: Number(embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? (adminOpenAiRates.inputPriceUsdPerMillion ?? 0.05) : 0)),
+    outputPriceUsdPerMillion: Number(embedded.outputPriceUsdPerMillion ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? (adminOpenAiRates.outputPriceUsdPerMillion ?? 0.25) : 0)),
+    cachedInputPriceUsdPerMillion: Number(embedded.cachedInputPriceUsdPerMillion ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? (adminOpenAiRates.cachedInputPriceUsdPerMillion ?? 0.005) : (embedded.inputPriceUsdPerMillion ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? 0)))
   };
   const creditReferenceValueUsd = Number(embedded.creditReferenceValueUsd ?? model.creditReferenceValueUsd ?? config.creditReferenceValueUsd ?? DEFAULT_CREDIT_REFERENCE_USD);
   const baseCustomerMultiplier = 1 + profitMarkup / 100;
