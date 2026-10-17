@@ -658,9 +658,44 @@ async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
 
+function isSubscriptionCoveredCapability(profile, capabilityName) {
+  const expiresAt = Date.parse(String(profile?.subExpiresAt || ""));
+  const planId = String(profile?.subscriptionPlan || "").trim().toLowerCase();
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || !planId || /^(free|none|trial-free)$/.test(planId)) return false;
+
+  const capability = String(capabilityName || "").trim().toLowerCase().replace(/-/g, "_");
+  const explicit = [
+    ...(Array.isArray(profile?.planEntitlements) ? profile.planEntitlements : []),
+    ...(Array.isArray(profile?.subscriptionFeatures) ? profile.subscriptionFeatures : []),
+    ...(Array.isArray(profile?.includedCapabilities) ? profile.includedCapabilities : [])
+  ].map(value => String(value || "").trim().toLowerCase().replace(/-/g, "_"));
+  if (explicit.includes("*") || explicit.includes(capability)) return true;
+
+  // Subscription-covered product workspaces are included in their matching
+  // active plan; these requests must not consume daily, trial, subscription, or permanent credits.
+  const category = capability.includes("truthguard") || capability.startsWith("tg_") ? "truthguard"
+    : capability.includes("learning") || capability.startsWith("learn_") ? "learning"
+    : capability.includes("companion") ? "companion"
+    : capability.includes("business") || capability.startsWith("biz_") || capability.startsWith("organization_") ? "business"
+    : null;
+  if (!category) return false;
+  const planMatches = {
+    truthguard: /^(tg|truthguard)/,
+    learning: /^(learn|learning|scholar|explorer|familyacademy|learnschool)/,
+    companion: /^companion/,
+    business: /^(biz|business|organization|enterprise)/
+  };
+  return planMatches[category].test(planId);
+}
+
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
   let charge = Math.max(0, Number(amount || 0));
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
+  const currentProfile = await readCanonicalUserBalance(uid);
+  if (!currentProfile) throw new Error("Account not found.");
+  if (isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
+    return { reservationId: null, amount: 0, planCovered: true };
+  }
   await applyConfiguredCreditTrial(uid);
   await applyConfiguredDailyFreeCredits(uid);
   if (!charge) {
@@ -1306,8 +1341,10 @@ async function stream(request, user, body) {
     control = { ...control, ...selected, config: control.config || {} };
   }
   const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  // Text chat defaults to measured provider-cost billing. Explicit admin settings
+  // may opt out; missing model rates fail safely rather than silently charging 1 credit.
   const tokenBilling = ["chat", "device_commands", "device-commands"].includes(capabilityName) &&
-    String(control.billingMode || "fixed_credit") === "token";
+    String(control.billingMode || (capabilityName === "chat" ? "token" : "fixed_credit")) === "token";
   const tokenPricing = tokenBilling
     ? await resolveTokenPricing(control.providerId, control.modelId, pricingFeature, control)
     : null;
