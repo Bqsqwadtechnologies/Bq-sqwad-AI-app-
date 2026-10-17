@@ -61,7 +61,9 @@ export async function reserveCredits(uid, amount, capability) {
   if (adminExempt) {
     const adminTransactionId = "admin_" + db.collection("aiBillingTransactions").doc().id;
     await recordBillingTransaction(adminTransactionId, {
-      uid, capability, providerCostUsd: pricing.providerCostUsd, costType: "estimated",
+      uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
+      providerCostUsd: pricing.providerCostUsd, rateSnapshot: pricing.rateSnapshot || null,
+      pricingSnapshot: pricing.pricingSnapshot || null, costType: "estimated",
       sellingPriceUsd: 0, profitMarkup: pricing.profitMarkup, feeRateApplied: pricing.feeRateApplied,
       creditValueUsd: pricing.creditValueUsd, creditsReserved: 0, creditsCharged: 0,
       pricingVersion: pricing.pricingVersion, exemptType: "admin_exempt",
