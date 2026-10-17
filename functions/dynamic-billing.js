@@ -155,8 +155,8 @@ export function providerCostFromUsage(usage, rate) {
   if (!Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return null;
   const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
   const cached = Math.min(input, Math.max(0, finite(
-    details.cached_tokens ?? usage.cached_input_tokens ?? usage.cachedInputTokens,
-    finite(rate.estimatedCachedInputTokens, 0)
+    details.cached_tokens ?? usage.cached_input_tokens ?? usage.cachedInputTokens ?? usage.cachedContentTokenCount ?? usageMetadata.cachedContentTokenCount ?? 0,
+    0
   )));
   const cost = (
     (input - cached) * finite(rate.inputUsdPer1M, 0) +
