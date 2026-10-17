@@ -506,13 +506,12 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  // Default credit rates are precomputed from the OpenAI provider cost card,
-  // the $0.07999 reference value per credit, and the default 110% markup.
-  // Persisted admin values override these defaults immediately.
+  // Defaults use the shared billing card: $0.07999 per credit and 130% markup.
+  // Live rates are credits per minute internally, settled as elapsed seconds.
   const normalizedFeature = String(feature || "").toLowerCase();
   const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? 0.0788
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.3127 : 0);
+    ? 0.0862607826
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 1.43767970996 : 0);
   const creditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
   const defaultVoice = String(source.defaultVoice ?? previous.defaultVoice ?? "marin").toLowerCase();
   const allowedVoices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
@@ -2511,7 +2510,7 @@ export default {
          const isCameraMode = heartbeatMode === "camera" || heartbeatMode === "screen";
          const capabilityName = isCameraMode ? "live_camera" : "live_voice";
          const expectedFeature = isCameraMode ? "live-camera" : "live-voice";
-         const expectedCostUnit = isCameraMode ? "second" : "minute";
+         const expectedCostUnit = "second";
          const config = await firestoreGet("adminAdvancedOptions/" + (isCameraMode ? "live_camera_pricing" : "live_voice_pricing")) || {};
          const pricing = normalizeLivePricing(config.config || config, {}, capabilityName);
          if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
@@ -2525,23 +2524,28 @@ export default {
            const selected = await resolvePublishedModel(modelControl.selectedRegistryModelId, expectedFeature);
            modelControl = { ...modelControl, ...selected, config: modelControl.config || {} };
          }
-         let rate = pricing.creditsPerMinute;
+         let ratePerMinute = pricing.creditsPerMinute;
          if ((heartbeatBody.modelRegistryId || modelControl.selectedRegistryModelId) && modelControl.creditsPerMinute != null) {
-           rate = Math.max(0, Number(modelControl.creditsPerMinute));
+           ratePerMinute = Math.max(0, Number(modelControl.creditsPerMinute));
          }
+         // Heartbeats bill elapsed seconds, not whole minutes. The Android client
+         // should heartbeat every second; elapsedSeconds is capped to prevent a
+         // delayed/replayed request from producing an unexpectedly large charge.
+         const elapsedSeconds = Math.min(10, Math.max(1, Math.trunc(Number(heartbeatBody.elapsedSeconds ?? 1))));
+         const rate = ratePerMinute * elapsedSeconds / 60;
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
            if (!balance || balance.total < rate) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
          }
          let charge = { reservationId: null, amount: 0 };
-         if (rate > 0) charge = await chargeCredits(user.uid, rate, "live_session_minute", user);
+         if (rate > 0) charge = await chargeCredits(user.uid, rate, "live_session_second", user);
          try {
-           if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "openai_realtime_minute");
+           if (charge.reservationId) await commitCredits(user.uid, charge.reservationId, "live_media_elapsed_seconds");
          } catch (error) {
            if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
            throw error;
          }
-         const trackedCost = await configuredMediaProviderCost(modelControl, isCameraMode ? 60 : 1, expectedCostUnit, true);
+         const trackedCost = await configuredMediaProviderCost(modelControl, elapsedSeconds, expectedCostUnit, true);
          if (trackedCost) {
            await recordConfiguredMediaCost(user.uid, capabilityName, modelControl, {
              providerId: modelControl.providerId || "openai",
@@ -2557,7 +2561,7 @@ export default {
            available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0),
            charged: Number(charge.amount || 0),
            free: rate === 0,
-           billingIntervalSeconds: 60,
+           billingIntervalSeconds: 1,
            ...(trackedCost ? { estimatedProviderCostUsd: trackedCost.providerCostUsd } : {})
          });
        }
