@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -180,6 +182,24 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
         }
     }
 
+    fun rollbackBillingConfig() {
+        billingSaving = true
+        billingStatus = null
+        billingError = null
+        scope.launch {
+            try {
+                api.rollbackAdminDynamicBillingConfig()
+                loadBillingConfig()
+                refreshBillingAnalytics()
+                billingStatus = "Rolled back to the previous valid billing configuration."
+            } catch (t: Throwable) {
+                billingError = t.message ?: "Could not roll back billing configuration."
+            } finally {
+                billingSaving = false
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         try {
             voice = formFrom(api.adminLivePricing("voice"), voice)
@@ -265,6 +285,7 @@ fun AdminLivePricingScreen(onBack: () -> Unit) {
                 status = billingStatus,
                 error = billingError,
                 onSave = { saveBillingConfig() },
+                onRollback = { rollbackBillingConfig() },
                 onRefresh = {
                     scope.launch {
                         runCatching { refreshBillingAnalytics() }
@@ -308,11 +329,13 @@ private fun BillingAnalyticsAndSettings(
     status: String?,
     error: String?,
     onSave: () -> Unit,
+    onRollback: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val today = analytics.optJSONObject("today") ?: JSONObject()
     val month = analytics.optJSONObject("month") ?: JSONObject()
     val all = analytics.optJSONObject("all") ?: JSONObject()
+    var confirmRollback by remember { mutableStateOf(false) }
     fun money(value: Double) = "$" + String.format(java.util.Locale.US, "%.4f", value)
     fun metric(label: String, value: String) {
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
@@ -394,6 +417,22 @@ private fun BillingAnalyticsAndSettings(
             )
             Button(onClick = onSave, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
                 Text(if (saving) "Saving billing settings…" else "Save dynamic billing settings")
+            }
+            OutlinedButton(onClick = { confirmRollback = true }, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
+                Text("Roll back to previous valid billing configuration")
+            }
+            if (confirmRollback) {
+                AlertDialog(
+                    onDismissRequest = { confirmRollback = false },
+                    title = { Text("Roll back billing settings?") },
+                    text = { Text("The last saved configuration will be restored as a new version. This will affect new reservations, not transactions already in progress.") },
+                    confirmButton = {
+                        TextButton(onClick = { confirmRollback = false; onRollback() }) { Text("Roll back") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmRollback = false }) { Text("Cancel") }
+                    }
+                )
             }
             status?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
