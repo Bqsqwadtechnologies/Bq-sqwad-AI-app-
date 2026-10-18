@@ -2217,16 +2217,14 @@ export default {
         const id = String(existing?.id || crypto.randomUUID());
         const now = new Date().toISOString();
         const item = { id, text:value, source:String(body.source || "user").slice(0,40), createdAt:existing?.createdAt || now };
-        const items = Array.isArray(memory?.items) ? memory.items.filter(row => String(row?.id || "") !== id).slice(-199) : [];
-        items.push(item);
-        await Promise.all([
-          firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:typeof profile?.memoryEnabled === "boolean" ? profile.memoryEnabled : memory?.enabled !== false, items, updatedAt:now }, true),
-          firestoreSet("aiMemories/" + id, {
-            id, ownerUid:user.uid, category:String(existing?.category || "other"),
-            key, value, source:body.source === "assistant" ? "assistant" : "user",
-            pinned:existing?.pinned === true, createdAt:existing?.createdAt || now, updatedAt:now
-          }, true)
-        ]);
+        // aiMemories is the shared canonical store. Do not duplicate newly saved
+        // facts into legacy userMemory.items, because deleting a fact on the
+        // website must not leave a hidden copy that reappears in AI context.
+        await firestoreSet("aiMemories/" + id, {
+          id, ownerUid:user.uid, category:String(existing?.category || "other"),
+          key, value, source:body.source === "assistant" ? "assistant" : "user",
+          pinned:existing?.pinned === true, createdAt:existing?.createdAt || now, updatedAt:now
+        }, true);
         return json({ ok:true, item });
       }
       if (url.pathname === "/memory/settings" && request.method === "POST") {
