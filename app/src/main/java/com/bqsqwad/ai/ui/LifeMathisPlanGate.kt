@@ -36,7 +36,8 @@ private data class LifeMathisGatePlan(
 fun LifeMathisPlanGate(
     onOpenPlans: () -> Unit,
     onStatus: (String) -> Unit = {},
-    onAccessGranted: (Boolean) -> Unit = {}
+    onAccessGranted: (Boolean) -> Unit = {},
+    onPlanDetails: (String, String, List<String>) -> Unit = { _, _, _ -> }
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -82,7 +83,7 @@ fun LifeMathisPlanGate(
                 }
                 val entitlementItems = api.entitlements().optJSONArray("items") ?: JSONArray()
                 val activeStates = setOf("active", "grace", "on_hold", "paused")
-                activePlanId = (0 until entitlementItems.length())
+                val verifiedPlanId = (0 until entitlementItems.length())
                     .mapNotNull { entitlementItems.optJSONObject(it) }
                     .firstOrNull { activeStates.contains(it.optString("state")) && it.optString("planId") in setOf("lifemathisfree", "lmstandard", "lmultimate") }
                     ?.optString("planId")
@@ -94,8 +95,22 @@ fun LifeMathisPlanGate(
                 } else false
 
                 val freeAvailable = parsed.any { it.id == "lifemathisfree" }
-                onAccessGranted(serverTestMode || activePlanId != null || freeAvailable)
-                plans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
+                val effectivePlanId = when {
+                    serverTestMode -> "admin-unlimited"
+                    verifiedPlanId != null -> verifiedPlanId
+                    freeAvailable -> "lifemathisfree"
+                    else -> null
+                }
+                activePlanId = effectivePlanId
+                onAccessGranted(effectivePlanId != null)
+                val sortedPlans = parsed.sortedBy { listOf("lifemathisfree", "lmstandard", "lmultimate").indexOf(it.id).let { n -> if (n < 0) 99 else n } }
+                plans = sortedPlans
+                val activePlan = sortedPlans.firstOrNull { it.id == effectivePlanId }
+                onPlanDetails(
+                    effectivePlanId.orEmpty(),
+                    if (serverTestMode) "Admin Test Mode" else activePlan?.name.orEmpty(),
+                    if (serverTestMode) sortedPlans.flatMap { it.features }.distinct() else activePlan?.features.orEmpty()
+                )
             }.onFailure { onStatus(it.message ?: "Life Mathis plans could not be loaded.") }
             loading = false
         }
@@ -120,7 +135,7 @@ fun LifeMathisPlanGate(
         tonalElevation = 4.dp
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Life Mathis", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Life Mathis plans", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 "Plans and prices are loaded from the BQ Sqwad AI catalog. Monthly and yearly subscriptions use the configured subscription base plans. Access is unlocked only after server verification.",
                 style = MaterialTheme.typography.bodySmall,
