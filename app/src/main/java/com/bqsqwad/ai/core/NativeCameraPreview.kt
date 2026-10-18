@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -126,6 +127,8 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     private var session: CameraCaptureSession? = null
     private var cameraId: String? = null
     private var previewSurface: Surface? = null
+    private var previewBufferWidth: Int = 0
+    private var previewBufferHeight: Int = 0
     private var frameTaskPosted = false
     private var consecutiveFrameFailures = 0
     private val closed = AtomicBoolean(false)
@@ -312,7 +315,12 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             failCameraAndRelease("Android did not report a supported preview size for this camera. Switch cameras or retry.")
             return
         }
-        val bufferConfigured = runCatching { texture.setDefaultBufferSize(supportedSize.width, supportedSize.height) }.isSuccess
+        val bufferConfigured = runCatching {
+            texture.setDefaultBufferSize(supportedSize.width, supportedSize.height)
+            previewBufferWidth = supportedSize.width
+            previewBufferHeight = supportedSize.height
+            applyCenterCropTransform(width, height)
+        }.isSuccess
         if (!bufferConfigured) {
             failCameraAndRelease("The camera could not configure a supported preview size. Switch cameras or retry.")
             return
@@ -428,7 +436,35 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
         }
     }
 
+    /**
+     * Fill the visible preview without stretching the camera image. The Camera2 session
+     * and frame-sampling pipeline remain unchanged; only the TextureView presentation
+     * is center-cropped to the available workspace bounds.
+     */
+    private fun applyCenterCropTransform(viewWidth: Int = width, viewHeight: Int = height) {
+        val bufferWidth = previewBufferWidth
+        val bufferHeight = previewBufferHeight
+        if (viewWidth <= 0 || viewHeight <= 0 || bufferWidth <= 0 || bufferHeight <= 0) return
+        val scale = maxOf(
+            viewWidth.toFloat() / bufferWidth.toFloat(),
+            viewHeight.toFloat() / bufferHeight.toFloat()
+        )
+        val scaledWidth = bufferWidth * scale
+        val scaledHeight = bufferHeight * scale
+        val matrix = Matrix().apply {
+            setScale(scale, scale)
+            postTranslate((viewWidth - scaledWidth) / 2f, (viewHeight - scaledHeight) / 2f)
+        }
+        setTransform(matrix)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        applyCenterCropTransform(w, h)
+    }
+
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+        applyCenterCropTransform(width, height)
         startIfReady()
     }
 
