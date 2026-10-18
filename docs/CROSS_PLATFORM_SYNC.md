@@ -10,6 +10,6 @@ The canonical shared contract is maintained in the website repository at `docs/c
 - The Cloudflare Worker remains authoritative for its existing AI, credit-reservation, billing verification and other protected operations. Do not move provider secrets or billing authority into the Android app.
 
 ## Known remaining synchronization work
-- Saved memories/preferences still have different legacy shapes (`aiMemories` on the website versus `userMemory` in the Worker). They require a separate consent-aware migration/API implementation and tests.
+- Saved memories now use website `aiMemories/{id}` as the canonical collection. The website server imports legacy Worker `userMemory/{uid}.items` using stable IDs, and Worker memory operations read/write the shared collection. `users/{uid}.memoryEnabled` is the shared preference. This migration and delete behavior still requires runtime tests.
 - Account-level settings, entitlement projection, generated-content history and conflict/version metadata need further implementation and cross-platform runtime verification.
 - No GitHub Actions, builds or releases were triggered.
