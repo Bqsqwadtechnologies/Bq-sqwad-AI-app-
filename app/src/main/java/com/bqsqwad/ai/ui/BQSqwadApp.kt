@@ -1209,19 +1209,20 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         drawerState = drawerState,
         gesturesEnabled = true,
         drawerContent = {
-            ModalDrawerSheet {
+            ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
                 LazyColumn(
                     Modifier.fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    contentPadding = PaddingValues(bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     item {
                         Surface(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            shape = RoundedCornerShape(22.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            shape = RoundedCornerShape(24.dp),
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(16.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 20.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -1244,6 +1245,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     }
                     item {
                         NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("New Chat") },
                             selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans,
                             onClick = {
@@ -1259,6 +1262,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     }
                     item {
                         NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("Chat History") },
                             selected = history,
                             onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
@@ -1273,6 +1278,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         drawerHistoryError?.let { message -> item { Text(message, modifier = Modifier.padding(horizontal = 18.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) } }
                         items(drawerHistoryItems, key = { "drawer-history-" + it.id }) { historyItem ->
                             NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                                 label = {
                                     Column {
                                         Text(historyItem.title, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
@@ -1309,6 +1316,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     }
                     item {
                         NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("File Box") },
                             selected = fileBoxOpen,
                             onClick = { shellScope.launch { drawerState.close(); fileBoxOpen = true; history = false; settings = false; plans = false; workspace = null; featureHub = false } },
@@ -1318,6 +1327,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
                     item {
                         NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("Plans & Billing") },
                             selected = plans,
                             onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false; fileBoxOpen = false } },
@@ -1326,6 +1337,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     }
                     item {
                         NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
                             onClick = { shellScope.launch { drawerState.close(); settings = true; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
@@ -6446,9 +6459,9 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Settings", fontWeight = FontWeight.Bold)
-                        Text("Customize your BQ Sqwad AI experience", style = MaterialTheme.typography.labelSmall)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Settings & preferences", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.25).sp)
+                        Text("BQ SQWAD TECHNOLOGIES · PERSONALISE YOUR AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.7.sp)
                     }
                 },
                 navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
@@ -6457,8 +6470,8 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     ) { p ->
         LazyColumn(
             Modifier.fillMaxSize().padding(p),
-            contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 36.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
