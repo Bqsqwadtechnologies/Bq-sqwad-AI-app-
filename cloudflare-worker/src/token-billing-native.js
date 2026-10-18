@@ -5,6 +5,26 @@ const MONTHLY_PLAN_CREDITS = 100;
 const DEFAULT_CREDIT_REFERENCE_USD = MONTHLY_PLAN_PRICE_USD / MONTHLY_PLAN_CREDITS;
 const DEFAULT_CUSTOMER_MULTIPLIER = 7.0;
 
+/**
+ * Allocate a reservation refund back to the same balance buckets that funded it.
+ * Any mismatch is rejected rather than silently creating or losing credits.
+ */
+export function allocateReservationRefund(reservation = {}, refundNeeded = 0) {
+  let remaining = Math.max(0, Number(refundNeeded || 0));
+  const fromPermanent = Math.max(0, Number(reservation.fromPermanent || 0));
+  const fromSubscription = Math.max(0, Number(reservation.fromSubscription || 0));
+  const fromTrial = Math.max(0, Number(reservation.fromTrial || 0));
+  const fromDaily = Math.max(0, Number(reservation.fromDaily || 0));
+  const refundPermanent = Math.min(remaining, fromPermanent); remaining -= refundPermanent;
+  const refundSubscription = Math.min(remaining, fromSubscription); remaining -= refundSubscription;
+  const refundTrial = Math.min(remaining, fromTrial); remaining -= refundTrial;
+  const refundDaily = Math.min(remaining, fromDaily); remaining -= refundDaily;
+  if (remaining > 0.0000001) {
+    throw Object.assign(new Error("credit_reservation_refund_mismatch"), { httpStatus: 409, safeError: "credit_reservation_refund_mismatch" });
+  }
+  return { refundPermanent, refundSubscription, refundTrial, refundDaily };
+}
+
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
   if (provider === "openai") {
