@@ -437,15 +437,15 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
     }
 
     /**
-     * Fill the visible preview without stretching the camera image. The Camera2 session
-     * and frame-sampling pipeline remain unchanged; only the TextureView presentation
-     * is center-cropped to the available workspace bounds.
+     * Present the complete camera frame without stretching or aggressively cropping it.
+     * The Camera2 session and frame-sampling pipeline remain unchanged; only the
+     * TextureView presentation scale changes to fit the available workspace bounds.
      */
     private fun applyCenterCropTransform(viewWidth: Int = width, viewHeight: Int = height) {
         val bufferWidth = previewBufferWidth
         val bufferHeight = previewBufferHeight
         if (viewWidth <= 0 || viewHeight <= 0 || bufferWidth <= 0 || bufferHeight <= 0) return
-        val scale = maxOf(
+        val scale = minOf(
             viewWidth.toFloat() / bufferWidth.toFloat(),
             viewHeight.toFloat() / bufferHeight.toFloat()
         )
