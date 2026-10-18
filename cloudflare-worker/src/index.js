@@ -506,12 +506,14 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  // Defaults use the shared billing card: $0.07999 per credit and 600% markup.
-  // Live rates are credits per minute internally, settled as elapsed seconds.
+  // Canonical credit value is $11.99 / 100 = $0.1199 per credit.
+  // Provider unit cost is multiplied by 7 (600% markup) and then converted to credits.
+  // Live rates are credits per minute internally, settled proportionally to elapsed seconds.
   const normalizedFeature = String(feature || "").toLowerCase();
+  const creditReferenceUsd = 11.99 / 100;
   const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? 0.2625328168
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? 4.37554693587 : 0);
+    ? (0.003 * 7) / creditReferenceUsd
+    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? (0.05 * 7) / creditReferenceUsd : 0);
   const configuredCreditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
   // Migrate shipped 110%, 130%, and 300% markup defaults to the new 600% card,
   // while preserving custom rates that differ from those known legacy defaults.
@@ -1134,7 +1136,8 @@ async function configuredMediaProviderCost(control, units, expectedUnit, trackin
   const unit = String(control?.providerCostUnit || "");
   const count = Number(units);
   const unitPrice = Number(control?.priceUsd || 0);
-  const creditValue = 0.07999;
+  // Keep media provider-cost settlement aligned with the canonical $11.99 / 100 credits card.
+  const creditValue = 11.99 / 100;
   const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
   const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 5 ? (billingConfig.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 6 : billingConfig.profitMarkup))));
