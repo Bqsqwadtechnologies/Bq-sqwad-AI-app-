@@ -2204,9 +2204,8 @@ export default {
         const body = await readBody(request);
         const value = String(body.text || "").trim().slice(0, 1000);
         if (!value) return json({ error:"memory_text_required" }, 400);
-        const [profile, memory, saved] = await Promise.all([
+        const [profile, saved] = await Promise.all([
           firestoreGet("users/" + user.uid),
-          firestoreGet("userMemory/" + user.uid),
           firestoreQuery("aiMemories", {
             filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
             limit: 100
