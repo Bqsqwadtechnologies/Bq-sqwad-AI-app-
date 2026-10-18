@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateTokenCost } from "../src/token-billing-native.js";
 
-test("token billing charges provider cost plus exactly 110 percent", () => {
+const CREDIT_VALUE_USD = 11.99 / 100;
+
+test("settlement applies 600% markup and the effective model multiplier", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cachedInputTokens: 0 },
     pricing: {
@@ -10,36 +12,44 @@ test("token billing charges provider cost plus exactly 110 percent", () => {
       outputPriceUsdPerMillion: 2,
       cachedInputPriceUsdPerMillion: 0.5,
       estimatedFeePercent: 0,
-      profitMarkupPercent: 110
+      profitMarkupPercent: 600
     },
-    creditReferenceValueUsd: 0.07999,
-    multiplier: 8
+    creditReferenceValueUsd: CREDIT_VALUE_USD,
+    multiplier: 7 * 1.25
   });
 
   assert.equal(result.providerCostUsd, 3);
-  assert.ok(Math.abs(result.customerCredits - (3 / 0.07999) * 2.1) < 1e-8);
-  assert.ok(Math.abs(result.grossUsageValueUsd - 6.3) < 1e-8);
-  assert.ok(Math.abs(result.estimatedGrossProfitUsd - 3.3) < 1e-8);
+  assert.equal(result.creditReferenceValueUsd, CREDIT_VALUE_USD);
+  assert.equal(result.customerMultiplier, 8.75);
+  assert.ok(Math.abs(result.customerCredits - (3 / CREDIT_VALUE_USD) * 8.75) < 1e-8);
+  assert.ok(Math.abs(result.grossUsageValueUsd - 3 * 8.75) < 1e-8);
 });
 
-test("legacy shared metering cannot override provider-cost-plus-110-percent billing", () => {
+test("cached input is charged at its explicit cached-token rate", () => {
   const result = calculateTokenCost({
-    usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cachedInputTokens: 0 },
+    usage: { inputTokens: 1_000_000, outputTokens: 0, cachedInputTokens: 400_000 },
     pricing: {
       inputPriceUsdPerMillion: 1,
       outputPriceUsdPerMillion: 2,
-      estimatedFeePercent: 0,
-      profitMarkupPercent: 110,
-      sharedCreditMetering: {
-        creditsPerInputToken: 0.000001,
-        creditsPerOutputToken: 0.000001,
-        minimumCredits: 1,
-        precision: 2,
-        conversionRate: 1
-      }
+      cachedInputPriceUsdPerMillion: 0.2,
+      profitMarkupPercent: 600
     },
-    creditReferenceValueUsd: 0.07999
+    creditReferenceValueUsd: CREDIT_VALUE_USD,
+    multiplier: 7
   });
 
-  assert.ok(Math.abs(result.customerCredits - (3 / 0.07999) * 2.1) < 1e-8);
+  assert.ok(Math.abs(result.providerCostUsd - 0.68) < 1e-10);
+  assert.ok(Math.abs(result.customerCredits - (0.68 / CREDIT_VALUE_USD) * 7) < 1e-8);
+});
+
+test("missing provider token rates fail closed instead of using a generic fallback", () => {
+  assert.throws(
+    () => calculateTokenCost({
+      usage: { inputTokens: 100, outputTokens: 100, cachedInputTokens: 0 },
+      pricing: {},
+      creditReferenceValueUsd: CREDIT_VALUE_USD,
+      multiplier: 7
+    }),
+    error => error?.message === "token_pricing_not_configured"
+  );
 });
