@@ -157,9 +157,27 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
-                        Text("Learning Studio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("A complete learning workspace for tutoring, lessons, revision, quizzes and exam preparation.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            when (activePlanId) {
+                                "learnscholar" -> "Scholar Learning"
+                                "learnfamily" -> "Family Learning Hub"
+                                "learnschool" -> "School Learning Command"
+                                "admin-unlimited" -> "Learning Studio • Admin Lab"
+                                else -> "Learning Studio"
+                            },
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            when (activePlanId) {
+                                "learnscholar" -> "Focused tutoring, guided revision and exam-ready practice."
+                                "learnfamily" -> "A shared learning space with family progress and learner support."
+                                "learnschool" -> "A structured academic hub for classes, teachers and learning progress."
+                                "admin-unlimited" -> "Full-access workspace for validating Learning tools and plan gates."
+                                else -> "Your study dashboard for tutoring, lessons, revision, quizzes and progress."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     BqLogo(46.dp)
                 }
