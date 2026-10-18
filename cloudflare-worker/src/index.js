@@ -2196,7 +2196,7 @@ export default {
           createdAt: row.createdAt || row.updatedAt || new Date().toISOString()
         })).filter(item => item.text);
         const legacyItems = Array.isArray(legacy?.items) ? legacy.items : [];
-        const items = [...new Map([...sharedItems, ...legacyItems].map(item => [String(item.id), item])).values()].slice(-80);
+        const items = [...new Map([...legacyItems, ...sharedItems].map(item => [String(item.id), item])).values()].slice(-80);
         return json({ enabled, items });
       }
       if (url.pathname === "/memory" && request.method === "POST") {
