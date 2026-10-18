@@ -1215,19 +1215,33 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     item {
-                        Row(
-                            Modifier.fillMaxWidth().padding(18.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            shape = RoundedCornerShape(22.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
                         ) {
-                            BqLogo(48.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text("BQ Sqwad AI", fontWeight = FontWeight.Bold)
-                                Text("The AI That Grows With You", style = MaterialTheme.typography.bodySmall)
+                            Row(
+                                Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                BqLogo(50.dp)
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("The AI That Grows With You", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Text("Your workspace", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
                             }
                         }
                     }
-                    item { HorizontalDivider() }
+                    item {
+                        Text(
+                            "NAVIGATION",
+                            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 8.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     item {
                         NavigationDrawerItem(
                             label = { Text("New Chat") },
@@ -5466,7 +5480,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         )
                     }
                     if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
-                        Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                     }
                     TextButton(
                         onClick = {
@@ -5712,7 +5726,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     )
                 }
                 if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
-                    Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 }
                 Row(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
