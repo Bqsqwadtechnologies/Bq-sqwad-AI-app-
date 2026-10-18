@@ -482,6 +482,9 @@ fun LifeMattersWorkspace(onOpenPlans: () -> Unit = {}) {
     var error by remember { mutableStateOf<String?>(null) }
     var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var accessGranted by remember { mutableStateOf(false) }
+    var activePlanId by remember { mutableStateOf("") }
+    var activePlanName by remember { mutableStateOf("") }
+    var activePlanFeatures by remember { mutableStateOf<List<String>>(emptyList()) }
 
     fun runLife() {
         val input = request.trim()
@@ -494,9 +497,11 @@ fun LifeMattersWorkspace(onOpenPlans: () -> Unit = {}) {
                 WorkspaceApiClient().workspaceAi(
                     "life_matters",
                     input,
-                    """You are Life Matters, a practical personal planning assistant.
+                    """You are Life Mathis, a practical personal planning assistant.
+Current verified plan: $activePlanName ($activePlanId).
+Plan features published by the server: ${activePlanFeatures.joinToString("; ")}.
 Focus area: $focus
-Give realistic, supportive, actionable guidance. Do not claim to be a professional or make high-stakes decisions for the user."""
+Use the plan context to tailor the experience, but never claim an unavailable tool ran. Server-side entitlements and limits remain authoritative. Give realistic, supportive, actionable guidance. Do not claim to be a professional or make high-stakes decisions for the user."""
                 )
             }.onSuccess { result = it.optString("text") }
                 .onFailure {
@@ -511,7 +516,8 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
     LifeMathisPlanGate(
         onOpenPlans = onOpenPlans,
         onStatus = { error = it },
-        onAccessGranted = { accessGranted = it }
+        onAccessGranted = { accessGranted = it },
+        onPlanDetails = { id, name, features -> activePlanId = id; activePlanName = name; activePlanFeatures = features }
     )
 
     if (!accessGranted) return
@@ -522,6 +528,32 @@ Give realistic, supportive, actionable guidance. Do not claim to be a profession
         subtitle = "Life planning, goals, routines, tasks and grounded personal guidance.",
         icon = Icons.Default.FavoriteBorder
     ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Your Life Mathis workspace", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(activePlanName.ifBlank { "Checking verified plan…" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    BqStatusBadge(if (activePlanId == "admin-unlimited") "ADMIN TEST" else if (activePlanId == "lifemathisfree") "FREE" else "VERIFIED PLAN")
+                }
+                Text("Plan ID: " + activePlanId.ifBlank { "pending" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Available plan features", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                if (activePlanFeatures.isEmpty()) {
+                    Text("The catalog has not supplied a feature list for this plan yet. Server-side plan checks still apply.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                } else {
+                    activePlanFeatures.take(6).forEach { feature ->
+                        Text("• " + feature, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    if (activePlanFeatures.size > 6) Text("+" + (activePlanFeatures.size - 6) + " more plan features", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("Review plans & billing") }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Planning", "Goals", "Routines", "Tasks").forEach {
                 FilterChip(selected = focus == it, onClick = { focus = it }, label = { Text(it) })
