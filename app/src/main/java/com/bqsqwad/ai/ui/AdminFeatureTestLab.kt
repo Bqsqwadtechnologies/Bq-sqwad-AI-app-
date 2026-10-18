@@ -230,35 +230,39 @@ fun AdminFeatureTestLab(onBack: () -> Unit) {
                                 Text(option.label.ifBlank { option.id }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                 Text(option.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Switch(
-                                checked = option.enabled && !option.killSwitch,
-                                enabled = busyId == null,
-                                onCheckedChange = { enabled ->
-                                    scope.launch {
-                                        busyId = option.id
-                                        val updated = option.copy(
-                                            enabled = enabled,
-                                            killSwitch = !enabled,
-                                            rolloutPercent = if (enabled) maxOf(100, option.rolloutPercent) else option.rolloutPercent
-                                        )
-                                        runCatching { client.update(updated) }
-                                            .onSuccess { saved ->
-                                                options = options.map { if (it.id == option.id) saved else it }
-                                                notice = option.label + if (enabled) " enabled on the server." else " disabled on the server."
-                                                error = null
-                                            }
-                                            .onFailure { error = "Could not save " + option.label + ". Check Admin Diagnostics and retry." }
-                                        busyId = null
+                            if (option.id.startsWith("capability_")) {
+                                Switch(
+                                    checked = option.enabled && !option.killSwitch,
+                                    enabled = busyId == null,
+                                    onCheckedChange = { enabled ->
+                                        scope.launch {
+                                            busyId = option.id
+                                            val updated = option.copy(
+                                                enabled = enabled,
+                                                killSwitch = !enabled,
+                                                rolloutPercent = if (enabled) 100 else option.rolloutPercent
+                                            )
+                                            runCatching { client.update(updated) }
+                                                .onSuccess { saved ->
+                                                    options = options.map { if (it.id == option.id) saved else it }
+                                                    notice = option.label + if (enabled) " enabled on the server." else " disabled on the server."
+                                                    error = null
+                                                }
+                                                .onFailure { error = "Could not save " + option.label + ". Check Admin Diagnostics and retry." }
+                                            busyId = null
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            } else {
+                                Text("ADMIN CONTROL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(if (option.enabled && !option.killSwitch) "AVAILABLE" else "DISABLED", style = MaterialTheme.typography.labelSmall, color = if (option.enabled && !option.killSwitch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                             Text("Rollout " + option.rolloutPercent + "%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (option.allowedPlanIds.isNotEmpty()) Text("Plan-scoped", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text("Changing this control updates the server configuration for this capability; it is not a per-device override.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (option.id.startsWith("capability_")) "Changing this capability updates server availability for all users; it is not a per-device override." else "This is a general admin setting. Change it in its dedicated admin panel to preserve its specific validation and safeguards.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
