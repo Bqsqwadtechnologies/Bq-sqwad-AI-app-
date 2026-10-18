@@ -80,8 +80,15 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
     throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
-  const markup = 1 + markupPercent / 100;
-  const customerCredits = providerCostCredits * markup;
+  // Settlement must use the effective multiplier resolved for this exact model.
+  // That value already combines the canonical 600% markup with the configured
+  // model weight; falling back to the base markup here silently lost model weights.
+  const effectiveMultiplier = Number(multiplier);
+  if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier < 1 || effectiveMultiplier > 10000) {
+    throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+  }
+  const customerCredits = providerCostCredits * effectiveMultiplier;
+  const markup = effectiveMultiplier;
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
@@ -152,8 +159,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const inputTokenRate = embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken ?? (isOpenAi ? 0.00000005 : undefined);
   const outputTokenRate = embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken ?? (isOpenAi ? 0.00000025 : undefined);
   const cachedTokenRate = embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken ?? (isOpenAi ? 0.000000005 : undefined);
-  const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? sharedMetering.usdPerMillionInputTokens ?? (isOpenAi ? 0.05 : 0);
-  const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? sharedMetering.usdPerMillionOutputTokens ?? (isOpenAi ? 0.25 : 0);
+  // Non-OpenAI providers must have explicit provider/model rates in the registry,
+  // tokenPricing, or provider-specific admin configuration. Never silently price
+  // Gemini or another provider using a shared/OpenAI fallback rate.
+  const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion ?? (isOpenAi ? 0.05 : undefined);
+  const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion ?? (isOpenAi ? 0.25 : undefined);
   const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion ?? (isOpenAi ? 0.005 : undefined);
   const rates = {
     inputPriceUsdPerToken: inputTokenRate == null ? undefined : Number(inputTokenRate),
