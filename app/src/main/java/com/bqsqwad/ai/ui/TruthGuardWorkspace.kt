@@ -242,7 +242,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
 
 @Composable
 private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPlan?, onOpenPlans: () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer) {
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -251,11 +251,11 @@ private fun TruthGuardHero(planId: String, isAdmin: Boolean, plan: TruthGuardPla
             ) {
                 BqLogo(48.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("TruthGuard AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("TruthGuard AI", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Text(
                         "Evidence-aware fact checking, source analysis and claim review.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.84f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
