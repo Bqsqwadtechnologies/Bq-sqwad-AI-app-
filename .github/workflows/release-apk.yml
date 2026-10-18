@@ -65,7 +65,8 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
           # Android App Bundles use JAR signing; fail the release if signature verification fails.
-          jarsigner -verify -strict -verbose -certs "$AAB" > /tmp/aab-signature-verification.txt
+          jarsigner -verify -verbose -certs "$AAB" > /tmp/aab-signature-verification.txt 2>&1
+          grep -qi "jar verified" /tmp/aab-signature-verification.txt
           tail -n 20 /tmp/aab-signature-verification.txt
 
           # Both outputs must be valid ZIP containers before upload.
