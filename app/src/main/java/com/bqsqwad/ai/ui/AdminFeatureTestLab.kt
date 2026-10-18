@@ -120,7 +120,7 @@ fun AdminFeatureTestLab(onBack: () -> Unit) {
                             }
                         }
                         Text(
-                            "Use this bench to enable or disable the configured server capabilities while testing the native Android app. Capability switches affect live availability for users, not just this device. Turn a feature back on after testing if it should remain available.",
+                            "Use this bench to enable or disable configured server capabilities while testing the native Android app. These are shared server-side controls, not device-only overrides. A switch blocks the operations wired to that capability; other workspace management endpoints can have separate access controls. Turn a feature back on after testing if it should remain available.",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -262,7 +262,7 @@ fun AdminFeatureTestLab(onBack: () -> Unit) {
                             Text("Rollout " + option.rolloutPercent + "%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (option.allowedPlanIds.isNotEmpty()) Text("Plan-scoped", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(if (option.id.startsWith("capability_")) "Changing this capability updates server availability for all users; it is not a per-device override." else "This is a general admin setting. Change it in its dedicated admin panel to preserve its specific validation and safeguards.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (option.id.startsWith("capability_")) "This is a shared server-side control for requests wired to this capability, not a per-device override." else "This is a general admin setting. Change it in its dedicated admin panel to preserve its specific validation and safeguards.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
