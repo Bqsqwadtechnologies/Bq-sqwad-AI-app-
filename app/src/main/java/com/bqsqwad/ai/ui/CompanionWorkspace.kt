@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -261,6 +262,40 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text("Voice", maxLines = 1, softWrap = false) })
                     FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text("Camera", maxLines = 1, softWrap = false) })
                     FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "🔒 Memory", maxLines = 1, softWrap = false) })
+                }
+            }
+        }
+
+        Text("Companion plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(catalogPlans, key = { it.id }) { plan ->
+                val isCurrent = currentPlan?.id == plan.id
+                Card(
+                    modifier = Modifier.width(236.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(plan.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            if (isCurrent) BqStatusBadge("CURRENT")
+                        }
+                        Text("Plan ID: " + plan.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": " + value }.ifBlank { if (plan.id == "companionfree") "Free" else "See Plans & Billing" },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        plan.features.take(4).forEach { feature -> Text("• " + feature, style = MaterialTheme.typography.bodySmall) }
+                        if (plan.features.size > 4) Text("+" + (plan.features.size - 4) + " more features", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day trial eligible", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        if (!isCurrent) {
+                            OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("View plan") }
+                        }
+                    }
                 }
             }
         }
