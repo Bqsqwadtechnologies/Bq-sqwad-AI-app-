@@ -599,9 +599,26 @@ async function requireConsent(uid) {
   if (!consent || consent.requiredAccepted !== true) throw new Error("required_consent_missing");
 }
 async function memoryContext(uid) {
-  const memory = await firestoreGet("userMemory/" + uid);
-  if (!memory || memory.enabled === false || !Array.isArray(memory.items)) return "";
-  return memory.items.slice(-30).map(x => String(x?.text || "").trim()).filter(Boolean).join("\n");
+  const [profile, legacy] = await Promise.all([
+    firestoreGet("users/" + uid),
+    firestoreGet("userMemory/" + uid)
+  ]);
+  const enabled = typeof profile?.memoryEnabled === "boolean"
+    ? profile.memoryEnabled
+    : legacy?.enabled !== false;
+  if (!enabled) return "";
+  const saved = await firestoreQuery("aiMemories", {
+    filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
+    limit: 100
+  }).catch(() => []);
+  const sharedFacts = saved.map(item => {
+    const key = String(item.key || "").trim();
+    const value = String(item.value || "").trim();
+    return key && value ? (key.toLowerCase() === value.toLowerCase() ? value : key + ": " + value) : "";
+  }).filter(Boolean);
+  const legacyFacts = (Array.isArray(legacy?.items) ? legacy.items : [])
+    .map(item => String(item?.text || "").trim()).filter(Boolean);
+  return [...new Set([...sharedFacts, ...legacyFacts])].slice(-120).join("\n");
 }
 function canonicalUserBalance(profile) {
   if (!profile) return null;
@@ -2162,31 +2179,92 @@ export default {
 
       if (url.pathname === "/memory" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const memory = await firestoreGet("userMemory/" + user.uid);
-        return json({ enabled:memory?.enabled !== false, items:Array.isArray(memory?.items) ? memory.items.slice(-80) : [] });
+        const [profile, legacy] = await Promise.all([
+          firestoreGet("users/" + user.uid),
+          firestoreGet("userMemory/" + user.uid)
+        ]);
+        const enabled = typeof profile?.memoryEnabled === "boolean" ? profile.memoryEnabled : legacy?.enabled !== false;
+        const saved = await firestoreQuery("aiMemories", {
+          filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 100
+        }).catch(() => []);
+        const sharedItems = saved.map(row => ({
+          id: String(row.id || row.__name || crypto.randomUUID()),
+          text: [String(row.key || "").trim(), String(row.value || "").trim()]
+            .filter(Boolean).filter((value, index, values) => index === 0 || value.toLowerCase() !== values[0].toLowerCase()).join(": "),
+          source: String(row.source || "user"),
+          createdAt: row.createdAt || row.updatedAt || new Date().toISOString()
+        })).filter(item => item.text);
+        const legacyItems = Array.isArray(legacy?.items) ? legacy.items : [];
+        const items = [...new Map([...sharedItems, ...legacyItems].map(item => [String(item.id), item])).values()].slice(-80);
+        return json({ enabled, items });
       }
       if (url.pathname === "/memory" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
-        const value = String(body.text || "").trim().slice(0, 4000);
+        const value = String(body.text || "").trim().slice(0, 1000);
         if (!value) return json({ error:"memory_text_required" }, 400);
-        const memory = await firestoreGet("userMemory/" + user.uid);
-        const items = Array.isArray(memory?.items) ? memory.items.slice(-199) : [];
-        const item = { id:crypto.randomUUID(), text:value, source:String(body.source || "chat").slice(0,40), createdAt:new Date() };
+        const [profile, memory, saved] = await Promise.all([
+          firestoreGet("users/" + user.uid),
+          firestoreGet("userMemory/" + user.uid),
+          firestoreQuery("aiMemories", {
+            filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+            limit: 100
+          }).catch(() => [])
+        ]);
+        const key = value.slice(0, 120);
+        const existing = saved.find(row => String(row.key || "").trim().toLowerCase() === key.toLowerCase());
+        const id = String(existing?.id || crypto.randomUUID());
+        const now = new Date().toISOString();
+        const item = { id, text:value, source:String(body.source || "user").slice(0,40), createdAt:existing?.createdAt || now };
+        const items = Array.isArray(memory?.items) ? memory.items.filter(row => String(row?.id || "") !== id).slice(-199) : [];
         items.push(item);
-        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:memory?.enabled !== false, items, updatedAt:new Date() }, true);
+        await Promise.all([
+          firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:typeof profile?.memoryEnabled === "boolean" ? profile.memoryEnabled : memory?.enabled !== false, items, updatedAt:now }, true),
+          firestoreSet("aiMemories/" + id, {
+            id, ownerUid:user.uid, category:String(existing?.category || "other"),
+            key, value, source:body.source === "assistant" ? "assistant" : "user",
+            pinned:existing?.pinned === true, createdAt:existing?.createdAt || now, updatedAt:now
+          }, true)
+        ]);
         return json({ ok:true, item });
       }
       if (url.pathname === "/memory/settings" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const enabled = body.enabled === true;
-        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled, updatedAt:new Date() }, true);
+        await Promise.all([
+          firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled, updatedAt:new Date() }, true),
+          firestoreSet("users/" + user.uid, { memoryEnabled:enabled, updatedAt:new Date() }, true)
+        ]);
         return json({ enabled });
       }
       if (url.pathname === "/memory" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
-        await firestoreSet("userMemory/" + user.uid, { uid:user.uid, enabled:true, items:[], updatedAt:new Date() }, true);
+        const [profile, memory] = await Promise.all([
+          firestoreGet("users/" + user.uid),
+          firestoreGet("userMemory/" + user.uid)
+        ]);
+        const rows = [];
+        for (let offset = 0; offset < 500; offset += 100) {
+          const page = await firestoreQuery("aiMemories", {
+            filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+            limit: 100, offset
+          });
+          rows.push(...page);
+          if (page.length < 100) break;
+        }
+        await Promise.all([
+          ...rows.map(row => {
+            const id = String(row.id || row.__name || "");
+            return id ? firestoreDelete("aiMemories/" + id) : Promise.resolve();
+          }),
+          firestoreSet("userMemory/" + user.uid, {
+            uid:user.uid,
+            enabled:typeof profile?.memoryEnabled === "boolean" ? profile.memoryEnabled : memory?.enabled !== false,
+            items:[], updatedAt:new Date()
+          }, true)
+        ]);
         return json({ ok:true, items:[] });
       }
       if (url.pathname === "/feature-settings" && request.method === "GET") {
