@@ -109,6 +109,14 @@ class AdminAdvancedClient(
             }
             merged[id] = AdvancedAdminOption(id = id, label = label, section = section)
         }
+        // Seed every backend-supported capability into the admin view even before
+        // a Firestore override exists. A later server value replaces this default.
+        AdminControlCatalog.configurableCapabilities.forEach { capability ->
+            val id = "capability_" + capability
+            val label = capability.split('_').filter { it.isNotBlank() }
+                .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+            merged[id] = AdvancedAdminOption(id = id, label = label, section = "capabilities")
+        }
         parseOptions(root.optJSONArray("options") ?: JSONArray()).forEach { merged[it.id] = it }
         merged.values.toList()
     }
