@@ -2204,13 +2204,10 @@ export default {
         const body = await readBody(request);
         const value = String(body.text || "").trim().slice(0, 1000);
         if (!value) return json({ error:"memory_text_required" }, 400);
-        const [profile, saved] = await Promise.all([
-          firestoreGet("users/" + user.uid),
-          firestoreQuery("aiMemories", {
-            filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
-            limit: 100
-          }).catch(() => [])
-        ]);
+        const saved = await firestoreQuery("aiMemories", {
+          filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 100
+        }).catch(() => []);
         const key = value.slice(0, 120);
         const existing = saved.find(row => String(row.key || "").trim().toLowerCase() === key.toLowerCase());
         const id = String(existing?.id || crypto.randomUUID());
