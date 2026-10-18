@@ -319,7 +319,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
             texture.setDefaultBufferSize(supportedSize.width, supportedSize.height)
             previewBufferWidth = supportedSize.width
             previewBufferHeight = supportedSize.height
-            applyCenterCropTransform(width, height)
+            applyFitTransform(width, height)
         }.isSuccess
         if (!bufferConfigured) {
             failCameraAndRelease("The camera could not configure a supported preview size. Switch cameras or retry.")
@@ -441,7 +441,7 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
      * The Camera2 session and frame-sampling pipeline remain unchanged; only the
      * TextureView presentation scale changes to fit the available workspace bounds.
      */
-    private fun applyCenterCropTransform(viewWidth: Int = width, viewHeight: Int = height) {
+    private fun applyFitTransform(viewWidth: Int = width, viewHeight: Int = height) {
         val bufferWidth = previewBufferWidth
         val bufferHeight = previewBufferHeight
         if (viewWidth <= 0 || viewHeight <= 0 || bufferWidth <= 0 || bufferHeight <= 0) return
@@ -460,11 +460,11 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        applyCenterCropTransform(w, h)
+        applyFitTransform(w, h)
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        applyCenterCropTransform(width, height)
+        applyFitTransform(width, height)
         startIfReady()
     }
 
