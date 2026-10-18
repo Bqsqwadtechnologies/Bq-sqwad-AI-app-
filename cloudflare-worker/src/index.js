@@ -14,7 +14,7 @@ import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBu
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant, workspaceScopeRedirect, workspaceScopeSystemPrompt } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
 import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel, checkAiModelStatus } from "./model-registry-native.js";
-import { normalizeProviderUsage, calculateTokenCost, resolveTokenPricing, estimateTokenReservation, recordTokenUsage, getTokenUsageReport } from "./token-billing-native.js";
+import { normalizeProviderUsage, calculateTokenCost, resolveTokenPricing, estimateTokenReservation, recordTokenUsage, getTokenUsageReport, allocateReservationRefund } from "./token-billing-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
@@ -857,12 +857,8 @@ async function settleCreditReservation(uid, reservationId, finalAmount, provider
     if (refundNeeded <= 0.000000001) break;
     const profile = await readCanonicalUserBalance(uid);
     if (!profile) throw new Error("credit_balance_missing");
-    let remaining = refundNeeded;
-    const refundPermanent = Math.min(remaining, Math.max(0, Number(reservation.fromPermanent || 0))); remaining -= refundPermanent;
-    const refundSubscription = Math.min(remaining, Math.max(0, Number(reservation.fromSubscription || 0))); remaining -= refundSubscription;
-    const refundTrial = Math.min(remaining, Math.max(0, Number(reservation.fromTrial || 0))); remaining -= refundTrial;
-    const refundDaily = Math.min(remaining, Math.max(0, Number(reservation.fromDaily || 0))); remaining -= refundDaily;
-    if (remaining > 0.0000001) throw new Error("credit_reservation_refund_mismatch");
+    const { refundPermanent, refundSubscription, refundTrial, refundDaily } =
+      allocateReservationRefund(reservation, refundNeeded);
     try {
       await firestoreCommit([
         {
