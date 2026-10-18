@@ -6398,8 +6398,15 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             else -> key
         }
         scope.launch {
-            runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put(serverKey, value)) }
-                .onFailure { settingsNotice = "Saved on this device, but could not sync to your account yet." }
+            runCatching {
+                val api = WorkspaceApiClient()
+                api.updateFeatureSettings("global", JSONObject().put(serverKey, value))
+                // Memory enablement is an account-level preference shared with
+                // the website, not just a device feature flag.
+                if (key == "memory_enabled") api.setMemoryEnabled(value)
+            }.onFailure {
+                settingsNotice = "Saved on this device, but could not sync to your account yet."
+            }
         }
     }
     fun saveTheme(value: String) {
@@ -6436,6 +6443,12 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             notifications = prefs.getBoolean("notifications_enabled", true)
             textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
             bqTextScaleState.floatValue = textScale
+        }
+        // The website and Android both treat users/{uid}.memoryEnabled as
+        // authoritative. Refresh this value from the shared memory endpoint.
+        runCatching { api.memory() }.onSuccess { body ->
+            memory = body.optBoolean("enabled", memory)
+            prefs.edit().putBoolean("memory_enabled", memory).apply()
         }
         runCatching { api.fileBox() }.onSuccess { body ->
             val days = body.optInt("retentionDays", 30).let { if (it in listOf(7,14,30,90)) it else 30 }
