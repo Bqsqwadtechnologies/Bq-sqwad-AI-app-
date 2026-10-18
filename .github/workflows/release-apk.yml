@@ -48,12 +48,29 @@ jobs:
       - name: Build Signed Release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease
 
-      - name: Verify APK and AAB Outputs
+      - name: Verify APK and AAB Outputs and Signatures
         shell: bash
         run: |
           set -euo pipefail
-          test -s app/build/outputs/apk/release/app-release.apk
-          test -s app/build/outputs/bundle/release/app-release.aab
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+
+          APKSIGNER="$(find "${ANDROID_HOME:-/opt/android-sdk}/build-tools" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            APKSIGNER="$(find "$HOME/.android" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1)"
+          fi
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+          # Android App Bundles use JAR signing; fail the release if signature verification fails.
+          jarsigner -verify -strict -verbose -certs "$AAB" > /tmp/aab-signature-verification.txt
+          tail -n 20 /tmp/aab-signature-verification.txt
+
+          # Both outputs must be valid ZIP containers before upload.
+          unzip -t "$APK" >/dev/null
+          unzip -t "$AAB" >/dev/null
 
       - name: Upload Signed Release APK
         uses: actions/upload-artifact@v7
