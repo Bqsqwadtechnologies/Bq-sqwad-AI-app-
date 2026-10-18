@@ -138,11 +138,11 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         when {
-                            isAdmin -> "Deep Evidence Lab"
-                            activePlanId == "truthguardfree" -> "Quick Check Workspace"
-                            activePlanId == "tgplus" -> "Evidence Desk"
+                            isAdmin -> "TruthGuard Verification Console"
+                            activePlanId == "truthguardfree" -> "Quick Claim Check"
+                            activePlanId == "tgplus" -> "Evidence & Sources Desk"
                             activePlanId == "tgpro" -> "Deep Evidence Lab"
-                            activePlanId == "tgteam" -> "Team Verification Hub"
+                            activePlanId == "tgteam" -> "Team Verification Command"
                             else -> "TruthGuard Workspace"
                         },
                         style = MaterialTheme.typography.titleLarge,
