@@ -42,6 +42,10 @@ test("refund allocation fails closed when the requested refund exceeds its sourc
     () => allocateReservationRefund({ fromPermanent: 1, fromSubscription: 1 }, 2.01),
     error => error?.message === "credit_reservation_refund_mismatch"
   );
+  assert.throws(
+    () => allocateReservationRefund({ fromPermanent: Number.NaN }, 0.5),
+    error => error?.message === "credit_reservation_refund_mismatch"
+  );
 });
 
 test("per-token rates use $11.99 per 100 credits and the effective 600% model multiplier", () => {
