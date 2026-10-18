@@ -10,11 +10,15 @@ const DEFAULT_CUSTOMER_MULTIPLIER = 7.0;
  * Any mismatch is rejected rather than silently creating or losing credits.
  */
 export function allocateReservationRefund(reservation = {}, refundNeeded = 0) {
-  let remaining = Math.max(0, Number(refundNeeded || 0));
-  const fromPermanent = Math.max(0, Number(reservation.fromPermanent || 0));
-  const fromSubscription = Math.max(0, Number(reservation.fromSubscription || 0));
-  const fromTrial = Math.max(0, Number(reservation.fromTrial || 0));
-  const fromDaily = Math.max(0, Number(reservation.fromDaily || 0));
+  const requested = Number(refundNeeded);
+  const allocations = ["fromPermanent", "fromSubscription", "fromTrial", "fromDaily"]
+    .map(key => Number(reservation[key] ?? 0));
+  if (!Number.isFinite(requested) || requested < 0 ||
+      allocations.some(value => !Number.isFinite(value) || value < 0)) {
+    throw Object.assign(new Error("credit_reservation_refund_mismatch"), { httpStatus: 409, safeError: "credit_reservation_refund_mismatch" });
+  }
+  let remaining = requested;
+  const [fromPermanent, fromSubscription, fromTrial, fromDaily] = allocations;
   const refundPermanent = Math.min(remaining, fromPermanent); remaining -= refundPermanent;
   const refundSubscription = Math.min(remaining, fromSubscription); remaining -= refundSubscription;
   const refundTrial = Math.min(remaining, fromTrial); remaining -= refundTrial;
