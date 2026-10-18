@@ -3119,6 +3119,7 @@ export default {
       if (url.pathname === "/business/assistant" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
+        await capability(u.uid, "business");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         const k = await businessKnowledgeForWorkspace(u.uid, w.workspaceId, 50);
@@ -3469,21 +3470,21 @@ export default {
       if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionProfile(u.uid)); }
       if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
       if (url.pathname === "/companion/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionHistory(u.uid)); }
-      if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
       if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCheckins(u.uid)); }
-      if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
       if (url.pathname === "/companion/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionSettings(u.uid)); }
       if (url.pathname === "/companion/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionSettings(u.uid,await readBody(request))); }
 
       if (url.pathname === "/learning/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningCatalog(u,env)); }
       if (url.pathname === "/learning/progress" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningProgress(u.uid)); }
-      if (url.pathname === "/learning/session" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await learningSession(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/learning/session" && request.method === "POST") { const u=await verifyFirebaseUser(request); await capability(u.uid,"learning"); const b=await readBody(request); return json(await learningSession(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
 
       if (url.pathname === "/truthguard/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardCatalog(u,env)); }
       if (url.pathname === "/truthguard/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardSettings(u.uid)); }
       if (url.pathname === "/truthguard/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
       if (url.pathname === "/truthguard/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardHistory(u.uid)); }
-      if (url.pathname === "/truthguard/check" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await truthguardCheck(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/truthguard/check" && request.method === "POST") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); const b=await readBody(request); return json(await truthguardCheck(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
 
       if (url.pathname === "/organization" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await organizationGet(u.uid)); }
       if (url.pathname === "/organization" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationUpdate(u.uid,await readBody(request))); }
@@ -3493,7 +3494,7 @@ export default {
       if (url.pathname === "/organization/members" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationMember(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/member-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationMemberState(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/channel-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationChannelState(u.uid,await readBody(request))); }
-      if (url.pathname === "/organization/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationAssistant(env,u,await readBody(request))); }
+      if (url.pathname === "/organization/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request); await capability(u.uid,"organization_studio"); return json(await organizationAssistant(env,u,await readBody(request))); }
 
       if (url.pathname === "/social/oauth/start" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
