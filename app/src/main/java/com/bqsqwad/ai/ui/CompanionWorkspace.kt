@@ -218,7 +218,17 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     BqLogo(42.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("AI Companion", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("Caring, calm and always listening", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            when (personality) {
+                                "Motivational" -> "Positive momentum, goals and gentle encouragement"
+                                "Professional" -> "Clear, organised and practical personal assistance"
+                                "Creative" -> "Ideas, reflection and creative exploration"
+                                "Calm" -> "A quieter space for reflection and thoughtful conversation"
+                                else -> "A personal space for thoughtful, supportive conversation"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                     IconButton(onClick = { settingsOpen = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Companion settings")
