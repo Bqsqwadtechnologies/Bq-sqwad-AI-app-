@@ -1217,8 +1217,9 @@ async function ai(request, user, body) {
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
   if (redirect) return json({ ok: true, redirect });
+  if (["business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   let workspacePlan = null;
-  if (capabilityName === "life_matters" || capabilityName === "frontier_lab") {
+  if (["life_matters", "frontier_lab", "learning_studio"].includes(capabilityName)) {
     const env = globalThis.__bqEnv || {};
     const testing = await firestoreGet("adminAdvancedOptions/admin_testing_mode").catch(() => null);
     const adminTest = isSuperAdmin(user, env) && testing?.enabled === true;
@@ -1233,6 +1234,12 @@ async function ai(request, user, body) {
       const monthlyLimit = planId === "lifemathisfree" ? 10 : planId === "lmstandard" ? 300 : Infinity;
       const monthKey = new Date().toISOString().slice(0, 7);
       workspacePlan = { planId, monthKey, monthlyLimit, adminTest };
+    } else if (capabilityName === "learning_studio") {
+      const valid = new Set(["learnscholar", "learnfamily", "learnschool"]);
+      const planId = valid.has(entitlementPlan) ? entitlementPlan : "explorer";
+      const dailyLimit = planId === "explorer" ? 3 : Infinity;
+      const dayKey = new Date().toISOString().slice(0, 10);
+      workspacePlan = { planId, dayKey, dailyLimit, adminTest };
     } else {
       const valid = new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]);
       if (!adminTest && !valid.has(entitlementPlan)) throw Object.assign(new Error("frontier_plan_required"), { httpStatus: 403, safeError: "frontier_plan_required" });
@@ -1280,9 +1287,13 @@ async function ai(request, user, body) {
     : (control.creditCost || 0);
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
   let lifeUsageCounterPath = null;
+  let learningUsageCounterPath = null;
   try {
     if (workspacePlan?.planId && capabilityName === "life_matters" && !workspacePlan.adminTest && Number.isFinite(workspacePlan.monthlyLimit)) {
       lifeUsageCounterPath = await reserveMonthlyUsageCounter("lifeMathisUsageCounters", user.uid, workspacePlan.monthKey, workspacePlan.planId, workspacePlan.monthlyLimit, "life_mathis_monthly_limit_reached");
+    }
+    if (workspacePlan?.planId && capabilityName === "learning_studio" && !workspacePlan.adminTest && Number.isFinite(workspacePlan.dailyLimit)) {
+      learningUsageCounterPath = await reserveMonthlyUsageCounter("learningStudioUsageCounters", user.uid, workspacePlan.dayKey, workspacePlan.planId, workspacePlan.dailyLimit, "learning_studio_daily_limit_reached");
     }
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
@@ -1337,6 +1348,7 @@ async function ai(request, user, body) {
     return json(responseBody);
   } catch (error) {
     if (lifeUsageCounterPath) await releaseMonthlyUsageCounter(lifeUsageCounterPath);
+    if (learningUsageCounterPath) await releaseMonthlyUsageCounter(learningUsageCounterPath);
     await reverseCredits(user.uid, reservation.reservationId);
     if (idem?.hash) await firestoreDelete("idempotency/" + idem.hash).catch(() => {});
     throw error;
