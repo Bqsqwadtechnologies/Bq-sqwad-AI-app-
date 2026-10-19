@@ -1212,6 +1212,32 @@ async function ai(request, user, body) {
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
   if (redirect) return json({ ok: true, redirect });
+  let workspacePlan = null;
+  if (capabilityName === "life_matters" || capabilityName === "frontier_lab") {
+    const env = globalThis.__bqEnv || {};
+    const testing = await firestoreGet("adminAdvancedOptions/admin_testing_mode").catch(() => null);
+    const adminTest = isSuperAdmin(user, env) && testing?.enabled === true;
+    const entitlement = await firestoreGet("entitlements/" + user.uid).catch(() => null);
+    const state = String(entitlement?.state || entitlement?.status || "").toLowerCase();
+    const expiresAt = entitlement?.expiresAt ? Date.parse(String(entitlement.expiresAt)) : NaN;
+    const active = ["active", "trialing", "grace"].includes(state) && (!entitlement?.expiresAt || (Number.isFinite(expiresAt) && expiresAt > Date.now()));
+    const entitlementPlan = active ? String(entitlement?.planId || "").toLowerCase() : "";
+    if (capabilityName === "life_matters") {
+      const valid = new Set(["lifemathisfree", "lmstandard", "lmultimate"]);
+      const planId = valid.has(entitlementPlan) ? entitlementPlan : "lifemathisfree";
+      const monthlyLimit = planId === "lifemathisfree" ? 10 : planId === "lmstandard" ? 300 : Infinity;
+      const monthKey = new Date().toISOString().slice(0, 7);
+      if (!adminTest && Number.isFinite(monthlyLimit)) {
+        const usage = await firestoreQuery("lifeMathisUsageEvents", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }, { field: { fieldPath: "monthKey" }, op: "EQUAL", value: { stringValue: monthKey } }], limit: monthlyLimit + 1 });
+        if (usage.length >= monthlyLimit) throw Object.assign(new Error("life_mathis_monthly_limit_reached"), { httpStatus: 429, safeError: "life_mathis_monthly_limit_reached" });
+      }
+      workspacePlan = { planId, monthKey, monthlyLimit, adminTest };
+    } else {
+      const valid = new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]);
+      if (!adminTest && !valid.has(entitlementPlan)) throw Object.assign(new Error("frontier_plan_required"), { httpStatus: 403, safeError: "frontier_plan_required" });
+      workspacePlan = { planId: adminTest ? "admin-unlimited" : entitlementPlan, adminTest };
+    }
+  }
   const idem = await loadIdempotentResponse(request, user, "/ai");
   if (idem?.replay) return idem.replay;
   if (idem?.fresh) await firestoreCreate("idempotency/" + idem.hash, { uid:user.uid, status:"pending", createdAt:new Date(), expiresAt:new Date(Date.now()+600000) });
@@ -1252,6 +1278,7 @@ async function ai(request, user, body) {
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
+  let lifeUsageEventId = null;
   try {
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
@@ -1260,6 +1287,10 @@ async function ai(request, user, body) {
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+    if (workspacePlan?.planId && capabilityName === "life_matters" && !workspacePlan.adminTest && Number.isFinite(workspacePlan.monthlyLimit)) {
+      lifeUsageEventId = crypto.randomUUID();
+      await firestoreCreate("lifeMathisUsageEvents/" + lifeUsageEventId, { uid: user.uid, monthKey: workspacePlan.monthKey, planId: workspacePlan.planId, createdAt: new Date() });
+    }
     let creditsCharged = Number(reservation.amount || 0);
     let usageSummary = null;
     if (tokenBilling) {
@@ -1305,6 +1336,7 @@ async function ai(request, user, body) {
     if (idem?.hash) await firestoreSet("idempotency/" + idem.hash, { uid:user.uid, status:"completed", body:responseBody, httpStatus:200, completedAt:new Date(), expiresAt:new Date(Date.now()+600000) }, true);
     return json(responseBody);
   } catch (error) {
+    if (lifeUsageEventId) await firestoreDelete("lifeMathisUsageEvents/" + lifeUsageEventId).catch(() => {});
     await reverseCredits(user.uid, reservation.reservationId);
     if (idem?.hash) await firestoreDelete("idempotency/" + idem.hash).catch(() => {});
     throw error;
