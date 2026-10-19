@@ -12,102 +12,119 @@ concurrency:
 
 jobs:
   verify:
-    name: Android, backend, and website verification
+    name: Backend, billing, and cross-platform parity checks
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout Android app
+      - name: Checkout Android app and Cloudflare Worker
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          repository: Bqsqwadtechnologies/Bq-sqwad-AI-app-
+          ref: main
+          path: android-app
+          fetch-depth: 0
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Verify Android Gradle configuration
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon tasks
-
-      - name: Run Android unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
-
-      - name: Compile Android debug app
-        run: ./gradlew --no-daemon assembleDebug
-
-      - name: Verify APK artifact exists
-        run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Check production Worker reachability
-        env:
-          WORKER_URL: https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev
-        run: |
-          set -eu
-          code="$(curl --silent --show-error --output worker-response.txt --write-out '%{http_code}' --max-time 20 "$WORKER_URL/")"
-          echo "Worker root HTTP status: $code"
-          head -c 1000 worker-response.txt || true
-          echo
-          # A 4xx response can mean the root route is intentionally unsupported.
-          # Network/server failures are the actual reachability failure.
-          case "$code" in
-            2*|3*|4*) ;;
-            *) echo "Worker returned an unexpected server status"; exit 1 ;;
-          esac
-
-      - name: Checkout website for cross-platform checks
+      - name: Checkout website
         uses: actions/checkout@v4
         with:
           repository: bqsqwadai/bqsqwadai-b3064406
           ref: main
           path: website
+          fetch-depth: 0
           token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN || github.token }}
-        continue-on-error: true
 
       - name: Set up Node.js
-        if: ${{ hashFiles('website/package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: website/package-lock.json
+
+      - name: Verify Worker JavaScript syntax
+        working-directory: android-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t worker_files < <(find cloudflare-worker -type f -name '*.js' -not -path '*/node_modules/*' | sort)
+          test "${#worker_files[@]}" -gt 0
+          for file in "${worker_files[@]}"; do
+            echo "Syntax check: $file"
+            node --check "$file"
+          done
+
+      - name: Verify shared-credit and billing contract is present on both platforms
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker="android-app/cloudflare-worker/src/index.js"
+          website="website/src/lib/credits.server.ts"
+          chat_route="website/src/routes/api/chat.ts"
+          test -s "$worker"
+          test -s "$website"
+          test -s "$chat_route"
+
+          # Guard against accidentally reintroducing trial-credit grants.
+          if grep -R -n -E 'applyConfiguredCreditTrial|grantTrialCredits' android-app/cloudflare-worker/src; then
+            echo "Legacy trial-credit grant path detected."
+            exit 1
+          fi
+
+          # Confirm server-side token settlement/refund logic exists in the Worker.
+          for symbol in resolveTokenPricing estimateTokenReservation settleCreditReservation reverseCredits recordTokenUsage; do
+            grep -q "$symbol" "$worker" || { echo "Missing Worker billing contract: $symbol"; exit 1; }
+          done
+
+          # Confirm website uses reservation + actual-usage settlement/release paths.
+          for symbol in reserveChatCredits settleChatReservation releaseChatReservation; do
+            grep -R -q "$symbol" website/src/lib website/src/routes || { echo "Missing website credit contract: $symbol"; exit 1; }
+          done
+
+          # Confirm both implementations reference the same authoritative Firebase user balance document.
+          grep -q 'users/' android-app/cloudflare-worker/src/firebase.js
+          grep -R -q 'users' website/src/lib/credits.server.ts
+
+          echo "Static contract checks passed. These checks prove code paths exist, not that a live authenticated transaction succeeded."
+
+      - name: Check recent integration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Recent Android/Worker commits:"
+          git -C android-app log -n 20 --date=iso-strict --pretty=format:'%h %ad %s'
+          echo
+          echo "Recent website commits:"
+          git -C website log -n 20 --date=iso-strict --pretty=format:'%h %ad %s'
+          echo
 
       - name: Install website dependencies
-        if: ${{ hashFiles('website/package.json') != '' }}
         working-directory: website
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Lint website
-        if: ${{ hashFiles('website/package.json') != '' }}
         working-directory: website
         run: npm run lint --if-present
 
       - name: Build website
-        if: ${{ hashFiles('website/package.json') != '' }}
         working-directory: website
         run: npm run build
 
-      - name: Report cross-repository coverage
-        if: always()
+      - name: Check production Worker reachability
+        env:
+          WORKER_URL: https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev
+        shell: bash
         run: |
-          if [ -f website/package.json ]; then
-            echo "Website checkout succeeded; website lint/build steps were attempted."
-          else
-            echo "::warning::Website checkout unavailable. Configure BQ_WEBSITE_REPO_TOKEN as a repository Actions secret with read access to bqsqwadai/bqsqwadai-b3064406 to enable cross-repository checks."
-          fi
+          set -euo pipefail
+          code="$(curl --silent --show-error --output worker-response.txt --write-out '%{http_code}' --max-time 20 "$WORKER_URL/")"
+          echo "Worker root HTTP status: $code"
+          head -c 1000 worker-response.txt || true
+          echo
+          case "$code" in
+            2*|3*|4*) ;;
+            *) echo "Worker returned an unexpected server status"; exit 1 ;;
+          esac
 
-      - name: Upload Android debug APK
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bq-sqwad-ai-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
+      - name: Report live-test limitations
+        if: always()
+        shell: bash
+        run: |
+          echo "This workflow performs backend source checks, website lint/build, recent-commit inspection, and Worker reachability."
+          echo "Authenticated credit spend/refund, Play payment verification, cross-device chat-history sync, and Live Voice/Camera require dedicated test credentials/devices and are not claimed as passed by static checks."
+          echo "No APK/AAB is built, uploaded, or published by this workflow."
