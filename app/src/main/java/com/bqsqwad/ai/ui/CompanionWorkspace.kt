@@ -55,6 +55,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     var memoryEnabled by remember { mutableStateOf(true) }
     var notice by remember { mutableStateOf<String?>(null) }
     var loadingAccess by remember { mutableStateOf(true) }
+    var adminTestMode by remember { mutableStateOf(false) }
     var accessLoadedSuccessfully by remember { mutableStateOf(false) }
     var accessRefresh by remember { mutableIntStateOf(0) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -89,7 +90,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     }
 
     fun hasPlan(vararg ids: String): Boolean = currentPlan?.id?.let { it in ids } == true
-    val memoryUnlocked = accessLoadedSuccessfully && hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate")
+    val memoryUnlocked = accessLoadedSuccessfully && (adminTestMode || hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate"))
     // Live Voice and Live Camera are credit-metered, never Companion-plan gated.
     val voiceUnlocked = true
     val cameraUnlocked = true
@@ -150,6 +151,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             }
             val plans = parseCompanionPlans(catalog)
             catalogPlans = plans
+            adminTestMode = catalog.optBoolean("adminTestMode", false)
             val items = entitlements.optJSONArray("items") ?: JSONArray()
             val active = (0 until items.length())
                 .mapNotNull { items.optJSONObject(it) }
@@ -158,10 +160,10 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     val state = it.optString("state")
                     id.startsWith("companion") && state in setOf("active", "grace", "on_hold", "paused")
                 }
-            val activePlanId = active?.optString("planId").orEmpty().ifBlank { "companionfree" }
+            val activePlanId = if (adminTestMode) "companionultimate" else catalog.optString("activePlanId").ifBlank { active?.optString("planId").orEmpty().ifBlank { "companionfree" } }
             currentPlan = plans.firstOrNull { it.id == activePlanId }
                 ?: plans.firstOrNull { it.id == "companionfree" }
-            val memoryPlanEligible = currentPlan?.id?.let { it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate") } == true
+            val memoryPlanEligible = adminTestMode || currentPlan?.id?.let { it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate") } == true
             if (memoryPlanEligible) {
                 runCatching { api.companionMemory() }
                     .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
@@ -249,7 +251,10 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             Text(currentPlan?.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    if (currentPlan == null && !loadingAccess) {
+                    if (adminTestMode) {
+                BqStatusBadge("ROOT ADMIN TEST MODE • ALL COMPANION FEATURES")
+            }
+            if (currentPlan == null && !loadingAccess) {
                         TextButton(onClick = { accessRefresh++ }) { Text("Retry") }
                     } else if (currentPlan?.id != "companionultimate") {
                         OutlinedButton(onClick = onOpenPlans) { Text("Upgrade") }
@@ -282,7 +287,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Text(plan.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                            if (isCurrent) BqStatusBadge("CURRENT")
+                            if (adminTestMode) BqStatusBadge("ADMIN TEST") else if (isCurrent) BqStatusBadge("CURRENT")
                         }
                         Text("Plan ID: " + plan.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
@@ -293,7 +298,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         plan.features.take(4).forEach { feature -> Text("• " + feature, style = MaterialTheme.typography.bodySmall) }
                         if (plan.features.size > 4) Text("+" + (plan.features.size - 4) + " more features", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day trial eligible", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        if (!isCurrent) {
+                        if (!isCurrent && !adminTestMode) {
                             OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("View plan") }
                         }
                     }
