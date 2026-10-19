@@ -923,7 +923,12 @@ async function reverseCredits(uid, reservationId) {
             credits: Number(profile.credits || 0) + Number(reservation.fromPermanent || 0),
             subCredits: Number(profile.subCredits || 0) + Number(reservation.fromSubscription || 0),
             trialCredits: Number(profile.trialCredits || 0) + Number(reservation.fromTrial || 0),
-            dailyFreeCredits: shouldRestoreDailyFreeCredits(profile, reservation, new Date(), globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE)
+            dailyFreeCredits: shouldRestoreDailyFreeCredits(
+              profile,
+              reservation,
+              new Date(),
+              String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE)
+            )
               ? Number(profile.dailyFreeCredits || 0) + Number(reservation.fromDaily || 0)
               : Number(profile.dailyFreeCredits || 0),
             updatedAt: new Date()
