@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.SearchSource
+import com.bqsqwad.ai.core.AdminAdvancedClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -276,14 +277,20 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
     var error by remember { mutableStateOf<String?>(null) }
     var activeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var researchSources by remember { mutableStateOf("") }
-    var planName by remember { mutableStateOf("Frontier plan") }
+    var planName by remember { mutableStateOf("Checking Frontier plan…") }
+    var planAccessGranted by remember { mutableStateOf(false) }
+    var adminTestMode by remember { mutableStateOf(false) }
+    var planLoading by remember { mutableStateOf(true) }
     var planFeatures by remember { mutableStateOf(emptyList<String>()) }
     var planPrice by remember { mutableStateOf<String?>(null) }
     var planTrial by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
+        planLoading = true
         runCatching {
             val api = WorkspaceApiClient()
+            val adminAllowed = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+            adminTestMode = adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
             val catalog = api.nativeCatalog()
             val entitlements = api.entitlements()
             val plans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
@@ -291,13 +298,20 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
             val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.firstOrNull {
                 val id = it.optString("planId")
                 val state = it.optString("state")
-                id.startsWith("frontier") && state in setOf("active", "grace", "on_hold", "paused")
+                val expiry = it.optString("expiresAt")
+                val notExpired = expiry.isBlank() || expiry == "null" || (expiry.toLongOrNull()?.let { value -> value > System.currentTimeMillis() } ?: true)
+                id.startsWith("frontier") && state in setOf("active", "grace", "trialing") && notExpired
             }
-            val id = active?.optString("planId").orEmpty().ifBlank { "frontierexplorer" }
+            planAccessGranted = adminTestMode || active != null
+            val id = if (adminTestMode) "frontierenterprise" else active?.optString("planId").orEmpty()
             val plan = (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
-            planName = plan?.optString("name").orEmpty().ifBlank { "Frontier plan" }
+            planName = when {
+                adminTestMode -> "Root Admin Test Mode • Full Access"
+                active == null -> "No active Frontier plan"
+                else -> plan?.optString("name").orEmpty().ifBlank { "Frontier plan" }
+            }
             val price = plan?.optJSONObject("priceNgn")
-            if (price != null) {
+            if (price != null && !adminTestMode) {
                 val keys = price.keys()
                 val values = mutableListOf<String>()
                 while (keys.hasNext()) {
@@ -310,20 +324,29 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
                 }
                 planPrice = values.joinToString(" • ")
             }
-            if (planPrice.isNullOrBlank()) planPrice = "View localized price in Plans & Credits"
+            if (planPrice.isNullOrBlank()) planPrice = if (adminTestMode) "Admin-only testing • no customer purchase" else "View localized price in Plans & Credits"
             val features = plan?.optJSONArray("features") ?: org.json.JSONArray()
-            planFeatures = List(features.length()) { features.optString(it) }
-            if (plan?.optBoolean("trialEligible", false) == true) {
+            planFeatures = if (planAccessGranted) List(features.length()) { features.optString(it) } else emptyList()
+            if (!adminTestMode && plan?.optBoolean("trialEligible", false) == true) {
                 val days = plan?.optInt("trialDays", 0) ?: 0
                 if (days > 0) planTrial = days.toString() + "-day free trial"
             }
+        }.onFailure {
+            planAccessGranted = false
+            planName = "Could not verify Frontier plan"
+            error = safeUserFacingIssue(it, "Frontier plan access could not be checked.")
         }
+        planLoading = false
     }
 
     fun runExperiment() {
         val input = prompt.trim()
         if (busy) { activeJob?.cancel(); return }
         if (input.isBlank()) return
+        if (!planAccessGranted) {
+            error = "A verified Frontier plan is required before running experiments. Review Frontier plans or use the authorized root-admin test mode."
+            return
+        }
         if (mode == "Research" && !webSearchEnabled) {
             error = "Turn on Web Search in Settings before using Frontier research mode."
             return
@@ -368,7 +391,7 @@ Do not claim an experiment was executed unless the backend actually executed it.
         icon = Icons.Default.Science
     ) {
         SurfaceCard(
-            "Verified Frontier plan",
+            if (adminTestMode) "Admin test access" else "Frontier plan access",
             listOfNotNull(
                 planName,
                 planPrice,
@@ -376,6 +399,10 @@ Do not claim an experiment was executed unless the backend actually executed it.
                 planFeatures.takeIf { it.isNotEmpty() }?.joinToString(" • ")
             ).joinToString(" | ")
         )
+        if (planLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (!planLoading && !planAccessGranted) {
+            SurfaceCard("Frontier plan required", "Frontier Lab is a paid workspace. Activate Frontier Explorer, Frontier Pro or Frontier Enterprise before running experiments.")
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             OutlinedButton(onClick = onOpenPlans) { Text("View Frontier plans") }
         }
@@ -399,7 +426,7 @@ Do not claim an experiment was executed unless the backend actually executed it.
             minLines = 5,
             placeholder = { Text("Describe the AI experiment, prototype or research problem…") }
         )
-        Button(onClick = ::runExperiment, enabled = busy || prompt.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = ::runExperiment, enabled = busy || (planAccessGranted && prompt.isNotBlank()), modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "Stop experiment" else "Run in Frontier Lab")
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
