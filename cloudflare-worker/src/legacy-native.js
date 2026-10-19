@@ -1,7 +1,7 @@
 import { firestoreGet, firestoreSet, firestoreCreate, firestoreDelete, firestoreQuery, firestoreCommit } from "./firebase.js";
 import { runProvider, callTavily, DEFAULT_MODELS } from "./providers.js";
 
-const activeStates=new Set(["active","grace","on_hold","paused"]);
+const activeStates=new Set(["active","trialing","grace"]);
 const clean=(v,n=12000)=>String(v??"").trim().slice(0,n);
 
 const SCOPE_WORKSPACES = {
@@ -105,7 +105,7 @@ export async function workspaceScopeRedirect(workspace, prompt) {
 }
 async function section(name){const x=await firestoreGet("planCatalog/config");return Array.isArray(x?.catalog?.sections?.[name])?x.catalog.sections[name]:[]}
 async function adminTest(user,env){const claims=user?.customAttributes||{},email=String(user?.email||"").toLowerCase(),owner=String(env?.SUPER_ADMIN_EMAIL||"").toLowerCase();const root=(Boolean(owner)&&email===owner&&user?.emailVerified===true)||claims.superAdmin===true||claims.role==="super_admin";if(!root)return false;return (await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.enabled===true}
-async function gate(user,env,fallback){const e=await firestoreGet("entitlements/"+user.uid),test=await adminTest(user,env),active=activeStates.has(String(e?.state||""));return {planId:test?"admin-unlimited":(active?String(e.planId||fallback):fallback),adminTestMode:test}}
+async function gate(user,env,fallback){const e=await firestoreGet("entitlements/"+user.uid),test=await adminTest(user,env),state=String(e?.state||e?.status||"").toLowerCase(),expiry=e?.expiresAt?Date.parse(String(e.expiresAt)):NaN,active=activeStates.has(state)&&(!e?.expiresAt||(Number.isFinite(expiry)&&expiry>Date.now()));return {planId:test?"admin-unlimited":(active?String(e.planId||fallback):fallback),adminTestMode:test}}
 
 export async function companionCatalog(user,env){const g=await gate(user,env,"companionfree"),p=await section("companion");return {ok:true,activePlanId:g.planId,adminTestMode:g.adminTestMode,plans:p.map(x=>({id:x.id,name:x.name,description:x.description||"",price:x.price||{},features:x.features||[],limits:x.limits||{},basePlans:x.basePlans||[],billingPeriods:x.billingPeriods||[],trialDays:x.trialDays||0,playEligible:x.playEligible===true,productId:x.productId||null}))}}
 export async function companionProfile(uid){const x=await firestoreGet("companionProfiles/"+uid)||{};return {ok:true,profile:{personality:String(x.personality||"Warm"),name:String(x.name||"BQ Companion"),memoryEnabled:x.memoryEnabled!==false,checkInsEnabled:x.checkInsEnabled!==false,voiceEnabled:x.voiceEnabled===true,cameraEnabled:x.cameraEnabled===true,updatedAt:x.updatedAt||null}}}
