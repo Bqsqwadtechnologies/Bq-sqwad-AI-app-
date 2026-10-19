@@ -164,6 +164,8 @@ class WorkspaceApiClient {
                     "Companion Memory is included with Companion Basic and higher plans. Review Companion plans to unlock it."
                 serverError == "organization_plan_required" ->
                     "Activate an Organization plan before using this workspace feature."
+                serverError == "organization_insufficient_balance" ->
+                    "Your Organization usage wallet does not have enough balance. Add funds in Organization Billing and retry."
                 serverError.startsWith("organization_feature_locked") ->
                     "This feature is not included in the active Organization plan. Review the plan features to continue."
                 serverError.startsWith("capability_disabled") ->
