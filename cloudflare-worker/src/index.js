@@ -660,8 +660,12 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
   const now = new Date();
-  const timeZone = String(config?.timeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  const renewalTime = String(config?.renewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00");
+  // Keep the daily allowance date calculation identical to the website:
+  // an account's persisted timezone/renewal settings take precedence over
+  // Worker environment defaults, otherwise reopening the app can re-grant a
+  // daily credit when the Worker and website calculate different date keys.
+  const timeZone = String(config?.timeZone || profile.dailyFreeCreditsTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
+  const renewalTime = String(config?.renewalTime || profile.dailyFreeCreditsRenewalTime || "00:00");
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
   if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
