@@ -87,11 +87,9 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             add("Channels")
         }
         if ("automation" in enabledGroups) add("Automation")
-        if ("advanced" in enabledGroups) {
-            add("Advanced AI")
-            add("Integrations")
-            add("Enterprise")
-        }
+        if ("advanced" in enabledGroups) add("Advanced AI")
+        if ("integrations" in enabledGroups) add("Integrations")
+        if ("enterprise" in enabledGroups) add("Enterprise")
         add("Settings")
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
