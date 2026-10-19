@@ -634,11 +634,10 @@ function canonicalUserBalance(profile) {
   if (!profile) return null;
   const expiresAt = profile.subExpiresAt ? String(profile.subExpiresAt) : null;
   const subscriptionLive = expiresAt ? Date.parse(expiresAt) > Date.now() : false;
-  const trialExpiresAt = profile.trialExpiresAt ? String(profile.trialExpiresAt) : null;
-  const trialLive = trialExpiresAt ? Date.parse(trialExpiresAt) > Date.now() : false;
+  // Trial credits are retired. Historical fields remain in Firestore but are never spendable.
   const permanent = Math.max(0, Number(profile.credits || 0));
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
-  const trial = trialLive ? Math.max(0, Number(profile.trialCredits || 0)) : 0;
+  const trial = 0;
   const timeZone = String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
   const daily = currentDailyFreeCredits(profile, new Date(), timeZone);
   return {
@@ -648,7 +647,7 @@ function canonicalUserBalance(profile) {
     dailyFreeCreditsRenewalTime: String(profile.dailyFreeCreditsRenewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00"),
     total: permanent + subscription + trial + daily,
     subscriptionExpiresAt: subscriptionLive ? expiresAt : null,
-    trialExpiresAt: trialLive ? trialExpiresAt : null,
+    trialExpiresAt: null,
     plan: String(profile.subscriptionPlan || "free")
   };
 }
@@ -676,7 +675,7 @@ async function applyConfiguredCreditTrial(uid) {
 async function applyConfiguredDailyFreeCredits(uid) {
   const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
   const enabled = config == null ? true : config.enabled === true;
-  const credits = Math.max(0, Math.min(100000, Number(config?.credits ?? 5)));
+  const credits = Math.max(0, Math.min(1, Number(config?.credits ?? 1)));
   if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
@@ -743,7 +742,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
     return { reservationId: null, amount: 0, planCovered: true };
   }
-  await applyConfiguredCreditTrial(uid);
+  // No trial-credit pool exists. Grant only the single daily free credit.
   await applyConfiguredDailyFreeCredits(uid);
   if (!charge) {
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
