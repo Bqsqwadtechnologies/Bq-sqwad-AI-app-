@@ -10,7 +10,7 @@ import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretS
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
-import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, requireBusinessFeature, requireBusinessRole, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
+import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, requireBusinessFeature, requireBusinessRole, withBusinessAiUsage, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant, workspaceScopeRedirect, workspaceScopeSystemPrompt } from "./legacy-native.js";
 import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
 import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel, checkAiModelStatus } from "./model-registry-native.js";
@@ -3117,7 +3117,7 @@ export default {
         await requireBusinessPlan(u.uid, w.workspaceId);
         const brief = String(b.brief || b.message || "").trim().slice(0, 12000);
         if (!brief) throw new Error("business_plan_brief_required");
-        return json(await withSharedCreditCharge(u, "business_ai", async control => {
+        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
           const z = await runProvider(env, {
             primaryProviderId: control.providerId,
             primaryModelId: control.modelId,
@@ -3127,7 +3127,7 @@ export default {
             system: "You are the BQ Sqwad AI Business Plan Builder. Use only supplied business information. Do not invent market facts, guarantees, licenses, tax or legal status. Return executive summary, objectives, target customers, value proposition, operations, marketing, sales, technology/AI plan, risks, KPIs and 30/60/90-day actions."
           });
           return { ok: true, workspaceId: w.workspaceId, answer: z.text, providerId: z.providerId, modelId: z.modelId };
-        }));
+        })));
       }
       if (url.pathname === "/business/advanced-ai" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -3136,7 +3136,7 @@ export default {
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
-        return json(await withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, { ...b, workspaceId: w.workspaceId })));
+        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, { ...b, workspaceId: w.workspaceId }))));
       }
       if (url.pathname === "/business/advanced-ai/jobs" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({jobs:await advancedJobs(u.uid,String(url.searchParams.get("workspaceId")||""))}); }
       if (url.pathname === "/business/integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request),w=await businessWorkspace(u.uid,{workspaceId:url.searchParams.get("workspaceId")}); await requireBusinessFeature(u.uid,w.workspaceId,"integrations"); return json(await integrationConfig(u.uid,w.workspaceId)); }
@@ -3168,7 +3168,7 @@ export default {
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
         const k = await businessKnowledgeForWorkspace(u.uid, w.workspaceId, 50);
-        return json(await withSharedCreditCharge(u, "business_ai", async control => {
+        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
           const z = await runProvider(env, {
             primaryProviderId: control.providerId,
             primaryModelId: control.modelId,
@@ -3178,7 +3178,7 @@ export default {
             system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\nBusiness knowledge:\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\n")
           });
           return { answer: z.text || "", providerId: z.providerId || null, modelId: z.modelId || null, workspaceId: w.workspaceId };
-        }));
+        })));
       }
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
