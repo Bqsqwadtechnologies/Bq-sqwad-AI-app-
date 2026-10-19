@@ -19,7 +19,7 @@ import { securityStatusNative, configurePasswordNative, beginTotpNative, confirm
 import { broadcast } from "./notifications-native.js";
 import { advancedAiNative, advancedJobs, supportedIntegrations, integrationConfig, configureIntegration, enterpriseConfig, enterpriseUpdate } from "./business-advanced-native.js";
 import { passkeyStatus, registrationOptionsNative, verifyRegistrationNative, authenticationOptionsNative, verifyAuthenticationNative, removePasskeyNative } from "./passkeys-native.js";
-import { orgWallet, orgTopUps, orgLiveStart, orgChargeAssistant, orgLiveGet, orgLiveHeartbeat, orgLiveStop, orgBillingConfig } from "./organization-billing-native.js";
+import { orgWallet, orgTopUps, orgLiveStart, orgChargeAssistant, orgRefundAssistant, orgLiveGet, orgLiveHeartbeat, orgLiveStop, orgBillingConfig } from "./organization-billing-native.js";
 import { youtubeChannel, youtubeCreateLive, youtubeTransition, youtubeStatus, youtubeChat, youtubeReply } from "./youtube-native.js";
 import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runtime-native.js";
 import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
@@ -3541,7 +3541,7 @@ export default {
       if (url.pathname === "/organization/members" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"members"); return json(await organizationMember(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/member-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"members"); return json(await organizationMemberState(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/channel-state" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"channels"); return json(await organizationChannelState(u.uid,await readBody(request))); }
-      if (url.pathname === "/organization/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await requireOrganizationFeature(u.uid,"assistant"); await capability(u.uid,"organization_studio"); return json(await organizationAssistant(env,u,await readBody(request))); }
+      if (url.pathname === "/organization/assistant" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const access=await requireOrganizationFeature(u.uid,"assistant"); await capability(u.uid,"organization_studio"); const b=await readBody(request),reference=crypto.randomUUID(),charge=access.testMode?null:await orgChargeAssistant(u.uid,reference,"organization_assistant"); try { const result=await organizationAssistant(env,u,b); return json({...result,organizationBilling:charge?{chargedCents:charge.chargedCents,balanceCents:charge.balanceCents,currency:"USD"}:{adminTest:access.testMode===true}}); } catch(error) { if(charge) await orgRefundAssistant(u.uid,charge,reference).catch(()=>notifyAdminOfIssue(env,url.pathname,500,"organization_assistant_refund_failed")); throw error; } }
 
       if (url.pathname === "/social/oauth/start" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
