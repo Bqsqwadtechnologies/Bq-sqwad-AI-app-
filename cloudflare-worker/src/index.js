@@ -2849,10 +2849,11 @@ export default {
       if (url.pathname === "/payments/auto-renew" && request.method === "POST") { return json({error:"google_play_billing_required",message:"Google Play controls subscription renewal."},410); }
       if (url.pathname === "/paystack/webhook" && request.method === "POST") { return json({error:"paystack_retired",message:"BQ Sqwad AI billing is Google Play only."},410); }
       if (["/payments/preview","/payments/initialize","/payments/verify","/payments/auto-renew"].includes(url.pathname) && request.method === "POST") { return json({error:"google_play_billing_required",message:"BQ Sqwad AI billing is handled through Google Play Billing."},410); }
-      if (url.pathname === "/business/training-assets" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),wid=String(b.workspaceId||"");const w=await businessWorkspace(u.uid,{workspaceId:wid}),type=String(b.type||"").toLowerCase();if(!["text","document","photo","voice","video","step_by_step","appearance_hair"].includes(type))throw new Error("unsupported_training_asset_type");const title=String(b.title||"").trim().slice(0,180),purpose=String(b.purpose||"").trim().slice(0,1000);if(!title||!purpose)throw new Error("training_asset_title_and_purpose_required");const id=crypto.randomUUID(),asset={id,workspaceId:w.workspaceId,type,title,purpose,status:"metadata_saved",createdAt:new Date().toISOString()};await firestoreSet("businessTrainingAssets/"+id,{...asset,uid:u.uid,createdAt:new Date(),updatedAt:new Date()},false);return json({ok:true,asset}); }
+      if (url.pathname === "/business/training-assets" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),wid=String(b.workspaceId||"");const w=await businessWorkspace(u.uid,{workspaceId:wid}),type=String(b.type||"").toLowerCase();await requireBusinessRole(u.uid,w.workspaceId,"manager");await requireBusinessPlan(u.uid,w.workspaceId);if(!["text","document","photo","voice","video","step_by_step","appearance_hair"].includes(type))throw new Error("unsupported_training_asset_type");const title=String(b.title||"").trim().slice(0,180),purpose=String(b.purpose||"").trim().slice(0,1000);if(!title||!purpose)throw new Error("training_asset_title_and_purpose_required");const id=crypto.randomUUID(),asset={id,workspaceId:w.workspaceId,type,title,purpose,status:"metadata_saved",createdAt:new Date().toISOString()};await firestoreSet("businessTrainingAssets/"+id,{...asset,uid:u.uid,createdAt:new Date(),updatedAt:new Date()},false);return json({ok:true,asset}); }
       if (url.pathname === "/business/training-assets/upload-url" && request.method === "POST") {
         const u=await verifyFirebaseUser(request),b=await readBody(request),workspace=await businessWorkspace(u.uid,{workspaceId:b.workspaceId});
-        await requireBusinessAccess(u.uid,workspace.workspaceId,"manager");
+        await requireBusinessRole(u.uid,workspace.workspaceId,"manager");
+        await requireBusinessPlan(u.uid,workspace.workspaceId);
         const type=String(b.type||"").trim().toLowerCase(),allowed=new Set(["text","document","photo","voice","video","step_by_step","appearance_hair"]);
         if(!allowed.has(type))return json({error:"unsupported_training_asset_type"},400);
         const title=String(b.title||"").trim().slice(0,180),purpose=String(b.purpose||"").trim().slice(0,1000),fileName=String(b.fileName||"training-asset").trim().slice(0,160),contentType=String(b.contentType||"application/octet-stream").trim().slice(0,120),size=Math.max(0,Number(b.size||0));
@@ -2868,7 +2869,8 @@ export default {
         if(!assetId)return json({error:"training_asset_id_required"},400);
         const ref=await firestoreGet("businessTrainingAssets/"+assetId);
         if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
-        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessRole(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessPlan(u.uid,String(ref.workspaceId||""));
         const object=await inspectTrainingAssetObject(String(ref.objectPath||""));
         if(!object)return json({error:"training_asset_upload_missing"},409);
         const expectedSize=Number(ref.size||0);
@@ -2882,7 +2884,8 @@ export default {
       if (url.pathname === "/business/training-assets/download" && request.method === "GET") {
         const u=await verifyFirebaseUser(request),assetId=String(url.searchParams.get("assetId")||"").trim(),ref=await firestoreGet("businessTrainingAssets/"+assetId);
         if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
-        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessRole(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessPlan(u.uid,String(ref.workspaceId||""));
         if(ref.status!=="uploaded")return json({error:"training_asset_not_uploaded"},409);
         const auth=await createTrainingAssetDownloadAuthorization({objectPath:String(ref.objectPath||""),durationSeconds:900});
         return json({ok:true,downloadUrl:auth.downloadUrl,authorizationToken:auth.authorizationToken,fileNamePrefix:auth.fileNamePrefix,expiresInSeconds:auth.expiresInSeconds});
@@ -2890,7 +2893,8 @@ export default {
       if (url.pathname === "/business/training-assets" && request.method === "DELETE") {
         const u=await verifyFirebaseUser(request),b=await readBody(request),assetId=String(b.assetId||url.searchParams.get("assetId")||"").trim(),ref=await firestoreGet("businessTrainingAssets/"+assetId);
         if(!ref||ref.uid!==u.uid)return json({error:"training_asset_not_found"},404);
-        await requireBusinessAccess(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessRole(u.uid,String(ref.workspaceId||""),"manager");
+        await requireBusinessPlan(u.uid,String(ref.workspaceId||""));
         await deleteTrainingAssetObject(String(ref.objectPath||""));
         await firestoreDelete("businessTrainingAssets/"+assetId);
         const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets.filter(x=>String(x?.id||"")!==assetId):[];
