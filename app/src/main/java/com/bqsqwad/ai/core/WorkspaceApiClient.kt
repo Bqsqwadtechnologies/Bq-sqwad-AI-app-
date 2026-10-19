@@ -160,6 +160,10 @@ class WorkspaceApiClient {
                     "You have reached the Life Mathis conversation limit for this month. Review plans to continue."
                 serverError == "frontier_plan_required" ->
                     "Frontier Lab requires an active Frontier subscription. Review Frontier plans to continue."
+                serverError == "learning_studio_daily_limit_reached" ->
+                    "You have used today's 3 included Learning Studio lessons. Upgrade your Learning plan or try again tomorrow."
+                serverError == "workspace_plan_route_required" ->
+                    "This workspace feature must be opened from its own workspace so the correct plan and usage limits can be checked."
                 serverError == "companion_memory_plan_required" ->
                     "Companion Memory is included with Companion Basic and higher plans. Review Companion plans to unlock it."
                 serverError == "organization_plan_required" ->
