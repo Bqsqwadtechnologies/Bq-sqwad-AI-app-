@@ -595,6 +595,9 @@ async function capability(uid, name) {
   };
 }
 async function requireOrganizationFeature(uid, feature) {
+  // One server-side kill switch protects every Organization Studio route,
+  // including production, channels, members, and knowledge alternate paths.
+  await capability(uid, "organization_studio");
   const access = await getOrganizationAccess(uid);
   if (!access?.activated || !access?.plan) throw new Error("organization_plan_required");
   const capabilities = Array.isArray(access.plan.capabilities) ? access.plan.capabilities : [];
@@ -3131,8 +3134,6 @@ export default {
         await requireConsent(u.uid);
         await capability(u.uid, "business");
         await capability(u.uid, "business_ai");
-        await capability(u.uid, "business_ai");
-        await capability(u.uid, "business_ai");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
@@ -3533,27 +3534,27 @@ export default {
       }
 
       if (url.pathname === "/companion/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCatalog(u,env)); }
-      if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionProfile(u.uid)); }
-      if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
+      if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await companionProfile(u.uid)); }
+      if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
       if (url.pathname === "/companion/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); const catalog=await companionCatalog(u,env); if(!catalog.adminTestMode && !["companionbasic","companionplus","companionpremium","companionultimate"].includes(String(catalog.activePlanId||"").toLowerCase())) throw Object.assign(new Error("companion_history_plan_required"),{httpStatus:403,safeError:"companion_history_plan_required"}); return json(await companionHistory(u.uid)); }
       if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
-      if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCheckins(u.uid)); }
+      if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); await capability(u.uid,"companion_checkin"); return json(await companionCheckins(u.uid)); }
       if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); await capability(u.uid,"companion_checkin"); const b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
-      if (url.pathname === "/companion/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionSettings(u.uid)); }
-      if (url.pathname === "/companion/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionSettings(u.uid,await readBody(request))); }
+      if (url.pathname === "/companion/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await companionSettings(u.uid)); }
+      if (url.pathname === "/companion/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await saveCompanionSettings(u.uid,await readBody(request))); }
 
       if (url.pathname === "/learning/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningCatalog(u,env)); }
       if (url.pathname === "/learning/progress" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await learningProgress(u.uid)); }
       if (url.pathname === "/learning/session" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"learning"); const b=await readBody(request); return json(await learningSession(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
 
       if (url.pathname === "/truthguard/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardCatalog(u,env)); }
-      if (url.pathname === "/truthguard/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await truthguardSettings(u.uid)); }
-      if (url.pathname === "/truthguard/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
-      if (url.pathname === "/truthguard/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); const catalog=await truthguardCatalog(u,env); if(!catalog.adminTestMode && !["tgplus","tgpro","tgteam"].includes(String(catalog.activePlanId||"").toLowerCase())) throw Object.assign(new Error("truthguard_history_plan_required"),{httpStatus:403,safeError:"truthguard_history_plan_required"}); return json(await truthguardHistory(u.uid)); }
+      if (url.pathname === "/truthguard/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); return json(await truthguardSettings(u.uid)); }
+      if (url.pathname === "/truthguard/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); return json(await saveTruthguardSettings(u.uid,await readBody(request))); }
+      if (url.pathname === "/truthguard/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"truth_guard"); const catalog=await truthguardCatalog(u,env); if(!catalog.adminTestMode && !["tgplus","tgpro","tgteam"].includes(String(catalog.activePlanId||"").toLowerCase())) throw Object.assign(new Error("truthguard_history_plan_required"),{httpStatus:403,safeError:"truthguard_history_plan_required"}); return json(await truthguardHistory(u.uid)); }
       if (url.pathname === "/truthguard/check" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"truth_guard"); const b=await readBody(request); return json(await truthguardCheck(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
 
-      if (url.pathname === "/organization" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await organizationGet(u.uid)); }
-      if (url.pathname === "/organization" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await organizationUpdate(u.uid,await readBody(request))); }
+      if (url.pathname === "/organization" && request.method === "GET") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"assistant"); return json(await organizationGet(u.uid)); }
+      if (url.pathname === "/organization" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"assistant"); return json(await organizationUpdate(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/channels" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"channels"); return json(await organizationChannel(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/settings" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"assistant"); return json(await organizationSettings(u.uid,await readBody(request))); }
       if (url.pathname === "/organization/knowledge" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"knowledge"); return json(await organizationKnowledge(u.uid,await readBody(request))); }
