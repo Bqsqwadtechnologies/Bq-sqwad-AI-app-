@@ -1909,8 +1909,7 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
-        await applyConfiguredCreditTrial(user.uid);
-        await applyConfiguredDailyFreeCredits(user.uid);
+            await applyConfiguredDailyFreeCredits(user.uid);
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
         const profile = await readCanonicalUserBalance(user.uid);
