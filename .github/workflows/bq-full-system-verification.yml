@@ -78,7 +78,7 @@ jobs:
           done
 
           # Confirm both implementations reference the same authoritative Firebase user balance document.
-          grep -q 'users/' android-app/cloudflare-worker/src/firebase.js
+          grep -q 'FIRESTORE_BASE' android-app/cloudflare-worker/src/firebase.js
           grep -R -q 'users' website/src/lib/credits.server.ts
 
           echo "Static contract checks passed. These checks prove code paths exist, not that a live authenticated transaction succeeded."
