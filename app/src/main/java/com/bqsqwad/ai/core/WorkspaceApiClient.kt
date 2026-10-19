@@ -150,6 +150,12 @@ class WorkspaceApiClient {
                     "The selected image or video model needs a valid provider cost and billing unit in the admin dashboard."
                 serverError.startsWith("learning_feature_locked") ->
                     "That Learning feature is not included in the currently active plan. Review Learning plans to unlock it."
+                serverError.startsWith("daily_capability_limit_reached") ->
+                    "You have reached the daily Learning allowance. Upgrade the plan or try again tomorrow."
+                serverError.startsWith("monthly_capability_limit_reached") ->
+                    "This plan has reached its monthly usage limit. Review the plan details to continue."
+                serverError == "truthguard_monthly_limit_reached" ->
+                    "You have reached the monthly TruthGuard check limit. Upgrade the plan or try again next month."
                 serverError == "companion_memory_plan_required" ->
                     "Companion Memory is included with Companion Basic and higher plans. Review Companion plans to unlock it."
                 serverError == "organization_plan_required" ->
