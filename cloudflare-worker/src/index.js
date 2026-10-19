@@ -732,10 +732,11 @@ function isSubscriptionCoveredCapability(profile, capabilityName) {
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
   let charge = Math.max(0, Number(amount || 0));
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
-  const planWorkspaceCapabilities = new Set(["business_ai","truth_guard","learning_studio","companion","companion_checkin","life_matters","frontier_lab"]);
-  if (planWorkspaceCapabilities.has(String(capabilityName || "").trim().toLowerCase())) return { reservationId: null, amount: 0, planCovered: true };
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
+  if (Number(currentProfile.suspended || 0) === 1) throw new Error("Your account is suspended.");
+  const planWorkspaceCapabilities = new Set(["business_ai","truth_guard","learning_studio","companion","companion_checkin","life_matters","frontier_lab"]);
+  if (planWorkspaceCapabilities.has(String(capabilityName || "").trim().toLowerCase())) return { reservationId: null, amount: 0, planCovered: true };
   if (isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
     return { reservationId: null, amount: 0, planCovered: true };
   }
