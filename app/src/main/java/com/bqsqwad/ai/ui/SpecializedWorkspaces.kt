@@ -298,8 +298,11 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
             val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.firstOrNull {
                 val id = it.optString("planId")
                 val state = it.optString("state")
-                val expiry = it.optString("expiresAt")
-                val notExpired = expiry.isBlank() || expiry == "null" || (expiry.toLongOrNull()?.let { value -> value > System.currentTimeMillis() } ?: true)
+                val expiry = it.optString("expiresAt").ifBlank { it.optString("expiryTimeMillis") }
+                val expiryMillis = expiry.toLongOrNull()
+                    ?: runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(expiry)?.time }.getOrNull()
+                    ?: runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(expiry)?.time }.getOrNull()
+                val notExpired = expiry.isBlank() || expiry == "null" || (expiryMillis != null && expiryMillis > System.currentTimeMillis())
                 id.startsWith("frontier") && state in setOf("active", "grace", "trialing") && notExpired
             }
             planAccessGranted = adminTestMode || active != null
