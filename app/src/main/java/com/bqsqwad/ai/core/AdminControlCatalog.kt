@@ -71,7 +71,7 @@ object AdminControlCatalog {
 
     val configurableCapabilities = setOf(
         "chat","device_commands","web_search","deep_research","live_camera","live_voice","truth_guard","frontier_lab","organization_studio","data_analysis_workspace",
-        "personal_intelligence","life_matters","learning","business","companion","image_generation",
+        "personal_intelligence","life_matters","learning","learning_studio","business","business_ai","companion","companion_checkin","image_generation",
         "video_generation","file_analysis","codron",
         *AdvancedCapabilities.advanced.toTypedArray()
     )
