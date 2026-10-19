@@ -652,26 +652,6 @@ function canonicalUserBalance(profile) {
   };
 }
 
-async function applyConfiguredCreditTrial(uid) {
-  const config = await firestoreGet("adminAdvancedOptions/credit_trial_config");
-  if (config?.enabled !== true) return;
-  const credits = Math.max(0, Number(config.credits || 0));
-  const days = Math.max(1, Math.min(30, Number(config.days || 5)));
-  if (!credits) return;
-  const profile = await firestoreGet("users/" + uid);
-  if (!profile || profile.creditTrialGrantedAt) return;
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + days * 86400000);
-  try {
-    await firestoreCommit([
-      { path: "users/" + uid, data: { trialCredits: credits, trialExpiresAt: expiresAt, creditTrialGrantedAt: now, updatedAt: now }, updateTime: profile.__updateTime },
-      { path: "creditTrialGrants/" + uid, data: { uid, credits, days, grantedAt: now, expiresAt }, exists: false }
-    ]);
-  } catch {
-    // A concurrent first request may have granted the trial already.
-  }
-}
-
 async function applyConfiguredDailyFreeCredits(uid) {
   const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
   const enabled = config == null ? true : config.enabled === true;
@@ -966,7 +946,6 @@ async function reverseCredits(uid, reservationId) {
 
 async function assertSharedCreditsAvailable(user) {
   if (isSuperAdmin(user, globalThis.__bqEnv)) return;
-  await applyConfiguredCreditTrial(user.uid);
   await applyConfiguredDailyFreeCredits(user.uid);
   const profile = await readCanonicalUserBalance(user.uid);
   if (!profile) throw new Error("Account not found.");
@@ -2950,7 +2929,6 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
         if (isSuperAdmin(u, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
-        await applyConfiguredCreditTrial(u.uid);
         await applyConfiguredDailyFreeCredits(u.uid);
         const profile = await readCanonicalUserBalance(u.uid);
         const balance = canonicalUserBalance(profile);
