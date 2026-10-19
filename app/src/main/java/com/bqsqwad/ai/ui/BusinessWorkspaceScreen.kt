@@ -44,6 +44,20 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
     }
     LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
 
+    if (!loading && data.length() > 0 && !data.optBoolean("accessGranted", false)) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+        ) {
+            Text("Business plan access required", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Activate a verified Business plan, or enable the authorized admin test session, to use this workspace.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onOpenPlans) { Text("View Business Plans") }
+            TextButton(onClick = { load() }) { Text("Check access again") }
+        }
+        return
+    }
+
     val enabledGroups = remember(data.toString()) {
         val groups = data.optJSONArray("enabledFeatureGroups") ?: JSONArray()
         buildSet<String> { for (i in 0 until groups.length()) add(groups.optString(i)) }
@@ -161,13 +175,9 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 color = MaterialTheme.colorScheme.errorContainer
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Business plan access required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(
-                        "A verified Business entitlement is required to use these workspace tools.",
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Button(onClick = onOpenPlans, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White)) { Text("View Business Plans") }
-                    TextButton(onClick = { load() }) { Text("Check access again") }
+                    Text("Business workspace unavailable", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(error ?: "The workspace could not be loaded. Check your connection and retry.", color = MaterialTheme.colorScheme.onErrorContainer)
+                    TextButton(onClick = { load() }) { Text("Retry") }
                 }
             }
         } else {
