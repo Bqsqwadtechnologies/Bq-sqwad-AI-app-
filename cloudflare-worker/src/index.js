@@ -3079,6 +3079,7 @@ export default {
       if (url.pathname === "/business/plan-builder" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
+        await capability(u.uid, "business");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
@@ -3099,6 +3100,7 @@ export default {
       if (url.pathname === "/business/advanced-ai" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
+        await capability(u.uid, "business");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
