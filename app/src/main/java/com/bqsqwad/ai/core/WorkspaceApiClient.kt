@@ -156,6 +156,10 @@ class WorkspaceApiClient {
                     "This plan has reached its monthly usage limit. Review the plan details to continue."
                 serverError == "truthguard_monthly_limit_reached" ->
                     "You have reached the monthly TruthGuard check limit. Upgrade the plan or try again next month."
+                serverError == "life_mathis_monthly_limit_reached" ->
+                    "You have reached the Life Mathis conversation limit for this month. Review plans to continue."
+                serverError == "frontier_plan_required" ->
+                    "Frontier Lab requires an active Frontier subscription. Review Frontier plans to continue."
                 serverError == "companion_memory_plan_required" ->
                     "Companion Memory is included with Companion Basic and higher plans. Review Companion plans to unlock it."
                 serverError == "organization_plan_required" ->
