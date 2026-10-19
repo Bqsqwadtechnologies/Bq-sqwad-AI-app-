@@ -148,6 +148,18 @@ class WorkspaceApiClient {
                     "The AI provider did not return usage details, so this request was not charged. Please try again or contact support."
                 serverError == "media_provider_cost_not_configured" ->
                     "The selected image or video model needs a valid provider cost and billing unit in the admin dashboard."
+                serverError.startsWith("learning_feature_locked") ->
+                    "That Learning feature is not included in the currently active plan. Review Learning plans to unlock it."
+                serverError == "companion_memory_plan_required" ->
+                    "Companion Memory is included with Companion Basic and higher plans. Review Companion plans to unlock it."
+                serverError == "organization_plan_required" ->
+                    "Activate an Organization plan before using this workspace feature."
+                serverError.startsWith("organization_feature_locked") ->
+                    "This feature is not included in the active Organization plan. Review the plan features to continue."
+                serverError.startsWith("capability_disabled") ->
+                    "This AI feature has been temporarily disabled by the administrator. Please try again later."
+                serverError == "business_plan_entitlement_required" ->
+                    "A verified Business plan is required for this workspace action. Review Business plans to continue."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
                     "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
