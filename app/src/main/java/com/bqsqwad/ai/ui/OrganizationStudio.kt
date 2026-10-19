@@ -477,6 +477,7 @@ fun OrganizationStudioWorkspace() {
                                         // The backend owns organization membership, knowledge isolation and Organization wallet charging.
                                         val reply = api.organizationAssistant(assistantPrompt)
                                         assistantResult = reply.optString("answer").ifBlank { "The organization AI returned no answer." }
+                                        runCatching { api.organizationBilling() }.onSuccess { organizationBilling = it }
                                         assistantPrompt = ""
                                     }
                                     .onFailure { e -> error = safeUserFacingIssue(e, "Organization AI request failed.") }
@@ -911,6 +912,7 @@ fun OrganizationStudioWorkspace() {
                                         "Production director request:\n$directorPrompt"
                                     )
                                     directorResult = reply.optString("answer").ifBlank { "The production director returned no answer." }
+                                    runCatching { api.organizationBilling() }.onSuccess { organizationBilling = it }
                                 } catch (t: Throwable) {
                                     error = safeUserFacingIssue(t, "AI director request failed.")
                                 } finally { busy = false }
