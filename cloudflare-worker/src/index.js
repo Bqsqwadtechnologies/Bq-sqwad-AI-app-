@@ -1217,7 +1217,7 @@ async function ai(request, user, body) {
   if (!/^[a-z0-9_-]{1,64}$/.test(capabilityName)) throw new Error("invalid_capability");
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
   if (redirect) return json({ ok: true, redirect });
-  if (["business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   let workspacePlan = null;
   if (["life_matters", "frontier_lab", "learning_studio"].includes(capabilityName)) {
     const env = globalThis.__bqEnv || {};
@@ -1389,7 +1389,7 @@ async function vision(request, user, body) {
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
   const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
-  if (["life_matters", "frontier_lab", "learning_studio", "business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["life_matters", "frontier_lab", "learning_studio", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   const redirect = await workspaceScopeRedirect(capabilityName, message);
   if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
@@ -1439,7 +1439,7 @@ async function stream(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
-  if (["life_matters", "frontier_lab", "learning_studio", "business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["life_matters", "frontier_lab", "learning_studio", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
@@ -3126,6 +3126,9 @@ export default {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
         await capability(u.uid, "business");
+        await capability(u.uid, "business_ai");
+        await capability(u.uid, "business_ai");
+        await capability(u.uid, "business_ai");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
@@ -3531,7 +3534,7 @@ export default {
       if (url.pathname === "/companion/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionHistory(u.uid)); }
       if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
       if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCheckins(u.uid)); }
-      if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
+      if (url.pathname === "/companion/checkin" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); await capability(u.uid,"companion_checkin"); const b=await readBody(request); return json(await companionCheckin(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
       if (url.pathname === "/companion/settings" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionSettings(u.uid)); }
       if (url.pathname === "/companion/settings" && request.method === "PUT") { const u=await verifyFirebaseUser(request); return json(await saveCompanionSettings(u.uid,await readBody(request))); }
 
