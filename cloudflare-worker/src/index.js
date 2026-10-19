@@ -1389,7 +1389,7 @@ async function vision(request, user, body) {
   // authenticated main-chat attachment path to use the selected chat capability.
   // The capability resolver remains the authority for availability and pricing.
   const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
-  if (["life_matters", "frontier_lab"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["life_matters", "frontier_lab", "learning_studio", "business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   const redirect = await workspaceScopeRedirect(capabilityName, message);
   if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
@@ -1439,7 +1439,7 @@ async function stream(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
-  if (["life_matters", "frontier_lab"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["life_matters", "frontier_lab", "learning_studio", "business_ai", "truth_guard", "companion_checkin"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
   const userMessage = String(body.message || "").trim();
   if (!userMessage) throw new Error("message_required");
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
