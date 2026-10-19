@@ -160,6 +160,10 @@ class WorkspaceApiClient {
                     "This AI feature has been temporarily disabled by the administrator. Please try again later."
                 serverError == "business_plan_entitlement_required" ->
                     "A verified Business plan is required for this workspace action. Review Business plans to continue."
+                serverError.startsWith("business_feature_locked") ->
+                    "This tool is not included in the active Business plan. Upgrade to the plan that includes it."
+                serverError.startsWith("business_limit_reached") ->
+                    "This Business plan has reached its included capacity. Upgrade the plan or remove an existing item."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
                     "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
