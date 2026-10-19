@@ -1,0 +1,113 @@
+name: BQ Full System Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bq-full-system-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Android, backend, and website verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Android app
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verify Android Gradle configuration
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon tasks
+
+      - name: Run Android unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Compile Android debug app
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify APK artifact exists
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Check production Worker reachability
+        env:
+          WORKER_URL: https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev
+        run: |
+          set -eu
+          code="$(curl --silent --show-error --output worker-response.txt --write-out '%{http_code}' --max-time 20 "$WORKER_URL/")"
+          echo "Worker root HTTP status: $code"
+          head -c 1000 worker-response.txt || true
+          echo
+          # A 4xx response can mean the root route is intentionally unsupported.
+          # Network/server failures are the actual reachability failure.
+          case "$code" in
+            2*|3*|4*) ;;
+            *) echo "Worker returned an unexpected server status"; exit 1 ;;
+          esac
+
+      - name: Checkout website for cross-platform checks
+        uses: actions/checkout@v4
+        with:
+          repository: bqsqwadai/bqsqwadai-b3064406
+          ref: main
+          path: website
+          token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN || github.token }}
+        continue-on-error: true
+
+      - name: Set up Node.js
+        if: ${{ hashFiles('website/package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website dependencies
+        if: ${{ hashFiles('website/package.json') != '' }}
+        working-directory: website
+        run: npm ci
+
+      - name: Lint website
+        if: ${{ hashFiles('website/package.json') != '' }}
+        working-directory: website
+        run: npm run lint --if-present
+
+      - name: Build website
+        if: ${{ hashFiles('website/package.json') != '' }}
+        working-directory: website
+        run: npm run build
+
+      - name: Report cross-repository coverage
+        if: always()
+        run: |
+          if [ -f website/package.json ]; then
+            echo "Website checkout succeeded; website lint/build steps were attempted."
+          else
+            echo "::warning::Website checkout unavailable. Configure BQ_WEBSITE_REPO_TOKEN as a repository Actions secret with read access to bqsqwadai/bqsqwadai-b3064406 to enable cross-repository checks."
+          fi
+
+      - name: Upload Android debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bq-sqwad-ai-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
