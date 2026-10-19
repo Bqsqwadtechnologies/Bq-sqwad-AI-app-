@@ -3081,6 +3081,7 @@ export default {
         await requireConsent(u.uid);
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
+        await requireBusinessPlan(u.uid, w.workspaceId);
         const brief = String(b.brief || b.message || "").trim().slice(0, 12000);
         if (!brief) throw new Error("business_plan_brief_required");
         return json(await withSharedCreditCharge(u, "business_ai", async control => {
@@ -3099,7 +3100,9 @@ export default {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
         const b = await readBody(request);
-        return json(await withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, b)));
+        const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
+        await requireBusinessPlan(u.uid, w.workspaceId);
+        return json(await withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, { ...b, workspaceId: w.workspaceId })));
       }
       if (url.pathname === "/business/advanced-ai/jobs" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({jobs:await advancedJobs(u.uid,String(url.searchParams.get("workspaceId")||""))}); }
       if (url.pathname === "/business/integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await integrationConfig(u.uid,String(url.searchParams.get("workspaceId")||""))); }
@@ -3129,6 +3132,7 @@ export default {
         await capability(u.uid, "business");
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
+        await requireBusinessPlan(u.uid, w.workspaceId);
         const k = await businessKnowledgeForWorkspace(u.uid, w.workspaceId, 50);
         return json(await withSharedCreditCharge(u, "business_ai", async control => {
           const z = await runProvider(env, {
