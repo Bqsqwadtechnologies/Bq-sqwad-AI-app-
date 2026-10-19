@@ -164,6 +164,10 @@ class WorkspaceApiClient {
                     "This tool is not included in the active Business plan. Upgrade to the plan that includes it."
                 serverError.startsWith("business_limit_reached") ->
                     "This Business plan has reached its included capacity. Upgrade the plan or remove an existing item."
+                serverError == "business_permission_denied" ->
+                    "Your Business workspace role does not allow this action. Ask the workspace owner or an administrator to update your access."
+                serverError == "business_member_role_invalid" || serverError == "business_owner_role_immutable" ->
+                    "That workspace role change is not allowed. The owner role cannot be reassigned, and only the owner can promote an administrator."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
                     "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
