@@ -148,8 +148,8 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       outputPriceUsdPerMillion: Math.max(0, Number(matching?.outputPriceUsdPerMillion ?? capability.outputPriceUsdPerMillion ?? 0)),
       cachedInputPriceUsdPerMillion: matching?.cachedInputPriceUsdPerMillion == null && capability.cachedInputPriceUsdPerMillion == null
         ? null : Math.max(0, Number(matching?.cachedInputPriceUsdPerMillion ?? capability.cachedInputPriceUsdPerMillion ?? 0)),
-      creditReferenceValueUsd: Math.max(0.000001, Number(matching?.creditReferenceValueUsd ?? capability.creditReferenceValueUsd ?? 0.07999)),
-      customerMultiplier: Math.max(1, Number(matching?.customerMultiplier ?? capability.customerMultiplier ?? 8)),
+      creditReferenceValueUsd: Math.max(0.000001, Number(matching?.creditReferenceValueUsd ?? capability.creditReferenceValueUsd ?? 0.1199)),
+      customerMultiplier: Math.max(1, Number(matching?.customerMultiplier ?? capability.customerMultiplier ?? 1.8)),
       estimatedFeePercent: Math.min(100, Math.max(0, Number(matching?.estimatedFeePercent ?? capability.estimatedFeePercent ?? 15))),
       maxOutputTokens: Math.min(8192, Math.max(128, Number(matching?.maxOutputTokens ?? capability.maxOutputTokens ?? 2048))),
       updatedAt: now,
@@ -431,7 +431,7 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     inputPriceUsdPerMillion: Math.max(0, Number(model.inputPriceUsdPerMillion || 0)),
     outputPriceUsdPerMillion: Math.max(0, Number(model.outputPriceUsdPerMillion || 0)),
     cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion == null ? null : Math.max(0, Number(model.cachedInputPriceUsdPerMillion || 0)),
-    creditReferenceValueUsd: Math.max(0.000001, Number(model.creditReferenceValueUsd || 0.07999)),
+    creditReferenceValueUsd: Math.max(0.000001, Number(model.creditReferenceValueUsd || 0.1199)),
     customerMultiplier: Math.max(1, Number(model.customerMultiplier || 8)),
     estimatedFeePercent: Math.min(100, Math.max(0, Number(model.estimatedFeePercent ?? 15))),
     maxOutputTokens: Math.min(8192, Math.max(128, Number(model.maxOutputTokens || 2048)))
