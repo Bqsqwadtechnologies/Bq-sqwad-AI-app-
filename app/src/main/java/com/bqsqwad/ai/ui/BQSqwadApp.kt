@@ -6487,10 +6487,6 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                 prefs.edit().putFloat("text_scale", textScale).apply()
                 bqTextScaleState.floatValue = textScale
             }
-            if (remote.has("file_box_retention_days")) {
-                fileBoxRetentionDays = remote.optInt("file_box_retention_days", fileBoxRetentionDays).let { if (it in listOf(7,14,30,90)) it else 30 }
-                prefs.edit().putInt("file_box_retention_days", fileBoxRetentionDays).apply()
-            }
             chatHistory = prefs.getBoolean("chat_history", true)
             autoSave = prefs.getBoolean("auto_save", true)
             memory = prefs.getBoolean("memory_enabled", true)
@@ -6904,7 +6900,6 @@ item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for q
                                             .onSuccess {
                                                 fileBoxRetentionDays = days
                                                 prefs.edit().putInt("file_box_retention_days", days).apply()
-                                                runCatching { SettingsSyncClient.save(JSONObject().put("file_box_retention_days", days)) }
                                                 settingsNotice = "File Box retention set to $days days."
                                             }
                                             .onFailure { settingsNotice = "Could not save File Box retention. Your previous server setting remains active." }
