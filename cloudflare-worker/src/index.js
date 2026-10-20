@@ -2148,11 +2148,11 @@ export default {
           const profile = await firestoreGet("users/" + user.uid);
           if (!profile) throw new Error("Account not found.");
           previousTheme = profile.theme && typeof profile.theme === "object" && !Array.isArray(profile.theme) ? profile.theme : {};
+          backgroundSaved = true;
           await firestoreSet("users/" + user.uid, {
             theme: { ...previousTheme, wallpaper: backgroundUrl, brightness: brightnessValue },
             updatedAt: new Date().toISOString()
           }, true);
-          backgroundSaved = true;
         };
         const receiptPath = "chatBackgroundCharges/" + user.uid + "_" + uploadId;
         const existing = await firestoreGet(receiptPath);
