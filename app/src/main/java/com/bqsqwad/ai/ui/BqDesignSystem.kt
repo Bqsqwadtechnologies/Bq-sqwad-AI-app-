@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -159,7 +158,7 @@ fun BqSectionHeader(title: String, subtitle: String? = null, modifier: Modifier 
 @Composable
 fun BqLoadingState(message: String = "Loading…", modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        CircularProgressIndicator()
+        BqSqwadLoadingIndicator(Modifier.size(48.dp))
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
