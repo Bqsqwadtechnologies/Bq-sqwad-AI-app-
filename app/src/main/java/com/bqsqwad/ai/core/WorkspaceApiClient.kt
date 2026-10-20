@@ -342,6 +342,15 @@ class WorkspaceApiClient {
             put("brightness", brightness.toDouble())
         })
 
+    suspend fun updateChatBackgroundBrightness(brightness: Float): JSONObject =
+        request("/chat-background/settings", payload = JSONObject().put("brightness", brightness.toDouble()))
+
+    suspend fun clearChatBackground(brightness: Float = 1f): JSONObject =
+        request("/chat-background/settings", payload = JSONObject().apply {
+            put("url", JSONObject.NULL)
+            put("brightness", brightness.toDouble())
+        })
+
     suspend fun uploadFileBoxAsset(title: String, fileName: String, contentType: String, bytes: ByteArray): JSONObject = withContext(Dispatchers.IO) {
         require(bytes.isNotEmpty()) { "Choose a non-empty file." }
         require(bytes.size <= 25 * 1024 * 1024) { "Files must be 25 MB or smaller." }
