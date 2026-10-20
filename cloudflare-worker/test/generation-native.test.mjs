@@ -60,7 +60,6 @@ test("generated image payload validation accepts PNG and rejects malformed bytes
 
 test("image generation ignores client-supplied credit prices and delegates pricing to the Worker", async () => {
   const originalFetch = globalThis.fetch;
-  const originalKey = globalThis.__unused;
   let chargeArgs = null;
   let reversed = false;
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "test-stop-before-provider" } }), { status: 400 });
