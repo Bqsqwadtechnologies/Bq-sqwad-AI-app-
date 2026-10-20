@@ -240,7 +240,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     cachedInputPriceUsdPerToken: cachedTokenRate == null ? undefined : Number(cachedTokenRate),
     inputPriceUsdPerMillion: inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : Number(inputPerMillionLegacy),
     outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy),
-    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy)
+    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy ?? (inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : undefined))
   };
   // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.
   // This is the canonical conversion value; stale per-model/config values must not override it.
@@ -253,6 +253,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
+    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
   const sharedCreditMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
