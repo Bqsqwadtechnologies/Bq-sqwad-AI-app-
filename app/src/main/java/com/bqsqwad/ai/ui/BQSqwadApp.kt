@@ -6300,6 +6300,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     val prefs = remember(uid) { accountPreferences(context) }
     val devicePrefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
+    var showSupportMessageDialog by remember { mutableStateOf(false) }
 
     var themeMode by remember(uid) { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
     var accent by remember(uid) { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
@@ -6652,6 +6653,11 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             }
             if (settingsCategory == "All settings" || settingsCategory == "Account") {
 item { SettingsSectionTitle("Account & security", "Identity, protection and device access") }
+            item {
+                FeatureCard("Contact support", "Send a question, complaint or feedback directly to the BQ Sqwad AI team.") {
+                    showSupportMessageDialog = true
+                }
+            }
             if (adminAuthorized && (settingsCategory == "All settings" || settingsCategory == "Account")) {
                 item {
                     FeatureCard("Admin Dashboard", "Manage BQ Sqwad AI app configuration, announcements, media and feature settings.", onOpenAdminDashboard)
@@ -7111,6 +7117,7 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
             }
         )
     }
+    if (showSupportMessageDialog) SupportMessageDialog { showSupportMessageDialog = false }
 }
 
 @Composable
