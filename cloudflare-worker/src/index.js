@@ -3321,7 +3321,7 @@ export default {
         enforceRateLimit(user.uid);
         const readPublicPricing = async (key) => {
           const stored = await firestoreGet("adminAdvancedOptions/" + key) || {};
-          const conf = normalizeLivePricing(stored.config || stored, {}, key);
+          const conf = await resolveCanonicalLivePricing(stored.config || stored, {}, key);
           const enabled = stored.enabled !== false && stored.killSwitch !== true && conf.enabled !== false && conf.killSwitch !== true;
           return { enabled, free: enabled && conf.creditsPerMinute === 0 && conf.startFeeCredits === 0, creditsPerMinute: conf.creditsPerMinute, startFeeCredits: conf.startFeeCredits };
         };
