@@ -113,8 +113,8 @@ class LiveMediaForegroundService : Service() {
         organizationLiveMode = intent?.getStringExtra("organization_live_mode")?.trim()?.takeIf { it.isNotBlank() } ?: organizationLiveMode
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_notification_mark)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, com.bqsqwad.ai.R.drawable.bq_sqwad_logo))
+            .setSmallIcon(com.bqsqwad.ai.R.drawable.bq_notification_logo)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, com.bqsqwad.ai.R.drawable.bq_notification_logo))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(when (mode) {
                 MODE_CAMERA -> "Live camera is active"
