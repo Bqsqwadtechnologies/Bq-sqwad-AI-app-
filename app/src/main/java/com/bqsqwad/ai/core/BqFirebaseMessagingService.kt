@@ -75,7 +75,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.bq_notification_logo)
+            .setSmallIcon(R.drawable.bq_notification_mark)
             .setLargeIcon(BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
@@ -91,7 +91,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
-    // Always use the dedicated notification brand asset; never fall back to the legacy logo.
+    // Full uploaded brand artwork is the large icon; Android's status-bar icon must be a monochrome alpha-only mark.
     private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
 
     private fun createChannel() {
