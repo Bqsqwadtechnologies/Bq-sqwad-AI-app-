@@ -100,7 +100,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     private fun loadUploadedNotificationLogo(): Bitmap? {
         cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let { return it }
         val connection = runCatching {
-            (URL("https://raw.githubusercontent.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/main/app/src/main/res/drawable-nodpi/bq_notification_logo.png?bq-notification-logo-v4").openConnection() as HttpURLConnection)
+            (URL("https://raw.githubusercontent.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/main/app/src/main/res/drawable-nodpi/bq_notification_logo.png?bq-notification-logo-v5").openConnection() as HttpURLConnection)
         }.getOrNull() ?: return null
         return try {
             connection.connectTimeout = 2500
@@ -128,7 +128,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
-    // Android's status-bar icon must remain a monochrome alpha-only mark.
+    // Use the uploaded notification-logo resource for both status-bar and expanded notification artwork.
     private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
 
     private fun createChannel() {
