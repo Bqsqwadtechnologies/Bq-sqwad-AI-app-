@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -135,7 +134,7 @@ fun GodAiAgentWorkspace(onBack: () -> Unit = {}) {
                 }
             }
         }
-        if (busy) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
+        if (busy) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { BqSqwadLoadingIndicator(Modifier.size(48.dp)) } }
         plan?.let { value ->
             item {
                 Card(Modifier.fillMaxWidth()) {
