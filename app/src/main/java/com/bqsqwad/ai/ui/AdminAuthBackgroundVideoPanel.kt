@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -64,7 +63,7 @@ internal fun AdminAuthBackgroundVideoPanel(onBack: () -> Unit) {
                 busy = false
             }
         }, modifier = Modifier.fillMaxWidth()) { Text("Save video settings") }
-        if (busy) CircularProgressIndicator()
+        if (busy) BqSqwadLoadingIndicator(Modifier.size(42.dp))
         notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to Admin") }
     }
