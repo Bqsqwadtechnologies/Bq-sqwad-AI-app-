@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "description": "Canonical cross-platform usage billing test vectors. Provider cost uses USD per million tokens; customer USD = provider USD * (1 + markupPercent/100) * (1 + feePercent/100); credits = round to 5 decimal places(customer USD / usdPerCredit).",
+  "policy": {
+    "markupPercent": 600,
+    "feePercent": 0,
+    "usdPerCredit": 0.1199
+  },
+  "cases": [
+    {
+      "id": "fractional-token-usage-with-cache",
+      "usage": {
+        "inputTokens": 1000,
+        "cachedInputTokens": 400,
+        "outputTokens": 500
+      },
+      "ratesUsdPerMillion": {
+        "input": 1,
+        "cachedInput": 0.25,
+        "output": 2
+      },
+      "expected": {
+        "uncachedInputCostUsd": 0.0006,
+        "cachedInputCostUsd": 0.0001,
+        "outputCostUsd": 0.001,
+        "providerCostUsd": 0.0017,
+        "customerUsd": 0.0119,
+        "credits": 0.09925
+      }
+    },
+    {
+      "id": "one-dollar-provider-cost",
+      "providerCostUsd": 1,
+      "expected": {
+        "customerUsd": 7,
+        "credits": 58.38198
+      }
+    },
+    {
+      "id": "one-credit-reference-value",
+      "providerCostUsd": 0.1199,
+      "expected": {
+        "customerUsd": 0.8393,
+        "credits": 7
+      }
+    },
+    {
+      "id": "live-voice-ninety-seconds",
+      "durationSeconds": 90,
+      "rateUsdPerMinute": 0.05,
+      "expected": {
+        "providerCostUsd": 0.075,
+        "customerUsd": 0.525,
+        "credits": 4.37865
+      }
+    }
+  ]
+}
