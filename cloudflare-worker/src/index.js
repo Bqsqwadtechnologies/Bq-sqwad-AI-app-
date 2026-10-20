@@ -3131,7 +3131,7 @@ export default {
         const result = await createVideoNative(env, u, b,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id));
+          (uid, id) => reverseCredits(uid, id), b.creditCost);
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
           .catch(() => notifyAdminOfIssue(env, "/video/generate", 500, "media_cost_ledger_write_failed"));
         return json(result);
@@ -3158,7 +3158,8 @@ export default {
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id)
+          (uid, id) => reverseCredits(uid, id),
+          body.creditCost
         );
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image")
           .catch(() => notifyAdminOfIssue(env, "/ai/image", 500, "media_cost_ledger_write_failed"));
@@ -3180,7 +3181,8 @@ export default {
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id)
+          (uid, id) => reverseCredits(uid, id),
+          body.creditCost
         );
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image_edit")
           .catch(() => notifyAdminOfIssue(env, "/ai/image/edit", 500, "media_cost_ledger_write_failed"));
