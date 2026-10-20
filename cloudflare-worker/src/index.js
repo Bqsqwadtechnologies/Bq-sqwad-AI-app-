@@ -2110,7 +2110,7 @@ export default {
         const nextTheme = { ...currentTheme, brightness };
         if (Object.prototype.hasOwnProperty.call(body, "url")) {
           const nextUrl = body.url == null || body.url === "" ? null : String(body.url).trim();
-          if (nextUrl && !/^https:\/\/(firebasestorage\\.googleapis\\.com|storage\\.googleapis\\.com)(\/|$)/i.test(nextUrl)) return json({ error: "invalid_chat_background_url" }, 400);
+          if (nextUrl && !/^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)(\/|$)/i.test(nextUrl)) return json({ error: "invalid_chat_background_url" }, 400);
           nextTheme.wallpaper = nextUrl;
         }
         await firestoreSet("users/" + user.uid, { theme: nextTheme, updatedAt: new Date().toISOString() }, true);
