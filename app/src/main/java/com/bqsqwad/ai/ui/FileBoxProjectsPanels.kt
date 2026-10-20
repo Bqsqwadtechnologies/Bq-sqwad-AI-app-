@@ -142,7 +142,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("File Box", style = MaterialTheme.typography.headlineSmall)
-            Text("Store uploaded pictures, documents and text files in your account, then return here to preview or download them when needed. Files expire according to your retention period (7, 14, 30 or 90 days).", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            Text("Reuse chat attachments saved to your account File Box. Files remain available across signed-in devices until their retention period ends (7, 14, 30 or 90 days).", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(7,14,30,90).forEach { days ->
                     FilterChip(selected = retention == days, onClick = {
@@ -158,21 +158,25 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
             }
             OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
             OutlinedTextField(value = content, onValueChange = { content = it.take(25000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
-            Button(enabled = !busy, onClick = { importAnyFile.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Upload file or picture") }
-            OutlinedButton(enabled = !busy, onClick = { importTextFile.launch(arrayOf("text/*", "application/json", "application/xml")) }, modifier = Modifier.fillMaxWidth()) { Text("Import text file") }
-            Button(enabled = !busy && title.isNotBlank() && content.isNotBlank(), onClick = {
-                busy = true
-                scope.launch {
-                    runCatching { api.saveFileBoxItem(title.trim(), content) }
-                        .onSuccess { title = ""; content = ""; notice = "Document saved. Expiry follows the selected retention period."; refresh() }
-                        .onFailure { notice = "Could not save this document. It may exceed the supported text-file limit." }
-                    busy = false
-                }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Save to File Box") }
+            OutlinedButton(
+                enabled = true,
+                onClick = { notice = "Direct File Box uploads are temporarily unavailable. Attach a file in chat to save it here for reuse." },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Uploads temporarily unavailable") }
+            Text(
+                "Files attached in chat are intended to be saved to your account File Box and shared across your signed-in devices.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+            OutlinedButton(
+                enabled = true,
+                onClick = { notice = "Direct File Box saving is temporarily unavailable. Attach content in chat to save it to your account File Box." },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Direct saving unavailable") }
             notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
             if (busy) BqSqwadLoadingIndicator(Modifier.size(42.dp))
             Text("Stored files & pictures", style = MaterialTheme.typography.titleMedium)
-            if (rows.isEmpty() && !busy) Text("No files or pictures stored yet. Upload them here to keep them available for quick reuse.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (rows.isEmpty() && !busy) Text("No files or pictures stored yet. Attach a file in chat to add it to your File Box for later reuse.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             rows.forEach { row ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
