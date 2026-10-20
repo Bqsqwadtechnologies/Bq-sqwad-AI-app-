@@ -2334,17 +2334,40 @@ export default {
         const mimeType = String(body.mimeType || "text/plain").slice(0,100);
         if (!title || !content.trim()) return json({ error:"file_title_and_content_required" }, 400);
         if (content.length > 25000) return json({ error:"file_content_too_large" }, 413);
-        const doc = await firestoreGet("fileBox/" + user.uid) || {};
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
-        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
-        const now = new Date();
-        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
-        const item = { id:crypto.randomUUID(), uid:user.uid, title, mimeType, content, createdAt:now.toISOString(), expiresAt:new Date(now.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
-        items.push(item);
-        const retainedItems = retainFileBoxItems(items);
-        await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items:retainedItems, retentionDays, updatedAt:now }, true);
-        return json({ ok:true, item:{ ...item, content:undefined }, count:retainedItems.length });
+        const id = crypto.randomUUID();
+        const createdAt = new Date();
+        let lastConflict = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const doc = await firestoreGet("fileBox/" + user.uid);
+          const existingItems = Array.isArray(doc?.items) ? doc.items : [];
+          const duplicate = existingItems.find(entry => String(entry.id || "") === id);
+          if (duplicate) return json({ ok:true, item:{ ...duplicate, content:undefined }, count:existingItems.length, alreadySaved:true });
+          const retentionDays = [7,14,30,90].includes(Number(doc?.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
+          const expired = existingItems.filter(entry => Date.parse(String(entry.expiresAt || "")) <= createdAt.getTime());
+          const active = existingItems.filter(entry => Date.parse(String(entry.expiresAt || "")) > createdAt.getTime());
+          const item = { id, uid:user.uid, title, mimeType, content, createdAt:createdAt.toISOString(), expiresAt:new Date(createdAt.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
+          const retainedItems = retainFileBoxItems([...active, item]);
+          const retainedPaths = new Set(retainedItems.map(entry => String(entry.objectPath || "")).filter(Boolean));
+          const evicted = [...expired, ...active.filter(entry => entry.objectPath && !retainedPaths.has(String(entry.objectPath)))];
+          try {
+            await firestoreCommit([{
+              path: "fileBox/" + user.uid,
+              data: { uid:user.uid, items:retainedItems, retentionDays, updatedAt:createdAt },
+              ...(doc?.__updateTime ? { updateTime:doc.__updateTime } : { create:true })
+            }]);
+            for (const oldItem of evicted) if (oldItem.objectPath) await deleteTrainingAssetObject(String(oldItem.objectPath)).catch(() => {});
+            return json({ ok:true, item:{ ...item, content:undefined }, count:retainedItems.length });
+          } catch (error) {
+            lastConflict = error;
+            const latest = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+            const latestItems = Array.isArray(latest?.items) ? latest.items : [];
+            const saved = latestItems.find(entry => String(entry.id || "") === id);
+            if (saved) return json({ ok:true, item:{ ...saved, content:undefined }, count:latestItems.length, alreadySaved:true });
+          }
+        }
+        throw lastConflict || new Error("file_box_text_save_conflict");
       }
       if (url.pathname === "/file-box" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
