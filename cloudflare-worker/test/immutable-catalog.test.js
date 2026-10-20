@@ -24,5 +24,5 @@ test("canonical Play mappings preserve the existing credit product/base-plan ide
     ["credit500", "monthly"], ["credit500", "weekly"],
     ["credit1000", "monthly"], ["credit1000", "weekly"],
   ]);
-  assert.equal(validateCommercialCatalog(COMMERCIAL_CATALOG).valid, true);
+  assert.equal(validateCommercialCatalog(COMMERCIAL_CATALOG).ok, true);
 });
