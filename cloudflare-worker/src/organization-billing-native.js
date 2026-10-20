@@ -232,6 +232,10 @@ export async function orgChargeAssistant(uid, reference = "", capability = "orga
 
   const c = await cfg();
   const price = c.assistantPriceCents;
+  if (price === 0) {
+    const wallet = await firestoreGet(walletPath);
+    return { chargedCents: 0, balanceCents: cents(wallet?.balanceCents), reference: ref, capability: String(capability || "organization_assistant") };
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
     const wallet = await firestoreGet(walletPath);
     const balance = cents(wallet?.balanceCents);
