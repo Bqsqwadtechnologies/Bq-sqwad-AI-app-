@@ -2201,7 +2201,11 @@ export default {
         let reservation = null;
         try {
           const uploadPricing = await capability(user.uid, "chat_background_upload");
-          reservation = await chargeCredits(user.uid, uploadPricing.creditCost ?? 2, "chat_background_upload", user);
+          const configuredBackgroundCost = Number(uploadPricing.creditCost);
+          const backgroundCreditCost = Number.isFinite(configuredBackgroundCost) && configuredBackgroundCost > 0
+            ? configuredBackgroundCost
+            : 2;
+          reservation = await chargeCredits(user.uid, backgroundCreditCost, "chat_background_upload", user);
           await saveBackgroundToProfile();
           await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
