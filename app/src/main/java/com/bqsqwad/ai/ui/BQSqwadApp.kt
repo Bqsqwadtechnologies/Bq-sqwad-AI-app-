@@ -2054,12 +2054,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     LaunchedEffect(FirebaseAuth.getInstance().currentUser?.uid) {
         if (FirebaseAuth.getInstance().currentUser != null) {
             runCatching { WorkspaceApiClient().getChatBackground() }.onSuccess { saved ->
+                val configured = saved.optBoolean("configured", false)
                 val savedUrl = saved.optString("url").takeIf { it.startsWith("https://", ignoreCase = true) }
-                if (savedUrl != null && savedUrl != customBackgroundUri) {
+                if (configured && savedUrl != customBackgroundUri) {
                     val brightness = saved.optDouble("brightness", 1.0).toFloat().coerceIn(0.35f, 1.8f)
-                    prefs.edit().putString("chat_background_uri", savedUrl).putFloat("chat_background_brightness", brightness).apply()
+                    val editor = prefs.edit().putFloat("chat_background_brightness", brightness)
+                    if (savedUrl == null) editor.remove("chat_background_uri") else editor.putString("chat_background_uri", savedUrl)
+                    editor.apply()
                     customBackgroundUri = savedUrl
                     customBackgroundBrightness = brightness
+                } else if (configured) {
+                    customBackgroundBrightness = saved.optDouble("brightness", 1.0).toFloat().coerceIn(0.35f, 1.8f)
                 }
             }
         }
@@ -6819,9 +6824,20 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                     }
                     if (customChatBackgroundUri != null) {
                         OutlinedButton(enabled = !changingChatBackground, onClick = {
-                            chatBackgroundPrefs.edit().remove("chat_background_uri").apply()
-                            customChatBackgroundUri = null
-                            (context as? android.app.Activity)?.recreate()
+                            changingChatBackground = true
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().clearChatBackground(customChatBackgroundBrightness) }
+                                    .onSuccess {
+                                        chatBackgroundPrefs.edit().remove("chat_background_uri").apply()
+                                        customChatBackgroundUri = null
+                                        customChatBackgroundBrightness = 1f
+                                        chatBackgroundPrefs.edit().putFloat("chat_background_brightness", 1f).apply()
+                                        settingsNotice = "Chat background removed from your account and website."
+                                        (context as? android.app.Activity)?.recreate()
+                                    }
+                                    .onFailure { settingsNotice = safeUserFacingIssue(it, "Could not remove the saved chat background. Please try again.") }
+                                changingChatBackground = false
+                            }
                         }) { Text("Remove") }
                     }
                 }
@@ -6833,6 +6849,12 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                         onValueChange = { value ->
                             customChatBackgroundBrightness = value
                             chatBackgroundPrefs.edit().putFloat("chat_background_brightness", value).apply()
+                        },
+                        onValueChangeFinished = {
+                            scope.launch {
+                                runCatching { WorkspaceApiClient().updateChatBackgroundBrightness(customChatBackgroundBrightness) }
+                                    .onFailure { settingsNotice = safeUserFacingIssue(it, "Brightness could not be synced to your account.") }
+                            }
                         },
                         valueRange = 0.35f..1.8f
                     )
