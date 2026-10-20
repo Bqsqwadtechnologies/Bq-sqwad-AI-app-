@@ -19,10 +19,16 @@ test("canonical Play mappings preserve the existing credit product/base-plan ide
   const mappings = canonicalPlayMappings();
   const creditRows = mappings.filter(x => ["credit100", "credit250", "credit500", "credit1000"].includes(x.productId));
   assert.deepEqual(creditRows.map(x => [x.productId, x.basePlanId]).sort(), [
-    ["credit100", "monthly"], ["credit100", "weekly"],
-    ["credit250", "monthly"], ["credit250", "weekly"],
-    ["credit500", "monthly"], ["credit500", "weekly"],
-    ["credit1000", "monthly"], ["credit1000", "weekly"],
+    ["credit100", "monthly"],
+    ["credit250", "monthly"],
+    ["credit500", "monthly"],
+    ["credit1000", "monthly"],
+  ]);
+  assert.deepEqual(COMMERCIAL_CATALOG.sections.credits.map(x => [x.productId, x.basePlans]), [
+    ["credit100", ["weekly", "monthly"]],
+    ["credit250", ["weekly", "monthly"]],
+    ["credit500", ["weekly", "monthly"]],
+    ["credit1000", ["weekly", "monthly"]],
   ]);
   assert.equal(validateCommercialCatalog(COMMERCIAL_CATALOG).ok, true);
 });
