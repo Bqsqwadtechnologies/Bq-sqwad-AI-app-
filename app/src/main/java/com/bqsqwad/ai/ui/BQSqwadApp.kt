@@ -1805,8 +1805,26 @@ private fun downloadGeneratedImageBase64(imageUrl: String): String {
  */
 @Composable
 internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "bqLogoLoading")
+    val pulse by transition.animateFloat(
+        initialValue = 0.78f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bqLogoPulse"
+    )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Image(painter = painterResource(R.drawable.bq_sqwad_logo), contentDescription = "BQ Sqwad AI loading", modifier = Modifier.fillMaxSize())
+        Image(
+            painter = painterResource(R.drawable.bq_sqwad_logo),
+            contentDescription = "BQ Sqwad AI loading",
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                alpha = pulse
+                scaleX = 0.92f + 0.08f * pulse
+                scaleY = 0.92f + 0.08f * pulse
+            }
+        )
     }
 }
 
