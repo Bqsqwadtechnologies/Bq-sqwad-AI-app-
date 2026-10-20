@@ -71,6 +71,8 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(row.optString("category", "general"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Status: " + row.optString("status", "new") + " · Source: " + row.optString("source", "app feedback"), style = MaterialTheme.typography.bodySmall)
+                        row.optString("email").takeIf { it.isNotBlank() && it != "null" }?.let { Text("Contact: $it") }
                         Text("Sentiment: " + row.optString("sentiment", "not provided"))
                         row.optString("reason").takeIf { it.isNotBlank() && it != "null" }?.let { Text("Reason: $it") }
                         row.optString("comment").takeIf { it.isNotBlank() && it != "null" }?.let { Text("Comment: $it") }
