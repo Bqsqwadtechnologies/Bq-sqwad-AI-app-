@@ -76,7 +76,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, notificationLogoResourceId()))
+            .setLargeIcon(BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(displayBody.take(500))
