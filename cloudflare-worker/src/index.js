@@ -1,6 +1,7 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
+import { retainFileBoxItems } from "./file-box-retention.js";
 import { computeFixedCredits, computeTokenCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
@@ -31,16 +32,6 @@ const rateBuckets = new Map();
 async function requestKeyHash(value) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
   return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
-}
-
-function retainFileBoxItems(items) {
-  const rows = Array.isArray(items) ? items : [];
-  // Binary uploads store only small metadata in this document; text snippets
-  // carry their content inline, so keep the newest 20 inline text items while
-  // preserving up to 200 uploaded-file records across app reinstalls/devices.
-  const binary = rows.filter(item => Boolean(item?.objectPath)).slice(-200);
-  const textItems = rows.filter(item => !item?.objectPath).slice(-20);
-  return [...binary, ...textItems].sort((a, b) => Date.parse(String(a.createdAt || "")) - Date.parse(String(b.createdAt || "")));
 }
 
 function enforceRateLimit(uid, limitOverride = null) {
