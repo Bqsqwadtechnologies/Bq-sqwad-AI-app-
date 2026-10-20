@@ -140,7 +140,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("Accept", "image/png,image/*")
             val bytes = connection.inputStream.use { it.readBytes() }
-            if (bytes.isEmpty() || bytes.size > 2_000_000) {
+            if (bytes.isEmpty() || bytes.size > 5_000_000) {
                 null
             } else {
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
