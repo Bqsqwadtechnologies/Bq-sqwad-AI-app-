@@ -1,4 +1,5 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
+import { computeTokenCredits } from "./billing-core.js";
 
 const MONTHLY_PLAN_PRICE_USD = 11.99;
 const MONTHLY_PLAN_CREDITS = 100;
@@ -96,26 +97,32 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
-  // Dynamic admin billing config is shared through Firestore. Provider token
-  // rates remain provider/model registry data; admins only control profit markup.
-  // The admin-controlled percentage is the only customer price multiplier.
-  // Default markup is 600%; no second fee multiplier is applied to usage.
-  const markupPercent = Number(pricing?.profitMarkupPercent ?? ((Number(multiplier) - 1) * 100));
-  if (!Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 1000) {
-    throw Object.assign(new Error("profit_markup_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
-  }
-  // Settlement must use the effective multiplier resolved for this exact model.
-  // That value already combines the canonical 600% markup with the configured
-  // model weight; falling back to the base markup here silently lost model weights.
+  // The shared pure billing engine performs the final customer-cost and credit
+  // rounding used by every token-billed Worker path. The effective multiplier
+  // already includes canonical markup, fee allowance, and model weight.
   const effectiveMultiplier = Number(multiplier);
   if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier < 1 || effectiveMultiplier > 10000) {
     throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
   }
-  const customerCredits = providerCostCredits * effectiveMultiplier;
-  const markup = effectiveMultiplier;
+  const canonicalCalculation = computeTokenCredits({
+    uncachedInputTokens,
+    cachedInputTokens,
+    outputTokens
+  }, {
+    markupPercent: (effectiveMultiplier - 1) * 100,
+    feePercent: 0,
+    usdPerCredit: creditValue
+  }, {
+    inputUsdPerToken: inputRate / 1_000_000,
+    cachedInputUsdPerToken: cachedRate / 1_000_000,
+    outputUsdPerToken: outputRate / 1_000_000
+  });
+  const customerCredits = canonicalCalculation.credits;
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
+  const markup = effectiveMultiplier;
+
   return {
     inputTokens, outputTokens, cachedInputTokens,
     inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
