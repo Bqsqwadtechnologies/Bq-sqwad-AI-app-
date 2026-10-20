@@ -2770,7 +2770,7 @@ export default {
         const path = collection + "/" + id;
         const existing = await firestoreGet(path);
         if (!existing) return json({ error:"feedback_item_not_found" }, 404);
-        await firestoreSet(path, { ...existing, status, updatedAt:new Date().toISOString() }, true);
+        await firestoreSet(path, { status, updatedAt:new Date().toISOString() }, true);
         return json({ ok:true, id, source, status });
       }
 
