@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -60,7 +59,7 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
         }
         item {
             Button(onClick = { refresh++ }, enabled = !loading) { Text("Refresh feedback") }
-            if (loading) CircularProgressIndicator(Modifier.padding(12.dp))
+            if (loading) BqSqwadLoadingIndicator(Modifier.padding(12.dp).size(48.dp))
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (!loading && error == null && (feedbackRows == null || feedbackRows.length() == 0)) {
                 Text("No feedback or reports have been submitted yet.", style = MaterialTheme.typography.bodyMedium)
