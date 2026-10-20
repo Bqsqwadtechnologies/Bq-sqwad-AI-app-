@@ -292,7 +292,12 @@ export function estimateTokenReservation({ message, system, pricing }) {
 }
 
 export async function recordTokenUsage({ uid, feature, providerId, modelId, usage, pricing, calculation, requestId, chargedCredits, planCovered = false, modality = "text", unitCount = 0 }) {
-  const recordId = crypto.randomUUID();
+  const requestKey = String(requestId || "").trim();
+  let recordId = crypto.randomUUID();
+  if (requestKey) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(uid || "") + ":" + requestKey));
+    recordId = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+  }
   const createdAt = new Date();
   const actualChargedCredits = Math.max(0, Number(chargedCredits || 0));
   const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
@@ -301,7 +306,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
   const estimatedFeeUsd = grossUsageValueUsd * estimatedFeePercent / 100;
   const estimatedGrossProfitUsd = grossUsageValueUsd - Number(calculation?.providerCostUsd || 0);
   const estimatedNetProfitUsd = estimatedGrossProfitUsd - estimatedFeeUsd;
-  await firestoreCreate("aiUsageLedger/" + recordId, {
+  const entry = {
     uid: String(uid || ""),
     feature: String(feature || ""),
     providerId: String(providerId || ""),
@@ -326,8 +331,20 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     planCovered: planCovered === true,
     costStatus: modality === "text" ? "estimated_from_provider_usage_and_configured_rates" : "estimated_from_configured_provider_unit_rate",
     createdAt
-  });
-  return { id: recordId, createdAt: createdAt.toISOString() };
+  };
+  const path = "aiUsageLedger/" + recordId;
+  try {
+    await firestoreCreate(path, entry);
+  } catch (error) {
+    const existing = await firestoreGet(path).catch(() => null);
+    if (existing &&
+        String(existing.uid || "") === String(uid || "") &&
+        String(existing.requestId || "") === String(requestKey || recordId)) {
+      return { id: recordId, createdAt: String(existing.createdAt || createdAt.toISOString()), duplicate: true };
+    }
+    throw error;
+  }
+  return { id: recordId, createdAt: createdAt.toISOString(), duplicate: false };
 }
 
 export async function getTokenUsageReport({ limit = 100 } = {}) {
