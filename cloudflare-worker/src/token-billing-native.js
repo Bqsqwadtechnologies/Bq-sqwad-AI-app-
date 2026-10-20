@@ -342,7 +342,11 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
         String(existing.requestId || "") === String(requestKey || recordId) &&
         String(existing.feature || "") === String(feature || "") &&
         String(existing.providerId || "") === String(providerId || "") &&
-        String(existing.modelId || "") === String(modelId || "")) {
+        String(existing.modelId || "") === String(modelId || "") &&
+        Number(existing.chargedCredits || 0) === actualChargedCredits &&
+        Number(existing.inputTokens || 0) === Number(usage?.inputTokens || 0) &&
+        Number(existing.outputTokens || 0) === Number(usage?.outputTokens || 0) &&
+        String(existing.modality || "text") === String(modality || "text")) {
       return { id: recordId, createdAt: String(existing.createdAt || createdAt.toISOString()), duplicate: true };
     }
     throw error;
