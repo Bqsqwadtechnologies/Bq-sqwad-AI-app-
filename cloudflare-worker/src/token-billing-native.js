@@ -4,7 +4,7 @@ import { computeTokenCredits } from "./billing-core.js";
 const MONTHLY_PLAN_PRICE_USD = 11.99;
 const MONTHLY_PLAN_CREDITS = 100;
 const DEFAULT_CREDIT_REFERENCE_USD = MONTHLY_PLAN_PRICE_USD / MONTHLY_PLAN_CREDITS;
-const DEFAULT_CUSTOMER_MULTIPLIER = 7.0;
+const DEFAULT_CUSTOMER_MULTIPLIER = 1.0;
 
 /**
  * Allocate a reservation refund back to the same balance buckets that funded it.
