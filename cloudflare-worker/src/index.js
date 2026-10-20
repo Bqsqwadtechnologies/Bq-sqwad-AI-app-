@@ -67,6 +67,17 @@ function hasWorkerFirebaseConfig(env) {
   return Boolean(env?.BQ_FIREBASE_SERVICE_ACCOUNT_JSON);
 }
 
+function isOwnedChatBackgroundUrl(rawUrl, uid) {
+  try {
+    const parsed = new URL(String(rawUrl || ""));
+    if (parsed.protocol !== "https:" || !["firebasestorage.googleapis.com", "storage.googleapis.com"].includes(parsed.hostname)) return false;
+    const path = decodeURIComponent(parsed.pathname);
+    return path.includes("/avatars/" + String(uid) + "/wallpapers/");
+  } catch {
+    return false;
+  }
+}
+
 function isSuperAdmin(user, env) {
   const claims = user?.customAttributes || {};
   const email = String(user?.email || "").toLowerCase();
@@ -2110,7 +2121,7 @@ export default {
         const nextTheme = { ...currentTheme, brightness };
         if (Object.prototype.hasOwnProperty.call(body, "url")) {
           const nextUrl = body.url == null || body.url === "" ? null : String(body.url).trim();
-          if (nextUrl && !/^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)(\/|$)/i.test(nextUrl)) return json({ error: "invalid_chat_background_url" }, 400);
+          if (nextUrl && !isOwnedChatBackgroundUrl(nextUrl, user.uid)) return json({ error: "invalid_chat_background_url" }, 400);
           nextTheme.wallpaper = nextUrl;
         }
         await firestoreSet("users/" + user.uid, { theme: nextTheme, updatedAt: new Date().toISOString() }, true);
@@ -2124,21 +2135,24 @@ export default {
         if (!/^[A-Za-z0-9_-]{8,100}$/.test(uploadId)) return json({ error: "invalid_upload_id" }, 400);
         const backgroundUrl = String(body.url || "").trim();
         const brightnessValue = Number(body.brightness ?? 1);
-        if (backgroundUrl && !/^https:\/\/(firebasestorage\.googleapis\.com|storage\.googleapis\.com)(\/|$)/i.test(backgroundUrl)) {
+        if (backgroundUrl && !isOwnedChatBackgroundUrl(backgroundUrl, user.uid)) {
           return json({ error: "invalid_chat_background_url" }, 400);
         }
         if (!Number.isFinite(brightnessValue) || brightnessValue < 0.1 || brightnessValue > 2) {
           return json({ error: "invalid_chat_background_brightness" }, 400);
         }
+        let previousTheme = null;
+        let backgroundSaved = false;
         const saveBackgroundToProfile = async () => {
           if (!backgroundUrl) return;
           const profile = await firestoreGet("users/" + user.uid);
           if (!profile) throw new Error("Account not found.");
-          const currentTheme = profile.theme && typeof profile.theme === "object" && !Array.isArray(profile.theme) ? profile.theme : {};
+          previousTheme = profile.theme && typeof profile.theme === "object" && !Array.isArray(profile.theme) ? profile.theme : {};
           await firestoreSet("users/" + user.uid, {
-            theme: { ...currentTheme, wallpaper: backgroundUrl, brightness: brightnessValue },
+            theme: { ...previousTheme, wallpaper: backgroundUrl, brightness: brightnessValue },
             updatedAt: new Date().toISOString()
           }, true);
+          backgroundSaved = true;
         };
         const receiptPath = "chatBackgroundCharges/" + user.uid + "_" + uploadId;
         const existing = await firestoreGet(receiptPath);
@@ -2160,14 +2174,29 @@ export default {
         let reservation = null;
         try {
           const uploadPricing = await capability(user.uid, "chat_background_upload");
-          reservation = await chargeCredits(user.uid, uploadPricing.creditCost || 0, "chat_background_upload", user);
-          await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
+          reservation = await chargeCredits(user.uid, uploadPricing.creditCost ?? 2, "chat_background_upload", user);
           await saveBackgroundToProfile();
+          await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, { uid: user.uid, uploadId, status: "charged", creditsCharged, backgroundUrl: backgroundUrl || null, chargedAt: new Date() }, true);
           return json({ ok: true, creditsCharged, url: backgroundUrl || null });
         } catch (error) {
-          if (reservation?.reservationId) await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          const reservationState = reservation?.reservationId
+            ? await firestoreGet("creditReservations/" + reservation.reservationId).catch(() => null)
+            : null;
+          if (reservationState?.status !== "committed") {
+            if (backgroundSaved) {
+              await firestoreSet("users/" + user.uid, {
+                theme: previousTheme || {},
+                updatedAt: new Date().toISOString()
+              }, true).catch(() => {});
+            }
+            if (reservation?.reservationId) await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          } else if (backgroundSaved) {
+            const creditsCharged = Math.max(0, Number(reservationState.amount || reservation.amount || 0));
+            await firestoreSet(receiptPath, { uid: user.uid, uploadId, status: "charged", creditsCharged, backgroundUrl: backgroundUrl || null, chargedAt: new Date() }, true).catch(() => {});
+            return json({ ok: true, creditsCharged, url: backgroundUrl || null });
+          }
           await firestoreSet(receiptPath, { uid: user.uid, uploadId, status: "failed", updatedAt: new Date() }, true).catch(() => {});
           throw error;
         }
