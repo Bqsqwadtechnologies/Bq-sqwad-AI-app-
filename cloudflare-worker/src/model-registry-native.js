@@ -26,7 +26,7 @@ function normalizeModel(raw, actorUid) {
   const inputPriceUsdPerMillion = Number(raw?.inputPriceUsdPerMillion ?? 0);
   const outputPriceUsdPerMillion = Number(raw?.outputPriceUsdPerMillion ?? 0);
   const cachedInputPriceUsdPerMillion = raw?.cachedInputPriceUsdPerMillion == null || raw?.cachedInputPriceUsdPerMillion === "" ? null : Number(raw.cachedInputPriceUsdPerMillion);
-  const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.07999);
+  const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.1199);
   const customerMultiplier = Number(raw?.customerMultiplier ?? 1.8);
   const estimatedFeePercent = Number(raw?.estimatedFeePercent ?? 15);
   const maxOutputTokens = Number(raw?.maxOutputTokens ?? 2048);
@@ -47,7 +47,7 @@ function normalizeModel(raw, actorUid) {
     "video-generation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
-  if (!Number.isFinite(creditCost) || creditCost < 1 || creditCost > 100000 || !Number.isInteger(creditCost)) throw new Error("model_credit_cost_invalid");
+  if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000) throw new Error("model_credit_cost_invalid");
   if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
   if (![inputPriceUsdPerMillion, outputPriceUsdPerMillion].every(value => Number.isFinite(value) && value >= 0 && value <= 1000000)) throw new Error("model_token_price_invalid");
   if (cachedInputPriceUsdPerMillion != null && (!Number.isFinite(cachedInputPriceUsdPerMillion) || cachedInputPriceUsdPerMillion < 0 || cachedInputPriceUsdPerMillion > 1000000)) throw new Error("model_cached_token_price_invalid");
@@ -136,7 +136,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       active,
       isDefault: active,
       published: matching?.published !== false,
-      creditCost: Math.max(1, Number(matching?.creditCost ?? capability.creditCost ?? 1)),
+      creditCost: Math.max(0, Number(matching?.creditCost ?? capability.creditCost ?? 0)),
       priceUsd: Math.max(0, Number(matching?.priceUsd ?? capability.priceUsd ?? 0)),
       creditsPerMinute: matching?.creditsPerMinute == null
         ? (capability.creditsPerMinute == null ? null : Math.max(0, Number(capability.creditsPerMinute)))
