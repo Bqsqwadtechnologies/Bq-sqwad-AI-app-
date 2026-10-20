@@ -1,5 +1,6 @@
 package com.bqsqwad.ai.core
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -24,6 +25,8 @@ import java.net.URL
 
 class BqFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
+        @Volatile private var cachedUploadedNotificationLogo: Bitmap? = null
+
         private const val REPLIES_CHANNEL_ID = "bq_sqwad_replies"
         private const val REMINDERS_CHANNEL_ID = "bq_sqwad_reminders"
         private const val BIRTHDAY_CHANNEL_ID = "bq_sqwad_birthday"
@@ -76,7 +79,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.bq_notification_mark)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
+            .setLargeIcon(loadUploadedNotificationLogo() ?: BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(displayBody.take(500))
@@ -91,7 +94,41 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
-    // Full uploaded brand artwork is the large icon; Android's status-bar icon must be a monochrome alpha-only mark.
+    // Prefer the owner's uploaded PNG from the Android repository so the logo is not
+    // frozen to whatever image happened to be compiled into an older APK. Keep a
+    // bounded in-memory cache and fall back to the bundled resource when offline.
+    private fun loadUploadedNotificationLogo(): Bitmap? {
+        cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let { return it }
+        val connection = runCatching {
+            (URL("https://raw.githubusercontent.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/main/app/src/main/res/drawable-nodpi/bq_notification_logo.png?bq-notification-logo-v4").openConnection() as HttpURLConnection)
+        }.getOrNull() ?: return null
+        return try {
+            connection.connectTimeout = 2500
+            connection.readTimeout = 3500
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("Accept", "image/png")
+            val bytes = connection.inputStream.use { it.readBytes() }
+            if (bytes.isEmpty() || bytes.size > 2_000_000) {
+                null
+            } else {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
+                val decoded = BitmapFactory.decodeByteArray(
+                    bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }
+                )
+                if (decoded != null) cachedUploadedNotificationLogo = decoded
+                decoded
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    // Android's status-bar icon must remain a monochrome alpha-only mark.
     private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
 
     private fun createChannel() {
