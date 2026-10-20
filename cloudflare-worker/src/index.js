@@ -543,26 +543,34 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
 /** Resolve live-media fallback rates from the website's canonical billing documents. */
 async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = "live_voice") {
   const [policyDoc, connectionDoc] = await Promise.all([
-    firestoreGet("config/usageBilling").catch(() => null),
-    firestoreGet("config/providerConnections").catch(() => null)
+    firestoreGet("config/usageBilling"),
+    firestoreGet("config/providerConnections")
   ]);
-  const policy = policyDoc || {};
+  let policy = policyDoc;
+  if (typeof policyDoc?.json === "string") {
+    try { policy = JSON.parse(policyDoc.json); } catch { policy = null; }
+  }
   const connections = connectionDoc || {};
+  const usdPerCredit = Number(policy?.usdPerCredit);
+  const markupPercent = Number(policy?.markupPercent);
+  const feePercent = Number(policy?.feePercent);
+  if (!policy || !Number.isFinite(usdPerCredit) || usdPerCredit <= 0 ||
+      !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
+      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100) {
+    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  }
   const key = String(feature || "").toLowerCase();
   const rateKeys = key.includes("transcrib") || key.includes("dictation")
     ? ["transcriptionUsdPerMinute", "transcribeUsdPerMinute"]
     : key.includes("camera") ? ["liveCameraUsdPerMinute", "cameraUsdPerMinute"]
     : ["liveVoiceUsdPerMinute", "voiceUsdPerMinute"];
   const providerRate = rateKeys.map(k => Number(connections[k])).find(v => Number.isFinite(v) && v >= 0);
-  const usdPerCredit = Number(policy.usdPerCredit ?? 0.1199);
-  const markupPercent = Number(policy.markupPercent ?? 600);
-  const feePercent = Number(policy.feePercent ?? 0);
-  const safeUsdPerCredit = Number.isFinite(usdPerCredit) && usdPerCredit > 0 ? usdPerCredit : 0.1199;
-  const safeMarkup = Number.isFinite(markupPercent) && markupPercent >= 0 ? markupPercent : 600;
-  const safeFee = Number.isFinite(feePercent) && feePercent >= 0 ? feePercent : 0;
   const hasExplicitRate = input?.creditsPerMinute != null || existing?.creditsPerMinute != null;
+  if (!hasExplicitRate && providerRate == null) {
+    throw Object.assign(new Error("live_provider_rate_not_configured"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  }
   const fallbackRate = providerRate == null ? null
-    : providerRate * (1 + safeMarkup / 100) * (1 + safeFee / 100) / safeUsdPerCredit;
+    : providerRate * (1 + markupPercent / 100) * (1 + feePercent / 100) / usdPerCredit;
   const merged = !hasExplicitRate && fallbackRate != null
     ? { ...input, creditsPerMinute: fallbackRate }
     : input;
