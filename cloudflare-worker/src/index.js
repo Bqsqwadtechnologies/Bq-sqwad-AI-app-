@@ -564,7 +564,16 @@ async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = 
     ? ["transcriptionUsdPerMinute", "transcribeUsdPerMinute"]
     : key.includes("camera") ? ["liveCameraUsdPerMinute", "cameraUsdPerMinute"]
     : ["liveVoiceUsdPerMinute", "voiceUsdPerMinute"];
-  const providerRate = rateKeys.map(k => Number(connections[k])).find(v => Number.isFinite(v) && v >= 0);
+  const nestedRateKeys = key.includes("transcrib") || key.includes("dictation")
+    ? [["transcription", "usdPerMinute"], ["transcribe", "usdPerMinute"]]
+    : key.includes("camera")
+      ? [["liveCamera", "usdPerMinute"], ["camera", "usdPerMinute"]]
+      : [["liveVoice", "usdPerMinute"], ["voice", "usdPerMinute"]];
+  const configuredRates = [
+    ...rateKeys.map(k => connections[k]),
+    ...nestedRateKeys.map(([section, field]) => connections?.[section]?.[field])
+  ];
+  const providerRate = configuredRates.map(Number).find(v => Number.isFinite(v) && v >= 0);
   const hasExplicitRate = input?.creditsPerMinute != null || existing?.creditsPerMinute != null;
   if (!hasExplicitRate && providerRate == null) {
     throw Object.assign(new Error("live_provider_rate_not_configured"), { httpStatus: 409, safeError: "billing_config_invalid" });
