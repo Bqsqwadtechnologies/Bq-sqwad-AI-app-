@@ -86,6 +86,22 @@ fun AdminFeedbackPanel(onBack: () -> Unit) {
                         Text("User ID: " + row.optString("userId", "unknown"), style = MaterialTheme.typography.bodySmall)
                         Text("Message reference: " + row.optString("messageId", "not supplied"), style = MaterialTheme.typography.bodySmall)
                         Text("Submitted: " + row.optString("createdAt", "unknown"), style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(enabled = !loading, onClick = {
+                                scope.launch {
+                                    runCatching { api.adminFeedbackStatus(row.optString("id"), row.optString("source"), "seen") }
+                                        .onSuccess { refresh++ }
+                                        .onFailure { error = it.message ?: "Could not mark this item as seen." }
+                                }
+                            }) { Text("Mark seen") }
+                            OutlinedButton(enabled = !loading, onClick = {
+                                scope.launch {
+                                    runCatching { api.adminFeedbackStatus(row.optString("id"), row.optString("source"), "resolved") }
+                                        .onSuccess { refresh++ }
+                                        .onFailure { error = it.message ?: "Could not resolve this item." }
+                                }
+                            }) { Text("Resolve") }
+                        }
                         Text("Privacy: message content is not included; only a one-way message hash is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
