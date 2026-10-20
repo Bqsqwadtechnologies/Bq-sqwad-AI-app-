@@ -6408,16 +6408,26 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             }.onFailure {
                 settingsNotice = "Saved on this device, but could not sync to your account yet."
             }
+            runCatching { SettingsSyncClient.save(JSONObject().put(key, value)) }
+                .onFailure { settingsNotice = "Saved locally; website settings sync will retry when available." }
         }
     }
     fun saveTheme(value: String) {
         themeMode = value
         devicePrefs.edit().putString("theme_mode", value).apply()
+        scope.launch {
+            runCatching { SettingsSyncClient.save(JSONObject().put("theme_mode", value)) }
+                .onFailure { settingsNotice = "Theme saved on this device; website sync is temporarily unavailable." }
+        }
         (context as? android.app.Activity)?.recreate()
     }
     fun saveAccent(value: String) {
         accent = value
         devicePrefs.edit().putString("accent_palette", value).apply()
+        scope.launch {
+            runCatching { SettingsSyncClient.save(JSONObject().put("accent_palette", value)) }
+                .onFailure { settingsNotice = "Accent saved on this device; website sync is temporarily unavailable." }
+        }
         (context as? android.app.Activity)?.recreate()
     }
 
@@ -6455,6 +6465,39 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             val days = body.optInt("retentionDays", 30).let { if (it in listOf(7,14,30,90)) it else 30 }
             fileBoxRetentionDays = days
             prefs.edit().putInt("file_box_retention_days", days).apply()
+        }
+        runCatching { SettingsSyncClient.load() }.onSuccess { body ->
+            val remote = body.optJSONObject("settings") ?: return@onSuccess
+            val boolKeys = listOf("training_consent", "chat_history", "auto_save", "memory_enabled", "web_search_enabled", "voice_replies", "camera_enhance", "companion_memory", "truthguard_sources", "notifications_enabled")
+            boolKeys.forEach { key ->
+                if (remote.has(key) && remote.opt(key) is Boolean) prefs.edit().putBoolean(key, remote.optBoolean(key)).apply()
+            }
+            if (remote.has("theme_mode")) {
+                themeMode = remote.optString("theme_mode", themeMode)
+                devicePrefs.edit().putString("theme_mode", themeMode).apply()
+            }
+            if (remote.has("accent_palette")) {
+                accent = remote.optString("accent_palette", accent)
+                devicePrefs.edit().putString("accent_palette", accent).apply()
+            }
+            if (remote.has("text_scale") && remote.opt("text_scale") is Number) {
+                textScale = remote.optDouble("text_scale", 1.0).toFloat().coerceIn(0.85f, 1.8f)
+                prefs.edit().putFloat("text_scale", textScale).apply()
+                bqTextScaleState.floatValue = textScale
+            }
+            if (remote.has("file_box_retention_days")) {
+                fileBoxRetentionDays = remote.optInt("file_box_retention_days", fileBoxRetentionDays).let { if (it in listOf(7,14,30,90)) it else 30 }
+                prefs.edit().putInt("file_box_retention_days", fileBoxRetentionDays).apply()
+            }
+            chatHistory = prefs.getBoolean("chat_history", true)
+            autoSave = prefs.getBoolean("auto_save", true)
+            memory = prefs.getBoolean("memory_enabled", true)
+            webSearch = prefs.getBoolean("web_search_enabled", true)
+            voiceReplies = prefs.getBoolean("voice_replies", true)
+            cameraEnhance = prefs.getBoolean("camera_enhance", true)
+            companionMemory = prefs.getBoolean("companion_memory", true)
+            truthGuardSources = prefs.getBoolean("truthguard_sources", true)
+            notifications = prefs.getBoolean("notifications_enabled", true)
         }
         playManagement = runCatching { api.playSubscriptionManagement() }.getOrNull()
         entitlements = runCatching {
@@ -6731,6 +6774,8 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                         scope.launch {
                             runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put("text_scale", textScale.toDouble())) }
                                 .onFailure { settingsNotice = "Saved on this device, but could not sync text size yet." }
+                            runCatching { SettingsSyncClient.save(JSONObject().put("text_scale", textScale.toDouble())) }
+                                .onFailure { settingsNotice = "Text size saved locally; website sync is temporarily unavailable." }
                             // Recreate after persisting so all native screens recalculate text metrics.
                             (context as? android.app.Activity)?.recreate()
                         }
@@ -6748,6 +6793,8 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                             scope.launch {
                                 runCatching { WorkspaceApiClient().updateFeatureSettings("global", JSONObject().put("text_scale", 1.0)) }
                                     .onFailure { settingsNotice = "Default text size was saved on this device but could not sync yet." }
+                                runCatching { SettingsSyncClient.save(JSONObject().put("text_scale", 1.0)) }
+                                    .onFailure { settingsNotice = "Default text size saved locally; website sync is temporarily unavailable." }
                                 (context as? android.app.Activity)?.recreate()
                             }
                         }
@@ -6855,6 +6902,7 @@ item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for q
                                             .onSuccess {
                                                 fileBoxRetentionDays = days
                                                 prefs.edit().putInt("file_box_retention_days", days).apply()
+                                                runCatching { SettingsSyncClient.save(JSONObject().put("file_box_retention_days", days)) }
                                                 settingsNotice = "File Box retention set to $days days."
                                             }
                                             .onFailure { settingsNotice = "Could not save File Box retention. Your previous server setting remains active." }
@@ -6979,6 +7027,7 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                                 .onSuccess {
                                     trainingConsent = enabled
                                     prefs.edit().putBoolean("training_consent", enabled).apply()
+                                    runCatching { SettingsSyncClient.save(JSONObject().put("training_consent", enabled)) }
                                     consentStatus = if (enabled) "AI training participation enabled." else "AI training participation disabled; stored contributions were requested for deletion."
                                 }
                                 .onFailure { consentStatus = "Could not update your choice. Your previous server setting remains in effect." }
