@@ -28,6 +28,7 @@ import java.net.URL
 class BqFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         @Volatile private var cachedUploadedNotificationLogo: Bitmap? = null
+        @Volatile private var cachedUploadedNotificationLogoAt: Long = 0L
 
         private const val REPLIES_CHANNEL_ID = "bq_sqwad_replies"
         private const val REMINDERS_CHANNEL_ID = "bq_sqwad_reminders"
@@ -103,16 +104,41 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     // Prefer the owner's uploaded PNG from the Android repository so the logo is not
     // frozen to whatever image happened to be compiled into an older APK. Keep a
     // bounded in-memory cache and fall back to the bundled resource when offline.
-    private fun loadUploadedNotificationLogo(): Bitmap? {
-        cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let { return it }
+    private fun resolveUploadedNotificationLogoUrl(): String {
+        val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v6"
         val connection = runCatching {
-            (URL("https://bqsqwadai.com/bq-notification-logo.png?bq-notification-logo-v5").openConnection() as HttpURLConnection)
+            (URL("https://bqsqwadai.com/api/public/app-config?notificationLogo=1").openConnection() as HttpURLConnection)
+        }.getOrNull() ?: return fallback
+        return try {
+            connection.connectTimeout = 2500
+            connection.readTimeout = 3500
+            connection.instanceFollowRedirects = true
+            val raw = connection.inputStream.use { it.bufferedReader().readText() }.take(32_000)
+            val candidate = JSONObject(raw).optString("logoUrl", "")
+            if (candidate.startsWith("https://") &&
+                (candidate.contains("firebasestorage.googleapis.com/") ||
+                 candidate.contains("storage.googleapis.com/") ||
+                 candidate.startsWith("https://bqsqwadai.com/"))) candidate else fallback
+        } catch (_: Exception) {
+            fallback
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun loadUploadedNotificationLogo(): Bitmap? {
+        val now = System.currentTimeMillis()
+        cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let {
+            if (now - cachedUploadedNotificationLogoAt < 5 * 60 * 1000L) return it
+        }
+        val connection = runCatching {
+            (URL(resolveUploadedNotificationLogoUrl()).openConnection() as HttpURLConnection)
         }.getOrNull() ?: return null
         return try {
             connection.connectTimeout = 2500
             connection.readTimeout = 3500
             connection.instanceFollowRedirects = true
-            connection.setRequestProperty("Accept", "image/png")
+            connection.setRequestProperty("Accept", "image/png,image/*")
             val bytes = connection.inputStream.use { it.readBytes() }
             if (bytes.isEmpty() || bytes.size > 2_000_000) {
                 null
@@ -124,7 +150,10 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
                 val decoded = BitmapFactory.decodeByteArray(
                     bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }
                 )
-                if (decoded != null) cachedUploadedNotificationLogo = decoded
+                if (decoded != null) {
+                    cachedUploadedNotificationLogo = decoded
+                    cachedUploadedNotificationLogoAt = now
+                }
                 decoded
             }
         } catch (_: Exception) {
