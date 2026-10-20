@@ -1,7 +1,7 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
-import { computeFixedCredits } from "./billing-core.js";
+import { computeFixedCredits, computeTokenCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
@@ -1169,33 +1169,56 @@ const BQ_APP_KNOWLEDGE = [
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
 
+let usageBillingPolicyCache = null;
+let usageBillingPolicyCacheUntil = 0;
+
+async function canonicalUsageBillingPolicy() {
+  if (usageBillingPolicyCache && Date.now() < usageBillingPolicyCacheUntil) return usageBillingPolicyCache;
+  const document = await firestoreGet("config/usageBilling");
+  let policy = document;
+  if (typeof document?.json === "string") {
+    try { policy = JSON.parse(document.json); } catch { policy = null; }
+  }
+  const markupPercent = Number(policy?.markupPercent);
+  const feePercent = Number(policy?.feePercent);
+  const usdPerCredit = Number(policy?.usdPerCredit);
+  if (!policy || !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
+      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100 ||
+      !Number.isFinite(usdPerCredit) || usdPerCredit <= 0) {
+    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  }
+  usageBillingPolicyCache = { markupPercent, feePercent, usdPerCredit };
+  usageBillingPolicyCacheUntil = Date.now() + 60000;
+  return usageBillingPolicyCache;
+}
+
 async function configuredMediaProviderCost(control, units, expectedUnit, trackingOnly = false) {
   if (trackingOnly ? control?.providerCostTrackingEnabled !== true : String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
   const unit = String(control?.providerCostUnit || "");
   const count = Number(units);
   const unitPrice = Number(control?.priceUsd || 0);
-  // Keep media provider-cost settlement aligned with the canonical $11.99 / 100 credits card.
-  const creditValue = 11.99 / 100;
-  const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
-    || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-  const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 5 ? (billingConfig.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 6 : billingConfig.profitMarkup))));
-  const multiplier = 1 + markup;
-  const feePercent = 0;
   if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
-      !Number.isFinite(unitPrice) || unitPrice <= 0 ||
-      !Number.isFinite(creditValue) || creditValue <= 0 ||
-      !Number.isFinite(multiplier) || multiplier < 1 ||
-      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100) {
+      !Number.isFinite(unitPrice) || unitPrice <= 0) {
     throw Object.assign(new Error("media_provider_cost_not_configured"), { httpStatus: 409, safeError: "media_provider_cost_not_configured" });
   }
+  const policy = await canonicalUsageBillingPolicy();
   const providerCostUsd = unitPrice * count;
+  const calculation = computeTokenCredits(
+    { uncachedInputTokens: 1, cachedInputTokens: 0, outputTokens: 0 },
+    policy,
+    { inputUsdPerToken: providerCostUsd, cachedInputUsdPerToken: 0, outputUsdPerToken: 0 }
+  );
   return {
-    units: count, unit, providerCostUsd, creditValue, multiplier, feePercent,
-    chargeCredits: (providerCostUsd / creditValue) * multiplier,
-    providerCostCredits: providerCostUsd / creditValue
+    units: count,
+    unit,
+    providerCostUsd,
+    creditValue: policy.usdPerCredit,
+    multiplier: 1 + policy.markupPercent / 100,
+    feePercent: policy.feePercent,
+    chargeCredits: calculation.credits,
+    providerCostCredits: providerCostUsd / policy.usdPerCredit
   };
 }
-
 async function recordConfiguredMediaCost(uid, feature, control, result, cost, modality) {
   if (!cost) return;
   await recordTokenUsage({
