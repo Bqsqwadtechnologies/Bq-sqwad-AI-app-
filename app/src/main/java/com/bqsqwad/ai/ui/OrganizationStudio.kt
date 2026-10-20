@@ -73,6 +73,8 @@ fun OrganizationStudioWorkspace() {
     var canonicalStudioPayg by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var canonicalStudioPaygError by remember { mutableStateOf<String?>(null) }
     var canonicalStudioOrganizationName by remember { mutableStateOf("") }
+    var canonicalStudioOrganizations by remember { mutableStateOf(org.json.JSONArray()) }
+    var canonicalStudioOrganizationId by remember { mutableStateOf("") }
     var playBilling by remember { mutableStateOf<PlayBillingClient?>(null) }
     val billingActivity = context as? Activity
     var scheduledName by remember { mutableStateOf("") }
@@ -168,11 +170,13 @@ fun OrganizationStudioWorkspace() {
             .onFailure { /* billing panel remains unavailable until backend responds */ }
         runCatching {
             val choices = api.studioPaygOrganizations().optJSONArray("organizations") ?: org.json.JSONArray()
+            canonicalStudioOrganizations = choices
             val selected = (0 until choices.length()).mapNotNull { choices.optJSONObject(it) }.firstOrNull()
                 ?: error("No website organization is available for this account.")
             canonicalStudioOrganizationName = selected.optString("name").ifBlank { "Organization" }
             val orgId = selected.optString("id")
             if (orgId.isBlank()) error("Organization ID is missing.")
+            canonicalStudioOrganizationId = orgId
             api.studioPayg(orgId)
         }.onSuccess {
             canonicalStudioPayg = it
@@ -388,6 +392,31 @@ fun OrganizationStudioWorkspace() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
+                    if (canonicalStudioOrganizations.length() > 1) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (i in 0 until canonicalStudioOrganizations.length()) {
+                                val choice = canonicalStudioOrganizations.optJSONObject(i) ?: continue
+                                val choiceId = choice.optString("id")
+                                FilterChip(
+                                    selected = choiceId == canonicalStudioOrganizationId,
+                                    onClick = {
+                                        if (choiceId.isNotBlank() && choiceId != canonicalStudioOrganizationId) {
+                                            canonicalStudioOrganizationId = choiceId
+                                            canonicalStudioOrganizationName = choice.optString("name").ifBlank { "Organization" }
+                                            canonicalStudioPayg = null
+                                            canonicalStudioPaygError = null
+                                            scope.launch {
+                                                runCatching { api.studioPayg(choiceId) }
+                                                    .onSuccess { canonicalStudioPayg = it }
+                                                    .onFailure { canonicalStudioPaygError = safeUserFacingIssue(it, "Canonical Studio wallet could not be loaded.") }
+                                            }
+                                        }
+                                    },
+                                    label = { Text(choice.optString("name").ifBlank { "Organization" }) }
+                                )
+                            }
+                        }
+                    }
                     val canonical = canonicalStudioPayg
                     val canonicalAccount = canonical?.optJSONObject("account")
                     val canonicalSettings = canonical?.optJSONObject("settings")
