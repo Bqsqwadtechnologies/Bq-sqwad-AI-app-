@@ -216,7 +216,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const modelIdLower = String(modelId || "").toLowerCase();
   const modelMultipliers = sharedMetering.modelMultipliers && typeof sharedMetering.modelMultipliers === "object"
     ? Object.entries(sharedMetering.modelMultipliers)
-        .filter(([key, value]) => String(key).trim() && Number.isFinite(Number(value)) && Number(value) > 0)
+        // Multipliers are relative weights, not provider prices. Reject accidental
+        // per-million or percentage values here so a bad admin entry cannot
+        // turn one ordinary chat message into a full-balance charge.
+        .filter(([key, value]) => String(key).trim() && Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= 10)
         .sort(([a], [b]) => String(b).length - String(a).length)
     : [];
   const sharedModelMultiplier = modelMultipliers.find(([key]) => modelIdLower.includes(String(key).toLowerCase()));
@@ -251,10 +254,13 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = feeRate;
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
-  const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
-    Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
-    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 &&
-    Number.isFinite(customerMultiplier) && customerMultiplier >= 1 &&
+  // Sanity-check normalized USD-per-million rates. A per-million value
+  // accidentally entered into a per-token field otherwise becomes millions
+  // of times larger and can drain a balance on a short prompt.
+  const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 && rates.inputPriceUsdPerMillion <= 100 &&
+    Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 && rates.outputPriceUsdPerMillion <= 500 &&
+    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100 &&
+    Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
   const sharedCreditMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
     ? {
