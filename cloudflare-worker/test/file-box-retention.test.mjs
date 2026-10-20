@@ -28,10 +28,14 @@ test("empty and missing lists are safe", () => {
   assert.deepEqual(retainFileBoxItems(undefined), []);
 });
 
-test("retains newest records by timestamp even if stored order is stale", () => {
-  const rows = [
-    { id: "new", objectPath: "new", createdAt: "2026-10-20T00:00:00.000Z" },
-    { id: "old", objectPath: "old", createdAt: "2025-10-20T00:00:00.000Z" },
-  ];
-  assert.deepEqual(retainFileBoxItems(rows).map((item) => item.id), ["old", "new"]);
+test("evicts the oldest binary records even if stored order is newest-first", () => {
+  const rows = Array.from({ length: 205 }, (_, i) => ({
+    id: "item-" + i,
+    objectPath: "file-box/u/" + i,
+    createdAt: new Date(i * 1000).toISOString(),
+  })).reverse();
+  const retained = retainFileBoxItems(rows);
+  assert.equal(retained.length, 200);
+  assert.equal(retained[0].id, "item-5");
+  assert.equal(retained.at(-1).id, "item-204");
 });
