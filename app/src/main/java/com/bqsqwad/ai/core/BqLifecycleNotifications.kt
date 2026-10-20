@@ -9,7 +9,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Build
 import com.bqsqwad.ai.AppVisibility
 import com.bqsqwad.ai.InAppNotificationBus
@@ -17,6 +19,7 @@ import com.bqsqwad.ai.R
 import com.google.firebase.auth.FirebaseAuth
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.content.ContextCompat
 import java.util.concurrent.TimeUnit
 import java.util.Calendar
@@ -353,6 +356,35 @@ object BqLifecycleNotifications {
     private fun notificationLogoResourceId(context: Context): Int =
         R.drawable.bq_notification_logo
 
+    /** Convert the current uploaded logo into Android's required alpha-only small-icon mask. */
+    private fun createMonochromeNotificationIcon(source: Bitmap): IconCompat {
+        val size = 64
+        val scaled = Bitmap.createScaledBitmap(source, size, size, true)
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val corners = intArrayOf(
+            scaled.getPixel(0, 0), scaled.getPixel(size - 1, 0),
+            scaled.getPixel(0, size - 1), scaled.getPixel(size - 1, size - 1)
+        )
+        val backgroundAlpha = corners.map { Color.alpha(it) }.average().toInt()
+        val backgroundRed = corners.map { Color.red(it) }.average().toInt()
+        val backgroundGreen = corners.map { Color.green(it) }.average().toInt()
+        val backgroundBlue = corners.map { Color.blue(it) }.average().toInt()
+        val pixels = IntArray(size * size)
+        for (y in 0 until size) for (x in 0 until size) {
+            val pixel = scaled.getPixel(x, y)
+            val alpha = Color.alpha(pixel)
+            val distance = kotlin.math.abs(Color.red(pixel) - backgroundRed) +
+                kotlin.math.abs(Color.green(pixel) - backgroundGreen) +
+                kotlin.math.abs(Color.blue(pixel) - backgroundBlue)
+            val visible = if (backgroundAlpha < 24) alpha else if (distance >= 72) alpha else 0
+            pixels[y * size + x] = Color.argb(visible, 255, 255, 255)
+        }
+        output.setPixels(pixels, 0, size, 0, 0, size, size)
+        if (scaled !== source && !scaled.isRecycled) scaled.recycle()
+        if (!source.isRecycled) source.recycle()
+        return IconCompat.createWithBitmap(output)
+    }
+
     private fun post(context: Context, title: String, body: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -377,8 +409,14 @@ object BqLifecycleNotifications {
         val id = prefs.getInt(NEXT_ID, 4000)
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
         if (AppVisibility.isForeground) return
+        val logo = BitmapFactory.decodeResource(
+            context.resources,
+            notificationLogoResourceId(context),
+            BitmapFactory.Options().apply { inSampleSize = 2 }
+        )
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.bq_notification_logo)
+            .setSmallIcon(logo?.let { createMonochromeNotificationIcon(it) }
+                ?: IconCompat.createWithResource(context, R.drawable.bq_notification_logo))
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
