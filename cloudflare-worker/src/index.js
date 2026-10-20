@@ -3203,7 +3203,7 @@ export default {
         const result = await createVideoNative(env, u, b,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
           (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id));
+          (uid, id) => reverseCredits(uid, id), b.creditCost);
         if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
           .catch(() => notifyAdminOfIssue(env, "/ai/video", 500, "media_cost_ledger_write_failed"));
         return json(result);
