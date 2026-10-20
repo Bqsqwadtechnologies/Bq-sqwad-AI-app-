@@ -351,8 +351,7 @@ object BqLifecycleNotifications {
     // Upload the full notification logo to:
     // app/src/main/res/drawable-nodpi/bq_notification_logo.png
     // Resource lookup is optional until that image is uploaded; bundled logo is fallback.
-    // Use the dedicated, user-supplied notification brand asset directly.
-    // Do not fall back to the older in-app/BX logo.
+    // Use the uploaded full logo for the large icon. Android's small status-bar icon must be monochrome.
     private fun notificationLogoResourceId(context: Context): Int =
         R.drawable.bq_notification_logo
 
@@ -381,7 +380,7 @@ object BqLifecycleNotifications {
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
         if (AppVisibility.isForeground) return
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.bq_notification_logo)
+            .setSmallIcon(R.drawable.bq_notification_mark)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
