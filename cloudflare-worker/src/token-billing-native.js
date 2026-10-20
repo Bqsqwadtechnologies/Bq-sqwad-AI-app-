@@ -80,8 +80,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     : pricing?.cachedInputPriceUsdPerMillion == null
       ? inputRate
       : Number(pricing.cachedInputPriceUsdPerMillion);
-  if (![inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0) ||
-      inputRate + outputRate + cachedRate <= 0) {
+  if (![inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0)) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
   }
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
