@@ -2196,7 +2196,7 @@ export default {
         }, {
           path: "fileBoxUploads/" + id,
           data: { ...uploadData, uploadPending: false, finalizedAt: now.toISOString() },
-          ...(uploadUpdateTime ? { updateTime: uploadUpdateTime } : {})
+          ...(uploadUpdateTime ? { updateTime: uploadUpdateTime } : { exists: true })
         }];
         try {
           await firestoreCommit(writes);
