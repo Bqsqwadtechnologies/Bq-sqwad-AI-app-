@@ -85,10 +85,10 @@ test("image editing ignores client-supplied credit prices and delegates pricing 
     await assert.rejects(editImageNative(
       { OPENAI_API_KEY: "test" }, { uid: "user-test" },
       { prompt: "Change the sky", imageBase64: "aGVsbG8=", mimeType: "image/png", creditCost: 999999 },
-      async (...args) => { chargeArgs = args; return { reservationId: "test-reservation", amount: 3 }; },
-      async () => {}, async () => { reversed = true; }
+      async (...args) => { chargeArgs = args; return { reservationId: "test-reservation", amount: args[1] }; },
+      async () => {}, async () => { reversed = true; }, 2.75
     ), /OpenAI HTTP 400/);
-    assert.equal(chargeArgs[1], 0);
+    assert.equal(chargeArgs[1], 2.75);
     assert.equal(chargeArgs[2], "image_generation");
     assert.equal(reversed, true);
   } finally { globalThis.fetch = originalFetch; }
