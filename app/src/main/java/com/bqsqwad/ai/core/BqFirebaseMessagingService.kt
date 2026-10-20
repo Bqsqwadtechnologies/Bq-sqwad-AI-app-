@@ -91,12 +91,8 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
-    // Upload the full notification logo to:
-    // app/src/main/res/drawable-nodpi/bq_notification_logo.png
-    // The app uses it automatically after the next build; existing logo is fallback.
-    private fun notificationLogoResourceId(): Int =
-        resources.getIdentifier("bq_notification_logo", "drawable", packageName)
-            .takeIf { it != 0 } ?: R.drawable.bq_sqwad_logo
+    // Always use the dedicated notification brand asset; never fall back to the legacy logo.
+    private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
