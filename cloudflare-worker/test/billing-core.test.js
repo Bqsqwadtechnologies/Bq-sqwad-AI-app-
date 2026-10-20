@@ -17,6 +17,20 @@ test("shared billing vectors", () => {
   }
 });
 
+test("canonical website markup, fee allowance and credit value determine customer credits", () => {
+  const canonicalPolicy = { markupPercent: 85, feePercent: 15, usdPerCredit: 0.07999 };
+  const result = computeTokenCredits(
+    { uncachedInputTokens: 1, cachedInputTokens: 0, outputTokens: 0 },
+    canonicalPolicy,
+    { inputUsdPerToken: 1, cachedInputUsdPerToken: 0, outputUsdPerToken: 0 }
+  );
+  assert.equal(result.providerCostUsd, 1);
+  assert.equal(result.customerUsd, 2.1275);
+  assert.equal(result.markupPercent, 85);
+  assert.equal(result.feePercent, 15);
+  assert.equal(result.credits, Math.round((2.1275 / 0.07999 + Number.EPSILON) * 100000) / 100000);
+});
+
 test("fixed prices are final, fractional and zero are valid", () => {
   assert.equal(computeFixedCredits(1.7), 1.7);
   assert.equal(computeFixedCredits(0.12567), 0.12567);
