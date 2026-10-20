@@ -72,6 +72,7 @@ fun OrganizationStudioWorkspace() {
     var organizationBilling by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var canonicalStudioPayg by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var canonicalStudioPaygError by remember { mutableStateOf<String?>(null) }
+    var canonicalStudioOrganizationName by remember { mutableStateOf("") }
     var playBilling by remember { mutableStateOf<PlayBillingClient?>(null) }
     val billingActivity = context as? Activity
     var scheduledName by remember { mutableStateOf("") }
@@ -166,10 +167,11 @@ fun OrganizationStudioWorkspace() {
             .onSuccess { organizationBilling = it }
             .onFailure { /* billing panel remains unavailable until backend responds */ }
         runCatching {
-            val orgRecord = api.organization()
-            val orgId = orgRecord.optString("orgId")
-                .ifBlank { orgRecord.optString("id") }
-                .ifBlank { orgRecord.optString("uid") }
+            val choices = api.studioPaygOrganizations().optJSONArray("organizations") ?: org.json.JSONArray()
+            val selected = (0 until choices.length()).mapNotNull { choices.optJSONObject(it) }.firstOrNull()
+                ?: error("No website organization is available for this account.")
+            canonicalStudioOrganizationName = selected.optString("name").ifBlank { "Organization" }
+            val orgId = selected.optString("id")
             if (orgId.isBlank()) error("Organization ID is missing.")
             api.studioPayg(orgId)
         }.onSuccess {
@@ -390,6 +392,7 @@ fun OrganizationStudioWorkspace() {
                     val canonicalAccount = canonical?.optJSONObject("account")
                     val canonicalSettings = canonical?.optJSONObject("settings")
                     if (canonicalAccount != null) {
+                        Text(canonicalStudioOrganizationName.ifBlank { "Organization" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         val currency = canonicalSettings?.optString("currency").orEmpty().ifBlank { "configured currency" }
                         Text("Canonical balance: " + "%.2f".format(java.util.Locale.US, canonicalAccount.optDouble("balance", 0.0)) + " " + currency,
                             fontWeight = FontWeight.SemiBold)
