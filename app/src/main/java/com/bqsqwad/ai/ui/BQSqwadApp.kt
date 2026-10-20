@@ -2051,24 +2051,63 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var wallpaper by remember { mutableStateOf(prefs.getInt("wallpaper", 0)) }
     var customBackgroundUri by remember { mutableStateOf(prefs.getString("chat_background_uri", null)) }
     var customBackgroundBrightness by remember { mutableStateOf(prefs.getFloat("chat_background_brightness", 1f).coerceIn(0.35f, 1.8f)) }
-    val customBackgroundBitmap = remember(customBackgroundUri) {
-        runCatching {
-            customBackgroundUri?.let { raw ->
-                context.contentResolver.openInputStream(Uri.parse(raw))?.use { input ->
-                    val bytes = input.readBytes()
-                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                    val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
-                    val sample = when {
-                        maxDimension > 9600 -> 4
-                        maxDimension > 6400 -> 3
-                        maxDimension > 3200 -> 2
-                        else -> 1
-                    }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    LaunchedEffect(FirebaseAuth.getInstance().currentUser?.uid) {
+        if (FirebaseAuth.getInstance().currentUser != null) {
+            runCatching { WorkspaceApiClient().getChatBackground() }.onSuccess { saved ->
+                val savedUrl = saved.optString("url").takeIf { it.startsWith("https://", ignoreCase = true) }
+                if (savedUrl != null && savedUrl != customBackgroundUri) {
+                    val brightness = saved.optDouble("brightness", 1.0).toFloat().coerceIn(0.35f, 1.8f)
+                    prefs.edit().putString("chat_background_uri", savedUrl).putFloat("chat_background_brightness", brightness).apply()
+                    customBackgroundUri = savedUrl
+                    customBackgroundBrightness = brightness
                 }
             }
-        }.getOrNull()
+        }
+    }
+    var customBackgroundBitmap by remember(customBackgroundUri) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(customBackgroundUri) {
+        customBackgroundBitmap = null
+        val raw = customBackgroundUri ?: return@LaunchedEffect
+        customBackgroundBitmap = withContext(Dispatchers.IO) {
+            runCatching {
+                val bytes = if (raw.startsWith("https://", ignoreCase = true)) {
+                    val connection = (URL(raw).openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 8000
+                        readTimeout = 12000
+                    }
+                    try {
+                        connection.inputStream.use { input ->
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 10 * 1024 * 1024) { "Chat background is too large." }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toByteArray()
+                        }
+                    } finally {
+                        connection.disconnect()
+                    }
+                } else {
+                    context.contentResolver.openInputStream(Uri.parse(raw))?.use { it.readBytes() }
+                        ?: error("Could not open the selected chat background.")
+                }
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
+                val sample = when {
+                    maxDimension > 9600 -> 4
+                    maxDimension > 6400 -> 3
+                    maxDimension > 3200 -> 2
+                    else -> 1
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+            }.getOrNull()
+        }
     }
     var adminChatBackgroundBitmap by remember(customBackgroundUri) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(customBackgroundUri) {
@@ -6371,7 +6410,6 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
         if (uri != null && !changingChatBackground) {
             changingChatBackground = true
             scope.launch {
-                var persistedPermission = false
                 runCatching {
                     val mime = context.contentResolver.getType(uri).orEmpty()
                     require(mime.startsWith("image/")) { "Choose a valid image file." }
@@ -6394,17 +6432,29 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                         bounds.outWidth.toLong() * bounds.outHeight.toLong() <= 40_000_000L) {
                         "Choose a valid image with dimensions no larger than 12,000 × 12,000 pixels."
                     }
-                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    persistedPermission = true
-                    val uploadId = java.util.UUID.randomUUID().toString()
-                    WorkspaceApiClient().chargeChatBackground(uploadId)
-                    chatBackgroundPrefs.edit().putString("chat_background_uri", uri.toString()).apply()
-                    customChatBackgroundUri = uri.toString()
-                    settingsNotice = "Chat background updated. Two credits were charged."
+                    val currentUser = FirebaseAuth.getInstance().currentUser ?: error("Sign in to save a chat background.")
+                    val uploadId = UUID.randomUUID().toString()
+                    val safeMime = mime.take(120)
+                    val objectRef = FirebaseStorage.getInstance().reference
+                        .child("avatars/${currentUser.uid}/wallpapers/chat-background-${uploadId}")
+                    val metadata = StorageMetadata.Builder().setContentType(safeMime).build()
+                    withContext(Dispatchers.IO) {
+                        Tasks.await(objectRef.putBytes(imageBytes, metadata))
+                    }
+                    val downloadUrl = withContext(Dispatchers.IO) {
+                        Tasks.await(objectRef.downloadUrl).toString()
+                    }
+                    val result = WorkspaceApiClient().saveChatBackground(uploadId, downloadUrl, customChatBackgroundBrightness)
+                    val charged = result.optDouble("creditsCharged", 2.0).coerceAtLeast(0.0)
+                    chatBackgroundPrefs.edit()
+                        .putString("chat_background_uri", downloadUrl)
+                        .putFloat("chat_background_brightness", customChatBackgroundBrightness)
+                        .apply()
+                    customChatBackgroundUri = downloadUrl
+                    settingsNotice = "Chat background saved to your account and synced with the website. ${String.format(java.util.Locale.US, "%.2f", charged).trimEnd('0').trimEnd('.')} credits charged."
                     (context as? android.app.Activity)?.recreate()
                 }.onFailure {
-                    if (persistedPermission) runCatching { context.contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                    settingsNotice = safeUserFacingIssue(it, "Chat background was not changed. You need at least 2 credits.")
+                    settingsNotice = safeUserFacingIssue(it, "Chat background was not changed. Check your connection and available credits.")
                 }
                 changingChatBackground = false
             }
@@ -6760,7 +6810,7 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                 }
             }
             item {
-                SurfaceCard("Chat background", "Choose a picture from your device to display behind Main Chat. Each successful change costs 2 credits; your chosen image stays on this device.")
+                SurfaceCard("Chat background", "Choose a picture to display behind Main Chat. It is saved to your BQ account and syncs with the website and Android app. Each successful change uses the configured credit price.")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !changingChatBackground, onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) }) {
                         Icon(Icons.Default.Image, contentDescription = null)
