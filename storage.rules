@@ -23,6 +23,17 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // User-owned chat wallpapers are shared through the account profile so
+    // they survive sign-out, reinstall, and use on the website.
+    match /avatars/{uid}/wallpapers/{wallpaperName} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Generated images are stored under the authenticated owner's UID. Reads and
     // deletes require that owner; uploads accept only PNGs within the bounded size.
     match /users/{uid}/generated-images/{imageName} {
