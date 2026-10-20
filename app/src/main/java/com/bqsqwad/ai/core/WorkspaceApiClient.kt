@@ -556,6 +556,9 @@ class WorkspaceApiClient {
 
     suspend fun organizationBilling(): JSONObject = request("/organization/billing","GET")
 
+    /** Returns organizations the signed-in user can access on the canonical website. */
+    suspend fun studioPaygOrganizations(): JSONObject = request("/studio-payg", "GET")
+
     /** Read-only wallet view backed by the website canonical studioPaygAccounts ledger. */
     suspend fun studioPayg(orgId: String): JSONObject =
         request("/studio-payg?orgId=" + java.net.URLEncoder.encode(orgId, "UTF-8"), "GET")
