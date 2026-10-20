@@ -351,7 +351,7 @@ class WorkspaceApiClient {
         val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 15000
-            readTimeout = 60000
+            readTimeout = 120000
             doOutput = true
             setFixedLengthStreamingMode(bytes.size)
             setRequestProperty("Authorization", "Bearer $token")
