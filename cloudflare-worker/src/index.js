@@ -2662,26 +2662,46 @@ export default {
       if (url.pathname === "/admin/feedback" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
-        const rows = await firestoreQuery("aiFeedback", {
-          orderBy:{field:"createdAt",direction:"DESCENDING"},
-          limit:250
-        }).catch(() => []);
-        const items = rows.map(x => ({
-          id:String(x.id || String(x.__name || "").split("/").pop()).slice(0,120),
-          userId:String(x.uid || "").slice(0,128),
-          messageId:x.messageId == null ? null : String(x.messageId).slice(0,120),
-          category:String(x.category || "general").slice(0,40),
-          sentiment:x.sentiment == null ? null : String(x.sentiment).slice(0,20),
-          reason:x.reason == null ? null : String(x.reason).slice(0,80),
-          comment:x.comment == null ? null : String(x.comment).slice(0,1000),
-          messageHash:String(x.messageHash || "").slice(0,64),
-          createdAt:x.createdAt || null
-        }));
+        const [aiRows, contacts, leads, messageRatings] = await Promise.all([
+          firestoreQuery("aiFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
+          firestoreQuery("contactMessages", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
+          firestoreQuery("businessLeads", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
+          firestoreQuery("messageFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => [])
+        ]);
+        const idOf = x => String(x.id || String(x.__name || "").split("/").pop()).slice(0,120);
+        const items = [
+          ...aiRows.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:x.messageId == null ? null : String(x.messageId).slice(0,120),
+            category:String(x.category || "AI feedback").slice(0,80), sentiment:x.sentiment == null ? null : String(x.sentiment).slice(0,20),
+            reason:x.reason == null ? null : String(x.reason).slice(0,500), comment:x.comment == null ? null : String(x.comment).slice(0,1000),
+            messageHash:String(x.messageHash || "").slice(0,64), createdAt:x.createdAt || null, status:String(x.status || "new"),
+            email:String(x.email || "").slice(0,200), source:"ai-feedback"
+          })),
+          ...contacts.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:null, category:"Contact / complaint",
+            sentiment:null, reason:String(x.subject || "Contact message").slice(0,500), comment:String(x.message || "").slice(0,1000),
+            messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
+            email:String(x.email || "").slice(0,200), source:"contact"
+          })),
+          ...leads.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:null, category:"Contact sales",
+            sentiment:null, reason:String(x.company || x.planName || "Sales enquiry").slice(0,500), comment:String(x.message || "").slice(0,1000),
+            messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
+            email:String(x.email || "").slice(0,200), source:"sales"
+          })),
+          ...messageRatings.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:x.messageId == null ? null : String(x.messageId).slice(0,120),
+            category:"AI answer rating", sentiment:String(x.type || "").slice(0,20),
+            reason:String(x.reason || "").slice(0,500), comment:String(x.reason || "").slice(0,1000),
+            messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
+            email:"", source:"message-feedback"
+          }))
+        ].sort((a,b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || ""))).slice(0,500);
         return json({
           items,
-          helpfulCount:items.filter(x => x.sentiment === "helpful" || x.sentiment === "like").length,
-          notHelpfulCount:items.filter(x => x.sentiment === "not_helpful" || x.sentiment === "dislike").length,
-          complaintCount:items.filter(x => /complaint|report|safety|abuse/i.test(x.category) || Boolean(x.reason)).length,
+          helpfulCount:items.filter(x => ["helpful","like","positive"].includes(String(x.sentiment || "").toLowerCase())).length,
+          notHelpfulCount:items.filter(x => ["not_helpful","dislike","negative"].includes(String(x.sentiment || "").toLowerCase())).length,
+          complaintCount:items.filter(x => /complaint|contact|report|safety|abuse/i.test(x.category) || Boolean(x.reason)).length,
           checkedAt:new Date().toISOString()
         });
       }
