@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -79,7 +78,7 @@ internal fun AdminFileBoxRetentionPanel(onBack: () -> Unit) {
                 Text("Last configuration update: " + stats.optString("updatedAt", "not recorded"), style = MaterialTheme.typography.bodySmall)
             }
         }
-        if (busy) CircularProgressIndicator()
+        if (busy) BqSqwadLoadingIndicator(Modifier.fillMaxWidth().height(56.dp))
         notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to Admin") }
     }
