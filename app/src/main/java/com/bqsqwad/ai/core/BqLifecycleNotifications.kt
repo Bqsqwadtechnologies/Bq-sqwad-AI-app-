@@ -23,6 +23,12 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.core.content.ContextCompat
 import java.util.concurrent.TimeUnit
 import java.util.Calendar
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /** Privacy-safe local lifecycle notices. Notification content never includes account or project details. */
 object BqLifecycleNotifications {
@@ -356,6 +362,30 @@ object BqLifecycleNotifications {
     private fun notificationLogoResourceId(context: Context): Int =
         R.drawable.bq_notification_logo
 
+    private fun loadWebsiteNotificationLogo(): Bitmap? {
+        val connection = runCatching {
+            (URL("https://bqsqwadai.com/bq-notification-logo.png?bq-notification-logo-v5").openConnection() as HttpURLConnection)
+        }.getOrNull() ?: return null
+        return try {
+            connection.connectTimeout = 2500
+            connection.readTimeout = 3500
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("Accept", "image/png")
+            val bytes = connection.inputStream.use { it.readBytes() }
+            if (bytes.isEmpty() || bytes.size > 2_000_000) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     /** Convert the current uploaded logo into Android's required alpha-only small-icon mask. */
     private fun createMonochromeNotificationIcon(source: Bitmap): IconCompat {
         val size = 64
@@ -409,23 +439,30 @@ object BqLifecycleNotifications {
         val id = prefs.getInt(NEXT_ID, 4000)
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
         if (AppVisibility.isForeground) return
-        val logo = BitmapFactory.decodeResource(
-            context.resources,
-            notificationLogoResourceId(context),
-            BitmapFactory.Options().apply { inSampleSize = 2 }
-        )
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(logo?.let { createMonochromeNotificationIcon(it) }
-                ?: IconCompat.createWithResource(context, R.drawable.bq_notification_logo))
-            .setLargeIcon(BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
-            .setColor(android.graphics.Color.rgb(39, 112, 235))
-            .setContentTitle("BQ Sqwad AI")
-            .setContentText("$title · $body")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$title · $body"))
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
-        runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
+        // Resolve the uploaded logo off the main thread so scheduled reminders
+        // and replies use the same brand asset as push notifications.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val remote = loadWebsiteNotificationLogo()
+            val logo = remote ?: BitmapFactory.decodeResource(
+                context.resources,
+                notificationLogoResourceId(context),
+                BitmapFactory.Options().apply { inSampleSize = 2 }
+            )
+            val largeLogo = logo?.copy(Bitmap.Config.ARGB_8888, false)
+            val smallIcon = logo?.let { createMonochromeNotificationIcon(it) }
+                ?: IconCompat.createWithResource(context, R.drawable.bq_notification_logo)
+            val notification = NotificationCompat.Builder(context, channelId)
+                .setSmallIcon(smallIcon)
+                .setLargeIcon(largeLogo ?: BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
+                .setColor(android.graphics.Color.rgb(39, 112, 235))
+                .setContentTitle("BQ Sqwad AI")
+                .setContentText("$title · $body")
+                .setStyle(NotificationCompat.BigTextStyle().bigText("$title · $body"))
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+            runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
+        }
     }
 }
 
