@@ -348,10 +348,8 @@ object BqLifecycleNotifications {
         }
     }
 
-    // Upload the full notification logo to:
-    // app/src/main/res/drawable-nodpi/bq_notification_logo.png
-    // Resource lookup is optional until that image is uploaded; bundled logo is fallback.
-    // Use the uploaded full logo for the large icon. Android's small status-bar icon must be monochrome.
+    // The uploaded full-color BQ Sqwad AI logo is used in the notification shade.
+    // Android requires a separate monochrome mark for the status-bar small icon.
     private fun notificationLogoResourceId(context: Context): Int =
         R.drawable.bq_notification_logo
 
