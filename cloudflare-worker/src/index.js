@@ -2985,9 +2985,10 @@ export default {
       if (url.pathname === "/studio-payg" && request.method === "GET") {
         await verifyFirebaseUser(request);
         const orgId = String(url.searchParams.get("orgId") || "").trim();
-        if (!/^[A-Za-z0-9_-]{1,128}$/.test(orgId)) return json({ error: "A valid organization ID is required." }, 400);
+        if (orgId && !/^[A-Za-z0-9_-]{1,128}$/.test(orgId)) return json({ error: "A valid organization ID is required." }, 400);
         const authorization = request.headers.get("Authorization") || "";
-        const response = await fetch("https://bqsqwadai.com/api/native/studio-payg?orgId=" + encodeURIComponent(orgId), {
+        const canonicalUrl = "https://bqsqwadai.com/api/native/studio-payg" + (orgId ? "?orgId=" + encodeURIComponent(orgId) : "");
+        const response = await fetch(canonicalUrl, {
           headers: { Authorization: authorization, Accept: "application/json" },
           signal: AbortSignal.timeout(10000)
         });
