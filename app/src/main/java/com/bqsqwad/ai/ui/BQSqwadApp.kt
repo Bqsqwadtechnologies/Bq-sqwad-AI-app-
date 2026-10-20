@@ -1803,6 +1803,13 @@ private fun downloadGeneratedImageBase64(imageUrl: String): String {
  * HTTPS URL for history. The URL is never logged. A Storage denial does not discard
  * the in-memory image; the UI can still show it and explain that persistence failed.
  */
+@Composable
+internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Image(painter = painterResource(R.drawable.bq_sqwad_logo), contentDescription = "BQ Sqwad AI loading", modifier = Modifier.fillMaxSize())
+    }
+}
+
 private fun uploadGeneratedImage(imageBase64: String): String {
     val uid = FirebaseAuth.getInstance().currentUser?.uid ?: error("Sign in is required")
     val bytes = decodeImageBytes(imageBase64)
@@ -2692,7 +2699,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         appendChatMessage(ChatMessage(false, "", prompt = actualPrompt))
         busy = true
         error = null
-        statusText = "Connecting to BQ Sqwad AI…"
+        statusText = "Preparing your response…"
         val shouldSearchWeb = selectedAttachments.isEmpty() && needsCurrentWebSearch(text)
         val webSearchEnabled = accountPreferences(context)
             .getBoolean("web_search_enabled", true)
@@ -3685,7 +3692,7 @@ val composerShape = RoundedCornerShape(26.dp)
                             Column(Modifier.weight(1f)) { Text("BQ Sqwad AI", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("Generated image", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             IconButton(onClick = { showImageViewer = false }) { Icon(Icons.Default.Close, contentDescription = "Close full-screen image") }
                         }
-                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (fullImage != null) Image(bitmap = fullImage!!, contentDescription = "Generated image full screen", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) else CircularProgressIndicator() }
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (fullImage != null) Image(bitmap = fullImage!!, contentDescription = "Generated image full screen", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) else BqSqwadLoadingIndicator(Modifier.size(56.dp)) }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(modifier = Modifier.weight(1f), onClick = { runCatching { saveGeneratedImage(context, encodedImage) }.onSuccess { error = "Image saved to Pictures/BQ Sqwad AI." }.onFailure { error = safeUserFacingIssue(it, "Could not save image. Please try again.") } }) { Icon(Icons.Default.Download, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Save") }
                             Button(
@@ -4504,7 +4511,7 @@ private fun WorkspaceScreen(
                 allowed = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
             }
             when (allowed) {
-                null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { BqSqwadLoadingIndicator(Modifier.size(56.dp)) }
                 true -> Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
                     AdminControlCenter()
                 }
