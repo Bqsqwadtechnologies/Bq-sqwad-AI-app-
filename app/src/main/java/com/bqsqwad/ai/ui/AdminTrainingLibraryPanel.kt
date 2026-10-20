@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -72,7 +71,7 @@ fun AdminTrainingLibraryPanel(onBack: () -> Unit) {
                 }
             }
         }
-        if (loading) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() } }
+        if (loading) item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { BqSqwadLoadingIndicator(Modifier.size(48.dp)) } }
         error?.let { msg -> item { Text(msg, color = MaterialTheme.colorScheme.error) } }
         if (!loading && rows.isEmpty() && error == null) item {
             Text("No eligible training examples are available yet. The library fills only when users opt in and send eligible text-only chats.", color = MaterialTheme.colorScheme.onSurfaceVariant)
