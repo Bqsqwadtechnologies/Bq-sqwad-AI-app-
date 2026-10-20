@@ -2380,6 +2380,49 @@ export default {
         }
         throw lastConflict || new Error("file_box_text_save_conflict");
       }
+      if (url.pathname === "/file-box/metadata" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const id = String(body.id || "").trim();
+        const title = String(body.title || "").trim().slice(0, 180);
+        const requestedName = body.fileName == null ? null : String(body.fileName || "").trim().slice(0, 160);
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) return json({ error: "invalid_file_id" }, 400);
+        if (!title) return json({ error: "file_title_required" }, 400);
+        const safeName = requestedName == null ? null : (requestedName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "download");
+        let lastConflict = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const doc = await firestoreGet("fileBox/" + user.uid);
+          if (!doc) return json({ error: "stored_file_not_found" }, 404);
+          const items = Array.isArray(doc.items) ? doc.items : [];
+          const index = items.findIndex(entry => String(entry.id || "") === id);
+          if (index < 0) return json({ error: "stored_file_not_found" }, 404);
+          const old = items[index];
+          const updated = { ...old, title, updatedAt: new Date().toISOString() };
+          if (safeName !== null && old.objectPath) {
+            // The object key is immutable after upload; only its display name changes.
+            updated.fileName = safeName;
+          } else if (safeName !== null && !old.objectPath) {
+            updated.fileName = safeName;
+          }
+          const nextItems = items.map((entry, i) => i === index ? updated : entry);
+          const { __name: _docName, __updateTime: updateTime, ...docData } = doc;
+          try {
+            await firestoreCommit([{
+              path: "fileBox/" + user.uid,
+              data: { ...docData, uid: user.uid, items: nextItems, updatedAt: new Date() },
+              ...(updateTime ? { updateTime } : { exists: true })
+            }]);
+            return json({ ok: true, item: { ...updated, content: undefined } });
+          } catch (error) {
+            lastConflict = error;
+            const latest = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+            const latestItems = Array.isArray(latest?.items) ? latest.items : [];
+            if (!latestItems.some(entry => String(entry.id || "") === id)) return json({ error: "stored_file_not_found" }, 404);
+          }
+        }
+        throw lastConflict || new Error("file_box_metadata_conflict");
+      }
+
       if (url.pathname === "/file-box" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
         const id = String(url.searchParams.get("id") || "").trim();
