@@ -70,6 +70,8 @@ fun OrganizationStudioWorkspace() {
     var youtubeBroadcastId by remember { mutableStateOf("") }
     var billingWarning by remember { mutableStateOf<String?>(null) }
     var organizationBilling by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var canonicalStudioPayg by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    var canonicalStudioPaygError by remember { mutableStateOf<String?>(null) }
     var playBilling by remember { mutableStateOf<PlayBillingClient?>(null) }
     val billingActivity = context as? Activity
     var scheduledName by remember { mutableStateOf("") }
@@ -163,6 +165,19 @@ fun OrganizationStudioWorkspace() {
         runCatching { api.organizationBilling() }
             .onSuccess { organizationBilling = it }
             .onFailure { /* billing panel remains unavailable until backend responds */ }
+        runCatching {
+            val orgRecord = api.organization()
+            val orgId = orgRecord.optString("orgId")
+                .ifBlank { orgRecord.optString("id") }
+                .ifBlank { orgRecord.optString("uid") }
+            if (orgId.isBlank()) error("Organization ID is missing.")
+            api.studioPayg(orgId)
+        }.onSuccess {
+            canonicalStudioPayg = it
+            canonicalStudioPaygError = null
+        }.onFailure {
+            canonicalStudioPaygError = safeUserFacingIssue(it, "Canonical Studio wallet is not available for this organization yet.")
+        }
         refreshProduction()
         runCatching { api.organizationScheduledTasks() }
             .onSuccess { scheduledTasks = it.optJSONArray("tasks") ?: org.json.JSONArray() }
@@ -357,6 +372,44 @@ fun OrganizationStudioWorkspace() {
                         }
                     } else {
                         Text("Billing information is loading…")
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Website Studio PAYG wallet", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Read-only view of the website's canonical organization wallet. This is separate from the legacy Worker balance while reconciliation is pending.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    val canonical = canonicalStudioPayg
+                    val canonicalAccount = canonical?.optJSONObject("account")
+                    val canonicalSettings = canonical?.optJSONObject("settings")
+                    if (canonicalAccount != null) {
+                        val currency = canonicalSettings?.optString("currency").orEmpty().ifBlank { "configured currency" }
+                        Text("Canonical balance: " + "%.2f".format(java.util.Locale.US, canonicalAccount.optDouble("balance", 0.0)) + " " + currency,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("Source: " + canonical.optString("source", "studioPaygAccounts"), style = MaterialTheme.typography.bodySmall)
+                        val ledger = canonical.optJSONArray("ledger") ?: org.json.JSONArray()
+                        if (ledger.length() > 0) {
+                            Text("Recent wallet activity", fontWeight = FontWeight.SemiBold)
+                            for (i in 0 until minOf(3, ledger.length())) {
+                                val entry = ledger.optJSONObject(i) ?: continue
+                                Text(
+                                    entry.optString("kind", "transaction") + " · " +
+                                        "%.2f".format(java.util.Locale.US, entry.optDouble("amount", 0.0)) + " " + currency,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    } else if (canonicalStudioPaygError != null) {
+                        Text(canonicalStudioPaygError.orEmpty(), color = MaterialTheme.colorScheme.error)
+                    } else {
+                        Text("Loading canonical website wallet…")
                     }
                 }
             }
