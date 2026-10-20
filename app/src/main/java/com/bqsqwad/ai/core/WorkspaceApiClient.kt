@@ -510,6 +510,12 @@ class WorkspaceApiClient {
             put("features", JSONArray(features)); put("message", message)
         })
 
+    suspend fun submitSupportMessage(name:String, email:String, subject:String, message:String):JSONObject =
+        request("/contact", payload=JSONObject().apply {
+            put("name", name.take(160)); put("email", email.take(320))
+            put("subject", subject.take(180)); put("message", message.take(6000))
+        })
+
     suspend fun contactSalesStatus():JSONObject = request("/contact-sales/status","GET")
 
     suspend fun adminContactSales():JSONObject = request("/admin/contact-sales","GET")
