@@ -27,3 +27,11 @@ test("empty and missing lists are safe", () => {
   assert.deepEqual(retainFileBoxItems([]), []);
   assert.deepEqual(retainFileBoxItems(undefined), []);
 });
+
+test("retains newest records by timestamp even if stored order is stale", () => {
+  const rows = [
+    { id: "new", objectPath: "new", createdAt: "2026-10-20T00:00:00.000Z" },
+    { id: "old", objectPath: "old", createdAt: "2025-10-20T00:00:00.000Z" },
+  ];
+  assert.deepEqual(retainFileBoxItems(rows).map((item) => item.id), ["old", "new"]);
+});
