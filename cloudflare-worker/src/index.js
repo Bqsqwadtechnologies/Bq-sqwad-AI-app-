@@ -635,7 +635,7 @@ async function capability(uid, name) {
     modelId: value.modelId || d.modelId,
     creditCost: (name === "live_voice" || name === "live_camera")
       ? Math.max(0, Number(value.creditCost == null ? 0 : value.creditCost))
-      : Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" ? 2 : 1)) : value.creditCost)),
+      : Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" || name === "chat_background_upload" ? 2 : 1)) : value.creditCost)),
     config: {
       ...(value.config || {}),
       fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
