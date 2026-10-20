@@ -732,16 +732,9 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
-  // Apply shared admin markup to fixed-unit features. Token-billed calls are
-  // explicitly marked as already priced from actual provider usage.
-  if (charge > 0 && options.markupApplied !== true) {
-    const billingConfig = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
-      || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null) || {};
-    const markup = Math.max(0, Math.min(10, Number(billingConfig.pricingVersion >= 5 ? (billingConfig.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(billingConfig.profitMarkup)) || !Number.isFinite(Number(billingConfig.profitMarkup)) ? 6 : billingConfig.profitMarkup))));
-    charge *= 1 + markup;
-  }
-  // Chat is never free because an old capability record is missing a price.
-  if (String(capabilityName || "") === "chat" && charge < 1 && options.allowFractional !== true) charge = 1;
+  // Fixed feature prices are final customer prices. Markup belongs only in
+  // the canonical measured token/minute pricing engine, never in this ledger layer.
+  // Fractional and zero-credit configurations are valid; do not impose a floor.
   if (!charge) {
     const profile = await readCanonicalUserBalance(uid);
     if (!profile) throw new Error("Account not found.");
