@@ -712,7 +712,13 @@ async function applyConfiguredDailyFreeCredits(uid) {
     await firestoreCommit([
       { path: "users/" + uid, data: { ...grant, updatedAt: now }, updateTime: profile.__updateTime },
       { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, timeZone, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
-      { path: "creditLedger/daily_" + grantId, data: { uid, capability: "daily_free_credits", amount: credits, kind: "daily_free_grant", reason: "Admin-configured daily allowance", createdAt: now }, exists: false }
+      { path: "creditTransactions/daily_" + grantId, data: {
+        uid, type: "grant", feature: "daily_free_credits", credits,
+        balanceBefore: canonicalUserBalance(profile)?.total ?? 0,
+        balanceAfter: (canonicalUserBalance(profile)?.total ?? 0) + credits,
+        source: "android", platform: "android",
+        reason: "Admin-configured daily allowance", createdAt: now
+      }, exists: false }
     ]);
   } catch {
     // Concurrent requests can race for the same daily grant; only one may succeed.
