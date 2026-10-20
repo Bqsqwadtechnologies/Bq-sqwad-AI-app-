@@ -2252,19 +2252,36 @@ export default {
 
       if (url.pathname === "/file-box" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const doc = await firestoreGet("fileBox/" + user.uid) || {};
+        const doc = await firestoreGet("fileBox/" + user.uid);
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
         const now = Date.now();
-        const existingItems = Array.isArray(doc.items) ? doc.items : [];
+        const existingItems = Array.isArray(doc?.items) ? doc.items : [];
         const expiredItems = existingItems.filter(item => !Number.isFinite(Date.parse(String(item.expiresAt || ""))) || Date.parse(String(item.expiresAt || "")) <= now);
-        for (const expired of expiredItems) if (expired.objectPath) await deleteTrainingAssetObject(String(expired.objectPath)).catch(() => {});
-        const items = existingItems.filter(item => {
+        let items = existingItems.filter(item => {
           const expiry = Date.parse(String(item.expiresAt || ""));
           return Number.isFinite(expiry) && expiry > now;
         });
-        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
-        if (items.length !== (Array.isArray(doc.items) ? doc.items.length : 0)) await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items, retentionDays, updatedAt:new Date() }, true);
+        const retentionDays = [7,14,30,90].includes(Number(doc?.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
+        if (doc && items.length !== existingItems.length) {
+          try {
+            await firestoreCommit([{
+              path: "fileBox/" + user.uid,
+              data: { uid:user.uid, items, retentionDays, updatedAt:new Date() },
+              ...(doc.__updateTime ? { updateTime: doc.__updateTime } : { exists:true })
+            }]);
+            for (const expired of expiredItems) if (expired.objectPath) await deleteTrainingAssetObject(String(expired.objectPath)).catch(() => {});
+          } catch {
+            // A concurrent upload/delete won the race. Return the latest state
+            // rather than replacing it with this stale cleanup snapshot.
+            const latest = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+            const latestNow = Date.now();
+            items = (Array.isArray(latest?.items) ? latest.items : []).filter(item => {
+              const expiry = Date.parse(String(item.expiresAt || ""));
+              return Number.isFinite(expiry) && expiry > latestNow;
+            });
+          }
+        }
         return json({ items, retentionDays, count:items.length });
       }
       if (url.pathname === "/file-box/settings" && request.method === "POST") {
