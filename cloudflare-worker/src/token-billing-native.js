@@ -144,8 +144,27 @@ let canonicalUsageBillingCacheUntil = 0;
 async function loadCanonicalUsageBilling() {
   if (canonicalUsageBillingCache && Date.now() < canonicalUsageBillingCacheUntil) return canonicalUsageBillingCache;
   const document = await firestoreGet("config/usageBilling");
+  if (!document) {
+    // Safe, user-approved defaults apply only when the canonical document is
+    // genuinely absent. Existing admin values remain authoritative.
+    const fallback = { markupPercent: 85, feePercent: 15, usdPerCredit: 0.07999 };
+    const day = new Date().toISOString().slice(0, 10);
+    await firestoreCreate("adminIssues/missing_usage_billing_" + day, {
+      id: "missing_usage_billing_" + day,
+      category: "billing_configuration",
+      severity: "warning",
+      status: "open",
+      source: "token-billing-native",
+      message: "config/usageBilling is missing. Temporary defaults are active: 85% markup, 15% fee allowance, and $0.07999 per credit. Configure canonical billing in the website admin.",
+      createdAt: new Date().toISOString()
+    }).catch(() => {});
+    console.warn("[BQ Billing] config/usageBilling missing; using temporary documented defaults.");
+    canonicalUsageBillingCache = fallback;
+    canonicalUsageBillingCacheUntil = Date.now() + 60000;
+    return canonicalUsageBillingCache;
+  }
   let policy = document;
-  if (typeof document?.json === "string") {
+  if (typeof document.json === "string") {
     try { policy = JSON.parse(document.json); } catch { policy = null; }
   }
   const markupPercent = Number(policy?.markupPercent);
