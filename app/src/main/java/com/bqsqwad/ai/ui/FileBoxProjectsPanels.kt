@@ -156,8 +156,6 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                     }, label = { Text("$days d") })
                 }
             }
-            OutlinedTextField(value = title, onValueChange = { title = it.take(180) }, modifier = Modifier.fillMaxWidth(), label = { Text("Document name") }, singleLine = true)
-            OutlinedTextField(value = content, onValueChange = { content = it.take(25000) }, modifier = Modifier.fillMaxWidth(), label = { Text("Text content") }, minLines = 3)
             OutlinedButton(
                 enabled = true,
                 onClick = { notice = "Direct File Box uploads are temporarily unavailable. Attach a file in chat to save it here for reuse." },
@@ -168,11 +166,6 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall
             )
-            OutlinedButton(
-                enabled = true,
-                onClick = { notice = "Direct File Box saving is temporarily unavailable. Attach content in chat to save it to your account File Box." },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Direct saving unavailable") }
             notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
             if (busy) BqSqwadLoadingIndicator(Modifier.size(42.dp))
             Text("Stored files & pictures", style = MaterialTheme.typography.titleMedium)
