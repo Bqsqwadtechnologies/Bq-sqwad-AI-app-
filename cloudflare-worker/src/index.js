@@ -2191,7 +2191,7 @@ export default {
           if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
           const now = new Date();
           const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
-          const expired = currentItems.filter(entry => Date.parse(String(entry.expiresAt || "")) <= now.getTime());
+          const expired = currentItems.filter(entry => { const expiry = Date.parse(String(entry.expiresAt || "")); return !Number.isFinite(expiry) || expiry <= now.getTime(); });
           const active = currentItems.filter(entry => Date.parse(String(entry.expiresAt || "")) > now.getTime());
           const item = {
             id: pending.id, uid: user.uid, title: String(pending.title || pending.fileName || "Uploaded file"),
@@ -2345,7 +2345,7 @@ export default {
           const duplicate = existingItems.find(entry => String(entry.id || "") === id);
           if (duplicate) return json({ ok:true, item:{ ...duplicate, content:undefined }, count:existingItems.length, alreadySaved:true });
           const retentionDays = [7,14,30,90].includes(Number(doc?.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
-          const expired = existingItems.filter(entry => Date.parse(String(entry.expiresAt || "")) <= createdAt.getTime());
+          const expired = existingItems.filter(entry => { const expiry = Date.parse(String(entry.expiresAt || "")); return !Number.isFinite(expiry) || expiry <= createdAt.getTime(); });
           const active = existingItems.filter(entry => Date.parse(String(entry.expiresAt || "")) > createdAt.getTime());
           const item = { id, uid:user.uid, title, mimeType, content, createdAt:createdAt.toISOString(), expiresAt:new Date(createdAt.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
           const retainedItems = retainFileBoxItems([...active, item]);
