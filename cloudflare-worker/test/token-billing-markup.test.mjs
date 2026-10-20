@@ -55,3 +55,19 @@ test("missing provider token rates fail closed instead of using a generic fallba
     error => error?.message === "token_pricing_not_configured"
   );
 });
+
+test("explicit zero token rates are valid and produce zero provider cost", () => {
+  const result = calculateTokenCost({
+    usage: { inputTokens: 1200, outputTokens: 800, cachedInputTokens: 300 },
+    pricing: {
+      inputPriceUsdPerMillion: 0,
+      outputPriceUsdPerMillion: 0,
+      cachedInputPriceUsdPerMillion: 0,
+      profitMarkupPercent: 600
+    },
+    creditReferenceValueUsd: CREDIT_VALUE_USD,
+    multiplier: 7
+  });
+  assert.equal(result.providerCostUsd, 0);
+  assert.equal(result.customerCredits, 0);
+});
