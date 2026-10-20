@@ -33,6 +33,16 @@ async function requestKeyHash(value) {
   return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
 }
 
+function retainFileBoxItems(items) {
+  const rows = Array.isArray(items) ? items : [];
+  // Binary uploads store only small metadata in this document; text snippets
+  // carry their content inline, so keep the newest 20 inline text items while
+  // preserving up to 200 uploaded-file records across app reinstalls/devices.
+  const binary = rows.filter(item => Boolean(item?.objectPath)).slice(-200);
+  const textItems = rows.filter(item => !item?.objectPath).slice(-20);
+  return [...binary, ...textItems].sort((a, b) => Date.parse(String(a.createdAt || "")) - Date.parse(String(b.createdAt || "")));
+}
+
 function enforceRateLimit(uid, limitOverride = null) {
   const limit = Math.max(1, Number(limitOverride || globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60));
   const now = Date.now();
@@ -2188,7 +2198,8 @@ export default {
         // preconditions prevent two concurrent finalize calls from inserting
         // duplicate items or overwriting a newer File Box update.
         const { __name: _uploadName, __updateTime: uploadUpdateTime, ...uploadData } = pending;
-        const fileBoxData = { uid: user.uid, items: items.slice(-20), retentionDays, updatedAt: now };
+        const retainedItems = retainFileBoxItems(items);
+        const fileBoxData = { uid: user.uid, items: retainedItems, retentionDays, updatedAt: now };
         const writes = [{
           path: "fileBox/" + user.uid,
           data: fileBoxData,
@@ -2239,7 +2250,7 @@ export default {
         const items = existingItems.filter(item => {
           const expiry = Date.parse(String(item.expiresAt || ""));
           return Number.isFinite(expiry) && expiry > now;
-        }).slice(-100);
+        });
         const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
         if (items.length !== (Array.isArray(doc.items) ? doc.items.length : 0)) await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items, retentionDays, updatedAt:new Date() }, true);
         return json({ items, retentionDays, count:items.length });
@@ -2273,8 +2284,9 @@ export default {
         const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
         const item = { id:crypto.randomUUID(), uid:user.uid, title, mimeType, content, createdAt:now.toISOString(), expiresAt:new Date(now.getTime()+retentionDays*86400000).toISOString(), retentionDays, size:content.length };
         items.push(item);
-        await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items:items.slice(-20), retentionDays, updatedAt:now }, true);
-        return json({ ok:true, item:{ ...item, content:undefined }, count:Math.min(items.length,20) });
+        const retainedItems = retainFileBoxItems(items);
+        await firestoreSet("fileBox/" + user.uid, { uid:user.uid, items:retainedItems, retentionDays, updatedAt:now }, true);
+        return json({ ok:true, item:{ ...item, content:undefined }, count:retainedItems.length });
       }
       if (url.pathname === "/file-box" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
