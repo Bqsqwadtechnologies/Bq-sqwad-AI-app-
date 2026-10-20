@@ -675,18 +675,19 @@ async function memoryContext(uid) {
   const enabled = typeof profile?.memoryEnabled === "boolean"
     ? profile.memoryEnabled
     : legacy?.enabled !== false;
-  if (!enabled) return "";
-  const saved = await firestoreQuery("aiMemories", {
+  const personal = profile?.personalInformation && typeof profile.personalInformation === "object" &&
+    !Array.isArray(profile.personalInformation) ? profile.personalInformation : {};
+  const hasPersonalProfile = Object.values(personal).some(value => String(value || "").trim().length > 0);
+  if (!enabled && !hasPersonalProfile) return "";
+  const saved = enabled ? await firestoreQuery("aiMemories", {
     filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
     limit: 100
-  }).catch(() => []);
+  }).catch(() => []) : [];
   const sharedFacts = saved.map(item => {
     const key = String(item.key || "").trim();
     const value = String(item.value || "").trim();
     return key && value ? (key.toLowerCase() === value.toLowerCase() ? value : key + ": " + value) : "";
   }).filter(Boolean);
-  const personal = profile?.personalInformation && typeof profile.personalInformation === "object" &&
-    !Array.isArray(profile.personalInformation) ? profile.personalInformation : {};
   const personalFacts = [
     ["About the user", personal.aboutMe],
     ["Interests", personal.interests],
@@ -698,8 +699,8 @@ async function memoryContext(uid) {
     const value = String(raw || "").trim().slice(0, 2000);
     return value ? label + ": " + value : "";
   }).filter(Boolean);
-  const legacyFacts = (Array.isArray(legacy?.items) ? legacy.items : [])
-    .map(item => String(item?.text || "").trim()).filter(Boolean);
+  const legacyFacts = enabled ? (Array.isArray(legacy?.items) ? legacy.items : [])
+    .map(item => String(item?.text || "").trim()).filter(Boolean) : [];
   return [...new Set([...personalFacts, ...sharedFacts, ...legacyFacts])].slice(-120).join("\n");
 }
 function canonicalUserBalance(profile) {
