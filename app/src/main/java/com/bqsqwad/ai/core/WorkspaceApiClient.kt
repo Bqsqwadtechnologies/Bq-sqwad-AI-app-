@@ -884,6 +884,12 @@ class WorkspaceApiClient {
     suspend fun adminTrainingLibrary():JSONObject = request("/admin/training-library", "GET")
 
     suspend fun adminFeedback():JSONObject = request("/admin/feedback", "GET")
+    suspend fun adminFeedbackStatus(id: String, source: String, status: String): JSONObject =
+        request("/admin/feedback/status", payload=JSONObject()
+            .put("id", id.take(180))
+            .put("source", source.take(40))
+            .put("status", status.take(24)))
+
 
     suspend fun truthGuardHistory(): List<JSONObject> {
         val body = request("/truthguard/history", "GET")
