@@ -2566,7 +2566,7 @@ export default {
           .replace(/\b\+?\d[\d\s().-]{7,}\d\b/g, "[phone redacted]")
           .replace(/\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+\S+)\b/gi, "[credential redacted]");
         await firestoreCreate("aiFeedback/" + crypto.randomUUID(), {
-          uid:user.uid, messageId:body.messageId == null ? null : String(body.messageId).slice(0,120),
+          uid:user.uid, email:String(user.email || "").slice(0,200), messageId:body.messageId == null ? null : String(body.messageId).slice(0,120),
           category:String(body.category || "general").slice(0,40),
           sentiment:body.sentiment == null ? null : String(body.sentiment).slice(0,20),
           reason:body.reason == null ? null : String(body.reason).slice(0,80),
@@ -2720,7 +2720,7 @@ export default {
             category:"AI answer rating", sentiment:String(x.type || "").slice(0,20),
             reason:String(x.reason || "").slice(0,500), comment:String(x.reason || "").slice(0,1000),
             messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
-            email:"", source:"message-feedback"
+            email:String(x.email || "").slice(0,200), source:"message-feedback"
           })),
           ...enterpriseLeads.map(x => ({
             id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:null,
