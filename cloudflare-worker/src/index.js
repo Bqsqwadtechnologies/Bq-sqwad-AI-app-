@@ -2239,14 +2239,25 @@ export default {
         const id = String(url.searchParams.get("id") || "").trim();
         const doc = await firestoreGet("fileBox/" + user.uid) || {};
         const item = (Array.isArray(doc.items) ? doc.items : []).find(entry => String(entry.id || "") === id);
-        if (!item || !item.objectPath) return json({ error: "stored_file_not_found" }, 404);
+        if (!item) return json({ error: "stored_file_not_found" }, 404);
         if (Date.parse(String(item.expiresAt || "")) <= Date.now()) return json({ error: "stored_file_expired" }, 410);
-        const stored = await downloadTrainingAssetObject(String(item.objectPath));
-        const safeName = String(item.fileName || item.title || "download").replace(/[\r\n"]/g, "_").slice(0, 160);
-        return new Response(stored.response.body, { status: 200, headers: {
-          ...corsHeaders(request), "content-type": stored.contentType,
+        const safeName = String(item.fileName || item.title || "download").replace(/[\\r\\n"]/g, "_").slice(0, 160);
+        if (item.objectPath) {
+          const stored = await downloadTrainingAssetObject(String(item.objectPath));
+          return new Response(stored.response.body, { status: 200, headers: {
+            ...corsHeaders(request), "content-type": stored.contentType,
+            "content-disposition": "attachment; filename=\"" + safeName + "\"",
+            "content-length": String(stored.size), "cache-control": "private, no-store"
+          }});
+        }
+        // Inline text records are returned only on an authenticated per-file
+        // download; list responses omit their bodies for fast, private refreshes.
+        if (typeof item.content !== "string") return json({ error: "stored_file_content_missing" }, 404);
+        const bytes = new TextEncoder().encode(item.content);
+        return new Response(bytes, { status: 200, headers: {
+          ...corsHeaders(request), "content-type": String(item.mimeType || "text/plain; charset=utf-8"),
           "content-disposition": "attachment; filename=\"" + safeName + "\"",
-          "content-length": String(stored.size), "cache-control": "private, no-store"
+          "content-length": String(bytes.byteLength), "cache-control": "private, no-store"
         }});
       }
 
