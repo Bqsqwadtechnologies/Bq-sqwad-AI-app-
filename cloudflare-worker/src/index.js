@@ -822,6 +822,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
             uid,
             capability: capabilityName,
             amount: charge,
+            balanceBefore: balance.total,
             fromDaily,
             dailyFreeCreditsDate: balance.dailyDate,
             dailyFreeCreditsTimeZone: balance.dailyFreeCreditsTimeZone,
