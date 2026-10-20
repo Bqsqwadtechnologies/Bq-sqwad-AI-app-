@@ -2184,8 +2184,31 @@ export default {
           createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + retentionDays * 86400000).toISOString(), retentionDays
         };
         items.push(item);
-        await firestoreSet("fileBox/" + user.uid, { uid: user.uid, items: items.slice(-20), retentionDays, updatedAt: now }, true);
-        await firestoreSet("fileBoxUploads/" + id, { uploadPending: false, finalizedAt: now.toISOString() }, true);
+        // Atomically add the file and finalize its upload receipt. Update-time
+        // preconditions prevent two concurrent finalize calls from inserting
+        // duplicate items or overwriting a newer File Box update.
+        const { __name: _uploadName, __updateTime: uploadUpdateTime, ...uploadData } = pending;
+        const fileBoxData = { uid: user.uid, items: items.slice(-20), retentionDays, updatedAt: now };
+        const writes = [{
+          path: "fileBox/" + user.uid,
+          data: fileBoxData,
+          ...(doc?.__updateTime ? { updateTime: doc.__updateTime } : { exists: false })
+        }, {
+          path: "fileBoxUploads/" + id,
+          data: { ...uploadData, uploadPending: false, finalizedAt: now.toISOString() },
+          ...(uploadUpdateTime ? { updateTime: uploadUpdateTime } : {})
+        }];
+        try {
+          await firestoreCommit(writes);
+        } catch (error) {
+          const currentUpload = await firestoreGet("fileBoxUploads/" + id).catch(() => null);
+          if (currentUpload?.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
+          const currentFileBox = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+          if (Array.isArray(currentFileBox?.items) && currentFileBox.items.some(entry => String(entry.id || "") === id)) {
+            return json({ error: "file_upload_already_finalized" }, 409);
+          }
+          throw error;
+        }
         return json({ ok: true, item: { ...item, content: undefined }, count: Math.min(items.length, 20) });
       }
       if (url.pathname === "/file-box/download" && request.method === "GET") {
