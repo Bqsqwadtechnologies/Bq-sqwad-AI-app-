@@ -2536,6 +2536,24 @@ export default {
         await firestoreSet("userFeatureSettings/" + user.uid, { uid:user.uid, settings:next, updatedAt:new Date() }, true);
         return json({ uid:user.uid, settings:next });
       }
+      if (url.pathname === "/contact" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const subject = String(body.subject || "").trim().slice(0, 180);
+        const message = String(body.message || "").trim().slice(0, 6000);
+        const name = String(body.name || "").trim().slice(0, 160);
+        const email = String(body.email || user.email || "").trim().slice(0, 320);
+        if (!subject || !message) return json({ error: "subject_and_message_required" }, 400);
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "valid_reply_email_required" }, 400);
+        const id = crypto.randomUUID();
+        const now = new Date();
+        await firestoreCreate("contactMessages/" + id, {
+          uid: user.uid, name, email, subject, message, source: "android",
+          category: "support", status: "new", createdAt: now, updatedAt: now
+        });
+        return json({ ok: true, id, status: "new" });
+      }
+
       if (url.pathname === "/feedback" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
