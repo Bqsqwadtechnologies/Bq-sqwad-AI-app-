@@ -1374,6 +1374,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         openSettings = { settings = true },
                         openPlans = { plansInitialSection = "all"; plans = true },
                         openCredits = { plansInitialSection = "credits"; plans = true },
+                        openFileBox = { fileBoxOpen = true },
                         openHistory = { history = true },
                         openPlugins = { featureHub = true },
                         onLearnMore = { featureInfo = Workspace.CHAT },
@@ -2033,7 +2034,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean, incomingFileBoxAttachment: PreparedChatAttachment?, onIncomingFileBoxAttachmentConsumed: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openFileBox: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean, incomingFileBoxAttachment: PreparedChatAttachment?, onIncomingFileBoxAttachmentConsumed: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -2186,6 +2187,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    var showAttachmentSourceDialog by remember { mutableStateOf(false) }
     LaunchedEffect(incomingFileBoxAttachment) {
         incomingFileBoxAttachment?.let { stored ->
             attachments = attachments + stored
@@ -2925,12 +2927,65 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         // to parse successfully; keep the previous selection unchanged.
                         error = "Some selected files could not be prepared. Check the files and try again. No file details are shown for your privacy."
                     } else {
-                        attachments = prepared
-                        error = null
+                        // Save device-selected chat attachments to the account File Box.
+                        // Chat can still proceed if storage is temporarily unavailable,
+                        // but the user is told explicitly rather than silently losing the save.
+                        scope.launch(Dispatchers.IO) {
+                            var saveFailures = 0
+                            val fileBoxApi = WorkspaceApiClient()
+                            for (attachment in prepared) {
+                                runCatching {
+                                    val encoded = attachment.imageBase64 ?: attachment.fileBase64
+                                    if (!encoded.isNullOrBlank()) {
+                                        val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                                        fileBoxApi.uploadFileBoxAsset(
+                                            attachment.name.take(180),
+                                            attachment.name.take(160),
+                                            attachment.mimeType,
+                                            bytes
+                                        )
+                                    } else if (!attachment.text.isNullOrBlank()) {
+                                        fileBoxApi.saveFileBoxItem(
+                                            attachment.name.take(180),
+                                            attachment.text.take(25000),
+                                            attachment.mimeType.ifBlank { "text/plain" }
+                                        )
+                                    }
+                                }.onFailure { saveFailures++ }
+                            }
+                            scope.launch(Dispatchers.Main) {
+                                attachments = prepared
+                                error = if (saveFailures > 0) {
+                                    "Your files are attached to this message, but $saveFailures item(s) could not be saved to File Box. You can retry after checking your connection."
+                                } else null
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+    if (showAttachmentSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAttachmentSourceDialog = false },
+            title = { Text("Add an attachment") },
+            text = { Text("Choose an existing file from your File Box or select a new file from your device. New device attachments are saved to your account File Box when possible.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAttachmentSourceDialog = false
+                    picker.launch(arrayOf("*/*"))
+                }) { Text("From device") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showAttachmentSourceDialog = false
+                        openFileBox()
+                    }) { Text("From File Box") }
+                    TextButton(onClick = { showAttachmentSourceDialog = false }) { Text("Cancel") }
+                }
+            }
+        )
     }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
@@ -3659,7 +3714,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { if (creditBalanceLoaded && !creditsExhausted) picker.launch(arrayOf("*/*")) }, enabled = creditBalanceLoaded && !creditsExhausted) {
+                            IconButton(onClick = { if (creditBalanceLoaded && !creditsExhausted) showAttachmentSourceDialog = true }, enabled = creditBalanceLoaded && !creditsExhausted) {
                                 Icon(
                                     Icons.Default.AttachFile,
                                     contentDescription = "Upload attachment",
