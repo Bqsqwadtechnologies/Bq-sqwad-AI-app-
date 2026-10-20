@@ -6408,8 +6408,10 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             }.onFailure {
                 settingsNotice = "Saved on this device, but could not sync to your account yet."
             }
-            runCatching { SettingsSyncClient.save(JSONObject().put(key, value)) }
-                .onFailure { settingsNotice = "Saved locally; website settings sync will retry when available." }
+            if (key != "memory_enabled") {
+                runCatching { SettingsSyncClient.save(JSONObject().put(key, value)) }
+                    .onFailure { settingsNotice = "Saved locally; website settings sync will retry when available." }
+            }
         }
     }
     fun saveTheme(value: String) {
@@ -6468,7 +6470,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
         }
         runCatching { SettingsSyncClient.load() }.onSuccess { body ->
             val remote = body.optJSONObject("settings") ?: return@onSuccess
-            val boolKeys = listOf("training_consent", "chat_history", "auto_save", "memory_enabled", "web_search_enabled", "voice_replies", "camera_enhance", "companion_memory", "truthguard_sources", "notifications_enabled")
+            val boolKeys = listOf("chat_history", "auto_save", "web_search_enabled", "voice_replies", "camera_enhance", "companion_memory", "truthguard_sources", "notifications_enabled")
             boolKeys.forEach { key ->
                 if (remote.has(key) && remote.opt(key) is Boolean) prefs.edit().putBoolean(key, remote.optBoolean(key)).apply()
             }
@@ -7027,7 +7029,6 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                                 .onSuccess {
                                     trainingConsent = enabled
                                     prefs.edit().putBoolean("training_consent", enabled).apply()
-                                    runCatching { SettingsSyncClient.save(JSONObject().put("training_consent", enabled)) }
                                     consentStatus = if (enabled) "AI training participation enabled." else "AI training participation disabled; stored contributions were requested for deletion."
                                 }
                                 .onFailure { consentStatus = "Could not update your choice. Your previous server setting remains in effect." }
