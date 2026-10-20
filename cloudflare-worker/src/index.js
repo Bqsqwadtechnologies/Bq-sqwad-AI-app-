@@ -685,9 +685,22 @@ async function memoryContext(uid) {
     const value = String(item.value || "").trim();
     return key && value ? (key.toLowerCase() === value.toLowerCase() ? value : key + ": " + value) : "";
   }).filter(Boolean);
+  const personal = profile?.personalInformation && typeof profile.personalInformation === "object" &&
+    !Array.isArray(profile.personalInformation) ? profile.personalInformation : {};
+  const personalFacts = [
+    ["About the user", personal.aboutMe],
+    ["Interests", personal.interests],
+    ["Goals", personal.goals],
+    ["Response preferences", personal.preferences],
+    ["User-provided instructions", personal.instructions],
+    ["Preferred response style", personal.responseStyle]
+  ].map(([label, raw]) => {
+    const value = String(raw || "").trim().slice(0, 2000);
+    return value ? label + ": " + value : "";
+  }).filter(Boolean);
   const legacyFacts = (Array.isArray(legacy?.items) ? legacy.items : [])
     .map(item => String(item?.text || "").trim()).filter(Boolean);
-  return [...new Set([...sharedFacts, ...legacyFacts])].slice(-120).join("\n");
+  return [...new Set([...personalFacts, ...sharedFacts, ...legacyFacts])].slice(-120).join("\n");
 }
 function canonicalUserBalance(profile) {
   if (!profile) return null;
