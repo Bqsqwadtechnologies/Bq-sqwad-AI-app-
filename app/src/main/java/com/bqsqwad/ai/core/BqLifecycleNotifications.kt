@@ -351,9 +351,10 @@ object BqLifecycleNotifications {
     // Upload the full notification logo to:
     // app/src/main/res/drawable-nodpi/bq_notification_logo.png
     // Resource lookup is optional until that image is uploaded; bundled logo is fallback.
+    // Use the dedicated, user-supplied notification brand asset directly.
+    // Do not fall back to the older in-app/BX logo.
     private fun notificationLogoResourceId(context: Context): Int =
-        context.resources.getIdentifier("bq_notification_logo", "drawable", context.packageName)
-            .takeIf { it != 0 } ?: R.drawable.bq_sqwad_logo
+        R.drawable.bq_notification_logo
 
     private fun post(context: Context, title: String, body: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
