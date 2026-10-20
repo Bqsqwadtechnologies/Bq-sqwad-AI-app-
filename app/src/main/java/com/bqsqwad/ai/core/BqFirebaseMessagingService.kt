@@ -106,7 +106,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     private fun loadUploadedNotificationLogo(): Bitmap? {
         cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let { return it }
         val connection = runCatching {
-            (URL("https://raw.githubusercontent.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/main/app/src/main/res/drawable-nodpi/bq_notification_logo.png?bq-notification-logo-v6").openConnection() as HttpURLConnection)
+            (URL("https://bqsqwadai.com/bq-notification-logo.png?bq-notification-logo-v5").openConnection() as HttpURLConnection)
         }.getOrNull() ?: return null
         return try {
             connection.connectTimeout = 2500
