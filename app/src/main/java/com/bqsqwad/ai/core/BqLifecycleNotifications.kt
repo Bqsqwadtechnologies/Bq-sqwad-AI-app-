@@ -364,7 +364,7 @@ object BqLifecycleNotifications {
         R.drawable.bq_notification_logo
 
     private fun resolveUploadedNotificationLogoUrl(): String {
-        val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v6"
+        val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v7"
         val connection = runCatching {
             (URL("https://bqsqwadai.com/api/public/app-config?notificationLogo=1").openConnection() as HttpURLConnection)
         }.getOrNull() ?: return fallback
