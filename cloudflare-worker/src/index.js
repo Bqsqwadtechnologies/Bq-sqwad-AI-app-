@@ -2312,14 +2312,34 @@ export default {
       if (url.pathname === "/file-box" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
         const id = String(url.searchParams.get("id") || "").trim();
-        if (!id) return json({ error:"file_id_required" }, 400);
-        const doc = await firestoreGet("fileBox/" + user.uid) || {};
-        const existingItems = Array.isArray(doc.items) ? doc.items : [];
-        const removed = existingItems.find(item => String(item.id || "") === id);
-        if (removed?.objectPath) await deleteTrainingAssetObject(String(removed.objectPath));
-        const items = existingItems.filter(item => item.id !== id);
-        await firestoreSet("fileBox/" + user.uid, { ...doc, uid:user.uid, items, updatedAt:new Date() }, true);
-        return json({ ok:true, count:items.length });
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(id)) return json({ error:"invalid_file_id" }, 400);
+        let lastConflict = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const doc = await firestoreGet("fileBox/" + user.uid);
+          if (!doc) return json({ error:"stored_file_not_found" }, 404);
+          const existingItems = Array.isArray(doc.items) ? doc.items : [];
+          const removed = existingItems.find(item => String(item.id || "") === id);
+          if (!removed) return json({ ok:true, count:existingItems.length, alreadyDeleted:true });
+          const items = existingItems.filter(item => String(item.id || "") !== id);
+          const { __name: _docName, __updateTime: updateTime, ...docData } = doc;
+          try {
+            await firestoreCommit([{
+              path: "fileBox/" + user.uid,
+              data: { ...docData, uid:user.uid, items, updatedAt:new Date() },
+              ...(updateTime ? { updateTime } : { exists:true })
+            }]);
+            if (removed.objectPath) await deleteTrainingAssetObject(String(removed.objectPath)).catch(() => {});
+            return json({ ok:true, count:items.length });
+          } catch (error) {
+            lastConflict = error;
+            const current = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+            const currentItems = Array.isArray(current?.items) ? current.items : [];
+            if (!currentItems.some(item => String(item.id || "") === id)) {
+              return json({ ok:true, count:currentItems.length, alreadyDeleted:true });
+            }
+          }
+        }
+        throw lastConflict || new Error("file_box_delete_conflict");
       }
       if (url.pathname === "/projects" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
