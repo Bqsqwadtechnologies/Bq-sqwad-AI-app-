@@ -394,7 +394,7 @@ object BqLifecycleNotifications {
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("Accept", "image/png,image/*")
             val bytes = connection.inputStream.use { it.readBytes() }
-            if (bytes.isEmpty() || bytes.size > 2_000_000) return null
+            if (bytes.isEmpty() || bytes.size > 5_000_000) return null
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
