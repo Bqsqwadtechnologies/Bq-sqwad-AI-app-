@@ -300,6 +300,9 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
   }
   const createdAt = new Date();
   const actualChargedCredits = Math.max(0, Number(chargedCredits || 0));
+  const reservation = requestKey ? await firestoreGet("creditReservations/" + requestKey).catch(() => null) : null;
+  const creditsBefore = Math.max(0, Number(reservation?.balanceBefore || 0));
+  const creditsAfter = reservation ? Math.max(0, creditsBefore - actualChargedCredits) : 0;
   const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
   const grossUsageValueUsd = actualChargedCredits * creditValue;
   const estimatedFeePercent = Math.min(100, Math.max(0, Number(calculation?.estimatedFeePercent ?? pricing?.estimatedFeePercent ?? 15)));
@@ -311,9 +314,21 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     feature: String(feature || ""),
     providerId: String(providerId || ""),
     modelId: String(modelId || ""),
+    provider: String(providerId || ""),
+    model: String(modelId || ""),
     modality,
     unitCount: Math.max(0, Number(unitCount || 0)),
     requestId: String(requestId || recordId),
+    reservationId: reservation ? requestKey : "",
+    source: "android",
+    estimatedApiCostUsd: Number(calculation?.providerCostUsd || 0),
+    creditsCharged: actualChargedCredits,
+    creditsBefore,
+    creditsAfter,
+    freeRequest: actualChargedCredits === 0,
+    adminBypass: false,
+    status: "completed",
+    totalTokens: Number(usage?.inputTokens || 0) + Number(usage?.outputTokens || 0),
     inputTokens: Number(usage?.inputTokens || 0),
     outputTokens: Number(usage?.outputTokens || 0),
     cachedInputTokens: Number(usage?.cachedInputTokens || 0),
@@ -332,7 +347,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     costStatus: modality === "text" ? "estimated_from_provider_usage_and_configured_rates" : "estimated_from_configured_provider_unit_rate",
     createdAt
   };
-  const path = "aiUsageLedger/" + recordId;
+  const path = "providerUsage/" + recordId;
   try {
     await firestoreCreate(path, entry);
   } catch (error) {
@@ -356,8 +371,21 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
 
 export async function getTokenUsageReport({ limit = 100 } = {}) {
   const requestedLimit = Math.min(500, Math.max(1, Number(limit) || 100));
-  const rows = await firestoreQuery("aiUsageLedger", { limit: 500 });
-  rows.sort((a, b) => {
+  const [canonicalRows, legacyRows] = await Promise.all([
+    firestoreQuery("providerUsage", { limit: 500 }),
+    firestoreQuery("aiUsageLedger", { limit: 500 }).catch(() => [])
+  ]);
+  // Canonical website rows win on duplicate request IDs; legacy rows remain
+  // readable during the non-destructive migration window.
+  const byRequest = new Map();
+  const keyOf = row => {
+    const uid = String(row.uid || "");
+    const requestId = String(row.requestId || "");
+    return requestId ? uid + ":" + requestId : uid + ":doc:" + String(row.id || row.__name || "");
+  };
+  for (const row of canonicalRows) byRequest.set(keyOf(row), row);
+  for (const row of legacyRows) if (!byRequest.has(keyOf(row))) byRequest.set(keyOf(row), row);
+  const rows = [...byRequest.values()].sort((a, b) => {
     const aTime = Date.parse(a.createdAt?.toDate?.() || a.createdAt || 0) || 0;
     const bTime = Date.parse(b.createdAt?.toDate?.() || b.createdAt || 0) || 0;
     return bTime - aTime;
@@ -367,19 +395,19 @@ export async function getTokenUsageReport({ limit = 100 } = {}) {
     uid: String(row.uid || ""),
     feature: String(row.feature || ""),
     modality: String(row.modality || "text"),
-    providerId: String(row.providerId || ""),
-    modelId: String(row.modelId || ""),
+    providerId: String(row.providerId || row.provider || ""),
+    modelId: String(row.modelId || row.model || ""),
     inputTokens: Number(row.inputTokens || 0),
     outputTokens: Number(row.outputTokens || 0),
     cachedInputTokens: Number(row.cachedInputTokens || 0),
     unitCount: Number(row.unitCount || 0),
-    providerCostUsd: Number(row.providerCostUsd || 0),
-    chargedCredits: Number(row.chargedCredits || 0),
+    providerCostUsd: Number(row.providerCostUsd ?? row.estimatedApiCostUsd ?? 0),
+    chargedCredits: Number(row.chargedCredits ?? row.creditsCharged ?? 0),
     grossUsageValueUsd: Number(row.grossUsageValueUsd || 0),
     estimatedGrossProfitUsd: Number(row.estimatedGrossProfitUsd || 0),
     estimatedFeeUsd: Number(row.estimatedFeeUsd || 0),
     estimatedNetProfitUsd: Number(row.estimatedNetProfitUsd || 0),
-    costStatus: String(row.costStatus || "unknown"),
+    costStatus: String(row.costStatus || row.status || "unknown"),
     createdAt: row.createdAt || null
   }));
   return {
