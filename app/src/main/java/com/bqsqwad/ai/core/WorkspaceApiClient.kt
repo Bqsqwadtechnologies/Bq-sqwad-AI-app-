@@ -104,7 +104,7 @@ class WorkspaceApiClient {
         val token=Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
         val statusAndRaw = try {
             val c=(URL(baseUrl+path).openConnection() as HttpURLConnection).apply {
-                requestMethod=method; connectTimeout=6500; readTimeout=if (path == "/ai" || path == "/ai/stream" || path == "/ai/vision" || path == "/web-search") 120000 else 10000; doInput=true
+                requestMethod=method; connectTimeout=if (path.startsWith("/file-box")) 15000 else 6500; readTimeout=if (path == "/ai" || path == "/ai/stream" || path == "/ai/vision" || path == "/web-search") 120000 else if (path.startsWith("/file-box")) 45000 else 10000; doInput=true
                 if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
                 setRequestProperty("Authorization","Bearer $token")
             }
