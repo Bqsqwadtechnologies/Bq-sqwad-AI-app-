@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit
 import java.util.Calendar
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -362,15 +363,36 @@ object BqLifecycleNotifications {
     private fun notificationLogoResourceId(context: Context): Int =
         R.drawable.bq_notification_logo
 
-    private fun loadWebsiteNotificationLogo(): Bitmap? {
+    private fun resolveUploadedNotificationLogoUrl(): String {
+        val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v6"
         val connection = runCatching {
-            (URL("https://bqsqwadai.com/bq-notification-logo.png?bq-notification-logo-v5").openConnection() as HttpURLConnection)
-        }.getOrNull() ?: return null
+            (URL("https://bqsqwadai.com/api/public/app-config?notificationLogo=1").openConnection() as HttpURLConnection)
+        }.getOrNull() ?: return fallback
         return try {
             connection.connectTimeout = 2500
             connection.readTimeout = 3500
             connection.instanceFollowRedirects = true
-            connection.setRequestProperty("Accept", "image/png")
+            val raw = connection.inputStream.use { it.bufferedReader().readText() }.take(32_000)
+            val candidate = JSONObject(raw).optString("logoUrl", "")
+            if (candidate.startsWith("https://") &&
+                (candidate.contains("firebasestorage.googleapis.com/") ||
+                 candidate.contains("storage.googleapis.com/") ||
+                 candidate.startsWith("https://bqsqwadai.com/"))) candidate else fallback
+        } catch (_: Exception) {
+            fallback
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun loadWebsiteNotificationLogo(): Bitmap? {
+        val logoUrl = resolveUploadedNotificationLogoUrl()
+        val connection = runCatching { (URL(logoUrl).openConnection() as HttpURLConnection) }.getOrNull() ?: return null
+        return try {
+            connection.connectTimeout = 2500
+            connection.readTimeout = 3500
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("Accept", "image/png,image/*")
             val bytes = connection.inputStream.use { it.readBytes() }
             if (bytes.isEmpty() || bytes.size > 2_000_000) return null
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
