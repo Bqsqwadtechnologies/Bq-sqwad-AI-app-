@@ -54,20 +54,26 @@ internal fun AboutMePanel(onDismiss: () -> Unit) {
                 .onSuccess { response ->
                     val settings = response.optJSONObject("settings") ?: JSONObject()
                     val personal = settings.optJSONObject("personalInformation") ?: JSONObject()
-                    aboutMe = personal.optString("aboutMe", aboutMe)
-                    interests = personal.optString("interests", "")
-                    goals = personal.optString("goals", "")
-                    preferences = personal.optString("preferences", "")
-                    instructions = personal.optString("instructions", "")
-                    personality = personal.optString("responseStyle", personality).takeIf { it in styles } ?: "Balanced"
+                    val loadedAboutMe = personal.optString("aboutMe", aboutMe)
+                    val loadedInterests = personal.optString("interests", "")
+                    val loadedGoals = personal.optString("goals", "")
+                    val loadedPreferences = personal.optString("preferences", "")
+                    val loadedInstructions = personal.optString("instructions", "")
+                    val loadedPersonality = personal.optString("responseStyle", personality).takeIf { it in styles } ?: "Balanced"
+                    aboutMe = loadedAboutMe
+                    interests = loadedInterests
+                    goals = loadedGoals
+                    preferences = loadedPreferences
+                    instructions = loadedInstructions
+                    personality = loadedPersonality
                     val compiled = listOf(
-                        "About me: " to aboutMe,
-                        "Interests: " to interests,
-                        "Goals: " to goals,
-                        "Response preferences: " to preferences,
-                        "Important context: " to instructions
+                        "About me: " to loadedAboutMe,
+                        "Interests: " to loadedInterests,
+                        "Goals: " to loadedGoals,
+                        "Response preferences: " to loadedPreferences,
+                        "Important context: " to loadedInstructions
                     ).filter { it.second.isNotBlank() }.joinToString("\n") { it.first + it.second }.take(7000)
-                    prefs.edit().putString("about_me", compiled).putString("assistant_personality", personality).apply()
+                    prefs.edit().putString("about_me", compiled).putString("assistant_personality", loadedPersonality).apply()
                 }
                 .onFailure { notice = "Could not refresh your saved profile. You can retry or continue editing." }
         }
