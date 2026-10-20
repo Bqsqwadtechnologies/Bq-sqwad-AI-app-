@@ -7118,7 +7118,7 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                 }
             }
             item {
-                FeatureCard("About Me & AI Personality", "Choose your preferred response style and save optional notes locally on this device.") {
+                FeatureCard("About Me & AI Personality", "Save your personal context and preferred response style to your account so it follows you between Android and the website.") {
                     showAboutMePanel = true
                 }
             }
