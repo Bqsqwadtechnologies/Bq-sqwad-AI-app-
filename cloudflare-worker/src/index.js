@@ -2662,10 +2662,11 @@ export default {
       if (url.pathname === "/admin/feedback" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
-        const [aiRows, contacts, leads, messageRatings] = await Promise.all([
+        const [aiRows, contacts, leads, appSales, messageRatings] = await Promise.all([
           firestoreQuery("aiFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("contactMessages", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("businessLeads", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
+          firestoreQuery("contactSalesRequests", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("messageFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => [])
         ]);
         const idOf = x => String(x.id || String(x.__name || "").split("/").pop()).slice(0,120);
@@ -2688,6 +2689,12 @@ export default {
             sentiment:null, reason:String(x.company || x.planName || "Sales enquiry").slice(0,500), comment:String(x.message || "").slice(0,1000),
             messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
             email:String(x.email || "").slice(0,200), source:"sales"
+          })),
+          ...appSales.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:null, category:"Contact sales (Android app)",
+            sentiment:null, reason:String(x.planName || x.planId || "Sales enquiry").slice(0,500),
+            comment:String(x.message || "").slice(0,1000), messageHash:"", createdAt:x.createdAt || x.updatedAt || null,
+            status:String(x.status || "new"), email:String(x.email || x.companyEmail || "").slice(0,200), source:"app-sales"
           })),
           ...messageRatings.map(x => ({
             id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:x.messageId == null ? null : String(x.messageId).slice(0,120),
