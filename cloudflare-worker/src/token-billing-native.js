@@ -168,7 +168,13 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Array.isArray(rule.plans) && rule.plans.length && (!control.planId || !rule.plans.includes(String(control.planId)))) return false;
     if (rule.effectiveFrom && new Date(rule.effectiveFrom).getTime() > Date.now()) return false;
     return true;
-  }).sort((a, b) => (String(a.model || "*") === "*" ? 1 : 0) - (String(b.model || "*") === "*" ? 1 : 0))[0] || null;
+  }).sort((a, b) => {
+    const specificity = (String(a.model || "*") === "*" ? 1 : 0) - (String(b.model || "*") === "*" ? 1 : 0);
+    if (specificity !== 0) return specificity;
+    const effective = new Date(b.effectiveFrom || 0).getTime() - new Date(a.effectiveFrom || 0).getTime();
+    if (Number.isFinite(effective) && effective !== 0) return effective;
+    return Number(b.version || 0) - Number(a.version || 0);
+  })[0] || null;
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
