@@ -21,8 +21,9 @@ test("settlement applies 600% markup and the effective model multiplier", () => 
   assert.equal(result.providerCostUsd, 3);
   assert.equal(result.creditReferenceValueUsd, CREDIT_VALUE_USD);
   assert.equal(result.customerMultiplier, 8.75);
-  assert.ok(Math.abs(result.customerCredits - (3 / CREDIT_VALUE_USD) * 8.75) < 1e-8);
-  assert.ok(Math.abs(result.grossUsageValueUsd - 3 * 8.75) < 1e-8);
+  const expectedCredits = Math.round(((3 / CREDIT_VALUE_USD) * 8.75 + Number.EPSILON) * 100000) / 100000;
+  assert.equal(result.customerCredits, expectedCredits);
+  assert.ok(Math.abs(result.grossUsageValueUsd - expectedCredits * CREDIT_VALUE_USD) < 1e-10);
 });
 
 test("cached input is charged at its explicit cached-token rate", () => {
@@ -39,7 +40,8 @@ test("cached input is charged at its explicit cached-token rate", () => {
   });
 
   assert.ok(Math.abs(result.providerCostUsd - 0.68) < 1e-10);
-  assert.ok(Math.abs(result.customerCredits - (0.68 / CREDIT_VALUE_USD) * 7) < 1e-8);
+  const expectedCredits = Math.round(((0.68 / CREDIT_VALUE_USD) * 7 + Number.EPSILON) * 100000) / 100000;
+  assert.equal(result.customerCredits, expectedCredits);
 });
 
 test("missing provider token rates fail closed instead of using a generic fallback", () => {
