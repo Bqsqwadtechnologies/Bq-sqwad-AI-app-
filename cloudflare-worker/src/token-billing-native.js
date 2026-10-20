@@ -151,11 +151,23 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     ) || {};
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
+  const canonicalUsageBilling = await firestoreGet("config/usageBilling").catch(() => null) || {};
+  const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
+  const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
+    if (String(rule.status || "inactive") !== "active") return false;
+    if (String(rule.provider || "").toLowerCase() !== String(providerId || "").toLowerCase()) return false;
+    if (String(rule.model || "*") !== "*" && String(rule.model) !== String(modelId || "")) return false;
+    if (Array.isArray(rule.features) && rule.features.length && !rule.features.includes(String(feature || ""))) return false;
+    if (Array.isArray(rule.plans) && rule.plans.length && (!control.planId || !rule.plans.includes(String(control.planId)))) return false;
+    if (rule.effectiveFrom && new Date(rule.effectiveFrom).getTime() > Date.now()) return false;
+    return true;
+  }).sort((a, b) => (String(a.model || "*") === "*" ? 1 : 0) - (String(b.model || "*") === "*" ? 1 : 0))[0] || null;
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 5 ? (dynamicBilling.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(dynamicBilling.profitMarkup)) || !Number.isFinite(Number(dynamicBilling.profitMarkup)) ? 6 : dynamicBilling.profitMarkup)) * 100));
-  const feeRate = 0;
+  const legacyMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 5 ? (dynamicBilling.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(dynamicBilling.profitMarkup)) || !Number.isFinite(Number(dynamicBilling.profitMarkup)) ? 6 : dynamicBilling.profitMarkup)) * 100));
+  const profitMarkup = Math.max(0, Math.min(1000, Number(canonicalUsageBilling.markupPercent ?? legacyMarkup)));
+  const feeRate = Math.max(0, Math.min(100, Number(canonicalUsageBilling.feePercent ?? 0)));
   const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
@@ -180,9 +192,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // normalized to USD per million tokens for backwards compatibility. Other providers still require their own rates.
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
   const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
-  const inputTokenRate = embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken ?? (isOpenAi ? 0.00000005 : undefined);
-  const outputTokenRate = embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken ?? (isOpenAi ? 0.00000025 : undefined);
-  const cachedTokenRate = embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken ?? (isOpenAi ? 0.000000005 : undefined);
+  const inputTokenRate = tokenRule?.inputUsdPerToken ?? (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken ?? (isOpenAi ? 0.00000005 : undefined);
+  const outputTokenRate = tokenRule?.outputUsdPerToken ?? (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken ?? (isOpenAi ? 0.00000025 : undefined);
+  const cachedTokenRate = tokenRule?.cachedInputUsdPerToken ?? (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken ?? (isOpenAi ? 0.000000005 : undefined);
   // Non-OpenAI providers must have explicit provider/model rates in the registry,
   // tokenPricing, or provider-specific admin configuration. Never silently price
   // Gemini or another provider using a shared/OpenAI fallback rate.
@@ -199,12 +211,12 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.
   // This is the canonical conversion value; stale per-model/config values must not override it.
-  const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
-  const baseCustomerMultiplier = 1 + profitMarkup / 100;
-  // Website model multipliers are deliberate relative cost weights (Luna,
-  // Terra, Sol, Gemini) and must affect actual Worker settlement too.
+  const creditReferenceValueUsd = Number(canonicalUsageBilling.usdPerCredit ?? DEFAULT_CREDIT_REFERENCE_USD);
+  const baseCustomerMultiplier = (1 + profitMarkup / 100) * (1 + feeRate / 100);
+  // Website model multipliers are deliberate relative cost weights and are
+  // applied after the canonical markup and fee policy.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
-  const estimatedFeePercent = 0;
+  const estimatedFeePercent = feeRate;
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
