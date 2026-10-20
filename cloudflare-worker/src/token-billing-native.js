@@ -300,7 +300,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
   }
   const createdAt = new Date();
   const actualChargedCredits = Math.max(0, Number(chargedCredits || 0));
-  const reservation = requestKey ? await firestoreGet("creditReservations/" + requestKey) : null;
+  const reservation = requestKey ? await firestoreGet("creditReservations/" + requestKey).catch(error => { console.error("usage reservation snapshot read failed", error?.message || "unknown"); return null; }) : null;
   const creditsBefore = Math.max(0, Number(reservation?.balanceBefore || 0));
   const creditsAfter = reservation ? Math.max(0, creditsBefore - actualChargedCredits) : 0;
   const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
