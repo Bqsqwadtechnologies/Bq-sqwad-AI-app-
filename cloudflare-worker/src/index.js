@@ -538,6 +538,35 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "gpt-4o-mini-transcribe").trim().slice(0, 100)
   };
 }
+
+/** Resolve live-media fallback rates from the website's canonical billing documents. */
+async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = "live_voice") {
+  const [policyDoc, connectionDoc] = await Promise.all([
+    firestoreGet("config/usageBilling").catch(() => null),
+    firestoreGet("config/providerConnections").catch(() => null)
+  ]);
+  const policy = policyDoc || {};
+  const connections = connectionDoc || {};
+  const key = String(feature || "").toLowerCase();
+  const rateKeys = key.includes("transcrib") || key.includes("dictation")
+    ? ["transcriptionUsdPerMinute", "transcribeUsdPerMinute"]
+    : key.includes("camera") ? ["liveCameraUsdPerMinute", "cameraUsdPerMinute"]
+    : ["liveVoiceUsdPerMinute", "voiceUsdPerMinute"];
+  const providerRate = rateKeys.map(k => Number(connections[k])).find(v => Number.isFinite(v) && v >= 0);
+  const usdPerCredit = Number(policy.usdPerCredit ?? 0.1199);
+  const markupPercent = Number(policy.markupPercent ?? 600);
+  const feePercent = Number(policy.feePercent ?? 0);
+  const safeUsdPerCredit = Number.isFinite(usdPerCredit) && usdPerCredit > 0 ? usdPerCredit : 0.1199;
+  const safeMarkup = Number.isFinite(markupPercent) && markupPercent >= 0 ? markupPercent : 600;
+  const safeFee = Number.isFinite(feePercent) && feePercent >= 0 ? feePercent : 0;
+  const hasExplicitRate = input?.creditsPerMinute != null || existing?.creditsPerMinute != null;
+  const fallbackRate = providerRate == null ? null
+    : providerRate * (1 + safeMarkup / 100) * (1 + safeFee / 100) / safeUsdPerCredit;
+  const merged = !hasExplicitRate && fallbackRate != null
+    ? { ...input, creditsPerMinute: fallbackRate }
+    : input;
+  return normalizeLivePricing(merged, existing, feature);
+}
 export async function settleLiveStartReservation(uid, reservation, commit, reverse, createSession) {
   try {
     const result = await createSession();
@@ -1780,7 +1809,7 @@ export default {
         enforceRateLimit(user.uid);
         await requireConsent(user.uid);
         const configDocument = await firestoreGet("adminAdvancedOptions/dictation_pricing") || {};
-        const pricing = normalizeLivePricing(configDocument.config || configDocument, {}, "dictation_pricing");
+        const pricing = await resolveCanonicalLivePricing(configDocument.config || configDocument, {}, "dictation_pricing");
         if (configDocument.enabled === false || configDocument.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
           throw Object.assign(new Error("dictation_disabled"), { httpStatus: 403, safeError: "dictation_disabled" });
         }
@@ -2642,7 +2671,7 @@ export default {
          const expectedFeature = isCameraMode ? "live-camera" : "live-voice";
          const expectedCostUnit = "second";
          const config = await firestoreGet("adminAdvancedOptions/" + (isCameraMode ? "live_camera_pricing" : "live_voice_pricing")) || {};
-         const pricing = normalizeLivePricing(config.config || config, {}, capabilityName);
+         const pricing = await resolveCanonicalLivePricing(config.config || config, {}, capabilityName);
          if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
            throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403 });
          }
@@ -2717,7 +2746,7 @@ export default {
         const isCameraMode = mode === "camera" || mode === "screen";
          const pricingKey = isCameraMode ? "live_camera_pricing" : "live_voice_pricing";
          const cfg = await firestoreGet("adminAdvancedOptions/" + pricingKey) || {};
-         const conf = normalizeLivePricing(cfg.config || cfg, {}, pricingKey);
+         const conf = await resolveCanonicalLivePricing(cfg.config || cfg, {}, pricingKey);
          if (!organization && (cfg.enabled === false || cfg.killSwitch === true || conf.enabled === false || conf.killSwitch === true)) {
            throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403, safeError: isCameraMode ? "live_camera_disabled" : "live_voice_disabled" });
          }
@@ -3220,7 +3249,7 @@ export default {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
         const stored = await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey) || {};
-        const config = normalizeLivePricing(stored.config || stored, {}, livePricingAdminKey);
+        const config = await resolveCanonicalLivePricing(stored.config || stored, {}, livePricingAdminKey);
         return json({ enabled: stored.enabled !== false && config.enabled !== false, killSwitch: stored.killSwitch === true || config.killSwitch === true, config });
       }
       if (livePricingAdminKey && request.method === "POST") {
@@ -3229,7 +3258,7 @@ export default {
         const b = await readBody(request);
         const current = await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey) || {};
         const incoming = b.config && typeof b.config === "object" ? b.config : b;
-        const config = normalizeLivePricing(incoming, current.config || current, livePricingAdminKey);
+        const config = await resolveCanonicalLivePricing(incoming, current.config || current, livePricingAdminKey);
         const enabled = b.enabled == null ? config.enabled : b.enabled === true;
         const killSwitch = b.killSwitch == null ? config.killSwitch : b.killSwitch === true;
         await firestoreSet("adminAdvancedOptions/" + livePricingAdminKey, { enabled, killSwitch, config: { ...config, enabled, killSwitch }, updatedBy: u.uid, updatedAt: new Date() }, true);
