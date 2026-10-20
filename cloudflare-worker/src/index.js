@@ -2096,7 +2096,25 @@ export default {
         const theme = profile?.theme && typeof profile.theme === "object" && !Array.isArray(profile.theme) ? profile.theme : {};
         const wallpaper = typeof theme.wallpaper === "string" && /^https:\/\//i.test(theme.wallpaper) ? theme.wallpaper : null;
         const brightness = Number(theme.brightness ?? 1);
-        return json({ url: wallpaper, brightness: Number.isFinite(brightness) ? Math.min(1.8, Math.max(0.35, brightness)) : 1 });
+        return json({ url: wallpaper, configured: Object.prototype.hasOwnProperty.call(theme, "wallpaper"), brightness: Number.isFinite(brightness) ? Math.min(1.8, Math.max(0.35, brightness)) : 1 });
+      }
+
+      if (url.pathname === "/chat-background/settings" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const brightness = Number(body.brightness ?? 1);
+        if (!Number.isFinite(brightness) || brightness < 0.1 || brightness > 2) return json({ error: "invalid_chat_background_brightness" }, 400);
+        const profile = await firestoreGet("users/" + user.uid);
+        if (!profile) return json({ error: "account_not_found" }, 404);
+        const currentTheme = profile.theme && typeof profile.theme === "object" && !Array.isArray(profile.theme) ? profile.theme : {};
+        const nextTheme = { ...currentTheme, brightness };
+        if (Object.prototype.hasOwnProperty.call(body, "url")) {
+          const nextUrl = body.url == null || body.url === "" ? null : String(body.url).trim();
+          if (nextUrl && !/^https:\/\/(firebasestorage\\.googleapis\\.com|storage\\.googleapis\\.com)(\/|$)/i.test(nextUrl)) return json({ error: "invalid_chat_background_url" }, 400);
+          nextTheme.wallpaper = nextUrl;
+        }
+        await firestoreSet("users/" + user.uid, { theme: nextTheme, updatedAt: new Date().toISOString() }, true);
+        return json({ ok: true, url: typeof nextTheme.wallpaper === "string" ? nextTheme.wallpaper : null, configured: true, brightness });
       }
 
       if (url.pathname === "/chat-background/charge" && request.method === "POST") {
