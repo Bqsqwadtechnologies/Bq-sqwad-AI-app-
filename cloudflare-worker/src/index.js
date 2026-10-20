@@ -2176,51 +2176,72 @@ export default {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
         const id = String(body.id || "").trim();
-        const pending = await firestoreGet("fileBoxUploads/" + id);
+        if (!/^[A-Za-z0-9_-]{8,100}$/.test(id)) return json({ error: "invalid_file_upload_id" }, 400);
+        let pending = await firestoreGet("fileBoxUploads/" + id);
         if (!pending || String(pending.uid || "") !== user.uid) return json({ error: "file_upload_not_found" }, 404);
-        if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
+        const existingBox = await firestoreGet("fileBox/" + user.uid) || {};
+        const existingItem = (Array.isArray(existingBox.items) ? existingBox.items : []).find(entry => String(entry.id || "") === id);
+        if (pending.uploadPending !== true) {
+          if (existingItem) return json({ ok: true, item: { ...existingItem, content: undefined }, count: existingBox.items.length, alreadyFinalized: true });
+          return json({ error: "file_upload_already_finalized" }, 409);
+        }
         const object = await inspectTrainingAssetObject(String(pending.objectPath || ""));
         if (!object || Number(object.size) !== Number(pending.size)) return json({ error: "file_upload_not_complete" }, 409);
-        const doc = await firestoreGet("fileBox/" + user.uid) || {};
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
-        const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
-        const now = new Date();
-        const items = (Array.isArray(doc.items) ? doc.items : []).filter(item => Date.parse(String(item.expiresAt || "")) > now.getTime());
-        const item = {
-          id: pending.id, uid: user.uid, title: String(pending.title || pending.fileName || "Uploaded file"),
-          fileName: String(pending.fileName || "upload"), mimeType: String(pending.contentType || object.contentType || "application/octet-stream"),
-          size: Number(object.size), objectPath: String(pending.objectPath), content: "",
-          createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + retentionDays * 86400000).toISOString(), retentionDays
-        };
-        items.push(item);
-        // Atomically add the file and finalize its upload receipt. Update-time
-        // preconditions prevent two concurrent finalize calls from inserting
-        // duplicate items or overwriting a newer File Box update.
-        const { __name: _uploadName, __updateTime: uploadUpdateTime, ...uploadData } = pending;
-        const retainedItems = retainFileBoxItems(items);
-        const fileBoxData = { uid: user.uid, items: retainedItems, retentionDays, updatedAt: now };
-        const writes = [{
-          path: "fileBox/" + user.uid,
-          data: fileBoxData,
-          ...(doc?.__updateTime ? { updateTime: doc.__updateTime } : { create: true })
-        }, {
-          path: "fileBoxUploads/" + id,
-          data: { ...uploadData, uploadPending: false, finalizedAt: now.toISOString() },
-          ...(uploadUpdateTime ? { updateTime: uploadUpdateTime } : { exists: true })
-        }];
-        try {
-          await firestoreCommit(writes);
-        } catch (error) {
-          const currentUpload = await firestoreGet("fileBoxUploads/" + id).catch(() => null);
-          if (currentUpload?.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
-          const currentFileBox = await firestoreGet("fileBox/" + user.uid).catch(() => null);
-          if (Array.isArray(currentFileBox?.items) && currentFileBox.items.some(entry => String(entry.id || "") === id)) {
-            return json({ error: "file_upload_already_finalized" }, 409);
+        let lastConflict = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const doc = await firestoreGet("fileBox/" + user.uid) || {};
+          pending = await firestoreGet("fileBoxUploads/" + id);
+          if (!pending || String(pending.uid || "") !== user.uid) return json({ error: "file_upload_not_found" }, 404);
+          const currentItems = Array.isArray(doc.items) ? doc.items : [];
+          const found = currentItems.find(entry => String(entry.id || "") === id);
+          if (found) return json({ ok: true, item: { ...found, content: undefined }, count: currentItems.length, alreadyFinalized: true });
+          if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
+          const now = new Date();
+          const retentionDays = [7,14,30,90].includes(Number(doc.retentionDays)) ? Number(doc.retentionDays) : defaultRetention;
+          const expired = currentItems.filter(entry => Date.parse(String(entry.expiresAt || "")) <= now.getTime());
+          const active = currentItems.filter(entry => Date.parse(String(entry.expiresAt || "")) > now.getTime());
+          const item = {
+            id: pending.id, uid: user.uid, title: String(pending.title || pending.fileName || "Uploaded file"),
+            fileName: String(pending.fileName || "upload"), mimeType: String(pending.contentType || object.contentType || "application/octet-stream"),
+            size: Number(object.size), objectPath: String(pending.objectPath), content: "",
+            createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + retentionDays * 86400000).toISOString(), retentionDays
+          };
+          const retainedItems = retainFileBoxItems([...active, item]);
+          const retainedPaths = new Set(retainedItems.map(entry => String(entry.objectPath || "")).filter(Boolean));
+          const evicted = [...expired, ...active.filter(entry => entry.objectPath && !retainedPaths.has(String(entry.objectPath)))];
+          const { __name: _uploadName, __updateTime: uploadUpdateTime, ...uploadData } = pending;
+          const fileBoxData = { uid: user.uid, items: retainedItems, retentionDays, updatedAt: now };
+          const writes = [{
+            path: "fileBox/" + user.uid,
+            data: fileBoxData,
+            ...(doc?.__updateTime ? { updateTime: doc.__updateTime } : { create: true })
+          }, {
+            path: "fileBoxUploads/" + id,
+            data: { ...uploadData, uploadPending: false, finalizedAt: now.toISOString() },
+            ...(uploadUpdateTime ? { updateTime: uploadUpdateTime } : { exists: true })
+          }];
+          try {
+            await firestoreCommit(writes);
+            for (const oldItem of evicted) {
+              if (oldItem.objectPath && String(oldItem.objectPath) !== String(item.objectPath)) {
+                await deleteTrainingAssetObject(String(oldItem.objectPath)).catch(() => {});
+              }
+            }
+            return json({ ok: true, item: { ...item, content: undefined }, count: retainedItems.length });
+          } catch (error) {
+            lastConflict = error;
+            const latestUpload = await firestoreGet("fileBoxUploads/" + id).catch(() => null);
+            const latestBox = await firestoreGet("fileBox/" + user.uid).catch(() => null);
+            const finalizedItem = (Array.isArray(latestBox?.items) ? latestBox.items : []).find(entry => String(entry.id || "") === id);
+            if (finalizedItem && latestUpload?.uploadPending !== true) {
+              return json({ ok: true, item: { ...finalizedItem, content: undefined }, count: latestBox.items.length, alreadyFinalized: true });
+            }
+            if (latestUpload?.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
           }
-          throw error;
         }
-        return json({ ok: true, item: { ...item, content: undefined }, count: Math.min(items.length, 20) });
+        throw lastConflict || new Error("file_box_finalize_conflict");
       }
       if (url.pathname === "/file-box/download" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
