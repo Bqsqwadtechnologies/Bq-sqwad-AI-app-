@@ -232,7 +232,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
   const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 &&
-    (rates.inputPriceUsdPerMillion + rates.outputPriceUsdPerMillion > 0) &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
   const sharedCreditMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
