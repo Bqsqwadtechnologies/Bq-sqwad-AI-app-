@@ -50,18 +50,40 @@ export function computeFixedCredits(configuredCredits) {
  * adapter. The caller should cache this object for ~60 seconds and surface
  * warnings whenever required documents are absent.
  */
+function unwrapConfigDocument(value, name, warnings) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value || {};
+  // The website's config/pricing document stores the public pricing object in
+  // a JSON string. Other canonical config documents are normally plain maps.
+  if (typeof value.json === "string") {
+    try {
+      const parsed = JSON.parse(value.json);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+      warnings.push(name + " contains invalid JSON config; defaults may apply");
+      return {};
+    } catch {
+      warnings.push(name + " contains invalid JSON config; defaults may apply");
+      return {};
+    }
+  }
+  return value;
+}
+
 export async function loadBillingConfig(firestoreGet, now = Date.now()) {
-  const [usageBilling, providerConnections, pricing, aiModels] = await Promise.all([
+  const [usageBillingDoc, providerConnectionsDoc, pricingDoc, aiModelsDoc] = await Promise.all([
     firestoreGet("config/usageBilling"),
     firestoreGet("config/providerConnections"),
     firestoreGet("config/pricing"),
     firestoreGet("config/aiModels")
   ]);
   const warnings = [];
-  if (!usageBilling) warnings.push("config/usageBilling missing; canonical billing defaults are active");
-  if (!providerConnections) warnings.push("config/providerConnections missing; live-media defaults require admin review");
-  if (!pricing) warnings.push("config/pricing missing; catalog defaults require admin review");
-  if (!aiModels) warnings.push("config/aiModels missing; model rates require admin review");
+  if (!usageBillingDoc) warnings.push("config/usageBilling missing; canonical billing defaults are active");
+  if (!providerConnectionsDoc) warnings.push("config/providerConnections missing; live-media defaults require admin review");
+  if (!pricingDoc) warnings.push("config/pricing missing; catalog defaults require admin review");
+  if (!aiModelsDoc) warnings.push("config/aiModels missing; model rates require admin review");
+  const usageBilling = unwrapConfigDocument(usageBillingDoc, "config/usageBilling", warnings);
+  const providerConnections = unwrapConfigDocument(providerConnectionsDoc, "config/providerConnections", warnings);
+  const pricing = unwrapConfigDocument(pricingDoc, "config/pricing", warnings);
+  const aiModels = unwrapConfigDocument(aiModelsDoc, "config/aiModels", warnings);
   return {
     loadedAt: now,
     usageBilling: {
@@ -69,9 +91,9 @@ export async function loadBillingConfig(firestoreGet, now = Date.now()) {
       feePercent: nonNegative(usageBilling?.feePercent, 0),
       usdPerCredit: nonNegative(usageBilling?.usdPerCredit, 0.1199) || 0.1199
     },
-    providerConnections: providerConnections || {},
-    pricing: pricing || {},
-    aiModels: aiModels || {},
+    providerConnections,
+    pricing,
+    aiModels,
     warnings
   };
 }
