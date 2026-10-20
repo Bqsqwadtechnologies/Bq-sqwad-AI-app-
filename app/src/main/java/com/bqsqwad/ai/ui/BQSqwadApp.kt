@@ -2126,6 +2126,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
     var showAuth by remember { mutableStateOf(false) }
     var showSignUp by remember { mutableStateOf(false) }
     var feedbackTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var feedbackSentiment by remember { mutableStateOf("down") }
     var replyOverflowMessageId by remember { mutableStateOf<String?>(null) }
     var feedbackReason by remember { mutableStateOf("inaccurate") }
     var feedbackComment by remember { mutableStateOf("") }
@@ -3360,17 +3361,22 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                         leadingIcon = { Icon(Icons.Default.ThumbUp, contentDescription = null) },
                                         onClick = {
                                             replyOverflowMessageId = null
-                                            scope.launch {
-                                                runCatching { WorkspaceApiClient().reportMessage(m.text, "response", m.id, "up") }
-                                                    .onSuccess { error = "Thanks for the feedback." }
-                                                    .onFailure { error = safeUserFacingIssue(it, "Your feedback could not be submitted. Please try again shortly.") }
-                                            }
+                                            feedbackTarget = m
+                                            feedbackSentiment = "up"
+                                            feedbackReason = ""
+                                            feedbackComment = ""
                                         }
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Not helpful") },
                                         leadingIcon = { Icon(Icons.Default.ThumbDown, contentDescription = null) },
-                                        onClick = { replyOverflowMessageId = null; feedbackTarget = m }
+                                        onClick = {
+                                            replyOverflowMessageId = null
+                                            feedbackTarget = m
+                                            feedbackSentiment = "down"
+                                            feedbackReason = "unhelpful"
+                                            feedbackComment = ""
+                                        }
                                     )
                                     if (m.prompt != null) {
                                         DropdownMenuItem(
@@ -3850,20 +3856,24 @@ val composerShape = RoundedCornerShape(26.dp)
         feedbackTarget?.let { target ->
             AlertDialog(
                 onDismissRequest = { feedbackTarget = null },
-                title = { Text("What was wrong with this response?") },
+                title = { Text(if (feedbackSentiment == "up") "What did you like about this response?" else "What was wrong with this response?") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("inaccurate", "unhelpful", "unsafe", "other").forEach { reason ->
-                            FilterChip(
-                                selected = feedbackReason == reason,
-                                onClick = { feedbackReason = reason },
-                                label = { Text(reason.replaceFirstChar { it.uppercase() }) }
-                            )
+                        if (feedbackSentiment == "down") {
+                            listOf("inaccurate", "unhelpful", "unsafe", "other").forEach { reason ->
+                                FilterChip(
+                                    selected = feedbackReason == reason,
+                                    onClick = { feedbackReason = reason },
+                                    label = { Text(reason.replaceFirstChar { it.uppercase() }) }
+                                )
+                            }
+                        } else {
+                            Text("Tell us what worked well. Your comment is optional and goes to the shared admin feedback inbox.")
                         }
                         OutlinedTextField(
                             value = feedbackComment,
                             onValueChange = { feedbackComment = it },
-                            label = { Text("Optional comment") },
+                            label = { Text(if (feedbackSentiment == "up") "What did you like? (optional)" else "Optional comment") },
                             modifier = Modifier.fillMaxWidth(),
                             maxLines = 4
                         )
@@ -3877,8 +3887,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                     target.text,
                                     "response",
                                     target.id,
-                                    "down",
-                                    feedbackReason,
+                                    feedbackSentiment,
+                                    feedbackReason.takeIf { feedbackSentiment == "down" && it.isNotBlank() },
                                     feedbackComment.trim().ifBlank { null }
                                 )
                             }.onSuccess {
