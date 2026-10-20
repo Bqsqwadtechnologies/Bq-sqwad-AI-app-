@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -170,7 +169,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                 }
             }, modifier = Modifier.fillMaxWidth()) { Text("Save to File Box") }
             notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-            if (busy) CircularProgressIndicator()
+            if (busy) BqSqwadLoadingIndicator(Modifier.size(42.dp))
             Text("Stored files & pictures", style = MaterialTheme.typography.titleMedium)
             if (rows.isEmpty() && !busy) Text("No files or pictures stored yet. Upload them here to keep them available for quick reuse.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             rows.forEach { row ->
@@ -310,7 +309,7 @@ internal fun ProjectsPanel(onDismiss: () -> Unit) {
                 OutlinedButton(onClick = { selectedId = null; title = ""; description = ""; content = "" }) { Text("Clear") }
             }
             notice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-            if (busy) CircularProgressIndicator()
+            if (busy) BqSqwadLoadingIndicator(Modifier.size(42.dp))
             Text("Your projects", style = MaterialTheme.typography.titleMedium)
             if (rows.isEmpty() && !busy) Text("No projects yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             rows.forEach { row ->
