@@ -1,7 +1,5 @@
 package com.bqsqwad.ai.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,7 +31,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import android.provider.OpenableColumns
 import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
@@ -53,77 +50,11 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
     val context = LocalContext.current
     val api = remember { WorkspaceApiClient() }
     val rows = remember { mutableStateListOf<JSONObject>() }
-    var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
     var retention by remember { mutableStateOf(30) }
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<JSONObject?>(null) }
     var refresh: () -> Unit = {}
-    val importAnyFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            busy = true
-            scope.launch {
-                runCatching {
-                    val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) cursor.getString(0) else null
-                    }?.take(160)?.ifBlank { "upload" } ?: "upload"
-                    val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                    val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            val output = java.io.ByteArrayOutputStream()
-                            val buffer = ByteArray(8192)
-                            while (true) {
-                                val count = input.read(buffer)
-                                if (count < 0) break
-                                if (output.size() + count > 25 * 1024 * 1024) error("Files must be 25 MB or smaller.")
-                                output.write(buffer, 0, count)
-                            }
-                            output.toByteArray()
-                        } ?: error("Could not read the selected file.")
-                    }
-                    api.uploadFileBoxAsset(name, name, mime, bytes)
-                }.onSuccess {
-                    notice = "File uploaded to your File Box. It will expire after $retention days."
-                    refresh()
-                }.onFailure { notice = it.message?.take(180) ?: "File upload failed. Please try again." }
-                busy = false
-            }
-        }
-    }
-    val importTextFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            busy = true
-            scope.launch {
-                var wasTruncated = false
-                runCatching {
-                    val imported = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                            val buffer = CharArray(4096)
-                            val output = StringBuilder()
-                            while (output.length <= 25000) {
-                                val count = reader.read(buffer, 0, minOf(buffer.size, 25001 - output.length))
-                                if (count <= 0) break
-                                output.append(buffer, 0, count)
-                            }
-                            output.toString()
-                        } ?: error("Could not open the selected file.")
-                    }
-                    wasTruncated = imported.length > 25000
-                    val safeContent = imported.take(25000)
-                    val displayName = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) cursor.getString(0) else null
-                    }?.take(180)?.ifBlank { "Imported text" } ?: "Imported text"
-                    api.saveFileBoxItem(displayName, safeContent, context.contentResolver.getType(uri) ?: "text/plain")
-                }.onSuccess {
-                    notice = if (wasTruncated) "Text file imported. Content was capped at 25,000 characters." else "Text file imported into File Box."
-                    refresh()
-                }.onFailure { notice = "Import failed. Choose a readable text file and try again." }
-                busy = false
-            }
-        }
-    }
-
     refresh = {
         busy = true
         scope.launch {
