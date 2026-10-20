@@ -50,6 +50,18 @@ jobs:
             node --check "$file"
           done
 
+      - name: Install Worker dependencies
+        working-directory: android-app/cloudflare-worker
+        run: npm install --no-audit --no-fund
+
+      - name: Run Worker automated tests
+        working-directory: android-app/cloudflare-worker
+        run: npm test
+
+      - name: Run Worker package syntax check
+        working-directory: android-app/cloudflare-worker
+        run: npm run check
+
       - name: Verify shared-credit and billing contract is present on both platforms
         shell: bash
         run: |
