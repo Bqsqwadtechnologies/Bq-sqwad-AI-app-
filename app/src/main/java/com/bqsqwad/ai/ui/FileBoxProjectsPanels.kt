@@ -222,6 +222,12 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                                      }
                                  }) { Text("Download") }
                              } else {
+                                 TextButton(enabled = !busy, onClick = {
+                                     val name = row.optString("fileName", row.optString("title", "Saved text"))
+                                     val mime = row.optString("mimeType", "text/plain")
+                                     onUseInChat(PreparedChatAttachment(name, mime, text = row.optString("content")))
+                                     onDismiss()
+                                 }) { Text("Use in New Chat") }
                                  TextButton(onClick = { preview = row }) { Text("View") }
                              }
                             TextButton(onClick = {
