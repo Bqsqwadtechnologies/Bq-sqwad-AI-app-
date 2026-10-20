@@ -2981,6 +2981,23 @@ export default {
       if (url.pathname === "/admin/contact-sales" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({requests:await firestoreQuery("contactSalesRequests",{limit:100})}); }
       if (url.pathname === "/admin/contact-sales/status" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),status=["seen","contacted","replied","closed"].includes(String(b.status))?String(b.status):"";if(!status)throw new Error("invalid_request_status");await firestoreSet("contactSalesRequests/"+String(b.requestId||""),{status,lastAdminAction:status,lastAdminActionAt:new Date(),updatedAt:new Date()},true);return json({ok:true,requestId:String(b.requestId||""),status}); }
       if (url.pathname === "/admin/play-catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await playCatalog({get:firestoreGet,commit:firestoreCommit},"")); }
+            // Read-only bridge to the website's canonical Studio PAYG wallet. The website verifies the same Firebase token and organization membership.
+      if (url.pathname === "/studio-payg" && request.method === "GET") {
+        await verifyFirebaseUser(request);
+        const orgId = String(url.searchParams.get("orgId") || "").trim();
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(orgId)) return json({ error: "A valid organization ID is required." }, 400);
+        const authorization = request.headers.get("Authorization") || "";
+        const response = await fetch("https://bqsqwadai.com/api/native/studio-payg?orgId=" + encodeURIComponent(orgId), {
+          headers: { Authorization: authorization, Accept: "application/json" },
+          signal: AbortSignal.timeout(10000)
+        });
+        const body = await response.text();
+        return new Response(body, { status: response.status, headers: {
+          ...corsHeaders(request),
+          "content-type": response.headers.get("content-type") || "application/json",
+          "cache-control": "private, no-store"
+        }});
+      }
       if (url.pathname === "/organization/billing" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await orgWallet(u.uid)); }
       if (url.pathname === "/organization/billing/topups" && request.method === "GET") { return json({products:orgTopUps()}); }
       if (url.pathname === "/organization/production/live/billing/start" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"youtube_live"); return json(await orgLiveStart(u.uid,await readBody(request))); }
