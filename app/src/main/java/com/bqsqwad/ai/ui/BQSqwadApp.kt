@@ -292,7 +292,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
         onComplete()
     } else if (loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            BqSqwadLoadingIndicator(Modifier.size(48.dp))
         }
     } else {
         AuthSurface {
@@ -1303,7 +1303,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                         openingDrawerHistoryId = null
                                     }
                                 },
-                                icon = { if (openingDrawerHistoryId == historyItem.id) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.History, null) }
+                                icon = { if (openingDrawerHistoryId == historyItem.id) BqSqwadLoadingIndicator(Modifier.size(18.dp)) else Icon(Icons.Default.History, null) }
                             )
                         }
                         if (!drawerHistoryLoading && drawerHistoryItems.size >= drawerHistoryLimit && drawerHistoryLimit < 100) {
@@ -1354,7 +1354,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         if (firebaseUser != null && (consentLoading || consentRequired)) {
             if (consentLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    BqSqwadLoadingIndicator(Modifier.size(48.dp))
                 }
             } else {
                 ConsentGate(Modifier.fillMaxSize()) {
@@ -3000,11 +3000,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 // Keep the established image-generation animation untouched. For ordinary
                 // chat requests, show a compact circular progress indicator in the header.
                 if (busy && !statusText.contains("image", ignoreCase = true)) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    BqSqwadLoadingIndicator(Modifier.size(22.dp))
                 }
                 Text(
                     statusText,
@@ -3185,11 +3181,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    BqSqwadLoadingIndicator(Modifier.size(24.dp))
                                     Text(
                                         "Creating your image…",
                                         style = MaterialTheme.typography.labelMedium,
@@ -3388,11 +3380,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        BqSqwadLoadingIndicator(Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
                         Text("Thinking…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -3557,7 +3545,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                                BqSqwadLoadingIndicator(Modifier.size(22.dp))
                                 Text("Transcribing…", color = MaterialTheme.colorScheme.primary)
                             }
                         }
@@ -4662,7 +4650,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
                 title = { Text(workspace.title + " Settings") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
                 actions = {
-                    if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    if (saving) BqSqwadLoadingIndicator(Modifier.size(22.dp))
                 }
             )
         }
