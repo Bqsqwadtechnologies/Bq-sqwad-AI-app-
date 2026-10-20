@@ -556,6 +556,10 @@ class WorkspaceApiClient {
 
     suspend fun organizationBilling(): JSONObject = request("/organization/billing","GET")
 
+    /** Read-only wallet view backed by the website canonical studioPaygAccounts ledger. */
+    suspend fun studioPayg(orgId: String): JSONObject =
+        request("/studio-payg?orgId=" + java.net.URLEncoder.encode(orgId, "UTF-8"), "GET")
+
     suspend fun organizationLiveBillingStart(payload: JSONObject): JSONObject =
         request("/organization/production/live/billing/start", payload = payload)
 
