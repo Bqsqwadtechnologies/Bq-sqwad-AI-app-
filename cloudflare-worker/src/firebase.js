@@ -222,7 +222,8 @@ export async function firestoreCommit(writes) {
       ? { create: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }
       : { update: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }),
     ...(!write.create && write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {}),
-    ...(!write.create && write.exists === false ? { currentDocument: { exists: false } } : {})
+    ...(!write.create && write.exists === false ? { currentDocument: { exists: false } } : {}),
+    ...(!write.create && write.exists === true ? { currentDocument: { exists: true } } : {})
   })) };
   const token = await googleAccessToken();
   const url = FIRESTORE_BASE + "/projects/" + encodeURIComponent(projectId()) + "/databases/(default)/documents:commit";
