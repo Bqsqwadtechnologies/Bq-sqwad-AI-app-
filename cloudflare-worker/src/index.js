@@ -2472,10 +2472,19 @@ export default {
         const nextPermanent = oldBalance.permanent + amount;
         const legacy = await firestoreGet("creditBalances/" + targetUid);
         const entryId = crypto.randomUUID();
+        const before = Number(oldBalance.total || 0);
+        const after = before + amount;
+        const createdAt = new Date();
         await firestoreCommit([
-          { path: "users/" + targetUid, data: { credits: nextPermanent, updatedAt: new Date() }, updateTime: profile.__updateTime },
-          { path: "creditBalances/" + targetUid, data: { uid: targetUid, available: nextPermanent + oldBalance.subscription, reserved: Math.max(0, Number(legacy?.reserved || 0)), updatedAt: new Date() }, merge: true },
-          { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt: new Date() }, exists: false }
+          { path: "users/" + targetUid, data: { credits: nextPermanent, updatedAt: createdAt }, updateTime: profile.__updateTime },
+          { path: "creditBalances/" + targetUid, data: { uid: targetUid, available: nextPermanent + oldBalance.subscription, reserved: Math.max(0, Number(legacy?.reserved || 0)), updatedAt: createdAt }, merge: true },
+          { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt }, exists: false },
+          { path: "creditTransactions/" + entryId, data: {
+            uid: targetUid, type: "admin_grant", feature: "admin_grant",
+            credits: amount, balanceBefore: before, balanceAfter: after,
+            source: "android", platform: "android", reason, actorUid: admin.uid,
+            requestId: entryId, createdAt
+          }, exists: false }
         ]);
         return json({ ok: true, uid: targetUid, email, amount, available: nextPermanent + oldBalance.subscription });
       }
