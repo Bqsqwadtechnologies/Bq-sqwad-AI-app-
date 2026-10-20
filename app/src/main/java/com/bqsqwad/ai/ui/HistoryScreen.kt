@@ -84,7 +84,7 @@ fun HistoryScreen(
                             }
                             Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                                 TextButton(onClick = { deletingItem = item }, enabled = deletingId == null && loadingItemId == null) { Text("Delete") }
-                                if (loadingItemId == item.id) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                if (loadingItemId == item.id) BqSqwadLoadingIndicator(Modifier.size(22.dp))
                             }
                         }
                     }
