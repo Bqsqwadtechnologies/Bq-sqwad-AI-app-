@@ -339,7 +339,10 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     const existing = await firestoreGet(path).catch(() => null);
     if (existing &&
         String(existing.uid || "") === String(uid || "") &&
-        String(existing.requestId || "") === String(requestKey || recordId)) {
+        String(existing.requestId || "") === String(requestKey || recordId) &&
+        String(existing.feature || "") === String(feature || "") &&
+        String(existing.providerId || "") === String(providerId || "") &&
+        String(existing.modelId || "") === String(modelId || "")) {
       return { id: recordId, createdAt: String(existing.createdAt || createdAt.toISOString()), duplicate: true };
     }
     throw error;
