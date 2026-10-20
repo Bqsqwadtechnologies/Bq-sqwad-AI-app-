@@ -2115,7 +2115,7 @@ export default {
         const pending = await firestoreGet("fileBoxUploads/" + id);
         if (!pending || String(pending.uid || "") !== user.uid) return json({ error: "file_upload_not_found" }, 404);
         if (pending.uploadPending !== true) return json({ error: "file_upload_already_finalized" }, 409);
-        const declaredSize = Number(request.headers.get("content-length") || 0);
+        const declaredSize = Number(request.headers.get("content-length") || request.headers.get("x-bq-content-length") || 0);
         if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0 || declaredSize > 25 * 1024 * 1024 || declaredSize !== Number(pending.size)) {
           return json({ error: "file_upload_size_mismatch" }, 400);
         }
