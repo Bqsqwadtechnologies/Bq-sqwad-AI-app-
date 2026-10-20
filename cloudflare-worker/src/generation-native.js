@@ -30,7 +30,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   if(!extensions[mimeType]) throw Object.assign(new Error("image_edit_type_unsupported"), { httpStatus: 415 });
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
-  const reservation=await charge(user.uid,0,"image_generation",user);
+  const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_generation",user);
   try {
     const binary=atob(encoded);
     const bytes=new Uint8Array(binary.length);
