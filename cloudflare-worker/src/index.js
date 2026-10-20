@@ -677,7 +677,8 @@ async function memoryContext(uid) {
     : legacy?.enabled !== false;
   const personal = profile?.personalInformation && typeof profile.personalInformation === "object" &&
     !Array.isArray(profile.personalInformation) ? profile.personalInformation : {};
-  const hasPersonalProfile = Object.values(personal).some(value => String(value || "").trim().length > 0);
+  const hasPersonalProfile = String(profile?.fullName || "").trim().length > 0 ||
+    Object.values(personal).some(value => String(value || "").trim().length > 0);
   if (!enabled && !hasPersonalProfile) return "";
   const saved = enabled ? await firestoreQuery("aiMemories", {
     filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
@@ -689,6 +690,7 @@ async function memoryContext(uid) {
     return key && value ? (key.toLowerCase() === value.toLowerCase() ? value : key + ": " + value) : "";
   }).filter(Boolean);
   const personalFacts = [
+    ["Name", profile?.fullName],
     ["About the user", personal.aboutMe],
     ["Interests", personal.interests],
     ["Goals", personal.goals],
