@@ -2192,7 +2192,7 @@ export default {
         const writes = [{
           path: "fileBox/" + user.uid,
           data: fileBoxData,
-          ...(doc?.__updateTime ? { updateTime: doc.__updateTime } : { exists: false })
+          ...(doc?.__updateTime ? { updateTime: doc.__updateTime } : { create: true })
         }, {
           path: "fileBoxUploads/" + id,
           data: { ...uploadData, uploadPending: false, finalizedAt: now.toISOString() },
