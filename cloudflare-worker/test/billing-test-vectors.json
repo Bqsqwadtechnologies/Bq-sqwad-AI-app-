@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "rounding": "credits rounded to 5 decimal places",
+  "defaults": {
+    "markupPercent": 600,
+    "feePercent": 0,
+    "usdPerCredit": 0.1199,
+    "openAiInputUsdPerToken": 5e-8,
+    "openAiCachedInputUsdPerToken": 5e-9,
+    "openAiOutputUsdPerToken": 2.5e-7
+  },
+  "cases": [
+    {
+      "id": "chat-short",
+      "kind": "tokens",
+      "uncachedInputTokens": 1000,
+      "cachedInputTokens": 0,
+      "outputTokens": 500,
+      "expectedCredits": 0.01022
+    },
+    {
+      "id": "chat-long",
+      "kind": "tokens",
+      "uncachedInputTokens": 8000,
+      "cachedInputTokens": 0,
+      "outputTokens": 1500,
+      "expectedCredits": 0.04525
+    },
+    {
+      "id": "chat-cached",
+      "kind": "tokens",
+      "uncachedInputTokens": 2000,
+      "cachedInputTokens": 1000,
+      "outputTokens": 300,
+      "expectedCredits": 0.01051
+    },
+    {
+      "id": "live-voice-minute",
+      "kind": "minute",
+      "providerCostUsd": 0.05,
+      "expectedCredits": 2.9191
+    },
+    {
+      "id": "live-camera-minute",
+      "kind": "minute",
+      "providerCostUsd": 0.05,
+      "expectedCredits": 2.9191
+    },
+    {
+      "id": "transcription-minute",
+      "kind": "minute",
+      "providerCostUsd": 0.003,
+      "expectedCredits": 0.17515
+    },
+    {
+      "id": "web-search-fixed",
+      "kind": "fixed",
+      "configuredCredits": 1.7,
+      "expectedCredits": 1.7
+    }
+  ]
+}
