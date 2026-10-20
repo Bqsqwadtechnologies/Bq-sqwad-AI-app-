@@ -137,6 +137,29 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   };
 }
 
+let canonicalUsageBillingCache = null;
+let canonicalUsageBillingCacheUntil = 0;
+
+async function loadCanonicalUsageBilling() {
+  if (canonicalUsageBillingCache && Date.now() < canonicalUsageBillingCacheUntil) return canonicalUsageBillingCache;
+  const document = await firestoreGet("config/usageBilling");
+  let policy = document;
+  if (typeof document?.json === "string") {
+    try { policy = JSON.parse(document.json); } catch { policy = null; }
+  }
+  const markupPercent = Number(policy?.markupPercent);
+  const feePercent = Number(policy?.feePercent);
+  const usdPerCredit = Number(policy?.usdPerCredit);
+  if (!policy || !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
+      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100 ||
+      !Number.isFinite(usdPerCredit) || usdPerCredit <= 0) {
+    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  }
+  canonicalUsageBillingCache = { markupPercent, feePercent, usdPerCredit };
+  canonicalUsageBillingCacheUntil = Date.now() + 60000;
+  return canonicalUsageBillingCache;
+}
+
 export async function resolveTokenPricing(providerId, modelId, feature, control = {}) {
   const embedded = control.tokenPricing && typeof control.tokenPricing === "object" ? control.tokenPricing : {};
   let model = null;
@@ -157,7 +180,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     ) || {};
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
-  const canonicalUsageBilling = await firestoreGet("config/usageBilling").catch(() => null) || {};
+  const canonicalUsageBilling = await loadCanonicalUsageBilling();
   const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
@@ -177,9 +200,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const legacyMarkup = Math.max(0, Math.min(1000, Number(dynamicBilling.pricingVersion >= 5 ? (dynamicBilling.profitMarkup ?? 6) : ([1.1, 1.3, 3].includes(Number(dynamicBilling.profitMarkup)) || !Number.isFinite(Number(dynamicBilling.profitMarkup)) ? 6 : dynamicBilling.profitMarkup)) * 100));
-  const profitMarkup = Math.max(0, Math.min(1000, Number(canonicalUsageBilling.markupPercent ?? legacyMarkup)));
-  const feeRate = Math.max(0, Math.min(100, Number(canonicalUsageBilling.feePercent ?? 0)));
+  const profitMarkup = canonicalUsageBilling.markupPercent;
+  const feeRate = canonicalUsageBilling.feePercent;
   const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
@@ -223,7 +245,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.
   // This is the canonical conversion value; stale per-model/config values must not override it.
-  const creditReferenceValueUsd = Number(canonicalUsageBilling.usdPerCredit ?? DEFAULT_CREDIT_REFERENCE_USD);
+  const creditReferenceValueUsd = canonicalUsageBilling.usdPerCredit;
   const baseCustomerMultiplier = (1 + profitMarkup / 100) * (1 + feeRate / 100);
   // Website model multipliers are deliberate relative cost weights and are
   // applied after the canonical markup and fee policy.
