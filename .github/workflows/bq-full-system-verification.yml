@@ -110,6 +110,10 @@ jobs:
         working-directory: website
         run: npm install --no-audit --no-fund
 
+      - name: Run website billing regression tests
+        working-directory: website
+        run: npx vitest run src/lib/usage-billing.test.ts
+
       - name: Lint website
         working-directory: website
         run: npm run lint --if-present
