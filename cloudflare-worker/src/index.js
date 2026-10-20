@@ -2662,12 +2662,13 @@ export default {
       if (url.pathname === "/admin/feedback" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
-        const [aiRows, contacts, leads, appSales, messageRatings] = await Promise.all([
+        const [aiRows, contacts, leads, appSales, messageRatings, enterpriseLeads] = await Promise.all([
           firestoreQuery("aiFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("contactMessages", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("businessLeads", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
           firestoreQuery("contactSalesRequests", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
-          firestoreQuery("messageFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => [])
+          firestoreQuery("messageFeedback", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => []),
+          firestoreQuery("enterpriseLeads", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:250 }).catch(() => [])
         ]);
         const idOf = x => String(x.id || String(x.__name || "").split("/").pop()).slice(0,120);
         const items = [
@@ -2702,6 +2703,22 @@ export default {
             reason:String(x.reason || "").slice(0,500), comment:String(x.reason || "").slice(0,1000),
             messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
             email:"", source:"message-feedback"
+          })),
+          ...enterpriseLeads.map(x => ({
+            id:idOf(x), userId:String(x.uid || "").slice(0,128), messageId:null,
+            category:"Enterprise sales / quote request", sentiment:null,
+            reason:String(x.companyName || "Enterprise quote request").slice(0,500),
+            comment:[
+              x.position ? "Position: "+String(x.position) : "",
+              x.phoneNumber ? "Phone: "+String(x.phoneNumber) : "",
+              x.country ? "Country: "+String(x.country) : "",
+              x.numberOfEmployees ? "Employees: "+String(x.numberOfEmployees) : "",
+              x.expectedAiUsers ? "Expected AI users: "+String(x.expectedAiUsers) : "",
+              x.companyWebsite ? "Website: "+String(x.companyWebsite) : "",
+              String(x.message || "")
+            ].filter(Boolean).join("\\n").slice(0,2000),
+            messageHash:"", createdAt:x.createdAt || null, status:String(x.status || "new"),
+            email:String(x.businessEmail || "").slice(0,200), source:"enterprise-sales"
           }))
         ].sort((a,b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || ""))).slice(0,500);
         return json({
