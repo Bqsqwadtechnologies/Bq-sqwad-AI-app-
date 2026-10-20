@@ -2748,6 +2748,32 @@ export default {
         });
       }
 
+      if (url.pathname === "/admin/feedback/status" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
+        const body = await readBody(request);
+        const id = String(body.id || "").trim();
+        const source = String(body.source || "");
+        const status = String(body.status || "");
+        if (!/^[A-Za-z0-9_-]{1,180}$/.test(id)) return json({ error:"invalid_feedback_id" }, 400);
+        if (!["new","seen","in-progress","resolved"].includes(status)) return json({ error:"invalid_feedback_status" }, 400);
+        const collections = {
+          "ai-feedback":"aiFeedback",
+          "contact":"contactMessages",
+          "sales":"businessLeads",
+          "app-sales":"contactSalesRequests",
+          "message-feedback":"messageFeedback",
+          "enterprise-sales":"enterpriseLeads"
+        };
+        const collection = collections[source];
+        if (!collection) return json({ error:"invalid_feedback_source" }, 400);
+        const path = collection + "/" + id;
+        const existing = await firestoreGet(path);
+        if (!existing) return json({ error:"feedback_item_not_found" }, 404);
+        await firestoreSet(path, { ...existing, status, updatedAt:new Date().toISOString() }, true);
+        return json({ ok:true, id, source, status });
+      }
+
       if (url.pathname === "/admin/diagnostics" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
