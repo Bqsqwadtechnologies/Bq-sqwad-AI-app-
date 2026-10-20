@@ -1,6 +1,7 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
+import { computeFixedCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
@@ -745,7 +746,9 @@ function isSubscriptionCoveredCapability(profile, capabilityName) {
 }
 
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
-  let charge = Math.max(0, Number(amount || 0));
+  // The caller supplies the final customer price. Normalize to the shared
+  // five-decimal credit precision here; never apply markup in the ledger layer.
+  let charge = computeFixedCredits(amount);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
