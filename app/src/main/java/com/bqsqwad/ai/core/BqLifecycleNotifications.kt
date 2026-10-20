@@ -380,7 +380,7 @@ object BqLifecycleNotifications {
         prefs.edit().putInt(NEXT_ID, if (id >= Int.MAX_VALUE - 1) 4000 else id + 1).apply()
         if (AppVisibility.isForeground) return
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.bq_notification_mark)
+            .setSmallIcon(R.drawable.bq_notification_logo)
             .setLargeIcon(BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setColor(android.graphics.Color.rgb(39, 112, 235))
             .setContentTitle("BQ Sqwad AI")
