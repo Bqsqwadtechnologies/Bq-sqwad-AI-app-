@@ -1,8 +1,9 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
 import { computeTokenCredits } from "./billing-core.js";
 
-const MONTHLY_PLAN_PRICE_USD = 11.99;
-const MONTHLY_PLAN_CREDITS = 100;
+// Canonical credit value: the 1,000-credit monthly plan is $79.99.
+const MONTHLY_PLAN_PRICE_USD = 79.99;
+const MONTHLY_PLAN_CREDITS = 1000;
 const DEFAULT_CREDIT_REFERENCE_USD = MONTHLY_PLAN_PRICE_USD / MONTHLY_PLAN_CREDITS;
 const DEFAULT_CUSTOMER_MULTIPLIER = 1.0;
 
@@ -245,8 +246,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy),
     cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy ?? (inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : undefined))
   };
-  // Convert provider USD cost into credits using the agreed monthly plan: $11.99 for 100 credits.
-  // This is the canonical conversion value; stale per-model/config values must not override it.
+  // Convert provider USD cost into credits using the canonical $79.99 / 1,000-credit value.
+  // This is the fallback conversion value; the shared Firebase billing policy remains authoritative.
   const creditReferenceValueUsd = canonicalUsageBilling.usdPerCredit;
   const baseCustomerMultiplier = (1 + profitMarkup / 100) * (1 + feeRate / 100);
   // Website model multipliers are deliberate relative cost weights and are
