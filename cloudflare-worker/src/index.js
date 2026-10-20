@@ -2699,8 +2699,8 @@ export default {
         ].sort((a,b) => Date.parse(String(b.createdAt || "")) - Date.parse(String(a.createdAt || ""))).slice(0,500);
         return json({
           items,
-          helpfulCount:items.filter(x => ["helpful","like","positive"].includes(String(x.sentiment || "").toLowerCase())).length,
-          notHelpfulCount:items.filter(x => ["not_helpful","dislike","negative"].includes(String(x.sentiment || "").toLowerCase())).length,
+          helpfulCount:items.filter(x => ["helpful","like","positive","up","thumbs_up"].includes(String(x.sentiment || "").toLowerCase())).length,
+          notHelpfulCount:items.filter(x => ["not_helpful","dislike","negative","down","thumbs_down"].includes(String(x.sentiment || "").toLowerCase())).length,
           complaintCount:items.filter(x => /complaint|contact|report|safety|abuse/i.test(x.category) || Boolean(x.reason)).length,
           checkedAt:new Date().toISOString()
         });
