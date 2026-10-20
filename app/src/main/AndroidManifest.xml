@@ -39,7 +39,7 @@
         android:label="BQ Sqwad AI"
         android:supportsRtl="true"
         android:theme="@style/Theme.BQSqwadAI">
-        <!-- FCM auto-displayed background notifications must use the dedicated BQ notification mark, not the launcher BX artwork. -->
+        <!-- Use the uploaded BQ Sqwad AI notification logo for FCM-rendered notifications. -->
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/bq_notification_logo" />
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
         <service
