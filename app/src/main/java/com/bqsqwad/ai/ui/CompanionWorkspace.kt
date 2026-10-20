@@ -198,7 +198,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
 
     if (loadingAccess) {
         Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-            CircularProgressIndicator()
+            BqSqwadLoadingIndicator(Modifier.size(48.dp))
         }
         return
     }
