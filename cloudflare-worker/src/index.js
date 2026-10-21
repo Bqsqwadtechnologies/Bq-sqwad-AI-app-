@@ -1545,7 +1545,7 @@ async function stream(request, user, body) {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   }
-  const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
   // Text chat defaults to measured provider-cost billing. Explicit admin settings
   // may opt out; missing model rates fail safely rather than silently charging 1 credit.
   const tokenBilling = capabilityName === "chat" ||
