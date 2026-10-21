@@ -3226,6 +3226,12 @@ export default {
            if (charge.reservationId) await reverseCredits(user.uid, charge.reservationId).catch(() => {});
            throw error;
          }
+         if (elapsedSeconds > 0) {
+           await firestoreSet(liveSessionPath, {
+             uid: user.uid, mode: heartbeatMode, lastBilledAt: new Date(serverNow).toISOString(),
+             updatedAt: new Date(serverNow).toISOString()
+           }, true);
+         }
          const trackedCost = await configuredMediaProviderCost(modelControl, elapsedSeconds, expectedCostUnit, true);
          if (trackedCost) {
            await recordConfiguredMediaCost(user.uid, capabilityName, modelControl, {
@@ -3235,12 +3241,6 @@ export default {
              jobId: crypto.randomUUID()
            }, trackedCost, isCameraMode ? "live_camera" : "live_voice").catch(() =>
              notifyAdminOfIssue(env, "/realtime/heartbeat", 500, "live_media_cost_ledger_write_failed"));
-         }
-         if (elapsedSeconds > 0) {
-           await firestoreSet(liveSessionPath, {
-             uid: user.uid, mode: heartbeatMode, lastBilledAt: new Date(serverNow).toISOString(),
-             updatedAt: new Date(serverNow).toISOString()
-           }, true);
          }
          const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
          return json({
