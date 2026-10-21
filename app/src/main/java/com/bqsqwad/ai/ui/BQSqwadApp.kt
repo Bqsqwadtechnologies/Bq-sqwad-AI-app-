@@ -4865,6 +4865,37 @@ private fun WorkspaceScreen(
                 .padding(p)
                 .then(if (w == Workspace.CAMERA) Modifier.fillMaxSize() else Modifier.padding(16.dp).fillMaxSize())
         ) {
+            if (w !in setOf(Workspace.CAMERA, Workspace.VOICE, Workspace.CHAT, Workspace.ADMIN)) {
+                val workspaceDescription = when (w) {
+                    Workspace.LEARNING -> "Learn with guided lessons, focused practice, study plans and progress tracking."
+                    Workspace.TRUTH_GUARD -> "Check claims against evidence, review sources and understand confidence before sharing."
+                    Workspace.LIFE -> "Turn real-life decisions into clear options, trade-offs and practical next steps."
+                    Workspace.COMPANION -> "A private, supportive space for conversation, reflection and preferences you control."
+                    Workspace.BUSINESS -> "Build business assistants, organize knowledge and streamline customer-facing work."
+                    Workspace.FRONTIER_LAB -> "Explore emerging ideas, compare evidence and shape research into useful next steps."
+                    Workspace.DATA_ANALYSIS -> "Bring a supported dataset, inspect its structure and turn findings into clear reports."
+                    Workspace.PERSONAL -> "Organize personal goals, priorities and context in one focused intelligence workspace."
+                    Workspace.VIDEO -> "Create and manage AI-assisted visual productions and review recent outputs."
+                    Workspace.ORGANIZATION_STUDIO -> "Coordinate organizational work, shared knowledge and team operations."
+                    Workspace.SEARCH -> "Search current information, review source evidence and explore topics more deeply."
+                    else -> "Use the tools in this workspace to move from a question to a practical result."
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    tonalElevation = 2.dp
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("BQ SQWAD AI WORKSPACE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text(if (w == Workspace.BUSINESS) "Business AI Workspace" else w.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(workspaceDescription, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             when (w) {
                 Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onOpenAppSettings)
