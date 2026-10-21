@@ -85,11 +85,11 @@ export async function uploadFirebaseStorageObject(objectPath, bytes, contentType
     metadata: { firebaseStorageDownloadTokens: downloadToken }
   });
   const prefix = new TextEncoder().encode(
-    "--" + boundary + "\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n" +
-    metadata + "\\r\\n--" + boundary + "\\r\\nContent-Type: " +
-    String(contentType || "application/octet-stream") + "\\r\\n\\r\\n"
+    "--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+    metadata + "\r\n--" + boundary + "\r\nContent-Type: " +
+    String(contentType || "application/octet-stream") + "\r\n\r\n"
   );
-  const suffix = new TextEncoder().encode("\\r\\n--" + boundary + "--");
+  const suffix = new TextEncoder().encode("\r\n--" + boundary + "--");
   const body = new Uint8Array(prefix.length + bytes.length + suffix.length);
   body.set(prefix, 0);
   body.set(bytes, prefix.length);
