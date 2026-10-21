@@ -2317,7 +2317,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             return
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
-        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.3f", available).trimEnd('0').trimEnd('.')
+        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.2f", available).trimEnd('0').trimEnd('.')
         creditsExhausted = available <= 0.0
         val renewalTime = snapshot.optString("dailyFreeCreditsRenewalTime", "00:00").ifBlank { "00:00" }
         val renewalZone = snapshot.optString("dailyFreeCreditsTimeZone", "Africa/Lagos").ifBlank { "Africa/Lagos" }
