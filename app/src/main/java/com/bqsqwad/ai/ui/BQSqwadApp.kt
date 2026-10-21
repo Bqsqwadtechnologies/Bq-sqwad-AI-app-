@@ -1253,7 +1253,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             onClick = {
                                 shellScope.launch {
                                     drawerState.close()
-                                    history = false; settings = false; plans = false; featureHub = false; workspace = null
+                                    history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null
                                     restoredChat = null
                                     chatSessionNonce += 1
                                 }
@@ -1267,7 +1267,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Chat History") },
                             selected = history,
-                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1295,7 +1295,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                         runCatching { HistoryApiClient().load(historyItem.id) }
                                             .onSuccess { messages ->
                                                 restoredChat = historyItem.title to messages
-                                                history = false; settings = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
+                                                history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
                                                 chatSessionNonce += 1
                                                 drawerState.close()
                                             }
@@ -1321,7 +1321,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("File Box") },
                             selected = fileBoxOpen,
-                            onClick = { shellScope.launch { drawerState.close(); fileBoxOpen = true; history = false; settings = false; plans = false; workspace = null; featureHub = false } },
+                            onClick = { shellScope.launch { drawerState.close(); fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
                         )
                     }
@@ -1332,7 +1332,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Plans & Billing") },
                             selected = plans,
-                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; connectorsOpen = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1342,7 +1342,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
-                            onClick = { shellScope.launch { drawerState.close(); settings = true; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
