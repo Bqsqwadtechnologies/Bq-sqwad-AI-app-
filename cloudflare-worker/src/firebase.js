@@ -74,7 +74,7 @@ async function googleAccessToken() {
 export async function uploadFirebaseStorageObject(objectPath, bytes, contentType = "image/png") {
   const account = JSON.parse(env("BQ_FIREBASE_SERVICE_ACCOUNT_JSON"));
   const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
-  const path = String(objectPath || "").replace(/^\\/+/, "");
+  const path = String(objectPath || "").replace(/^\/+/, "");
   if (!path || path.includes("..") || !(bytes instanceof Uint8Array)) throw new Error("storage_upload_invalid_input");
   const token = await googleAccessToken();
   const downloadToken = crypto.randomUUID();
@@ -126,7 +126,7 @@ export async function deleteFirebaseStoragePrefix(prefix) {
   let pageToken = "";
   let removed = 0;
   do {
-    const params = new URLSearchParams({ prefix: String(prefix || "").replace(/^\\/+/, ""), maxResults: "1000" });
+    const params = new URLSearchParams({ prefix: String(prefix || "").replace(/^\/+/, ""), maxResults: "1000" });
     if (pageToken) params.set("pageToken", pageToken);
     const response = await fetch(
       "https://storage.googleapis.com/storage/v1/b/" + encodeURIComponent(bucket) + "/o?" + params.toString(),
