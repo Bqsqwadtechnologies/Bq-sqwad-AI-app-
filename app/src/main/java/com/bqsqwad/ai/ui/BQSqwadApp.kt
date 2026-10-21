@@ -1816,6 +1816,15 @@ internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
         ),
         label = "bqLogoPulse"
     )
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "bqLogoRotation"
+    )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Image(
             painter = painterResource(R.drawable.bq_sqwad_logo),
@@ -1824,6 +1833,7 @@ internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
                 alpha = pulse
                 scaleX = 0.92f + 0.08f * pulse
                 scaleY = 0.92f + 0.08f * pulse
+                rotationZ = rotation
             }
         )
     }
