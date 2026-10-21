@@ -3539,8 +3539,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         } else {
                             Surface(
                                 shape = RoundedCornerShape(18.dp),
-                                color = if (m.mine) Color(0xFF101820) else Color(0xFF050608),
-                                border = if (m.mine) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2B78A8)) else null,
+                                color = if (m.mine) com.bqsqwad.ai.ui.theme.bubbleUser else com.bqsqwad.ai.ui.theme.bubbleAi,
+                                border = if (!m.mine) androidx.compose.foundation.BorderStroke(1.dp, com.bqsqwad.ai.ui.theme.bubbleAiBorder) else null,
                                 tonalElevation = 0.dp,
                                 shadowElevation = 3.dp
                             ) {
@@ -3548,9 +3548,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (m.text.isNotBlank()) {
                                             if (m.mine || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
-                                                Text(m.text, color = Color(0xFFF5F8FC))
+                                                Text(m.text, color = if (m.mine) com.bqsqwad.ai.ui.theme.onBubbleUser else com.bqsqwad.ai.ui.theme.onBubbleAi)
                                             } else {
-                                                MarkdownText(m.text, color = Color(0xFFF5F8FC), sources = m.sources)
+                                                MarkdownText(m.text, color = com.bqsqwad.ai.ui.theme.onBubbleAi, sources = m.sources)
                                             }
                                         }
                                         m.attachments.forEach { attachment ->
