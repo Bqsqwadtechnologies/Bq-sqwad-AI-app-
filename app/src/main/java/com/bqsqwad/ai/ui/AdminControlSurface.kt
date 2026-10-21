@@ -90,6 +90,7 @@ fun AdminControlCenter() {
     var selfTestSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var diagnosticsBusy by remember { mutableStateOf(false) }
     var diagnosticsError by remember { mutableStateOf<String?>(null) }
+    var billingChatTestSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
 
     LaunchedEffect(Unit) {
         runCatching { client.list() }
@@ -342,6 +343,56 @@ fun AdminControlCenter() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 diagnosticsError?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall) }
+                diagnosticsSnapshot?.optJSONObject("billingConfigDoctor")?.let { doctor ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Billing config doctor", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            val docs = doctor.optJSONObject("documents")
+                            listOf("config/usageBilling", "config/providerConnections", "config/pricing", "config/aiModels", "tokenPricingRules").forEach { name ->
+                                Text("$name • ${docs?.optString(name, "unknown") ?: "unknown"}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            val policy = doctor.optJSONObject("policy") ?: org.json.JSONObject()
+                            Text(
+                                "Markup ${policy.optDouble("markupPercent", 600.0)}% • Fee ${policy.optDouble("feePercent", 0.0)}% • Credit value ${policy.optDouble("usdPerCredit", 0.1199)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val chatRates = doctor.optJSONObject("defaultChatRatesUsdPerToken") ?: org.json.JSONObject()
+                            Text(
+                                "Default chat model ${doctor.optString("defaultChatModel", "gpt-4o-mini")} • input ${chatRates.optDouble("input", 0.0)} • output ${chatRates.optDouble("output", 0.0)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val connectionRates = doctor.optJSONObject("connectionRatesUsdPerMinute") ?: org.json.JSONObject()
+                            Text(
+                                "Per minute: voice ${connectionRates.optDouble("liveVoice", 0.05)}, camera ${connectionRates.optDouble("liveCamera", 0.05)}, transcription ${connectionRates.optDouble("transcription", 0.003)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Button(
+                                onClick = {
+                                    diagnosticsBusy = true
+                                    scope.launch {
+                                        runCatching { WorkspaceApiClient().adminBillingChatSelfTest() }
+                                            .onSuccess { billingChatTestSnapshot = it; diagnosticsError = null }
+                                            .onFailure { diagnosticsError = it.message ?: "Chat self-test could not run." }
+                                        diagnosticsBusy = false
+                                    }
+                                },
+                                enabled = !diagnosticsBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(if (diagnosticsBusy) "Testing…" else "Run chat self-test") }
+                            billingChatTestSnapshot?.let { result ->
+                                Text(
+                                    "Chat self-test: ${result.optString("status", "UNKNOWN")} • ${result.optString("step", "unknown step")} • ${result.optString("code", result.optString("model", ""))}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (result.optString("status") == "PASS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                            val warnings = doctor.optJSONArray("warnings")
+                            if (warnings != null) for (index in 0 until warnings.length()) {
+                                Text("Warning: ${warnings.optString(index)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                            }
+                        }
+                    }
+                }
                 selfTestSnapshot?.let { result ->
                     Text("Readiness results • " + result.optString("checkedAt", ""), fontWeight = FontWeight.SemiBold)
                     val checks = result.optJSONArray("checks")
