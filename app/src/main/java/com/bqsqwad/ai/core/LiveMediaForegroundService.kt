@@ -297,7 +297,7 @@ class LiveMediaForegroundService : Service() {
         if (organizationMode || realtimeBillingJob?.isActive == true) return
         realtimeBillingJob = serviceScope.launch {
             while (isActive && (realtimeVoice != null || visualVoice != null)) {
-                delay(60_000L)
+                delay(30_000L)
                 if (!isActive || (realtimeVoice == null && visualVoice == null)) break
                 var heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
                 if (heartbeat.isFailure) {
