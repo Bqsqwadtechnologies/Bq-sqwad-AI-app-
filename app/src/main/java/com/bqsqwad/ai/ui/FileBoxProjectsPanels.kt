@@ -21,6 +21,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import android.content.ContentValues
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -40,8 +44,37 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.ChatAttachmentReader
 import com.bqsqwad.ai.core.PreparedChatAttachment
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+
+private fun fileBoxDisplayName(context: android.content.Context, uri: Uri): String {
+    val name = runCatching {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
+    return name?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "Selected file"
+}
+
+private fun readFileBoxUploadBytes(context: android.content.Context, uri: Uri): ByteArray {
+    val maximum = 25 * 1024 * 1024
+    val input = context.contentResolver.openInputStream(uri) ?: error("Could not open the selected file.")
+    input.use { stream ->
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val count = stream.read(buffer)
+            if (count < 0) break
+            if (output.size() + count > maximum) error("Files must be 25 MB or smaller.")
+            output.write(buffer, 0, count)
+        }
+        val bytes = output.toByteArray()
+        if (bytes.isEmpty()) error("Choose a non-empty file.")
+        return bytes
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +87,7 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var preview by remember { mutableStateOf<JSONObject?>(null) }
+    val pendingUploads = remember { mutableStateListOf<String>() }
     var refresh: () -> Unit = {}
     refresh = {
         busy = true
@@ -66,6 +100,39 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                 notice = null
             }.onFailure { notice = "File Box could not be loaded. Check your connection and retry." }
             busy = false
+        }
+    }
+    val uploadPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { selectedUris ->
+        if (selectedUris.isNotEmpty()) {
+            val names = selectedUris.map { fileBoxDisplayName(context, it) }
+            pendingUploads.addAll(names)
+            busy = true
+            notice = "Selected files are visible below while they upload."
+            scope.launch {
+                var succeeded = 0
+                var failed = 0
+                selectedUris.forEachIndexed { index, uri ->
+                    val name = names[index]
+                    runCatching {
+                        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                        val bytes = withContext(Dispatchers.IO) { readFileBoxUploadBytes(context, uri) }
+                        api.uploadFileBoxAsset(name.take(180), name.take(160), mime, bytes)
+                    }.onSuccess {
+                        succeeded++
+                    }.onFailure { error ->
+                        failed++
+                        notice = "$name could not be uploaded: ${error.message?.take(120) ?: "please retry"}"
+                    }
+                    pendingUploads.remove(name)
+                }
+                busy = false
+                notice = when {
+                    failed == 0 -> "Uploaded $succeeded file(s). They are now being refreshed in File Box."
+                    succeeded > 0 -> "Uploaded $succeeded file(s); $failed failed. Retry the failed files."
+                    else -> "No files were uploaded. Check the connection and try again."
+                }
+                refresh()
+            }
         }
     }
     LaunchedEffect(Unit) { refresh() }
@@ -88,10 +155,21 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                 }
             }
             OutlinedButton(
-                enabled = true,
-                onClick = { notice = "Direct File Box uploads are temporarily unavailable. Attach a file in chat to save it here for reuse." },
+                enabled = !busy,
+                onClick = { uploadPicker.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Uploads temporarily unavailable") }
+            ) { Text(if (busy && pendingUploads.isNotEmpty()) "Uploading to File Box…" else "Upload files to File Box") }
+            pendingUploads.forEach { name ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BqSqwadLoadingIndicator(Modifier.size(24.dp))
+                        Column {
+                            Text(name, style = MaterialTheme.typography.bodySmall)
+                            Text("Uploading…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
             Text(
                 "Files attached in chat are intended to be saved to your account File Box and shared across your signed-in devices.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
