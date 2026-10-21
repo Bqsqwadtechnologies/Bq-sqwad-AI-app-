@@ -6704,6 +6704,41 @@ fun DeviceIntelligencePanel(featureName: String) {
 private data class BqConnectorInfo(val name: String, val group: String, val description: String, val mark: String)
 
 @Composable
+private fun ConnectorLogo(name: String, fallback: String) {
+    val domain = when (name) {
+        "Google Drive" -> "drive.google.com"
+        "Google Calendar" -> "calendar.google.com"
+        "Gmail" -> "mail.google.com"
+        "GitHub" -> "github.com"
+        "Microsoft OneDrive" -> "onedrive.live.com"
+        "Microsoft Outlook" -> "outlook.live.com"
+        "Dropbox" -> "dropbox.com"
+        "Notion" -> "notion.so"
+        "Slack" -> "slack.com"
+        "Trello" -> "trello.com"
+        "Linear" -> "linear.app"
+        "Google Docs" -> "docs.google.com"
+        "Google Sheets" -> "sheets.google.com"
+        "Google Meet" -> "meet.google.com"
+        "Local device" -> "android.com"
+        else -> "bluetooth.com"
+    }
+    var logo by remember(name) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(name) {
+        logo = withContext(Dispatchers.IO) {
+            runCatching {
+                URL("https://www.google.com/s2/favicons?domain=$domain&sz=128").openConnection().apply {
+                    connectTimeout = 2500
+                    readTimeout = 2500
+                }.getInputStream().use { stream -> BitmapFactory.decodeStream(stream)?.asImageBitmap() }
+            }.getOrNull()
+        }
+    }
+    if (logo != null) Image(bitmap = logo!!, contentDescription = "$name logo", modifier = Modifier.size(28.dp), contentScale = ContentScale.Fit)
+    else Text(fallback, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
+}
+
+@Composable
 private fun ConnectorsScreen(onBack: () -> Unit) {
     val connectors = listOf(
         BqConnectorInfo("Google Drive", "Files & knowledge", "Search and read files you explicitly authorize.", "D"),
@@ -6732,7 +6767,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             item { Text("Available connector targets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(connectors, key = { it.name }) { connector -> Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Text(connector.mark, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium) } }
+                    Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { ConnectorLogo(connector.name, connector.mark) } }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(connector.name, fontWeight = FontWeight.SemiBold); Text(connector.group, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(connector.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text("Setup required", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
