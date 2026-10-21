@@ -1822,8 +1822,9 @@ private fun chargeMainChatPdf(title: String, content: String): Double {
         setRequestProperty("Content-Type", "application/json")
     }
     try {
+        val requestId = UUID.randomUUID().toString()
         connection.outputStream.use {
-            it.write(JSONObject().put("title", title.take(180)).put("content", content.take(60000)).toString().toByteArray())
+            it.write(JSONObject().put("requestId", requestId).put("title", title.take(180)).put("content", content.take(60000)).toString().toByteArray())
         }
         val status = connection.responseCode
         val raw = (if (status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
