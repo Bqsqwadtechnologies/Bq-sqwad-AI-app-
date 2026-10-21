@@ -148,14 +148,17 @@ async function loadCanonicalUsageBilling() {
     // Safe, user-approved defaults apply only when the canonical document is
     // genuinely absent. Existing admin values remain authoritative.
     const fallback = { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
-    const day = new Date().toISOString().slice(0, 10);
-    await firestoreCreate("adminIssues/missing_usage_billing_" + day, {
-      id: "missing_usage_billing_" + day,
+    const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
+    const warningId = "billing_config_config_usageBilling_" + hour;
+    await firestoreCreate("adminIssues/" + warningId, {
+      id: warningId,
       category: "billing_configuration",
       severity: "warning",
+      state: "open",
       status: "open",
+      document: "config/usageBilling",
       source: "token-billing-native",
-      message: "config/usageBilling is missing. Temporary defaults are active: 600% markup, 0% fee allowance, and $0.1199 per credit. Configure canonical billing in the website admin.",
+      message: "config/usageBilling is missing; website-aligned defaults are active.",
       createdAt: new Date().toISOString()
     }).catch(() => {});
     console.warn("[BQ Billing] config/usageBilling missing; using the website-aligned fallback defaults.");
@@ -178,14 +181,17 @@ async function loadCanonicalUsageBilling() {
     // document intact for diagnosis and use the website's conservative defaults
     // for this request; only document names and the validation category are logged.
     const fallback = { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
-    const hour = new Date().toISOString().slice(0, 13);
-    await firestoreCreate("adminIssues/invalid_usage_billing_" + hour.replace(/[^0-9]/g, ""), {
-      id: "invalid_usage_billing_" + hour.replace(/[^0-9]/g, ""),
+    const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
+    const warningId = "billing_config_config_usageBilling_" + hour;
+    await firestoreCreate("adminIssues/" + warningId, {
+      id: warningId,
       category: "billing_configuration",
       severity: "warning",
+      state: "open",
       status: "open",
+      document: "config/usageBilling",
       source: "token-billing-native",
-      message: "config/usageBilling is invalid; website-aligned defaults are active for requests until corrected.",
+      message: "config/usageBilling is invalid; website-aligned defaults are active.",
       createdAt: new Date().toISOString()
     }).catch(() => {});
     console.warn("[BQ Billing] config/usageBilling invalid; request uses defaults.");
