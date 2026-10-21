@@ -3540,18 +3540,36 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 )
                             }
                         } else {
+                            val isErrorMessage = !m.mine && (
+                                m.text.startsWith("Network error:", ignoreCase = true) ||
+                                m.text.startsWith("Request failed", ignoreCase = true) ||
+                                m.text.contains("temporarily unavailable", ignoreCase = true) ||
+                                m.text.startsWith("Error:", ignoreCase = true)
+                            )
+                            val darkThemeSurface = MaterialTheme.colorScheme.background.luminance() < 0.5f
                             Surface(
                                 shape = RoundedCornerShape(18.dp),
-                                color = if (m.mine) com.bqsqwad.ai.ui.theme.bubbleUser else com.bqsqwad.ai.ui.theme.bubbleAi,
-                                border = if (!m.mine) androidx.compose.foundation.BorderStroke(1.dp, com.bqsqwad.ai.ui.theme.bubbleAiBorder) else null,
+                                color = when {
+                                    isErrorMessage -> Color(0xFFFFD180)
+                                    m.mine -> com.bqsqwad.ai.ui.theme.bubbleUser
+                                    else -> com.bqsqwad.ai.ui.theme.bubbleAi
+                                },
+                                border = if (!m.mine && !isErrorMessage && darkThemeSurface) androidx.compose.foundation.BorderStroke(1.dp, com.bqsqwad.ai.ui.theme.bubbleAiBorder) else null,
                                 tonalElevation = 0.dp,
                                 shadowElevation = 3.dp
                             ) {
                                 SelectionContainer {
                                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (m.text.isNotBlank()) {
-                                            if (m.mine || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
-                                                Text(m.text, color = if (m.mine) com.bqsqwad.ai.ui.theme.onBubbleUser else com.bqsqwad.ai.ui.theme.onBubbleAi)
+                                            if (m.mine || isErrorMessage || (streamJob != null && messages.lastOrNull()?.id == m.id)) {
+                                                Text(
+                                                    m.text,
+                                                    color = when {
+                                                        m.mine -> com.bqsqwad.ai.ui.theme.onBubbleUser
+                                                        isErrorMessage -> Color(0xFF271900)
+                                                        else -> com.bqsqwad.ai.ui.theme.onBubbleAi
+                                                    }
+                                                )
                                             } else {
                                                 MarkdownText(m.text, color = com.bqsqwad.ai.ui.theme.onBubbleAi, sources = m.sources)
                                             }
