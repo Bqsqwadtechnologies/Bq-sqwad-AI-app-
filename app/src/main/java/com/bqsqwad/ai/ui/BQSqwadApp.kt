@@ -1678,7 +1678,170 @@ internal fun needsCurrentWebSearch(text: String): Boolean {
         .containsMatchIn(query)
 }
 
-private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null, val imageLocalId: String? = null)
+private fun isPdfGenerationRequest(text: String): Boolean =
+    Regex("""\b(create|generate|make|export|save|convert|turn)\b.{0,80}\bpdf\b|\bpdf\b.{0,60}\b(create|generate|make|export)\b""", RegexOption.IGNORE_CASE)
+        .containsMatchIn(text)
+
+private fun pdfTitleFromPrompt(prompt: String): String {
+    val quoted = Regex("""["“](.{3,100}?)["”]""").find(prompt)?.groupValues?.getOrNull(1)
+    val raw = quoted ?: prompt.replace(Regex("""(?i)\b(create|generate|make|export|save|convert|turn|a|an|the|into|as|pdf|document|file|please|for me)\b"""), " ")
+        .replace(Regex("""\s+"""), " ").trim().take(70)
+    val clean = raw.replace(Regex("""[^A-Za-z0-9 _-]"""), "").trim().take(70)
+    return clean.ifBlank { "BQ Sqwad AI Document" }
+}
+
+private fun renderChatPdfBytes(title: String, content: String): ByteArray {
+    val document = android.graphics.pdf.PdfDocument()
+    val pageWidth = 595
+    val pageHeight = 842
+    val margin = 44f
+    var pageNumber = 0
+    var page: android.graphics.pdf.PdfDocument.Page? = null
+    var canvas: android.graphics.Canvas? = null
+    var y = margin
+
+    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(20, 44, 78)
+        textSize = 19f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val bodyPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(35, 40, 48)
+        textSize = 11.5f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+    }
+
+    fun beginPage() {
+        pageNumber++
+        val info = android.graphics.pdf.PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
+        page = document.startPage(info)
+        canvas = page!!.canvas
+        y = margin
+    }
+    fun finishPage() {
+        page?.let { document.finishPage(it) }
+        page = null
+        canvas = null
+    }
+    fun ensureSpace(height: Float) {
+        if (y + height > pageHeight - margin) {
+            finishPage()
+            beginPage()
+        }
+    }
+    fun drawWrapped(paragraph: String, paint: android.graphics.Paint, lineHeight: Float) {
+        if (paragraph.isBlank()) {
+            ensureSpace(lineHeight)
+            y += lineHeight
+            return
+        }
+        var line = ""
+        for (word in paragraph.trim().split(Regex("""\s+"""))) {
+            val candidate = if (line.isEmpty()) word else "$line $word"
+            if (line.isNotEmpty() && paint.measureText(candidate) > pageWidth - margin * 2) {
+                ensureSpace(lineHeight)
+                canvas?.drawText(line, margin, y, paint)
+                y += lineHeight
+                line = word
+            } else {
+                line = candidate
+            }
+        }
+        if (line.isNotEmpty()) {
+            ensureSpace(lineHeight)
+            canvas?.drawText(line, margin, y, paint)
+            y += lineHeight
+        }
+    }
+
+    try {
+        beginPage()
+        drawWrapped(title, titlePaint, 26f)
+        y += 8f
+        val rulePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.rgb(43, 120, 190)
+            strokeWidth = 1.5f
+        }
+        canvas?.drawLine(margin, y, pageWidth - margin, y, rulePaint)
+        y += 22f
+        content.replace("\r", "").split("\n").forEach { paragraph ->
+            drawWrapped(paragraph, bodyPaint, 17f)
+        }
+        finishPage()
+        val output = java.io.ByteArrayOutputStream()
+        document.writeTo(output)
+        return output.toByteArray()
+    } finally {
+        runCatching { finishPage() }
+        document.close()
+    }
+}
+
+private fun stageChatPdfInDownloads(context: Context, title: String, bytes: ByteArray): Uri {
+    val safeName = title.replace(Regex("""[^A-Za-z0-9_-]"""), "_").trim('_').take(70).ifBlank { "bq-document" } + ".pdf"
+    val values = ContentValues().apply {
+        put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
+        put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BQ Sqwad AI")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+    }
+    val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        MediaStore.Downloads.EXTERNAL_CONTENT_URI
+    } else {
+        MediaStore.Files.getContentUri("external")
+    }
+    val uri = context.contentResolver.insert(collection, values) ?: error("Could not create the PDF in Downloads.")
+    try {
+        context.contentResolver.openOutputStream(uri, "w")?.use { it.write(bytes) }
+            ?: error("Could not write the PDF to Downloads.")
+        return uri
+    } catch (error: Throwable) {
+        context.contentResolver.delete(uri, null, null)
+        throw error
+    }
+}
+
+private fun publishChatPdf(context: Context, uri: Uri) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        context.contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+    }
+}
+
+private fun chargeMainChatPdf(title: String, content: String): Double {
+    val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to create a PDF.")
+    val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable.")
+    val connection = (URL("${ApiConfig.baseUrl}/pdf/charge").openConnection() as java.net.HttpURLConnection).apply {
+        requestMethod = "POST"
+        connectTimeout = 15000
+        readTimeout = 30000
+        doInput = true
+        doOutput = true
+        setRequestProperty("Authorization", "Bearer $token")
+        setRequestProperty("Content-Type", "application/json")
+    }
+    try {
+        connection.outputStream.use {
+            it.write(JSONObject().put("title", title.take(180)).put("content", content.take(60000)).toString().toByteArray())
+        }
+        val status = connection.responseCode
+        val raw = (if (status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+        val body = runCatching { JSONObject(raw) }.getOrNull()
+        if (status !in 200..299 || body?.optBoolean("ok", false) != true) {
+            val code = body?.optString("error").orEmpty()
+            if (status == 402 || code.contains("credit", ignoreCase = true) || code.contains("insufficient", ignoreCase = true)) {
+                error("You need at least 0.5 credits to generate a PDF.")
+            }
+            error("The PDF could not be charged securely. Please try again.")
+        }
+        return body.optDouble("creditsCharged", 0.5).coerceAtLeast(0.0)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private data class ChatMessageAttachment(val name: String, val mimeType: String, val imageBase64: String? = null, val imageLocalId: String? = null, val fileUri: String? = null)
 private data class ChatMessage(
     val mine: Boolean,
     val text: String,
@@ -1702,7 +1865,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("privateSession", message.privateSession)
                 put("attachments", JSONArray().apply {
                     message.attachments.forEach { attachment ->
-                        put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId))
+                        put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId).put("fileUri", attachment.fileUri))
                     }
                 })
             }.toString()
@@ -1719,7 +1882,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                             ChatMessageAttachment(
                                 name = attachment.optString("name").take(160),
                                 mimeType = attachment.optString("mimeType").take(100),
-                                imageLocalId = attachment.optString("imageLocalId").takeIf { it.matches(Regex("[a-fA-F0-9-]{36}")) }
+                                imageLocalId = attachment.optString("imageLocalId").takeIf { it.matches(Regex("[a-fA-F0-9-]{36}")) },
+                                fileUri = attachment.optString("fileUri").takeIf { it.startsWith("content://") }
                             )
                         } ?: ChatMessageAttachment("Attachment", "application/octet-stream")
                     }
@@ -1918,6 +2082,7 @@ private fun ChatAttachmentPreview(
     onImageClick: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var decoding by remember(attachment.imageBase64) { mutableStateOf(attachment.imageBase64 != null) }
     var decodeFailed by remember(attachment.imageBase64) { mutableStateOf(false) }
     val image by produceState<ImageBitmap?>(initialValue = null, key1 = attachment.imageBase64) {
@@ -1947,6 +2112,22 @@ private fun ChatAttachmentPreview(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Image could not be displayed.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (onRetry != null) OutlinedButton(onClick = onRetry) { Text("Retry image") }
+        }
+    } else if (attachment.mimeType == "application/pdf" && attachment.fileUri != null) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp), modifier = Modifier.widthIn(max = 320.dp)) {
+            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(attachment.name, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    Text("PDF document · saved in Downloads/BQ Sqwad AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(attachment.fileUri), "application/pdf")
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    runCatching { context.startActivity(Intent.createChooser(intent, "Open PDF")) }
+                        .onFailure { android.widget.Toast.makeText(context, "No PDF viewer is available on this device.", android.widget.Toast.LENGTH_SHORT).show() }
+                }) { Text("Open") }
+            }
         }
     } else {
         Surface(
@@ -2670,6 +2851,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
         val activeSystem = conversationContext.takeIf { it.isNotBlank() }?.let {
             "Recent conversation context. Continue the conversation naturally and do not repeat questions already answered:\n" + it
         }.orEmpty()
+        val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
         if (imageRequest) {
             val promptText = text.trim()
@@ -2797,6 +2979,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                     }
                 }
                 val requestPrompt = buildString {
+                    if (pdfRequest) {
+                        append("Create the complete, polished document requested below. Return the document content itself with a clear title, section headings, readable paragraphs, and useful lists. Do not merely explain how to make a PDF.\n\n")
+                    }
                     append(actualPrompt)
                     if (webSources.isNotEmpty()) {
                         append("\n\nCURRENT WEB SEARCH SOURCES (use for facts; cite only with [1], [2], etc.; never reproduce URLs or Markdown links):\n")
@@ -2820,6 +3005,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                 val requestSystem = listOf(
                     activeSystem.takeIf { it.isNotBlank() },
                     personalizationSystem,
+                    if (pdfRequest) "The user requested a downloadable PDF. Write finished document content, not instructions about PDFs. Use a suitable title and clear section headings." else null,
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
                 ).filterNotNull().joinToString("\n\n")
@@ -2844,12 +3030,36 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         }
                     })
                 }
+                var generatedPdfAttachment: ChatMessageAttachment? = null
+                var generatedPdfNotice = ""
+                if (pdfRequest && reply.text.isNotBlank()) {
+                    val pdfTitle = pdfTitleFromPrompt(text)
+                    var stagedUri: Uri? = null
+                    try {
+                        val pdfBytes = withContext(Dispatchers.IO) { renderChatPdfBytes(pdfTitle, reply.text) }
+                        stagedUri = withContext(Dispatchers.IO) { stageChatPdfInDownloads(context, pdfTitle, pdfBytes) }
+                        val charged = withContext(Dispatchers.IO) { chargeMainChatPdf(pdfTitle, reply.text) }
+                        withContext(Dispatchers.IO) { publishChatPdf(context, stagedUri!!) }
+                        generatedPdfAttachment = ChatMessageAttachment(
+                            name = pdfTitle.take(70) + ".pdf",
+                            mimeType = "application/pdf",
+                            fileUri = stagedUri.toString()
+                        )
+                        generatedPdfNotice = "\n\nPDF created and saved to Downloads/BQ Sqwad AI. PDF generation charge: " +
+                            String.format(java.util.Locale.US, "%.2f", charged).trimEnd('0').trimEnd('.') + " credits."
+                    } catch (pdfError: Throwable) {
+                        stagedUri?.let { uri -> withContext(Dispatchers.IO) { runCatching { context.contentResolver.delete(uri, null, null) } } }
+                        generatedPdfNotice = "\n\nI could not finish the PDF: " +
+                            (pdfError.message?.takeIf { it.contains("credits", ignoreCase = true) } ?: "the PDF service is temporarily unavailable. Your chat response is still available.")
+                    }
+                }
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
                     if (current != null) {
                         val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(reply.text) else reply.text
                         messages[aiIndex] = current.copy(
-                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply,
+                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + generatedPdfNotice,
+                            attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
                             sources = webSources
                         )
                     }
