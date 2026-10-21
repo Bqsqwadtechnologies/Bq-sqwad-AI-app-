@@ -2867,9 +2867,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
                     val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = null)
-                    val durableImageUrl = generated.imageBase64?.let {
-                        runCatching { uploadGeneratedImage(it) }.getOrNull()
-                    } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                    val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                        ?: generated.imageBase64?.let {
+                            runCatching { uploadGeneratedImage(it) }
+                                .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                .getOrNull()
+                        }
                     scope.launch(Dispatchers.Main) {
                         messages[aiIndex] = messages[aiIndex].copy(
                             text = "Image generated.",
@@ -4060,8 +4063,12 @@ val composerShape = RoundedCornerShape(26.dp)
                         scope.launch(Dispatchers.IO) {
                             val result = runCatching { GenerationApiClient().generateImage(prompt, modelRegistryId = null) }
                             val durableUrl = result.getOrNull()?.let { generated ->
-                                generated.imageBase64?.let { runCatching { uploadGeneratedImage(it) }.getOrNull() }
-                                    ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                    ?: generated.imageBase64?.let {
+                                        runCatching { uploadGeneratedImage(it) }
+                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .getOrNull()
+                                    }
                             }
                             withContext(Dispatchers.Main) {
                                 result.onSuccess { generated ->
@@ -4099,9 +4106,12 @@ val composerShape = RoundedCornerShape(26.dp)
                     scope.launch {
                         runCatching { GenerationApiClient().editImage(prompt, image, selectedImageSize, modelRegistryId = null, mimeType = selectedImageMimeType) }
                             .onSuccess { generated ->
-                                val durableImageUrl = generated.imageBase64?.let {
-                                    runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
-                                } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                    ?: generated.imageBase64?.let {
+                                        runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }
+                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .getOrNull()
+                                    }
                                 val idx = messages.indexOfFirst { it.id == targetId }
                                 if (idx >= 0) messages[idx] = messages[idx].copy(
                                     text = "Image edited.", prompt = prompt,
@@ -4141,9 +4151,12 @@ val composerShape = RoundedCornerShape(26.dp)
                     scope.launch {
                         runCatching { GenerationApiClient().generateImage(prompt, selectedImageSize, modelRegistryId = null) }
                             .onSuccess { generated ->
-                                val durableImageUrl = generated.imageBase64?.let {
-                                    runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }.getOrNull()
-                                } ?: generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
+                                    ?: generated.imageBase64?.let {
+                                        runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }
+                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .getOrNull()
+                                    }
                                 val idx = messages.indexOfFirst { it.id == targetId }
                                 if (idx >= 0) messages[idx] = messages[idx].copy(
                                     text = "Image resized.", prompt = prompt,
