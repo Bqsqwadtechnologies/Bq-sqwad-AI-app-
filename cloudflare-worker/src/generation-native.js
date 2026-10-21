@@ -1,4 +1,4 @@
-import { firestoreGet, firestoreCreate } from "./firebase.js";
+import { firestoreGet, firestoreCreate, uploadFirebaseStorageObject } from "./firebase.js";
 export function validateGeneratedImageBase64(encoded) {
   const value = String(encoded || "");
   if (!value || value.length > 28 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
@@ -17,8 +17,25 @@ export function validateGeneratedImageBase64(encoded) {
   }
   return true;
 }
+async function persistGeneratedImage(user, encoded, id, prompt, operation = "generate") {
+  const binary = atob(String(encoded || ""));
+  const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  const objectPath = "users/" + String(user.uid) + "/generated-images/" + id + ".png";
+  const uploaded = await uploadFirebaseStorageObject(objectPath, bytes, "image/png");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(prompt || "")));
+  const promptHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+  try {
+    await firestoreCreate("generatedImages/" + id, {
+      id, uid: String(user.uid), createdAt: new Date(), bytes: bytes.byteLength,
+      promptHash, operation, storagePath: objectPath, contentType: "image/png"
+    });
+  } catch {
+    console.warn("generated_image_metadata_write_failed");
+  }
+  return uploaded.url;
+}
 async function openai(env,path,init={}){const r=await fetch("https://api.openai.com/v1"+path,{...init,signal:init.signal||AbortSignal.timeout(60000),headers:{Authorization:"Bearer "+String(env.OPENAI_API_KEY||""),...(init.headers||{})}});const raw=await r.text();let b={};try{b=raw?JSON.parse(raw):{}}catch{}if(!r.ok)throw new Error("OpenAI HTTP "+r.status+":"+raw.slice(0,700));return b}
-export async function generateImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){const prompt=String(b.prompt||b.message||"").trim().slice(0,12000);if(!prompt)throw new Error("image_prompt_required");const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_generation",user);try{const model=String(b.model||"gpt-image-2"),z=await openai(env,"/images/generations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:String(b.size||"1024x1024"),quality:String(b.quality||"auto")})}),x=z.data?.[0];if(!x?.b64_json)throw new Error("image_generation_returned_no_image");validateGeneratedImageBase64(x.b64_json);const id=crypto.randomUUID();await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,reservation.reservationId,"openai");return {providerId:"openai",modelId:model,imageBase64:x.b64_json,generationId:id,creditsCharged:reservation.amount}}catch(e){await reverse(user.uid,reservation.reservationId);throw e}}
+export async function generateImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){const prompt=String(b.prompt||b.message||"").trim().slice(0,12000);if(!prompt)throw new Error("image_prompt_required");const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_generation",user);try{const model=String(b.model||"gpt-image-2"),z=await openai(env,"/images/generations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:String(b.size||"1024x1024"),quality:String(b.quality||"auto")})}),x=z.data?.[0];if(!x?.b64_json)throw new Error("image_generation_returned_no_image");validateGeneratedImageBase64(x.b64_json);const id=crypto.randomUUID();let imageUrl=null;try{imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"generate")}catch{console.warn("generated_image_storage_upload_failed")}await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});await commit(user.uid,reservation.reservationId,"openai");return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount}}catch(e){await reverse(user.uid,reservation.reservationId);throw e}}
 export async function editImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){
   const prompt=String(b.prompt||"").trim().slice(0,12000);
   const encoded=String(b.imageBase64||"").trim();
@@ -44,10 +61,14 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     const z=await openai(env,"/images/edits",{method:"POST",body:form});
     const x=z.data?.[0];
     if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
+    validateGeneratedImageBase64(x.b64_json);
     const id=crypto.randomUUID();
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:String(b.model||"gpt-image-2"),status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date()});
+    let imageUrl=null;
+    try { imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit"); }
+    catch { console.warn("generated_image_storage_upload_failed"); }
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:String(b.model||"gpt-image-2"),status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
     await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:String(b.model||"gpt-image-2"),imageBase64:x.b64_json,generationId:id,creditsCharged:reservation.amount};
+    return {providerId:"openai",modelId:String(b.model||"gpt-image-2"),imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
 export async function createVideoNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){const prompt=String(b.prompt||"").trim().slice(0,12000);if(!prompt)throw new Error("video_prompt_required");const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"video_generation",user);try{const form=new FormData();form.append("model",String(b.model||"sora-2"));form.append("prompt",prompt);if(b.seconds)form.append("seconds",String(b.seconds));if(b.size)form.append("size",String(b.size));const z=await openai(env,"/videos",{method:"POST",body:form}),id=crypto.randomUUID();await firestoreCreate("videoGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",providerVideoId:String(z.id||""),modelId:String(z.model||b.model||"sora-2"),status:String(z.status||"queued"),progress:Number(z.progress||0),prompt,seconds:String(z.seconds||b.seconds||""),size:String(z.size||b.size||""),createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,reservation.reservationId,"openai");return {jobId:id,providerVideoId:z.id,status:z.status,progress:Number(z.progress||0),modelId:z.model||b.model||"sora-2",creditsCharged:reservation.amount}}catch(e){await reverse(user.uid,reservation.reservationId);throw e}}
