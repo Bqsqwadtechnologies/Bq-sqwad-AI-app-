@@ -3198,10 +3198,17 @@ export default {
          if ((heartbeatBody.modelRegistryId || modelControl.selectedRegistryModelId) && modelControl.creditsPerMinute != null) {
            ratePerMinute = Math.max(0, Number(modelControl.creditsPerMinute));
          }
-         // Heartbeats bill elapsed seconds, not whole minutes. The Android client
-         // should heartbeat every second; elapsedSeconds is capped to prevent a
-         // delayed/replayed request from producing an unexpectedly large charge.
-         const elapsedSeconds = Math.min(10, Math.max(1, Math.trunc(Number(heartbeatBody.elapsedSeconds ?? 1))));
+         // The server clock is authoritative. A client cannot choose its billable
+         // duration; cap missed intervals at two minutes to bound a delayed request.
+         const liveSessionPath = "liveSessions/" + user.uid + "_" + capabilityName;
+         const liveSession = await firestoreGet(liveSessionPath);
+         if (!liveSession || String(liveSession.uid || "") !== String(user.uid) ||
+             String(liveSession.mode || "") !== String(heartbeatMode)) {
+           throw Object.assign(new Error("live_session_not_found"), { httpStatus: 409, safeError: "provider_unavailable" });
+         }
+         const serverNow = Date.now();
+         const lastBilledAt = new Date(liveSession.lastBilledAt || liveSession.startedAt || serverNow).getTime();
+         const elapsedSeconds = Math.min(120, Math.max(0, Math.floor((serverNow - lastBilledAt) / 1000)));
          const rate = ratePerMinute * elapsedSeconds / 60;
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
@@ -3225,13 +3232,19 @@ export default {
            }, trackedCost, isCameraMode ? "live_camera" : "live_voice").catch(() =>
              notifyAdminOfIssue(env, "/realtime/heartbeat", 500, "live_media_cost_ledger_write_failed"));
          }
+         if (elapsedSeconds > 0) {
+           await firestoreSet(liveSessionPath, {
+             uid: user.uid, mode: heartbeatMode, lastBilledAt: new Date(serverNow).toISOString(),
+             updatedAt: new Date(serverNow).toISOString()
+           }, true);
+         }
          const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
          return json({
            ok: true,
            available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0),
            charged: Number(charge.amount || 0),
            free: rate === 0,
-           billingIntervalSeconds: 1,
+           billingIntervalSeconds: 30,
            ...(trackedCost ? { estimatedProviderCostUsd: trackedCost.providerCostUsd } : {})
          });
        }
@@ -3352,6 +3365,13 @@ export default {
             const wallet = await orgWallet(u.uid);
             if (wallet.balanceCents <= 0) throw Object.assign(new Error("organization_insufficient_balance"), { httpStatus: 402 });
             await orgChargeAssistant(u.uid, "realtime-" + Date.now());
+          } else {
+            const sessionPath = "liveSessions/" + u.uid + "_" + capabilityName;
+            const sessionNow = new Date().toISOString();
+            await firestoreSet(sessionPath, {
+              uid: u.uid, mode, startedAt: sessionNow, lastBilledAt: sessionNow,
+              status: "active", createdAt: sessionNow, updatedAt: sessionNow
+            }, true);
           }
           return json({
             clientSecret: String(secret), model, voice,
