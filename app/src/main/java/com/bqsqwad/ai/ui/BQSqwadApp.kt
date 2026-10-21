@@ -920,7 +920,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     BackHandler(enabled = drawerState.isOpen) { shellScope.launch { drawerState.close() } }
-    BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var chatSessionNonce by remember { mutableIntStateOf(0) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
@@ -952,6 +951,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
