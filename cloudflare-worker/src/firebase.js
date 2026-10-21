@@ -118,6 +118,36 @@ export async function uploadFirebaseStorageObject(objectPath, bytes, contentType
   };
 }
 
+
+/** Delete every object under a user's generated-media prefix during account removal. */
+export async function deleteFirebaseStoragePrefix(prefix) {
+  const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
+  const token = await googleAccessToken();
+  let pageToken = "";
+  let removed = 0;
+  do {
+    const params = new URLSearchParams({ prefix: String(prefix || "").replace(/^\\/+/, ""), maxResults: "1000" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const response = await fetch(
+      "https://storage.googleapis.com/storage/v1/b/" + encodeURIComponent(bucket) + "/o?" + params.toString(),
+      { headers: { authorization: "Bearer " + token } }
+    );
+    if (!response.ok) throw new Error("firebase_storage_list_failed_" + response.status);
+    const page = await response.json();
+    for (const object of Array.isArray(page.items) ? page.items : []) {
+      const deleted = await fetch(
+        "https://storage.googleapis.com/storage/v1/b/" + encodeURIComponent(bucket) +
+          "/o/" + encodeURIComponent(String(object.name || "")),
+        { method: "DELETE", headers: { authorization: "Bearer " + token } }
+      );
+      if (!deleted.ok && deleted.status !== 404) throw new Error("firebase_storage_delete_failed_" + deleted.status);
+      removed += 1;
+    }
+    pageToken = String(page.nextPageToken || "");
+  } while (pageToken);
+  return { removed };
+}
+
 export async function deleteFirebaseAuthUser(uid) {
   const token = await googleAccessToken();
   const response = await fetch(
