@@ -3068,7 +3068,7 @@ export default {
           const pricing = await resolveTokenPricing("openai", model, "chat", {});
           if (!pricing.configured) {
             await notifyAdminOfIssue(env, "/admin/billing/chat-self-test", 503, "chat_self_test_token_pricing_unavailable");
-            return json({ status: "FAIL", step: "resolve_token_pricing", code: "provider_unavailable", checkedAt: new Date().toISOString() }, 503);
+            return json({ status: "FAIL", step: "resolve_token_pricing", code: "provider_unavailable", checkedAt: new Date().toISOString() });
           }
           const result = await runProvider(env, {
             primaryProviderId: "openai",
@@ -3081,7 +3081,7 @@ export default {
         } catch (error) {
           const code = safeDiagnosticCode(error?.safeError || error?.message || "provider_unavailable");
           await notifyAdminOfIssue(env, "/admin/billing/chat-self-test", Number(error?.httpStatus || 503), "chat_self_test_" + code);
-          return json({ status: "FAIL", step: "provider_request", code: "provider_unavailable", checkedAt: new Date().toISOString() }, 503);
+          return json({ status: "FAIL", step: "provider_request", code: "provider_unavailable", checkedAt: new Date().toISOString() });
         }
       }
 
