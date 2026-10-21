@@ -2,7 +2,7 @@ const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
-import { computeFixedCredits, computeTokenCredits } from "./billing-core.js";
+import { computeFixedCredits, computeTokenCredits, loadBillingConfig } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
@@ -3004,6 +3004,44 @@ export default {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const features = await adminDiagnosticSnapshot();
+        const billingConfig = await loadBillingConfig(path => firestoreGet(path));
+        const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
+        const defaultChatRule = (Array.isArray(tokenRules) ? tokenRules : []).find(rule =>
+          String(rule.status || "inactive") === "active" &&
+          String(rule.provider || "").toLowerCase() === "openai" &&
+          ["*", "gpt-4o-mini"].includes(String(rule.model || "*")) &&
+          (!Array.isArray(rule.features) || rule.features.length === 0 || rule.features.includes("chat") || rule.features.includes("text-chat"))
+        );
+        const providerConnections = billingConfig.providerConnections || {};
+        const resolvedRate = (keys, fallback) => {
+          for (const key of keys) {
+            const value = Number(providerConnections[key]);
+            if (Number.isFinite(value) && value >= 0) return value;
+          }
+          return fallback;
+        };
+        const billingConfigDoctor = {
+          documents: {
+            "config/usageBilling": billingConfig.warnings.some(x => x.includes("config/usageBilling missing")) ? "missing (default in use)" : "present",
+            "config/providerConnections": billingConfig.warnings.some(x => x.includes("config/providerConnections missing")) ? "missing (default in use)" : "present",
+            "config/pricing": billingConfig.warnings.some(x => x.includes("config/pricing missing")) ? "missing (default in use)" : "present",
+            "config/aiModels": billingConfig.warnings.some(x => x.includes("config/aiModels missing")) ? "missing (default in use)" : "present",
+            "tokenPricingRules": tokenRules.length ? "present" : "missing (default in use)"
+          },
+          policy: billingConfig.usageBilling,
+          defaultChatModel: "gpt-4o-mini",
+          defaultChatRatesUsdPerToken: defaultChatRule ? {
+            input: Number(defaultChatRule.inputUsdPerToken ?? Number(defaultChatRule.inputUsdPerMillion || 0) / 1000000),
+            output: Number(defaultChatRule.outputUsdPerToken ?? Number(defaultChatRule.outputUsdPerMillion || 0) / 1000000),
+            cachedInput: Number(defaultChatRule.cachedInputUsdPerToken ?? Number(defaultChatRule.cachedInputUsdPerMillion ?? defaultChatRule.inputUsdPerMillion ?? 0) / 1000000)
+          } : { input: 0.00000005, output: 0.00000025, cachedInput: 0.000000005 },
+          connectionRatesUsdPerMinute: {
+            liveVoice: resolvedRate(["liveVoiceUsdPerMinute"], 0.05),
+            liveCamera: resolvedRate(["liveCameraUsdPerMinute"], 0.05),
+            transcription: resolvedRate(["transcriptionUsdPerMinute", "transcribeUsdPerMinute"], 0.003)
+          },
+          warnings: billingConfig.warnings.map(x => String(x).replace(/[^a-zA-Z0-9_./ -]/g, "").slice(0, 180))
+        };
         const timeline = Object.values(features)
           .flat()
           .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
@@ -3018,7 +3056,7 @@ export default {
             timelineStatus: String(item.timelineStatus || "").slice(0, 24),
             createdAt: item.createdAt || null
           }));
-        return json({ features, timeline, checkedAt: new Date().toISOString() });
+        return json({ features, timeline, billingConfigDoctor, checkedAt: new Date().toISOString() });
       }
 
       if (url.pathname === "/admin/self-test" && request.method === "POST") {
