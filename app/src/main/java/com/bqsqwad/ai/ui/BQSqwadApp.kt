@@ -6704,7 +6704,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                             while (true) {
                                 val count = input.read(buffer)
                                 if (count < 0) break
-                                if (output.size() + count > 10 * 1024 * 1024) error("Choose an image smaller than 10 MB.")
+                                if (output.size() + count > 25 * 1024 * 1024) error("Choose an image smaller than 25 MB.")
                                 output.write(buffer, 0, count)
                             }
                             output.toByteArray()
@@ -6716,14 +6716,42 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                         bounds.outWidth.toLong() * bounds.outHeight.toLong() <= 40_000_000L) {
                         "Choose a valid image with dimensions no larger than 12,000 × 12,000 pixels."
                     }
+                    // Firebase Storage rules require image uploads below 5 MiB.
+                    // Resize large camera photos and JPEG-compress them before upload.
+                    val uploadImageBytes = withContext(Dispatchers.IO) {
+                        val options = BitmapFactory.Options().apply { inSampleSize = 1 }
+                        while (maxOf(bounds.outWidth / options.inSampleSize, bounds.outHeight / options.inSampleSize) > 2560) {
+                            options.inSampleSize *= 2
+                        }
+                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
+                            ?: error("Could not prepare the selected image.")
+                        try {
+                            var quality = 88
+                            var compressed = ByteArray(0)
+                            do {
+                                val output = java.io.ByteArrayOutputStream()
+                                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)) {
+                                    error("Could not optimize the selected image.")
+                                }
+                                compressed = output.toByteArray()
+                                quality -= 8
+                            } while (compressed.size >= (4.7 * 1024 * 1024).toInt() && quality >= 56)
+                            require(compressed.isNotEmpty() && compressed.size < 5 * 1024 * 1024) {
+                                "This image is still too large after optimization. Please choose another photo."
+                            }
+                            compressed
+                        } finally {
+                            bitmap.recycle()
+                        }
+                    }
                     val currentUser = FirebaseAuth.getInstance().currentUser ?: error("Sign in to save a chat background.")
                     val uploadId = UUID.randomUUID().toString()
-                    val safeMime = mime.take(120)
+                    val safeMime = "image/jpeg"
                     val objectRef = FirebaseStorage.getInstance().reference
-                        .child("avatars/${currentUser.uid}/wallpapers/chat-background-${uploadId}")
+                        .child("avatars/${currentUser.uid}/wallpapers/chat-background-${uploadId}.jpg")
                     val metadata = StorageMetadata.Builder().setContentType(safeMime).build()
                     withContext(Dispatchers.IO) {
-                        Tasks.await(objectRef.putBytes(imageBytes, metadata))
+                        Tasks.await(objectRef.putBytes(uploadImageBytes, metadata))
                     }
                     val downloadUrl = withContext(Dispatchers.IO) {
                         Tasks.await(objectRef.downloadUrl).toString()
