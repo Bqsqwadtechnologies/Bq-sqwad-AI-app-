@@ -1387,7 +1387,7 @@ async function ai(request, user, body) {
     }
   }
   if (tokenBilling && !tokenPricing.configured) {
-    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const memory = await memoryContext(user.uid);
   const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
@@ -1420,7 +1420,7 @@ async function ai(request, user, body) {
       }
       const actualPricing = await resolveTokenPricing(result.providerId, result.modelId, pricingFeature, control);
       if (!actualPricing.configured) {
-        throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+        throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "provider_unavailable" });
       }
       const calculation = calculateTokenCost({
         usage, pricing: actualPricing,
@@ -1581,7 +1581,7 @@ async function stream(request, user, body) {
     }
   }
   if (tokenBilling && !tokenPricing.configured) {
-    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const memory = await memoryContext(user.uid);
   const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
@@ -1640,7 +1640,7 @@ async function stream(request, user, body) {
             }
             const actualPricing = await resolveTokenPricing(provider.providerId, provider.modelId, pricingFeature, control);
             if (!actualPricing.configured) {
-              throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+              throw Object.assign(new Error("token_pricing_not_configured_for_selected_model"), { httpStatus: 409, safeError: "provider_unavailable" });
             }
             const calculation = calculateTokenCost({
               usage, pricing: actualPricing,
