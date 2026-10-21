@@ -170,10 +170,28 @@ async function loadCanonicalUsageBilling() {
   const markupPercent = Number(policy?.markupPercent);
   const feePercent = Number(policy?.feePercent);
   const usdPerCredit = Number(policy?.usdPerCredit);
-  if (!policy || !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
-      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100 ||
-      !Number.isFinite(usdPerCredit) || usdPerCredit <= 0) {
-    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  const valid = !!policy && Number.isFinite(markupPercent) && markupPercent >= 0 && markupPercent <= 10000 &&
+    Number.isFinite(feePercent) && feePercent >= 0 && feePercent <= 100 &&
+    Number.isFinite(usdPerCredit) && usdPerCredit > 0;
+  if (!valid) {
+    // A malformed admin document must not take chat offline. Keep the bad
+    // document intact for diagnosis and use the website's conservative defaults
+    // for this request; only document names and the validation category are logged.
+    const fallback = { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
+    const hour = new Date().toISOString().slice(0, 13);
+    await firestoreCreate("adminIssues/invalid_usage_billing_" + hour.replace(/[^0-9]/g, ""), {
+      id: "invalid_usage_billing_" + hour.replace(/[^0-9]/g, ""),
+      category: "billing_configuration",
+      severity: "warning",
+      status: "open",
+      source: "token-billing-native",
+      message: "config/usageBilling is invalid; website-aligned defaults are active for requests until corrected.",
+      createdAt: new Date().toISOString()
+    }).catch(() => {});
+    console.warn("[BQ Billing] config/usageBilling invalid; request uses defaults.");
+    canonicalUsageBillingCache = fallback;
+    canonicalUsageBillingCacheUntil = Date.now() + 60000;
+    return canonicalUsageBillingCache;
   }
   canonicalUsageBillingCache = { markupPercent, feePercent, usdPerCredit };
   canonicalUsageBillingCacheUntil = Date.now() + 60000;
@@ -263,13 +281,24 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion;
   const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion;
   const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion;
+  // Match the website's private OpenAI reference rates when canonical pricing
+  // documents/rules are absent. Other providers still require their own rates;
+  // never substitute OpenAI prices for Gemini or an unrelated provider.
+  const defaultOpenAiRates = {
+    input: 0.00000005,
+    output: 0.00000025,
+    cached: 0.000000005
+  };
+  const fallbackInput = isOpenAi ? defaultOpenAiRates.input : undefined;
+  const fallbackOutput = isOpenAi ? defaultOpenAiRates.output : undefined;
+  const fallbackCached = isOpenAi ? defaultOpenAiRates.cached : undefined;
   const rates = {
-    inputPriceUsdPerToken: inputTokenRate == null ? undefined : Number(inputTokenRate),
-    outputPriceUsdPerToken: outputTokenRate == null ? undefined : Number(outputTokenRate),
-    cachedInputPriceUsdPerToken: cachedTokenRate == null ? undefined : Number(cachedTokenRate),
-    inputPriceUsdPerMillion: inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : Number(inputPerMillionLegacy),
-    outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy),
-    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy ?? (inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : undefined))
+    inputPriceUsdPerToken: inputTokenRate == null ? fallbackInput : Number(inputTokenRate),
+    outputPriceUsdPerToken: outputTokenRate == null ? fallbackOutput : Number(outputTokenRate),
+    cachedInputPriceUsdPerToken: cachedTokenRate == null ? fallbackCached : Number(cachedTokenRate),
+    inputPriceUsdPerMillion: inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : Number(inputPerMillionLegacy ?? (fallbackInput == null ? undefined : fallbackInput * 1_000_000)),
+    outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy ?? (fallbackOutput == null ? undefined : fallbackOutput * 1_000_000)),
+    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy ?? (inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : fallbackCached == null ? undefined : fallbackCached * 1_000_000))
   };
   // Convert provider USD cost into credits using the canonical $79.99 / 1,000-credit value.
   // This is the fallback conversion value; the shared Firebase billing policy remains authoritative.
