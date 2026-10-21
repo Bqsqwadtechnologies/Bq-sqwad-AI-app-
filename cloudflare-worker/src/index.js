@@ -1348,7 +1348,9 @@ async function ai(request, user, body) {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   }
-  const pricingFeature = capabilityName === "chat" ? "text-chat" : capabilityName.replace(/_/g, "-");
+  // Use the website billing feature key for Main Chat. The Worker pricing resolver
+  // also accepts the legacy "text-chat" alias for existing admin rules.
+  const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
   // Text chat defaults to measured provider-cost billing. An explicit admin
   // setting can still opt a capability out; model pricing must be configured
   // or the request fails safely instead of silently charging one fixed credit.
