@@ -1,6 +1,6 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
 
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
 import { computeFixedCredits, computeTokenCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
@@ -1689,6 +1689,10 @@ async function stream(request, user, body) {
 
 
 async function permanentlyDeleteAccount(uid) {
+  // Remove generated images before deleting the Firebase Auth identity.
+  await deleteFirebaseStoragePrefix("users/" + uid + "/generated-images/").catch(error => {
+    console.warn("generated_image_cleanup_failed", String(error?.message || "unknown").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80));
+  });
   // Remove private File Box objects before the account identity is deleted.
   const fileBoxBeforeDeletion = await firestoreGet("fileBox/" + uid);
   for (const item of (Array.isArray(fileBoxBeforeDeletion?.items) ? fileBoxBeforeDeletion.items : [])) {
