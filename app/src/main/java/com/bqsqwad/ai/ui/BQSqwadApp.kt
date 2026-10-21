@@ -5839,7 +5839,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         )
                     }
                     if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
-                        Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     }
                     TextButton(
                         onClick = {
@@ -6052,7 +6052,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                 fullScreenPreviewReady = false
                 fullScreenPreview = false
             },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 if (streamOnline) {
@@ -6085,7 +6085,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     )
                 }
                 if (!streamOnline && showPreviewBitmapFallback && previewFrame != null) {
-                    Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    Image(bitmap = previewFrame!!, contentDescription = "Live camera footage", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 Row(
                     modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
