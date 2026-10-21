@@ -48,6 +48,7 @@ Publish these website changes through the existing Lovable-connected workflow.
 ## Known release blockers
 
 - The camera preview still needs a full-screen single-preview restructuring and portrait/landscape/front-camera device verification.
+- Sky-blue/black/amber bubble styling is updated in the Main Chat renderer; workspace-specific message renderers still need a full consistency audit.
 - Birthday sent-state is currently locally backfilled; server-persisted milestone state and comeback reminder edge-case tests remain.
 - Billing doctor reports the canonical document presence and defaults, but invalid-status classification and the website's idempotent “Save current defaults” action remain.
 - Server-authoritative heartbeat accounting still needs final-stop settlement and concurrency/retry tests.
