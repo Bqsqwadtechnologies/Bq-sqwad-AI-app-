@@ -3059,6 +3059,32 @@ export default {
         return json({ features, timeline, billingConfigDoctor, checkedAt: new Date().toISOString() });
       }
 
+      if (url.pathname === "/admin/billing/chat-self-test" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const model = String(DEFAULT_MODELS.openai || "gpt-4o-mini");
+        try {
+          const { resolveTokenPricing } = await import("./token-billing-native.js");
+          const pricing = await resolveTokenPricing("openai", model, "chat", {});
+          if (!pricing.configured) {
+            await notifyAdminOfIssue(env, "/admin/billing/chat-self-test", 503, "chat_self_test_token_pricing_unavailable");
+            return json({ status: "FAIL", step: "resolve_token_pricing", code: "provider_unavailable", checkedAt: new Date().toISOString() }, 503);
+          }
+          const result = await runProvider(env, {
+            primaryProviderId: "openai",
+            primaryModelId: model,
+            fallbackProviderIds: [],
+            fallbackModels: {}
+          }, { message: "Reply with OK.", system: "For this diagnostic only, respond with OK.", maxOutputTokens: 16 });
+          if (!String(result?.text || "").trim()) throw Object.assign(new Error("empty_provider_response"), { safeError: "provider_unavailable" });
+          return json({ status: "PASS", step: "provider_request", model: String(result.modelId || model), checkedAt: new Date().toISOString() });
+        } catch (error) {
+          const code = safeDiagnosticCode(error?.safeError || error?.message || "provider_unavailable");
+          await notifyAdminOfIssue(env, "/admin/billing/chat-self-test", Number(error?.httpStatus || 503), "chat_self_test_" + code);
+          return json({ status: "FAIL", step: "provider_request", code: "provider_unavailable", checkedAt: new Date().toISOString() }, 503);
+        }
+      }
+
       if (url.pathname === "/admin/self-test" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
