@@ -2236,6 +2236,47 @@ export default {
           throw error;
         }
       }
+      if (url.pathname === "/pdf/charge" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const requestId = String(body.requestId || "").trim();
+        if (!/^[A-Za-z0-9_-]{8,100}$/.test(requestId)) return json({ error: "pdf_request_id_required" }, 400);
+        const receiptPath = "mainChatPdfCharges/" + user.uid + "_" + requestId;
+        const existing = await firestoreGet(receiptPath);
+        if (existing?.status === "charged" && String(existing.uid || "") === user.uid) {
+          return json({ ok: true, alreadyCharged: true, creditsCharged: Number(existing.creditsCharged || 0.5) });
+        }
+        if (existing?.status === "pending") return json({ error: "pdf_charge_in_progress" }, 409);
+        try {
+          await firestoreCreate(receiptPath, { uid: user.uid, requestId, status: "pending", createdAt: new Date().toISOString() });
+        } catch {
+          const concurrent = await firestoreGet(receiptPath);
+          if (concurrent?.status === "charged" && String(concurrent.uid || "") === user.uid) {
+            return json({ ok: true, alreadyCharged: true, creditsCharged: Number(concurrent.creditsCharged || 0.5) });
+          }
+          return json({ error: "pdf_charge_in_progress" }, 409);
+        }
+        let reservation = null;
+        try {
+          reservation = await chargeCredits(user.uid, 0.5, "pdf", user);
+          await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
+          const creditsCharged = Math.max(0, Number(reservation.amount || 0));
+          await firestoreSet(receiptPath, {
+            uid: user.uid, requestId, status: "charged", creditsCharged,
+            chargedAt: new Date().toISOString()
+          }, true);
+          return json({ ok: true, creditsCharged });
+        } catch (error) {
+          const state = reservation?.reservationId
+            ? await firestoreGet("creditReservations/" + reservation.reservationId).catch(() => null)
+            : null;
+          if (state?.status !== "committed" && reservation?.reservationId) {
+            await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          }
+          await firestoreSet(receiptPath, { uid: user.uid, requestId, status: "failed", updatedAt: new Date().toISOString() }, true).catch(() => {});
+          throw error;
+        }
+      }
       if (url.pathname === "/file-box/upload-url" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
