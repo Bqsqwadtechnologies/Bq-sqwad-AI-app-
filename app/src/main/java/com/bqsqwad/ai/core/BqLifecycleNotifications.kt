@@ -67,7 +67,7 @@ object BqLifecycleNotifications {
         if (currentUser != null) {
             val previousUid = prefs.getString(ACCOUNT_UID, null)
             if (previousUid != currentUser.uid) {
-                val accountCreatedAt = currentUser.metadata?.creationTimestamp?.takeIf { it > 0L } ?: now
+                val accountCreatedAt = currentUser.metadata?.creationTimestamp?.takeIf { it > 0L } ?: 0L
                 prefs.edit()
                     .putString(ACCOUNT_UID, currentUser.uid)
                     .putLong(FIRST_OPEN, accountCreatedAt)
@@ -87,8 +87,11 @@ object BqLifecycleNotifications {
             cancelBirthdayReminder(context)
             return
         }
-        val firstOpen = prefs.getLong(FIRST_OPEN, 0L).let { saved ->
-            if (saved > 0L) saved else now.also { prefs.edit().putLong(FIRST_OPEN, it).apply() }
+        val firstOpen = prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
+            ?: currentUser?.metadata?.creationTimestamp?.takeIf { it > 0L }
+            ?: 0L
+        if (firstOpen > 0L && prefs.getLong(FIRST_OPEN, 0L) <= 0L) {
+            prefs.edit().putLong(FIRST_OPEN, firstOpen).apply()
         }
         val previousOpen = prefs.getLong(LAST_OPEN, 0L)
         if (previousOpen > 0L && now - previousOpen >= TimeUnit.DAYS.toMillis(2) && !AppVisibility.isForeground) {
@@ -98,7 +101,7 @@ object BqLifecycleNotifications {
         prefs.edit().putInt(COMEBACK_COUNT, 0).apply()
         scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
 
-        processBirthdayMilestone(context, firstOpen, now, allowPost = !AppVisibility.isForeground)
+        if (firstOpen > 0L) processBirthdayMilestone(context, firstOpen, now, allowPost = !AppVisibility.isForeground)
     }
 
     fun onBirthdayAlarm(context: Context) {
