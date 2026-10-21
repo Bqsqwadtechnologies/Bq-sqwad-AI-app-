@@ -3511,6 +3511,24 @@ export default {
         await assertSharedCreditsAvailable(u);
         return await getVideoContentNative(env, u, decodeURIComponent(url.pathname.slice("/video/jobs/".length, -8)));
       }
+      if (url.pathname === "/pdf/charge" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        await requireConsent(u.uid);
+        await assertSharedCreditsAvailable(u);
+        const body = await readBody(request);
+        const title = String(body.title || "").trim().slice(0, 180);
+        const content = String(body.content || "").trim().slice(0, 60000);
+        if (!title || !content) return json({ error: "pdf_content_required" }, 400);
+        let reservation = null;
+        try {
+          reservation = await chargeCredits(u.uid, 0.5, "main_chat_pdf", u);
+          await commitCredits(u.uid, reservation.reservationId, "main_chat_pdf");
+          return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0.5)) });
+        } catch (error) {
+          if (reservation?.reservationId) await reverseCredits(u.uid, reservation.reservationId).catch(() => {});
+          throw error;
+        }
+      }
       if (url.pathname === "/ai/image" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
