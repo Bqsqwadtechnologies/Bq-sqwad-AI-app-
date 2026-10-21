@@ -6741,6 +6741,7 @@ private fun ConnectorLogo(name: String, fallback: String) {
 
 @Composable
 private fun ConnectorsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
     val connectors = listOf(
         BqConnectorInfo("Google Drive", "Files & knowledge", "Search and read files you explicitly authorize.", "D"),
         BqConnectorInfo("Google Calendar", "Productivity", "Review events and prepare schedules.", "C"),
@@ -6757,24 +6758,42 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         BqConnectorInfo("Google Sheets", "Data", "Analyze authorized spreadsheet data.", "Sh"),
         BqConnectorInfo("Google Meet", "Meetings", "Prepare meeting notes from files you provide.", "Me"),
         BqConnectorInfo("Local device", "Android device", "Use supported files, camera and microphone through Android permissions.", "📱"),
-        BqConnectorInfo("Bluetooth devices", "Android device", "Future device integrations depend on Android support and pairing.", "BT")
+        BqConnectorInfo("Bluetooth devices", "Android device", "Device integrations depend on Android support and pairing.", "BT")
     )
+    var selectedConnector by remember { mutableStateOf<BqConnectorInfo?>(null) }
     Scaffold(topBar = { TopAppBar(title = { Text("Connectors") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Bring your tools into BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Connectors let the main chat use approved services when secure authorization and server integration are configured. These entries are a directory, not a claim that accounts are already connected.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Tap any service to view its connection status. Secure account authorization is not enabled on the server yet; these entries do not mean an account is connected.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             } } }
             item { Text("Available connector targets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            items(connectors, key = { it.name }) { connector -> Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { ConnectorLogo(connector.name, connector.mark) } }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(connector.name, fontWeight = FontWeight.SemiBold); Text(connector.group, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(connector.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text("Setup required", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(connectors, key = { it.name }) { connector ->
+                Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().clickable { selectedConnector = connector }) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { ConnectorLogo(connector.name, connector.mark) } }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(connector.name, fontWeight = FontWeight.SemiBold); Text(connector.group, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(connector.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text("View setup", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
                 }
-            } }
-            item { Text("Security: external accounts must be authorized before BQ Sqwad AI can read them. Sending messages, deleting files or publishing content should require confirmation. Showing this directory does not connect an account.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            item { Text("Security: connected accounts must be authorized before BQ Sqwad AI can read them. Sending messages, deleting files or publishing content should require confirmation.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+    selectedConnector?.let { connector ->
+        AlertDialog(
+            onDismissRequest = { selectedConnector = null },
+            title = { Text(connector.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(connector.description)
+                    Text("Connection not enabled yet", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                    Text("This service is listed, but BQ Sqwad AI's secure connector authorization gateway is not configured on the server. Your account has not been connected.")
+                    Text("To enable real connections, the server needs a connector-provider API key and authorization configuration. Secrets must never be stored in the app.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedConnector = null }) { Text("Close") } }
+        )
     }
 }
 
