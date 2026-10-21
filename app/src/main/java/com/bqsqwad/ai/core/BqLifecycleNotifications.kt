@@ -56,8 +56,8 @@ object BqLifecycleNotifications {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val saved = prefs.getLong(FIRST_OPEN, 0L)
         if (saved > 0L) return saved
-        return FirebaseAuth.getInstance().currentUser?.metadata?.creationTimestamp?.takeIf { it > 0L }
-            ?: System.currentTimeMillis()
+        // Never invent an account birthday from the first local launch.
+        return FirebaseAuth.getInstance().currentUser?.metadata?.creationTimestamp?.takeIf { it > 0L } ?: 0L
     }
 
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
@@ -118,20 +118,21 @@ object BqLifecycleNotifications {
     )
 
     private fun processBirthdayMilestone(context: Context, firstOpen: Long, now: Long, allowPost: Boolean) {
+        if (firstOpen <= 0L) return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val sent = prefs.getStringSet(SENT_MILESTONES, emptySet()).orEmpty().toMutableSet()
         val candidates = birthdayMilestones(firstOpen, now)
-        val overdue = candidates.filter { it.at <= now && it.key !in sent }
         val todayKey = localMilestoneDay(now)
-        // One celebration per local calendar day. If several milestones were missed,
-        // catch up in chronological order on successive polite morning reminders.
-        val due = if (prefs.getString(LAST_MILESTONE_DAY, null) == todayKey) {
-            null
-        } else {
-            overdue.firstOrNull { it.key.startsWith("year:") }
-                ?: overdue.firstOrNull { it.key.startsWith("month:") }
-                ?: overdue.minByOrNull { it.at }
-        }
+        val today = Calendar.getInstance().apply { timeInMillis = now }
+        val past = candidates.filter { it.at < startOfLocalDay(now) }
+        // Backfill all historical milestones silently. Old milestones must never
+        // be replayed after reinstall, cleared preferences, or a new app build.
+        past.forEach { sent.add(it.key) }
+        val dueToday = candidates.filter { it.key !in sent && isSameLocalDay(it.at, now) }
+        val due = if (prefs.getString(LAST_MILESTONE_DAY, null) == todayKey) null else
+            dueToday.firstOrNull { it.key.startsWith("year:") }
+                ?: dueToday.firstOrNull { it.key.startsWith("month:") }
+                ?: dueToday.firstOrNull()
         if (due != null) {
             if (allowPost && !AppVisibility.isForeground) {
                 post(context, due.title, due.body)
@@ -139,22 +140,28 @@ object BqLifecycleNotifications {
                 InAppNotificationBus.show("${due.title} · ${due.body}")
             }
             sent.add(due.key)
-            if (due.key.startsWith("year:")) {
-                sent.add("day:1")
-                sent.add("day:7")
-                val monthIndex = calendarMonthIndex(now) - calendarMonthIndex(firstOpen)
-                if (monthIndex > 0) sent.add("month:$monthIndex")
-            } else if (due.key.startsWith("month:")) {
-                sent.add("day:1")
-                sent.add("day:7")
-            }
             prefs.edit()
                 .putStringSet(SENT_MILESTONES, sent)
                 .putString(LAST_MILESTONE_DAY, todayKey)
                 .apply()
+        } else {
+            // Persist the silent backfill even when no milestone is due today.
+            prefs.edit().putStringSet(SENT_MILESTONES, sent).apply()
         }
         scheduleNextBirthdayReminder(context, firstOpen, sent, now)
     }
+
+    private fun startOfLocalDay(timestamp: Long): Long =
+        Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+    private fun isSameLocalDay(first: Long, second: Long): Boolean =
+        localMilestoneDay(first) == localMilestoneDay(second)
 
     private fun localMilestoneDay(timestamp: Long): String {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
@@ -173,30 +180,26 @@ object BqLifecycleNotifications {
     }
 
     private fun birthdayMilestones(firstOpen: Long, now: Long): List<AgeMilestone> {
-        val oneDay = TimeUnit.DAYS.toMillis(1)
-        val oneWeek = TimeUnit.DAYS.toMillis(7)
         val result = mutableListOf(
-            AgeMilestone("day:1", firstOpen + oneDay, "BQ Sqwad AI is one day old!", "One day of growing together. Open BQ Sqwad AI to celebrate!", false),
-            AgeMilestone("day:7", firstOpen + oneWeek, "BQ Sqwad AI is one week old!", "One week of ideas and progress. Keep growing with your AI!", false)
+            AgeMilestone("day:1", anniversary(firstOpen, Calendar.DAY_OF_YEAR, 1), "BQ Sqwad AI is one day old!", "One day of growing together. Open BQ Sqwad AI to celebrate!", false),
+            AgeMilestone("day:7", anniversary(firstOpen, Calendar.DAY_OF_YEAR, 7), "BQ Sqwad AI is one week old!", "One week of ideas and progress. Keep growing with your AI!", false)
         )
-        val currentMonthIndex = calendarMonthIndex(now) - calendarMonthIndex(firstOpen)
-        if (currentMonthIndex >= 1) {
-            val monthAt = monthAnniversary(firstOpen, currentMonthIndex)
+        val monthDiff = (calendarMonthIndex(now) - calendarMonthIndex(firstOpen)).coerceAtLeast(0)
+        for (monthIndex in 1..monthDiff) {
+            val at = monthAnniversary(firstOpen, monthIndex)
             result += AgeMilestone(
-                "month:$currentMonthIndex", monthAt, "BQ Sqwad AI monthiversary!",
+                "month:$monthIndex", at, "BQ Sqwad AI monthiversary!",
                 "Another month of building together. Celebrate your AI journey!", true
             )
-        } else {
-            result += AgeMilestone("month:1", monthAnniversary(firstOpen, 1), "BQ Sqwad AI monthiversary!", "Your first month together is here. Celebrate your AI journey!", true)
         }
-        val firstCalendar = Calendar.getInstance().apply { timeInMillis = firstOpen }
-        val nowCalendar = Calendar.getInstance().apply { timeInMillis = now }
-        val yearIndex = (nowCalendar.get(Calendar.YEAR) - firstCalendar.get(Calendar.YEAR)).coerceAtLeast(1)
-        val yearAt = yearAnniversary(firstOpen, yearIndex)
-        result += AgeMilestone(
-            "year:$yearIndex", yearAt, "Happy BQ Sqwad AI Birthday!",
-            "Another year of growing, learning, and creating together. Celebrate your AI birthday!", true
-        )
+        val firstYear = Calendar.getInstance().apply { timeInMillis = firstOpen }.get(Calendar.YEAR)
+        val currentYear = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.YEAR)
+        for (yearIndex in 1..(currentYear - firstYear).coerceAtLeast(0)) {
+            result += AgeMilestone(
+                "year:$yearIndex", yearAnniversary(firstOpen, yearIndex), "Happy BQ Sqwad AI Birthday!",
+                "Another year of growing, learning, and creating together. Celebrate your AI birthday!", true
+            )
+        }
         return result
     }
 
