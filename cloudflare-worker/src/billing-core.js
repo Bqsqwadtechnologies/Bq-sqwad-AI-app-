@@ -13,9 +13,9 @@ function nonNegative(value, fallback = 0) {
 }
 
 export function computeTokenCredits(input, policy, rates) {
-  const markupPercent = nonNegative(policy?.markupPercent, 85);
-  const feePercent = nonNegative(policy?.feePercent, 15);
-  const usdPerCredit = nonNegative(policy?.usdPerCredit, 0.07999);
+  const markupPercent = nonNegative(policy?.markupPercent, 600);
+  const feePercent = nonNegative(policy?.feePercent, 0);
+  const usdPerCredit = nonNegative(policy?.usdPerCredit, 0.1199);
   if (usdPerCredit <= 0) throw new Error("billing_usd_per_credit_invalid");
   const uncached = nonNegative(input?.uncachedInputTokens);
   const cached = nonNegative(input?.cachedInputTokens);
@@ -38,7 +38,7 @@ export function computeMinuteCredits(input, policy, rateUsdPerMinute, overrideCr
     policy, { inputUsdPerToken: 0, cachedInputUsdPerToken: 0, outputUsdPerToken: 0 });
   const providerCostUsd = seconds / 60 * nonNegative(rateUsdPerMinute);
   const customerUsd = providerCostUsd * (1 + result.markupPercent / 100) * (1 + result.feePercent / 100);
-  return { providerCostUsd, customerUsd, markupPercent: result.markupPercent, feePercent: result.feePercent, credits: round5(customerUsd / nonNegative(policy?.usdPerCredit, 0.07999)), source: "providerRate" };
+  return { providerCostUsd, customerUsd, markupPercent: result.markupPercent, feePercent: result.feePercent, credits: round5(customerUsd / nonNegative(policy?.usdPerCredit, 0.1199)), source: "providerRate" };
 }
 
 export function computeFixedCredits(configuredCredits) {
@@ -87,9 +87,9 @@ export async function loadBillingConfig(firestoreGet, now = Date.now()) {
   return {
     loadedAt: now,
     usageBilling: {
-      markupPercent: nonNegative(usageBilling?.markupPercent, 85),
-      feePercent: nonNegative(usageBilling?.feePercent, 15),
-      usdPerCredit: nonNegative(usageBilling?.usdPerCredit, 0.07999) || 0.07999
+      markupPercent: nonNegative(usageBilling?.markupPercent, 600),
+      feePercent: nonNegative(usageBilling?.feePercent, 0),
+      usdPerCredit: nonNegative(usageBilling?.usdPerCredit, 0.1199) || 0.1199
     },
     providerConnections,
     pricing,
