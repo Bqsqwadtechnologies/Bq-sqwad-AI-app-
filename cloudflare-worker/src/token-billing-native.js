@@ -202,11 +202,17 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const config = control.config && typeof control.config === "object" ? control.config : {};
   const canonicalUsageBilling = await loadCanonicalUsageBilling();
   const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
+  const featureAliases = new Set([String(feature || "")]);
+  // The website's token-pricing engine uses "chat"; older model-registry and
+  // native callers may label the same Main Chat feature "text-chat". Treat
+  // those as aliases so a scoped website price rule is not silently skipped.
+  if (featureAliases.has("chat")) featureAliases.add("text-chat");
+  if (featureAliases.has("text-chat")) featureAliases.add("chat");
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
     if (String(rule.provider || "").toLowerCase() !== String(providerId || "").toLowerCase()) return false;
     if (String(rule.model || "*") !== "*" && String(rule.model) !== String(modelId || "")) return false;
-    if (Array.isArray(rule.features) && rule.features.length && !rule.features.includes(String(feature || ""))) return false;
+    if (Array.isArray(rule.features) && rule.features.length && !rule.features.some(name => featureAliases.has(String(name)))) return false;
     if (Array.isArray(rule.plans) && rule.plans.length && (!control.planId || !rule.plans.includes(String(control.planId)))) return false;
     if (rule.effectiveFrom && new Date(rule.effectiveFrom).getTime() > Date.now()) return false;
     return true;
