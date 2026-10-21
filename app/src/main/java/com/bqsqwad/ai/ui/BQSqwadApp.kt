@@ -1835,7 +1835,7 @@ private fun chargeMainChatPdf(title: String, content: String): Double {
             }
             error("The PDF could not be charged securely. Please try again.")
         }
-        return body.optDouble("creditsCharged", 0.5).coerceAtLeast(0.0)
+        return body?.optDouble("creditsCharged", 0.5)?.coerceAtLeast(0.0) ?: 0.5
     } finally {
         connection.disconnect()
     }
@@ -3017,7 +3017,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         firstImage?.imageBase64,
                         firstImage?.mimeType ?: "image/jpeg",
                         activeCapability,
-                        listOf(activeSystem, personalizationSystem).filter { it.isNotBlank() }.joinToString("\n\n"),
+                        requestSystem,
                         imageParts.drop(1).map { it.mimeType to it.imageBase64!! },
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
