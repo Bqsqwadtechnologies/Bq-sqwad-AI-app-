@@ -920,6 +920,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     val shellScope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     BackHandler(enabled = drawerState.isOpen) { shellScope.launch { drawerState.close() } }
+    BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var chatSessionNonce by remember { mutableIntStateOf(0) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var workspace by remember { mutableStateOf<Workspace?>(null) }
