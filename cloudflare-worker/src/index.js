@@ -4310,6 +4310,7 @@ export default {
       }
 
       if (url.pathname === "/connectors/link" && request.method === "POST") {
+        const connectorJson = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...corsHeaders(request), "content-type": "application/json; charset=utf-8" } });
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 20);
         const body = await readBody(request);
@@ -4320,8 +4321,8 @@ export default {
           "slack", "trello", "linear", "googledocs", "googlesheets",
           "googlemeet", "figma", "jira", "airtable", "zapier"
         ]);
-        if (!allowedToolkits.has(requestedToolkit)) return json({ error: "unsupported_connector" }, 400);
-        if (!env.COMPOSIO_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
+        if (!allowedToolkits.has(requestedToolkit)) return connectorJson({ error: "unsupported_connector" }, 400);
+        if (!env.COMPOSIO_API_KEY) return connectorJson({ error: "connector_service_not_configured" }, 503);
         const headers = {
           "x-api-key": String(env.COMPOSIO_API_KEY),
           "Content-Type": "application/json"
@@ -4338,7 +4339,7 @@ export default {
         });
         const sessionData = await sessionResponse.json().catch(() => ({}));
         if (!sessionResponse.ok || !sessionData.session_id) {
-          return json({ error: "connector_session_creation_failed", providerStatus: sessionResponse.status }, 502);
+          return connectorJson({ error: "connector_session_creation_failed", providerStatus: sessionResponse.status }, 502);
         }
         const linkResponse = await fetch(
           "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
@@ -4351,9 +4352,9 @@ export default {
         );
         const linkData = await linkResponse.json().catch(() => ({}));
         if (!linkResponse.ok || typeof linkData.redirect_url !== "string" || !linkData.redirect_url.startsWith("https://")) {
-          return json({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status }, 502);
+          return connectorJson({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status }, 502);
         }
-        return json({
+        return connectorJson({
           ok: true,
           toolkit: requestedToolkit,
           redirectUrl: linkData.redirect_url,
