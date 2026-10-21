@@ -3012,6 +3012,23 @@ export default {
           ["*", "gpt-4o-mini"].includes(String(rule.model || "*")) &&
           (!Array.isArray(rule.features) || rule.features.length === 0 || rule.features.includes("chat") || rule.features.includes("text-chat"))
         );
+        const rawUsageBilling = await firestoreGet("config/usageBilling").catch(() => null);
+        const rawProviderConnections = await firestoreGet("config/providerConnections").catch(() => null);
+        const rawPricing = await firestoreGet("config/pricing").catch(() => null);
+        const rawAiModels = await firestoreGet("config/aiModels").catch(() => null);
+        const parseConfig = value => {
+          if (!value || typeof value !== "object") return null;
+          if (typeof value.json === "string") {
+            try { const parsed = JSON.parse(value.json); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null; }
+            catch { return null; }
+          }
+          return value;
+        };
+        const rawPolicy = parseConfig(rawUsageBilling);
+        const invalidUsageBilling = Boolean(rawUsageBilling) && (!rawPolicy ||
+          !Number.isFinite(Number(rawPolicy.markupPercent)) || Number(rawPolicy.markupPercent) < 0 || Number(rawPolicy.markupPercent) > 10000 ||
+          !Number.isFinite(Number(rawPolicy.feePercent)) || Number(rawPolicy.feePercent) < 0 || Number(rawPolicy.feePercent) > 100 ||
+          !Number.isFinite(Number(rawPolicy.usdPerCredit)) || Number(rawPolicy.usdPerCredit) <= 0);
         const providerConnections = billingConfig.providerConnections || {};
         const resolvedRate = (keys, fallback) => {
           for (const key of keys) {
@@ -3022,11 +3039,11 @@ export default {
         };
         const billingConfigDoctor = {
           documents: {
-            "config/usageBilling": billingConfig.warnings.some(x => x.includes("config/usageBilling missing")) ? "missing (default in use)" : "present",
-            "config/providerConnections": billingConfig.warnings.some(x => x.includes("config/providerConnections missing")) ? "missing (default in use)" : "present",
-            "config/pricing": billingConfig.warnings.some(x => x.includes("config/pricing missing")) ? "missing (default in use)" : "present",
-            "config/aiModels": billingConfig.warnings.some(x => x.includes("config/aiModels missing")) ? "missing (default in use)" : "present",
-            "tokenPricingRules": tokenRules.length ? "present" : "missing (default in use)"
+            "config/usageBilling": !rawUsageBilling ? "missing (default in use)" : invalidUsageBilling ? "invalid (default in use)" : "present",
+            "config/providerConnections": !rawProviderConnections ? "missing (feature defaults in use)" : "present",
+            "config/pricing": !rawPricing ? "missing (default in use)" : billingConfig.warnings.some(x => x.includes("config/pricing contains invalid JSON")) ? "invalid (default in use)" : "present",
+            "config/aiModels": !rawAiModels ? "missing (default in use)" : billingConfig.warnings.some(x => x.includes("config/aiModels contains invalid JSON")) ? "invalid (default in use)" : "present",
+            "tokenPricingRules": tokenRules.length ? "present" : "missing (OpenAI defaults in use)"
           },
           policy: billingConfig.usageBilling,
           defaultChatModel: "gpt-4o-mini",
