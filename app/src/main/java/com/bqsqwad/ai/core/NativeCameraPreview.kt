@@ -441,21 +441,16 @@ private class LiveCameraTextureView(context: Context) : TextureView(context), Te
      * The Camera2 session and frame-sampling pipeline remain unchanged; only the
      * TextureView presentation scale changes to fit the available workspace bounds.
      */
+    /**
+     * TextureView maps the camera buffer into its own view bounds before this
+     * matrix is applied. Scaling by raw buffer pixels here double-scales that
+     * already laid-out content and can push half of the preview off-screen.
+     * Keep the transform neutral until a view-relative aspect transform is
+     * applied; the preview must never be translated by buffer-pixel offsets.
+     */
     private fun applyFitTransform(viewWidth: Int = width, viewHeight: Int = height) {
-        val bufferWidth = previewBufferWidth
-        val bufferHeight = previewBufferHeight
-        if (viewWidth <= 0 || viewHeight <= 0 || bufferWidth <= 0 || bufferHeight <= 0) return
-        val scale = minOf(
-            viewWidth.toFloat() / bufferWidth.toFloat(),
-            viewHeight.toFloat() / bufferHeight.toFloat()
-        )
-        val scaledWidth = bufferWidth * scale
-        val scaledHeight = bufferHeight * scale
-        val matrix = Matrix().apply {
-            setScale(scale, scale)
-            postTranslate((viewWidth - scaledWidth) / 2f, (viewHeight - scaledHeight) / 2f)
-        }
-        setTransform(matrix)
+        if (viewWidth <= 0 || viewHeight <= 0) return
+        setTransform(Matrix())
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
