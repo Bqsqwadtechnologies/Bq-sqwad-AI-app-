@@ -74,7 +74,8 @@ async function googleAccessToken() {
 export async function uploadFirebaseStorageObject(objectPath, bytes, contentType = "image/png") {
   const account = JSON.parse(env("BQ_FIREBASE_SERVICE_ACCOUNT_JSON"));
   const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
-  const path = String(objectPath || "").replace(/^\/+/, "");
+  let path = String(objectPath || "");
+  while (path.startsWith("/")) path = path.slice(1);
   if (!path || path.includes("..") || !(bytes instanceof Uint8Array)) throw new Error("storage_upload_invalid_input");
   const token = await googleAccessToken();
   const downloadToken = crypto.randomUUID();
