@@ -82,7 +82,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
       ? inputRate
       : Number(pricing.cachedInputPriceUsdPerMillion);
   if (![inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0)) {
-    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "token_pricing_not_configured" });
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
   const inputCostUsd = (uncachedInputTokens / 1_000_000) * inputRate;
@@ -91,10 +91,10 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const providerCostUsd = inputCostUsd + cachedInputCostUsd + outputCostUsd;
   const creditValue = Number(creditReferenceValueUsd);
   if (!Number.isFinite(creditValue) || creditValue <= 0) {
-    throw Object.assign(new Error("token_billing_config_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+    throw Object.assign(new Error("token_billing_config_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) {
-    throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+    throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
   // The shared pure billing engine performs the final customer-cost and credit
@@ -102,7 +102,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   // already includes canonical markup, fee allowance, and model weight.
   const effectiveMultiplier = Number(multiplier);
   if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier < 1 || effectiveMultiplier > 10000) {
-    throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "token_billing_config_invalid" });
+    throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const canonicalCalculation = computeTokenCredits({
     uncachedInputTokens,
