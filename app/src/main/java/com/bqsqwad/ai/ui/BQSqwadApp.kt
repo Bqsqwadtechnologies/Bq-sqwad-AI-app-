@@ -6761,6 +6761,9 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         BqConnectorInfo("Bluetooth devices", "Android device", "Device integrations depend on Android support and pairing.", "BT")
     )
     var selectedConnector by remember { mutableStateOf<BqConnectorInfo?>(null) }
+    var connectorConnecting by remember { mutableStateOf(false) }
+    var connectorError by remember { mutableStateOf<String?>(null) }
+    val connectorScope = rememberCoroutineScope()
     Scaffold(topBar = { TopAppBar(title = { Text("Connectors") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -6787,12 +6790,95 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(connector.description)
-                    Text("Connection not enabled yet", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
-                    Text("This service is listed, but BQ Sqwad AI's secure connector authorization gateway is not configured on the server. Your account has not been connected.")
-                    Text("To enable real connections, the server needs a connector-provider API key and authorization configuration. Secrets must never be stored in the app.")
+                    Text("Secure account connection", fontWeight = FontWeight.SemiBold)
+                    Text("Continue to the provider authorization page to choose what BQ Sqwad AI may access. You can cancel there at any time.")
+                    connectorError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    if (connector.name == "Local device" || connector.name == "Bluetooth devices") {
+                        Text("This target uses Android permissions or device pairing instead of a cloud-account connection.")
+                    }
                 }
             },
-            confirmButton = { TextButton(onClick = { selectedConnector = null }) { Text("Close") } }
+            confirmButton = {
+                TextButton(
+                    enabled = !connectorConnecting && connector.name !in setOf("Local device", "Bluetooth devices"),
+                    onClick = {
+                        val toolkit = when (connector.name) {
+                            "Google Drive" -> "googledrive"
+                            "Google Calendar" -> "googlecalendar"
+                            "Gmail" -> "gmail"
+                            "GitHub" -> "github"
+                            "Microsoft OneDrive" -> "microsoftonedrive"
+                            "Microsoft Outlook" -> "microsoftoutlook"
+                            "Dropbox" -> "dropbox"
+                            "Notion" -> "notion"
+                            "Slack" -> "slack"
+                            "Trello" -> "trello"
+                            "Linear" -> "linear"
+                            "Google Docs" -> "googledocs"
+                            "Google Sheets" -> "googlesheets"
+                            "Google Meet" -> "googlemeet"
+                            else -> "unsupported"
+                        }
+                        val user = FirebaseAuth.getInstance().currentUser
+                        if (user == null) {
+                            connectorError = "Sign in to BQ Sqwad AI before connecting a service."
+                        } else if (toolkit == "unsupported") {
+                            connectorError = "This connector does not support account linking yet."
+                        } else {
+                            connectorConnecting = true
+                            connectorError = null
+                            connectorScope.launch {
+                                val result = runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        val token = Tasks.await(user.getIdToken(false)).token
+                                            ?: throw IllegalStateException("Could not authenticate your account.")
+                                        val connection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/link")
+                                            .openConnection() as java.net.HttpURLConnection
+                                        try {
+                                            connection.requestMethod = "POST"
+                                            connection.connectTimeout = 15000
+                                            connection.readTimeout = 20000
+                                            connection.doOutput = true
+                                            connection.setRequestProperty("Authorization", "Bearer $token")
+                                            connection.setRequestProperty("Content-Type", "application/json")
+                                            connection.outputStream.use { it.write(JSONObject().put("toolkit", toolkit).toString().toByteArray(Charsets.UTF_8)) }
+                                            val status = connection.responseCode
+                                            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                                            val payload = JSONObject(body.ifBlank { "{}" })
+                                            if (status !in 200..299) {
+                                                throw IllegalStateException(
+                                                    when (payload.optString("error")) {
+                                                        "connector_service_not_configured" -> "Secure connector service is not configured on the server yet."
+                                                        "unsupported_connector" -> "This connector does not support account linking yet."
+                                                        else -> "Could not start secure authorization. Please try again later."
+                                                    }
+                                                )
+                                            }
+                                            val redirect = payload.optString("redirectUrl")
+                                            val parsed = Uri.parse(redirect)
+                                            if (parsed.scheme != "https" || parsed.host != "app.composio.dev") {
+                                                throw IllegalStateException("The authorization service returned an untrusted destination.")
+                                            }
+                                            redirect
+                                        } finally {
+                                            connection.disconnect()
+                                        }
+                                    }
+                                }
+                                result.onSuccess { redirect ->
+                                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(redirect))) }
+                                        .onFailure { connectorError = "Could not open the secure authorization page on this device." }
+                                }.onFailure { error ->
+                                    connectorError = error.message ?: "Could not start connector authorization."
+                                }
+                                connectorConnecting = false
+                            }
+                        }
+                    }
+                ) { Text(if (connectorConnecting) "Preparing…" else "Connect account") }
+            },
+            dismissButton = { TextButton(enabled = !connectorConnecting, onClick = { selectedConnector = null; connectorError = null }) { Text("Close") } }
         )
     }
 }
