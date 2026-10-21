@@ -3521,8 +3521,8 @@ export default {
         if (!title || !content) return json({ error: "pdf_content_required" }, 400);
         let reservation = null;
         try {
-          reservation = await chargeCredits(u.uid, 0.5, "main_chat_pdf", u);
-          await commitCredits(u.uid, reservation.reservationId, "main_chat_pdf");
+          reservation = await chargeCredits(u.uid, 0.5, "pdf", u);
+          await commitCredits(u.uid, reservation.reservationId, "pdf");
           return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0.5)) });
         } catch (error) {
           if (reservation?.reservationId) await reverseCredits(u.uid, reservation.reservationId).catch(() => {});
