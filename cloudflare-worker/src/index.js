@@ -563,13 +563,18 @@ async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = 
     try { policy = JSON.parse(policyDoc.json); } catch { policy = null; }
   }
   const connections = connectionDoc || {};
-  const usdPerCredit = Number(policy?.usdPerCredit);
-  const markupPercent = Number(policy?.markupPercent);
-  const feePercent = Number(policy?.feePercent);
-  if (!policy || !Number.isFinite(usdPerCredit) || usdPerCredit <= 0 ||
-      !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
-      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100) {
-    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  const rawUsdPerCredit = Number(policy?.usdPerCredit);
+  const rawMarkupPercent = Number(policy?.markupPercent);
+  const rawFeePercent = Number(policy?.feePercent);
+  const validPolicy = !!policy && Number.isFinite(rawUsdPerCredit) && rawUsdPerCredit > 0 &&
+    Number.isFinite(rawMarkupPercent) && rawMarkupPercent >= 0 && rawMarkupPercent <= 10000 &&
+    Number.isFinite(rawFeePercent) && rawFeePercent >= 0 && rawFeePercent <= 100;
+  const usdPerCredit = validPolicy ? rawUsdPerCredit : 0.1199;
+  const markupPercent = validPolicy ? rawMarkupPercent : 600;
+  const feePercent = validPolicy ? rawFeePercent : 0;
+  if (!validPolicy) {
+    console.warn("[BQ Billing] config/usageBilling missing or invalid; website defaults active.");
+    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/usageBilling_missing_or_invalid");
   }
   const key = String(feature || "").toLowerCase();
   const rateKeys = key.includes("transcrib") || key.includes("dictation")
@@ -585,13 +590,19 @@ async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = 
     ...rateKeys.map(k => connections[k]),
     ...nestedRateKeys.map(([section, field]) => connections?.[section]?.[field])
   ];
-  const providerRate = configuredRates.map(Number).find(v => Number.isFinite(v) && v >= 0);
+  const configuredProviderRate = configuredRates.map(Number).find(v => Number.isFinite(v) && v >= 0);
   const hasExplicitRate = input?.creditsPerMinute != null || existing?.creditsPerMinute != null;
-  if (!hasExplicitRate && providerRate == null) {
-    throw Object.assign(new Error("live_provider_rate_not_configured"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  // Match website CONNECTION_DEFAULTS when the shared config document or a
+  // feature rate has never been saved. An explicit admin override still wins.
+  const providerRate = configuredProviderRate ?? (
+    key.includes("transcrib") || key.includes("dictation") ? 0.003 :
+    key.includes("camera") ? 0.05 : 0.05
+  );
+  if (configuredProviderRate == null) {
+    console.warn("[BQ Billing] config/providerConnections rate missing; website feature default active.");
+    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/providerConnections_rate_missing");
   }
-  const fallbackRate = providerRate == null ? null
-    : providerRate * (1 + markupPercent / 100) * (1 + feePercent / 100) / usdPerCredit;
+  const fallbackRate = providerRate * (1 + markupPercent / 100) * (1 + feePercent / 100) / usdPerCredit;
   const merged = !hasExplicitRate && fallbackRate != null
     ? { ...input, creditsPerMinute: fallbackRate }
     : input;
@@ -1235,15 +1246,17 @@ async function canonicalUsageBillingPolicy() {
   if (typeof document?.json === "string") {
     try { policy = JSON.parse(document.json); } catch { policy = null; }
   }
-  const markupPercent = Number(policy?.markupPercent);
-  const feePercent = Number(policy?.feePercent);
-  const usdPerCredit = Number(policy?.usdPerCredit);
-  if (!policy || !Number.isFinite(markupPercent) || markupPercent < 0 || markupPercent > 10000 ||
-      !Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100 ||
-      !Number.isFinite(usdPerCredit) || usdPerCredit <= 0) {
-    throw Object.assign(new Error("canonical_billing_config_invalid"), { httpStatus: 409, safeError: "billing_config_invalid" });
+  const validPolicy = !!policy &&
+    Number.isFinite(Number(policy.markupPercent)) && Number(policy.markupPercent) >= 0 && Number(policy.markupPercent) <= 10000 &&
+    Number.isFinite(Number(policy.feePercent)) && Number(policy.feePercent) >= 0 && Number(policy.feePercent) <= 100 &&
+    Number.isFinite(Number(policy.usdPerCredit)) && Number(policy.usdPerCredit) > 0;
+  if (!validPolicy) {
+    console.warn("[BQ Billing] config/usageBilling missing or invalid; website defaults active.");
+    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/usageBilling_missing_or_invalid");
   }
-  usageBillingPolicyCache = { markupPercent, feePercent, usdPerCredit };
+  usageBillingPolicyCache = validPolicy
+    ? { markupPercent: Number(policy.markupPercent), feePercent: Number(policy.feePercent), usdPerCredit: Number(policy.usdPerCredit) }
+    : { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
   usageBillingPolicyCacheUntil = Date.now() + 60000;
   return usageBillingPolicyCache;
 }
