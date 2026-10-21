@@ -450,6 +450,7 @@ class WorkspaceApiClient {
     suspend fun unregisterNotificationToken(token:String):JSONObject = request("/notifications/token", "DELETE", JSONObject().put("token", token))
     suspend fun adminIssues():JSONObject = request("/admin/issues","GET")
     suspend fun adminDiagnostics():JSONObject = request("/admin/diagnostics","GET")
+    suspend fun adminBillingChatSelfTest():JSONObject = request("/admin/billing/chat-self-test", payload=JSONObject())
     suspend fun adminReadinessSelfTest():JSONObject = request("/admin/self-test", payload=JSONObject())
     suspend fun reportIssue(route: String, code: String = "client_runtime_issue"): JSONObject = request("/issues/report", payload = JSONObject().put("route", route).put("code", code))
 
