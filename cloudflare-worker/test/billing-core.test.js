@@ -73,3 +73,25 @@ test("malformed canonical pricing JSON is ignored with an admin-visible warning"
   assert.deepEqual(config.pricing, {});
   assert.ok(config.warnings.some((warning) => warning.includes("invalid JSON config")));
 });
+
+
+test("missing canonical documents use website defaults without blocking billing", async () => {
+  const { loadBillingConfig } = await import("../src/billing-core.js");
+  const config = await loadBillingConfig(async () => null);
+  assert.deepEqual(config.usageBilling, { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 });
+  assert.ok(config.warnings.some((warning) => warning.includes("config/usageBilling missing")));
+  assert.ok(config.warnings.some((warning) => warning.includes("config/providerConnections missing")));
+  assert.ok(config.warnings.some((warning) => warning.includes("config/aiModels missing")));
+});
+
+test("invalid canonical usage values fall back to the website policy defaults", async () => {
+  const { loadBillingConfig } = await import("../src/billing-core.js");
+  const config = await loadBillingConfig(async (path) => path === "config/usageBilling"
+    ? { markupPercent: -1, feePercent: "bad", usdPerCredit: 0 }
+    : null);
+  assert.deepEqual(config.usageBilling, { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 });
+});
+
+test("zero elapsed live usage remains zero credits", () => {
+  assert.equal(computeMinuteCredits({ elapsedSeconds: 0 }, policy, 0.05).credits, 0);
+});
