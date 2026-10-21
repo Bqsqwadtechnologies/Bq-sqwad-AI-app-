@@ -950,6 +950,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plans by remember { mutableStateOf(false) }
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
+    var connectorsOpen by remember { mutableStateOf(false) }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -1340,6 +1341,16 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
+                            label = { Text("Connectors") },
+                            selected = connectorsOpen,
+                            onClick = { shellScope.launch { drawerState.close(); connectorsOpen = true; settings = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            icon = { Icon(Icons.Default.Extension, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
                             onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
@@ -1364,7 +1375,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else {
             val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
                 !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
-                !legalCenter && !settings && !history && !fileBoxOpen && workspace == null
+                !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
                 key(firebaseUser?.uid, chatSessionNonce) {
                     MainChatScreen(
@@ -1390,6 +1401,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
                 if (!showMainChat) when {
+            connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false })
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
                  onUseInChat = { attachment ->
@@ -6689,6 +6701,47 @@ fun DeviceIntelligencePanel(featureName: String) {
 }
 
 @Composable
+private data class BqConnectorInfo(val name: String, val group: String, val description: String, val mark: String)
+
+@Composable
+private fun ConnectorsScreen(onBack: () -> Unit) {
+    val connectors = listOf(
+        BqConnectorInfo("Google Drive", "Files & knowledge", "Search and read files you explicitly authorize.", "D"),
+        BqConnectorInfo("Google Calendar", "Productivity", "Review events and prepare schedules.", "C"),
+        BqConnectorInfo("Gmail", "Productivity", "Find messages and prepare email drafts.", "M"),
+        BqConnectorInfo("GitHub", "Development", "Review repositories, issues and pull requests.", "GH"),
+        BqConnectorInfo("Microsoft OneDrive", "Files & knowledge", "Find and summarize approved cloud files.", "OD"),
+        BqConnectorInfo("Microsoft Outlook", "Productivity", "Search mail and prepare drafts.", "O"),
+        BqConnectorInfo("Dropbox", "Files & knowledge", "Find and organize approved documents.", "DB"),
+        BqConnectorInfo("Notion", "Knowledge", "Search authorized pages and notes.", "N"),
+        BqConnectorInfo("Slack", "Team collaboration", "Search channels and summarize discussions.", "S"),
+        BqConnectorInfo("Trello", "Project management", "Review boards and organize tasks.", "T"),
+        BqConnectorInfo("Linear", "Project management", "Review issues and project status.", "L"),
+        BqConnectorInfo("Google Docs", "Documents", "Create and summarize documents after authorization.", "G"),
+        BqConnectorInfo("Google Sheets", "Data", "Analyze authorized spreadsheet data.", "Sh"),
+        BqConnectorInfo("Google Meet", "Meetings", "Prepare meeting notes from files you provide.", "Me"),
+        BqConnectorInfo("Local device", "Android device", "Use supported files, camera and microphone through Android permissions.", "📱"),
+        BqConnectorInfo("Bluetooth devices", "Android device", "Future device integrations depend on Android support and pairing.", "BT")
+    )
+    Scaffold(topBar = { TopAppBar(title = { Text("Connectors") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }) { padding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Bring your tools into BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Connectors let the main chat use approved services when secure authorization and server integration are configured. These entries are a directory, not a claim that accounts are already connected.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            } } }
+            item { Text("Available connector targets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            items(connectors, key = { it.name }) { connector -> Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Text(connector.mark, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium) } }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(connector.name, fontWeight = FontWeight.SemiBold); Text(connector.group, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(connector.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text("Setup required", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            } }
+            item { Text("Security: external accounts must be authorized before BQ Sqwad AI can read them. Sending messages, deleting files or publishing content should require confirmation. Showing this directory does not connect an account.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
 private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenAdminDashboard: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
