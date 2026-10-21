@@ -4906,7 +4906,7 @@ private fun WorkspaceScreen(
                     Workspace.FRONTIER_LAB -> "Explore emerging ideas, compare evidence and shape research into useful next steps."
                     Workspace.DATA_ANALYSIS -> "Bring a supported dataset, inspect its structure and turn findings into clear reports."
                     Workspace.PERSONAL -> "Organize personal goals, priorities and context in one focused intelligence workspace."
-                    Workspace.VIDEO -> "Create and manage AI-assisted visual productions and review recent outputs."
+                    Workspace.VIDEO -> "Create AI videos, edit existing clips, manage visual effects and review your saved productions."
                     Workspace.ORGANIZATION_STUDIO -> "Coordinate organizational work, shared knowledge and team operations."
                     Workspace.SEARCH -> "Search current information, review source evidence and explore topics more deeply."
                     else -> "Use the tools in this workspace to move from a question to a practical result."
@@ -7325,10 +7325,9 @@ item { SettingsSectionTitle("AI features", "Open any AI workspace from here inst
                         }
                     }
                     listOf(
-                        Workspace.SEARCH, Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB,
-                        Workspace.DATA_ANALYSIS, Workspace.VIDEO,
-                        Workspace.PERSONAL, Workspace.LIFE, Workspace.COMPANION, Workspace.LEARNING,
-                        Workspace.BUSINESS, Workspace.ORGANIZATION_STUDIO
+                        Workspace.VIDEO, Workspace.SEARCH, Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB,
+                        Workspace.DATA_ANALYSIS, Workspace.PERSONAL, Workspace.LIFE,
+                        Workspace.COMPANION, Workspace.LEARNING, Workspace.BUSINESS, Workspace.ORGANIZATION_STUDIO
                     ).forEach { feature ->
                         FeatureCard(feature.title, feature.description) { selectedAiFeature = feature }
                     }
