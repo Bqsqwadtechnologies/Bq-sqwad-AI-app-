@@ -4309,6 +4309,58 @@ export default {
         return json({ ok: true, disconnected: true, platform: account.platform || null });
       }
 
+      if (url.pathname === "/connectors/link" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 20);
+        const body = await readBody(request);
+        const requestedToolkit = String(body.toolkit || "").trim().toLowerCase();
+        const allowedToolkits = new Set([
+          "googledrive", "googlecalendar", "gmail", "github",
+          "microsoftonedrive", "microsoftoutlook", "dropbox", "notion",
+          "slack", "trello", "linear", "googledocs", "googlesheets",
+          "googlemeet", "figma", "jira", "airtable", "zapier"
+        ]);
+        if (!allowedToolkits.has(requestedToolkit)) return json({ error: "unsupported_connector" }, 400);
+        if (!env.COMPOSIO_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
+        const headers = {
+          "x-api-key": String(env.COMPOSIO_API_KEY),
+          "Content-Type": "application/json"
+        };
+        const sessionResponse = await fetch("https://backend.composio.dev/api/v3/tool_router/session", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            user_id: user.uid,
+            toolkits: { enabled: [requestedToolkit], require_approval: [requestedToolkit] },
+            manage_connections: { enable: true, enable_wait_for_connections: true, enable_connection_removal: true }
+          }),
+          signal: AbortSignal.timeout(15000)
+        });
+        const sessionData = await sessionResponse.json().catch(() => ({}));
+        if (!sessionResponse.ok || !sessionData.session_id) {
+          return json({ error: "connector_session_creation_failed", providerStatus: sessionResponse.status }, 502);
+        }
+        const linkResponse = await fetch(
+          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ toolkit: requestedToolkit, alias: "bq-" + requestedToolkit + "-" + user.uid.slice(0, 12) + "-" + Date.now() }),
+            signal: AbortSignal.timeout(15000)
+          }
+        );
+        const linkData = await linkResponse.json().catch(() => ({}));
+        if (!linkResponse.ok || typeof linkData.redirect_url !== "string" || !linkData.redirect_url.startsWith("https://")) {
+          return json({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status }, 502);
+        }
+        return json({
+          ok: true,
+          toolkit: requestedToolkit,
+          redirectUrl: linkData.redirect_url,
+          expiresAt: linkData.expires_at || null
+        });
+      }
+
       if (url.pathname === "/web/favicon" && request.method === "GET") {
         const domain = String(url.searchParams.get("domain") || "").trim().toLowerCase().replace(/^www\./, "");
         if (!domain || domain.length > 253 || !/^[a-z0-9.-]+$/.test(domain) || domain.includes("..") || domain.startsWith(".") || domain.endsWith(".") || domain === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(domain)) {
