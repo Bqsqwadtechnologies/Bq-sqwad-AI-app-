@@ -128,6 +128,24 @@ function diagnosticFeatureForRoute(route) {
   return "other";
 }
 
+async function recordBillingConfigWarning(documentName) {
+  const safeDocument = String(documentName || "unknown")
+    .replace(/[^a-zA-Z0-9_./-]/g, "")
+    .slice(0, 100);
+  const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
+  const id = "billing_config_" + safeDocument.replace(/[^a-zA-Z0-9]/g, "_") + "_" + hour;
+  await firestoreCreate("adminIssues/" + id, {
+    id,
+    category: "billing_configuration",
+    severity: "warning",
+    state: "open",
+    status: "open",
+    document: safeDocument,
+    message: safeDocument + " is missing or invalid; website-aligned defaults are active.",
+    createdAt: new Date().toISOString()
+  }).catch(() => {});
+}
+
 function safeDiagnosticCode(errorCode) {
   const value = String(errorCode || "").toLowerCase();
   if (value.includes("flashlight_unavailable")) return "flashlight_unavailable";
@@ -574,7 +592,7 @@ async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = 
   const feePercent = validPolicy ? rawFeePercent : 0;
   if (!validPolicy) {
     console.warn("[BQ Billing] config/usageBilling missing or invalid; website defaults active.");
-    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/usageBilling_missing_or_invalid");
+    await recordBillingConfigWarning("config/usageBilling");
   }
   const key = String(feature || "").toLowerCase();
   const rateKeys = key.includes("transcrib") || key.includes("dictation")
@@ -600,7 +618,7 @@ async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = 
   );
   if (configuredProviderRate == null) {
     console.warn("[BQ Billing] config/providerConnections rate missing; website feature default active.");
-    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/providerConnections_rate_missing");
+    await recordBillingConfigWarning("config/providerConnections");
   }
   const fallbackRate = providerRate * (1 + markupPercent / 100) * (1 + feePercent / 100) / usdPerCredit;
   const merged = !hasExplicitRate && fallbackRate != null
