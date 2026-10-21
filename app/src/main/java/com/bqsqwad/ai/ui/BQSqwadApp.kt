@@ -2927,6 +2927,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                         // to parse successfully; keep the previous selection unchanged.
                         error = "Some selected files could not be prepared. Check the files and try again. No file details are shown for your privacy."
                     } else {
+                        // Show selected files in the composer immediately. File Box persistence
+                        // runs in the background and must never delay the visible attachment tray.
+                        attachments = prepared
+                        error = null
                         // Save device-selected chat attachments to the account File Box.
                         // Chat can still proceed if storage is temporarily unavailable,
                         // but the user is told explicitly rather than silently losing the save.
@@ -2954,7 +2958,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
                                 }.onFailure { saveFailures++ }
                             }
                             scope.launch(Dispatchers.Main) {
-                                attachments = prepared
                                 error = if (saveFailures > 0) {
                                     "Your files are attached to this message, but $saveFailures item(s) could not be saved to File Box. You can retry after checking your connection."
                                 } else null
