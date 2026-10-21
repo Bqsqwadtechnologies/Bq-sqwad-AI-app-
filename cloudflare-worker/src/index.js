@@ -4354,12 +4354,68 @@ export default {
         if (!linkResponse.ok || typeof linkData.redirect_url !== "string" || !linkData.redirect_url.startsWith("https://")) {
           return connectorJson({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status }, 502);
         }
+        await firestoreSet("composioSessions/" + user.uid, {
+          uid: user.uid,
+          sessionId: String(sessionData.session_id),
+          toolkit: requestedToolkit,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, false);
         return connectorJson({
           ok: true,
           toolkit: requestedToolkit,
           redirectUrl: linkData.redirect_url,
           expiresAt: linkData.expires_at || null
         });
+      }
+
+      if (url.pathname === "/connectors/tools" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const saved = await firestoreGet("composioSessions/" + user.uid);
+        if (!saved || saved.uid !== user.uid || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
+        const response = await fetch(
+          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/tools",
+          { headers: { "x-api-key": String(env.COMPOSIO_API_KEY || ""), "Accept": "application/json" }, signal: AbortSignal.timeout(15000) }
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: "connector_tools_unavailable", providerStatus: response.status }, 502);
+        const tools = Array.isArray(data.tools) ? data.tools : Array.isArray(data.items) ? data.items : [];
+        return json({ toolkit: saved.toolkit, tools: tools.map(tool => ({
+          slug: String(tool.slug || tool.name || ""),
+          name: String(tool.name || tool.slug || ""),
+          description: String(tool.description || "").slice(0, 300),
+          inputSchema: tool.input_parameters || tool.parameters || tool.schema || {}
+        })) });
+      }
+
+      if (url.pathname === "/connectors/call" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 10);
+        await requireConsent(user.uid);
+        const saved = await firestoreGet("composioSessions/" + user.uid);
+        if (!saved || saved.uid !== user.uid || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
+        const body = await readBody(request);
+        const toolSlug = String(body.toolSlug || "").trim().toUpperCase();
+        const readOnlyPrefix = /^(GITHUB_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI)_|GITHUB_GET$)/;
+        const mutationTerms = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE/;
+        if (saved.toolkit !== "github" || !readOnlyPrefix.test(toolSlug) || mutationTerms.test(toolSlug)) {
+          return json({ error: "connector_tool_not_allowed" }, 403);
+        }
+        const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments) ? body.arguments : {};
+        if (JSON.stringify(args).length > 12000) return json({ error: "connector_arguments_too_large" }, 413);
+        const response = await fetch(
+          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute",
+          {
+            method: "POST",
+            headers: { "x-api-key": String(env.COMPOSIO_API_KEY || ""), "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ tool_slug: toolSlug, arguments: args }),
+            signal: AbortSignal.timeout(30000)
+          }
+        );
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: "connector_tool_call_failed", providerStatus: response.status }, response.status === 429 ? 429 : 502);
+        return json({ ok: result.result_type !== "failed" && !result.error, resultType: result.result_type || null, data: result.data ?? null, error: result.error || null, logId: result.log_id || null });
       }
 
       if (url.pathname === "/web/favicon" && request.method === "GET") {
