@@ -36,7 +36,7 @@ async function googleAccessToken() {
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claim = b64url(JSON.stringify({
     iss: account.client_email,
-    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit",
+    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/devstorage.read_write",
     aud: TOKEN_URL,
     iat: now,
     exp: now + 3600
@@ -67,6 +67,55 @@ async function googleAccessToken() {
   if (!response.ok || !body.access_token) throw new Error("Firebase service access token unavailable");
   accessTokenCache = { token: body.access_token, exp: now + Number(body.expires_in || 3600) };
   return body.access_token;
+}
+
+
+/** Upload private generated media using the Worker service account, never client rules. */
+export async function uploadFirebaseStorageObject(objectPath, bytes, contentType = "image/png") {
+  const account = JSON.parse(env("BQ_FIREBASE_SERVICE_ACCOUNT_JSON"));
+  const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
+  const path = String(objectPath || "").replace(/^\\/+/, "");
+  if (!path || path.includes("..") || !(bytes instanceof Uint8Array)) throw new Error("storage_upload_invalid_input");
+  const token = await googleAccessToken();
+  const downloadToken = crypto.randomUUID();
+  const boundary = "bqstorage" + crypto.randomUUID().replace(/-/g, "");
+  const metadata = JSON.stringify({
+    name: path,
+    contentType: String(contentType || "application/octet-stream"),
+    metadata: { firebaseStorageDownloadTokens: downloadToken }
+  });
+  const prefix = new TextEncoder().encode(
+    "--" + boundary + "\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n" +
+    metadata + "\\r\\n--" + boundary + "\\r\\nContent-Type: " +
+    String(contentType || "application/octet-stream") + "\\r\\n\\r\\n"
+  );
+  const suffix = new TextEncoder().encode("\\r\\n--" + boundary + "--");
+  const body = new Uint8Array(prefix.length + bytes.length + suffix.length);
+  body.set(prefix, 0);
+  body.set(bytes, prefix.length);
+  body.set(suffix, prefix.length + bytes.length);
+  const response = await fetch(
+    "https://storage.googleapis.com/upload/storage/v1/b/" + encodeURIComponent(bucket) +
+      "/o?uploadType=multipart&name=" + encodeURIComponent(path),
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + token,
+        "content-type": "multipart/related; boundary=" + boundary
+      },
+      body
+    }
+  );
+  if (!response.ok) {
+    // Do not include response bodies, service-account data, or object tokens in errors/logs.
+    throw new Error("firebase_storage_upload_failed_" + response.status);
+  }
+  return {
+    bucket,
+    path,
+    url: "https://firebasestorage.googleapis.com/v0/b/" + encodeURIComponent(bucket) +
+      "/o/" + encodeURIComponent(path) + "?alt=media&token=" + encodeURIComponent(downloadToken)
+  };
 }
 
 export async function deleteFirebaseAuthUser(uid) {
