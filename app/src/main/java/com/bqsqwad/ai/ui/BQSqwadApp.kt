@@ -6720,7 +6720,6 @@ fun DeviceIntelligencePanel(featureName: String) {
     status?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
 }
 
-@Composable
 private data class BqConnectorInfo(val name: String, val group: String, val description: String, val mark: String)
 
 private fun connectorToolkit(name: String): String = when (name) {
@@ -6728,8 +6727,8 @@ private fun connectorToolkit(name: String): String = when (name) {
     "Google Calendar" -> "googlecalendar"
     "Gmail" -> "gmail"
     "GitHub" -> "github"
-    "Microsoft OneDrive" -> "microsoftonedrive"
-    "Microsoft Outlook" -> "microsoftoutlook"
+    "Microsoft OneDrive" -> "one_drive"
+    "Microsoft Outlook" -> "outlook"
     "Dropbox" -> "dropbox"
     "Notion" -> "notion"
     "Slack" -> "slack"
