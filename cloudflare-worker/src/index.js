@@ -1391,7 +1391,7 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   if (!COMPOSIO_TOOLKITS.has(cleanToolkit) || !/^[A-Z0-9_]{1,100}$/.test(cleanSlug)) {
     return { ok: false, error: "connector_tool_not_allowed" };
   }
-  const prefixes = { one_drive: "MICROSOFT_ONEDRIVE_", outlook: "MICROSOFT_OUTLOOK_" };
+  const prefixes = { one_drive: "ONE_DRIVE_", outlook: "OUTLOOK_" };
   const prefix = prefixes[cleanToolkit] || (cleanToolkit.toUpperCase() + "_");
   const readOnly = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
   const mutation = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE|SEND_|MOVE_|ARCHIVE|TRASH|SHARE|UNSHARE|COMPLETE|CANCEL|SUBMIT|POST_/;
