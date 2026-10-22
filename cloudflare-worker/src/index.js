@@ -4668,8 +4668,8 @@ export default {
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const toolkitPrefixes = {
-          one_drive: "MICROSOFT_ONEDRIVE_",
-          outlook: "MICROSOFT_OUTLOOK_"
+          one_drive: "ONE_DRIVE_",
+          outlook: "OUTLOOK_"
         };
         const expectedPrefix = toolkitPrefixes[toolkit] || (toolkit.toUpperCase() + "_");
         const readOnlyAction = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
