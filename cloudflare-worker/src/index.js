@@ -1363,7 +1363,7 @@ function connectorToolSchema(raw) {
   return { type: "object", properties: safeProperties, required, additionalProperties: false };
 }
 
-async function executeComposioReadOnly(uid, toolkit, toolSlug, args) {
+async function executeComposioTool(uid, toolkit, toolSlug, args) {
   const cleanToolkit = String(toolkit || "").trim().toLowerCase();
   const cleanSlug = String(toolSlug || "").trim().toUpperCase();
   if (!COMPOSIO_TOOLKITS.has(cleanToolkit) || !/^[A-Z0-9_]{1,100}$/.test(cleanSlug)) {
@@ -1505,7 +1505,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
       }
       let args = {};
       try { args = JSON.parse(String(call.arguments || "{}")); } catch {}
-      const result = await executeComposioReadOnly(user.uid, binding.toolkit, binding.slug, args);
+      const result = await executeComposioTool(user.uid, binding.toolkit, binding.slug, args);
       input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify(result).slice(0, 10000) });
     }
   }
