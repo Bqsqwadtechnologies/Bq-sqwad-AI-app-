@@ -1408,7 +1408,7 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   if (JSON.stringify(safeArgs).length > 12000) return { ok: false, error: "connector_arguments_too_large" };
   const env = globalThis.__bqEnv || {};
   if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return { ok: false, error: "connector_service_not_configured" };
-  const response = await fetch("https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute", {
+  const response = await fetch("https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute", {
     method: "POST",
     headers: composioHeaders(env, { "Content-Type": "application/json", "Accept": "application/json" }),
     body: JSON.stringify({ tool_slug: cleanSlug, arguments: safeArgs }),
@@ -1441,7 +1441,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
   for (const session of owned) {
     const toolkit = String(session.toolkit);
     try {
-      const response = await fetch("https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(session.sessionId)) + "/tools", {
+      const response = await fetch("https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(session.sessionId)) + "/tools", {
         headers: composioHeaders(env, { "Accept": "application/json" }),
         signal: AbortSignal.timeout(8000)
       });
@@ -4528,12 +4528,12 @@ export default {
         if (!allowedToolkits.has(requestedToolkit)) return connectorJson({ error: "unsupported_connector" }, 400);
         if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return connectorJson({ error: "connector_service_not_configured" }, 503);
         const headers = composioHeaders(env, { "Content-Type": "application/json" });
-        const sessionResponse = await fetch("https://backend.composio.dev/api/v3/tool_router/session", {
+        const sessionResponse = await fetch("https://backend.composio.dev/api/v3.1/tool_router/session", {
           method: "POST",
           headers,
           body: JSON.stringify({
             user_id: user.uid,
-            toolkits: { enabled: [requestedToolkit], require_approval: [] },
+            toolkits: { enable: [requestedToolkit] },
             manage_connections: { enable: true, enable_wait_for_connections: true, enable_connection_removal: true }
           }),
           signal: AbortSignal.timeout(15000)
@@ -4547,7 +4547,7 @@ export default {
           return connectorJson({ error: "connector_session_creation_failed", providerStatus: sessionResponse.status, providerCode }, 502);
         }
         const linkResponse = await fetch(
-          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
+          "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
           {
             method: "POST",
             headers,
@@ -4643,7 +4643,7 @@ export default {
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const response = await fetch(
-          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/tools",
+          "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/tools",
           { headers: composioHeaders(env, { "Accept": "application/json" }), signal: AbortSignal.timeout(15000) }
         );
         const data = await response.json().catch(() => ({}));
@@ -4683,7 +4683,7 @@ export default {
         const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments) ? body.arguments : {};
         if (JSON.stringify(args).length > 12000) return json({ error: "connector_arguments_too_large" }, 413);
         const response = await fetch(
-          "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute",
+          "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute",
           {
             method: "POST",
             headers: composioHeaders(env, { "Content-Type": "application/json", "Accept": "application/json" }),
