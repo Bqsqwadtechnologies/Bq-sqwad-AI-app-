@@ -1340,7 +1340,7 @@ const COMPOSIO_TOOLKITS = new Set([
 ]);
 
 function isConnectorRelatedPrompt(message) {
-  return /\\b(gmail|e-?mail|google drive|drive files?|calendar|meetings?|github|repositories|repos|pull requests?|issues|dropbox|notion|slack|trello|linear|figma|jira|airtable|outlook|onedrive|google docs?|google sheets?|spreadsheets?)\\b/i.test(String(message || ""));
+  return /\b(gmail|e-?mail|google drive|drive files?|calendar|meetings?|github|repositories|repos|pull requests?|issues|dropbox|notion|slack|trello|linear|figma|jira|airtable|outlook|onedrive|google docs?|google sheets?|spreadsheets?)\b/i.test(String(message || ""));
 }
 
 function connectorToolSchema(raw) {
