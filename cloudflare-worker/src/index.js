@@ -4514,7 +4514,7 @@ export default {
           headers,
           body: JSON.stringify({
             user_id: user.uid,
-            toolkits: { enabled: [requestedToolkit], require_approval: [requestedToolkit] },
+            toolkits: { enabled: [requestedToolkit], require_approval: [] },
             manage_connections: { enable: true, enable_wait_for_connections: true, enable_connection_removal: true }
           }),
           signal: AbortSignal.timeout(15000)
