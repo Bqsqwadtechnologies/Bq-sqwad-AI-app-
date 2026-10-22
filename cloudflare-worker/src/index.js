@@ -4369,6 +4369,29 @@ export default {
         });
       }
 
+      if (url.pathname === "/connectors/list" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const allowedToolkits = new Set([
+          "googledrive", "googlecalendar", "gmail", "github",
+          "microsoftonedrive", "microsoftoutlook", "dropbox", "notion",
+          "slack", "trello", "linear", "googledocs", "googlesheets",
+          "googlemeet", "figma", "jira", "airtable", "zapier"
+        ]);
+        const sessions = await firestoreQuery("composioSessions", {
+          filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 30
+        });
+        const connectors = sessions
+          .filter(item => item && item.uid === user.uid && item.sessionId && allowedToolkits.has(String(item.toolkit || "")))
+          .map(item => ({
+            toolkit: String(item.toolkit),
+            createdAt: item.createdAt || null,
+            updatedAt: item.updatedAt || null
+          }));
+        return json({ connectors });
+      }
+
       if (url.pathname === "/connectors/tools" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 30);
