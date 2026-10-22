@@ -12,6 +12,10 @@ import android.view.Surface as AndroidSurface
 import android.view.TextureView
 import android.util.LruCache
 import java.net.URL
+import java.net.UnknownHostException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.NoRouteToHostException
 import android.net.Uri
 import android.util.Base64
 import android.provider.Settings
@@ -117,6 +121,21 @@ import org.json.JSONObject
 
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
+    val causes = generateSequence(throwable) { it.cause }.take(8).toList()
+    if (causes.any { it is UnknownHostException || it is NoRouteToHostException || it is ConnectException } ||
+        causes.any { cause ->
+            val text = cause.message.orEmpty().lowercase()
+            text.contains("network is unreachable") ||
+                text.contains("no address associated with hostname") ||
+                text.contains("unable to resolve host") ||
+                text.contains("failed to connect") ||
+                text.contains("network connection lost")
+        }) {
+        return "No internet connection detected. Check your Wi-Fi or mobile data and try again."
+    }
+    if (causes.any { it is SocketTimeoutException }) {
+        return "The connection is taking too long. Check your internet connection and try again."
+    }
     val message = throwable.message?.trim().orEmpty()
     if (message.isBlank()) return fallback
     val lower = message.lowercase()
@@ -507,7 +526,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
             title = { Text("Reset password") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter your account email and Firebase will send a password reset link.")
+                    Text("Enter your account email and we’ll send a password reset link.")
                     OutlinedTextField(
                         value = email,
                         onValueChange = { email = it },
@@ -826,7 +845,7 @@ private fun friendlyAuthError(error: Exception?): String {
         is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException -> "The email or password is incorrect."
         is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "No account was found for that email."
         is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "An account already exists with a different sign-in provider. Try the provider originally used."
-        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
+        is com.google.firebase.FirebaseNetworkException -> "No internet connection detected. Check your Wi-Fi or mobile data and try again."
         else -> "Sign-in could not be completed. Please try again."
     }
 }
@@ -839,7 +858,7 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
     // users add/re-authenticate a Google account when necessary.
     val serverClientId = context.getString(R.string.default_web_client_id)
     if (serverClientId.isBlank()) {
-        throw IllegalStateException("Google sign-in is not configured: default web client ID is missing.")
+        throw IllegalStateException("Google sign-in is temporarily unavailable. Please try again later.")
     }
     val googleOption = GetSignInWithGoogleOption.Builder(serverClientId).build()
     val request = GetCredentialRequest.Builder()
@@ -4327,12 +4346,12 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
 private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.VIDEO -> "AI video creation and video-focused workflows using the configured BQ Sqwad AI capabilities."
     Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
-    Workspace.SEARCH -> "Search the web through the configured backend, with source-aware results and direct links that open in the device browser."
+    Workspace.SEARCH -> "Search the web with source-aware results and direct links that open in your browser."
     Workspace.TRUTH_GUARD -> "Review claims against web sources and separate evidence from unsupported conclusions."
     Workspace.FRONTIER_LAB -> "Explore advanced AI capabilities using the authenticated, credit-controlled AI runtime."
     Workspace.DATA_ANALYSIS -> "Analyze structured information and turn findings into readable reports."
     Workspace.CAMERA -> "Use the camera or supported screen-sharing flow for live visual analysis. Android permission indicators and foreground-service controls remain visible during active sessions."
-    Workspace.VOICE -> "Have a real-time voice conversation with interruption support. The live voice session uses the configured realtime backend and microphone permission."
+    Workspace.VOICE -> "Have a real-time voice conversation with interruption support. Microphone permission is required."
     Workspace.PERSONAL -> "A personal intelligence workspace for planning, organization, goals and permission-based memory backed by the account."
     Workspace.LIFE -> "A dedicated life-planning workspace for routines, reminders, practical guidance and structured assistance."
     Workspace.COMPANION -> "A dedicated companion workspace with personality, memory and check-in controls governed by the account and feature configuration."
@@ -4343,20 +4362,20 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
 }
 
 private fun featureHowItWorks(w: Workspace): String = when (w) {
-    Workspace.CHAT -> "The app sends authenticated protected requests through the existing backend, streams the response into the chat, and saves the conversation to history when possible."
-    Workspace.VIDEO -> "Video generation requests are sent to the configured backend render capability; generated media and job status remain account-scoped."
-    Workspace.SEARCH -> "The app sends the query to the backend search route. Search-provider credentials stay server-side; returned sources remain actionable."
+    Workspace.CHAT -> "Chat streams responses, supports attachments and saves conversations to your history when possible."
+    Workspace.VIDEO -> "Create videos with BQ Sqwad AI and track your generated media in your account."
+    Workspace.SEARCH -> "Search uses approved web sources and keeps source links available for you to open."
     Workspace.TRUTH_GUARD -> "TruthGuard can search the web first, then send the evidence to its configured AI capability for claim analysis."
     Workspace.FRONTIER_LAB -> "Frontier Lab uses the configured capability route and can attach web-search evidence before the AI response."
     Workspace.DATA_ANALYSIS -> "Data Analysis uses the server capability route and central credit controls."
     Workspace.CAMERA -> "Android starts the camera or screen foreground service, captures supported frames, and sends analysis requests through the configured backend."
-    Workspace.VOICE -> "The app starts the foreground voice session, obtains the server-authorized realtime session, and exchanges audio through the existing realtime client."
+    Workspace.VOICE -> "Start a real-time voice conversation with interruption support and microphone controls."
     Workspace.PERSONAL -> "Workspace requests are routed with the selected capability and account context; memory is loaded or changed only through the account APIs."
     Workspace.LIFE -> "Requests are routed to the life capability and returned to the workspace result surface."
     Workspace.COMPANION -> "Companion requests use the companion workspace and its configured account features, including available memory and check-in controls."
     Workspace.LEARNING -> "Learning requests are routed to the learning capability and use the server catalog and configuration for availability and limits."
     Workspace.BUSINESS -> "Business screens call the workspace APIs for records, automation, social accounts, integrations and enterprise settings; provider credentials remain encrypted server-side."
-    Workspace.ORGANIZATION_STUDIO -> "Organization requests are routed to the organization capability and its connected backend services."
+    Workspace.ORGANIZATION_STUDIO -> "Organization Studio helps you work with the services you have connected and authorized."
     Workspace.ADMIN -> "Admin actions call protected server endpoints after server-side authorization. Sensitive provider credentials and security material are never embedded in the APK."
 }
 
@@ -6861,7 +6880,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Bring your tools into BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Connect each service separately through the secure Cloudflare backend. The Composio API key stays on the server; BQ checks the tools available to each authorized account.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Connect each service securely through BQ Sqwad AI. Each service is authorized separately, and available tools are checked for your account.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             } } }
             item { Text("Available connector targets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(connectors, key = { it.name }) { connector ->
