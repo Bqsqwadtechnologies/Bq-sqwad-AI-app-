@@ -6792,6 +6792,9 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
     var connectorStatus by remember { mutableStateOf<String?>(null) }
     var connectorTools by remember { mutableStateOf<List<String>>(emptyList()) }
     var checkingConnector by remember { mutableStateOf(false) }
+    var connectorAccessMode by remember { mutableStateOf("read_only") }
+    var savingConnectorAccess by remember { mutableStateOf(false) }
+    var connectorPermissionError by remember { mutableStateOf<String?>(null) }
     val connectorScope = rememberCoroutineScope()
 
     LaunchedEffect(selectedConnector?.name) {
@@ -6800,6 +6803,8 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         val user = FirebaseAuth.getInstance().currentUser
         connectorStatus = null
         connectorTools = emptyList()
+        connectorAccessMode = "read_only"
+        connectorPermissionError = null
         if (toolkit == "unsupported" || user == null) {
             connectorStatus = if (user == null) "Sign in to check this connector's status." else "This connector is not supported by the cloud connector backend."
             return@LaunchedEffect
@@ -6833,6 +6838,22 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             }
             connectorStatus = if (result.first == "connected") "Connected · ${result.second.size} tools discovered." else "Not connected yet. Connect this account to enable its tools."
             connectorTools = result.second
+            if (result.first == "connected") {
+                connectorAccessMode = withContext(Dispatchers.IO) {
+                    val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
+                    val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                    try {
+                        permissionConnection.requestMethod = "GET"
+                        permissionConnection.connectTimeout = 12000
+                        permissionConnection.readTimeout = 15000
+                        permissionConnection.setRequestProperty("Authorization", "Bearer $token")
+                        val status = permissionConnection.responseCode
+                        val stream = if (status in 200..299) permissionConnection.inputStream else permissionConnection.errorStream
+                        val permissionPayload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                        if (status !in 200..299) "read_only" else if (permissionPayload.optString("accessMode") == "full_access") "full_access" else "read_only"
+                    } finally { permissionConnection.disconnect() }
+                }
+            }
         } catch (error: Throwable) {
             connectorStatus = error.message ?: "Could not check connector status."
         } finally { checkingConnector = false }
@@ -6866,6 +6887,91 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     Text(connector.description)
                     Text("Secure account connection", fontWeight = FontWeight.SemiBold)
                     Text("Continue to the provider authorization page to choose what BQ Sqwad AI may access. You can cancel there at any time.")
+                    if (connectorStatus?.startsWith("Connected") == true) {
+                        Text("Permission for this connector", fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                            if (!savingConnectorAccess) connectorScope.launch {
+                                val user = FirebaseAuth.getInstance().currentUser
+                                if (user == null) { connectorPermissionError = "Sign in before changing connector permissions." }
+                                else {
+                                    savingConnectorAccess = true
+                                    connectorPermissionError = null
+                                    val result = runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
+                                            val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions").openConnection() as java.net.HttpURLConnection
+                                            try {
+                                                permissionConnection.requestMethod = "POST"
+                                                permissionConnection.connectTimeout = 12000
+                                                permissionConnection.readTimeout = 15000
+                                                permissionConnection.doOutput = true
+                                                permissionConnection.setRequestProperty("Authorization", "Bearer $token")
+                                                permissionConnection.setRequestProperty("Content-Type", "application/json")
+                                                permissionConnection.outputStream.use {
+                                                    it.write(JSONObject().put("toolkit", connectorToolkit(connector.name)).put("accessMode", "read_only").toString().toByteArray(Charsets.UTF_8))
+                                                }
+                                                val status = permissionConnection.responseCode
+                                                val stream = if (status in 200..299) permissionConnection.inputStream else permissionConnection.errorStream
+                                                val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                                                if (status !in 200..299 || payload.optString("accessMode") != "read_only") error("Could not save connector permissions.")
+                                            } finally { permissionConnection.disconnect() }
+                                        }
+                                    }
+                                    result.onSuccess { connectorAccessMode = "read_only" }
+                                    result.onFailure { connectorPermissionError = it.message ?: "Could not save connector permissions." }
+                                    savingConnectorAccess = false
+                                }
+                            }
+                        }) {
+                            RadioButton(selected = connectorAccessMode == "read_only", onClick = null, enabled = !savingConnectorAccess)
+                            Column(Modifier.weight(1f)) {
+                                Text("Read-only", fontWeight = FontWeight.Medium)
+                                Text("Search and view information only", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                            if (!savingConnectorAccess) connectorScope.launch {
+                                val user = FirebaseAuth.getInstance().currentUser
+                                if (user == null) { connectorPermissionError = "Sign in before changing connector permissions." }
+                                else {
+                                    savingConnectorAccess = true
+                                    connectorPermissionError = null
+                                    val result = runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
+                                            val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions").openConnection() as java.net.HttpURLConnection
+                                            try {
+                                                permissionConnection.requestMethod = "POST"
+                                                permissionConnection.connectTimeout = 12000
+                                                permissionConnection.readTimeout = 15000
+                                                permissionConnection.doOutput = true
+                                                permissionConnection.setRequestProperty("Authorization", "Bearer $token")
+                                                permissionConnection.setRequestProperty("Content-Type", "application/json")
+                                                permissionConnection.outputStream.use {
+                                                    it.write(JSONObject().put("toolkit", connectorToolkit(connector.name)).put("accessMode", "full_access").toString().toByteArray(Charsets.UTF_8))
+                                                }
+                                                val status = permissionConnection.responseCode
+                                                val stream = if (status in 200..299) permissionConnection.inputStream else permissionConnection.errorStream
+                                                val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                                                if (status !in 200..299 || payload.optString("accessMode") != "full_access") error("Could not save connector permissions.")
+                                            } finally { permissionConnection.disconnect() }
+                                        }
+                                    }
+                                    result.onSuccess { connectorAccessMode = "full_access" }
+                                    result.onFailure { connectorPermissionError = it.message ?: "Could not save connector permissions." }
+                                    savingConnectorAccess = false
+                                }
+                            }
+                        }) {
+                            RadioButton(selected = connectorAccessMode == "full_access", onClick = null, enabled = !savingConnectorAccess)
+                            Column(Modifier.weight(1f)) {
+                                Text("Full access", fontWeight = FontWeight.Medium)
+                                Text("Allow supported actions and changes", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (savingConnectorAccess) Text("Saving permission…", style = MaterialTheme.typography.bodySmall)
+                        connectorPermissionError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    }
                     if (checkingConnector) Text("Checking connection and available tools…", style = MaterialTheme.typography.bodySmall)
                     connectorStatus?.let { Text(it, color = if (it.startsWith("Connected")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                     if (connectorTools.isNotEmpty()) {
