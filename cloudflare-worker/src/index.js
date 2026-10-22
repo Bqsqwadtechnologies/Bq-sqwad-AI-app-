@@ -4354,7 +4354,7 @@ export default {
         if (!linkResponse.ok || typeof linkData.redirect_url !== "string" || !linkData.redirect_url.startsWith("https://")) {
           return connectorJson({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status }, 502);
         }
-        await firestoreSet("composioSessions/" + user.uid, {
+        await firestoreSet("composioSessions/" + user.uid + "__" + requestedToolkit, {
           uid: user.uid,
           sessionId: String(sessionData.session_id),
           toolkit: requestedToolkit,
