@@ -1357,7 +1357,7 @@ async function reserveMonthlyUsageCounter(collection,uid,monthKey,planId,limit,e
 async function releaseMonthlyUsageCounter(path){for(let attempt=0;attempt<5;attempt++){const current=await firestoreGet(path);if(!current||Number(current.count||0)<=0)return;try{await firestoreCommit([{path,data:{uid:current.uid,monthKey:current.monthKey,planId:current.planId,count:Math.max(0,Number(current.count||0)-1),updatedAt:new Date()},updateTime:current.__updateTime}]);return}catch{if(attempt===4)return}}}
 const COMPOSIO_TOOLKITS = new Set([
   "googledrive", "googlecalendar", "gmail", "github", "one_drive",
-  "outlook", "dropbox", "notion", "slack", "trello", "linear",
+  "outlook", "dropbox", "notion", "slack", "trello", "linear_mcp",
   "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"
 ]);
 
@@ -4522,7 +4522,7 @@ export default {
         const allowedToolkits = new Set([
           "googledrive", "googlecalendar", "gmail", "github",
           "one_drive", "outlook", "dropbox", "notion",
-          "slack", "trello", "linear", "googledocs", "googlesheets",
+          "slack", "trello", "linear_mcp", "googledocs", "googlesheets",
           "googlemeet", "figma", "jira", "airtable", "zapier"
         ]);
         if (!allowedToolkits.has(requestedToolkit)) return connectorJson({ error: "unsupported_connector" }, 400);
@@ -4583,7 +4583,7 @@ export default {
         enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear_mcp", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         const saved = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
         const accessMode = saved && saved.uid === user.uid && saved.toolkit === toolkit && saved.accessMode === "full_access" ? "full_access" : "read_only";
@@ -4598,7 +4598,7 @@ export default {
         const accessMode = String(body.accessMode || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         if (!["read_only", "full_access"].includes(accessMode)) return json({ error: "connector_access_mode_invalid" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear_mcp", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         await firestoreSet("composioPermissions/" + user.uid + "__" + toolkit, {
           uid: user.uid, toolkit, accessMode, updatedAt: new Date().toISOString()
@@ -4612,7 +4612,7 @@ export default {
         const allowedToolkits = new Set([
           "googledrive", "googlecalendar", "gmail", "github",
           "one_drive", "outlook", "dropbox", "notion",
-          "slack", "trello", "linear", "googledocs", "googlesheets",
+          "slack", "trello", "linear_mcp", "googledocs", "googlesheets",
           "googlemeet", "figma", "jira", "airtable", "zapier"
         ]);
         const sessions = await firestoreQuery("composioSessions", {
