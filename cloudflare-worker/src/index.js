@@ -4401,7 +4401,11 @@ export default {
         if (!toolkit || !/^[a-z0-9]+$/.test(toolkit) || !toolSlug || !/^[A-Z0-9_]+$/.test(toolSlug)) return json({ error: "connector_toolkit_and_slug_required" }, 400);
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
-        const expectedPrefix = toolkit.toUpperCase() + "_";
+        const toolkitPrefixes = {
+          microsoftonedrive: "MICROSOFT_ONEDRIVE_",
+          microsoftoutlook: "MICROSOFT_OUTLOOK_"
+        };
+        const expectedPrefix = toolkitPrefixes[toolkit] || (toolkit.toUpperCase() + "_");
         const readOnlyAction = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
         const mutationTerms = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE|SEND_|MOVE_|ARCHIVE|TRASH|SHARE|UNSHARE|COMPLETE|CANCEL|SUBMIT|POST_/;
         if (!env.COMPOSIO_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
