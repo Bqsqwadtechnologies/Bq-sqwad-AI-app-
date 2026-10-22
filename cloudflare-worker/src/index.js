@@ -4372,8 +4372,10 @@ export default {
       if (url.pathname === "/connectors/tools" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 30);
-        const saved = await firestoreGet("composioSessions/" + user.uid);
-        if (!saved || saved.uid !== user.uid || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
+        const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
+        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
+        const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
+        if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const response = await fetch(
           "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/tools",
           { headers: { "x-api-key": String(env.COMPOSIO_API_KEY || ""), "Accept": "application/json" }, signal: AbortSignal.timeout(15000) }
@@ -4393,13 +4395,17 @@ export default {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 10);
         await requireConsent(user.uid);
-        const saved = await firestoreGet("composioSessions/" + user.uid);
-        if (!saved || saved.uid !== user.uid || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const body = await readBody(request);
+        const toolkit = String(body.toolkit || "").trim().toLowerCase();
         const toolSlug = String(body.toolSlug || "").trim().toUpperCase();
-        const readOnlyPrefix = /^(GITHUB_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI)_|GITHUB_GET$)/;
-        const mutationTerms = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE/;
-        if (saved.toolkit !== "github" || !readOnlyPrefix.test(toolSlug) || mutationTerms.test(toolSlug)) {
+        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit) || !toolSlug || !/^[A-Z0-9_]+$/.test(toolSlug)) return json({ error: "connector_toolkit_and_slug_required" }, 400);
+        const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
+        if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
+        const expectedPrefix = toolkit.toUpperCase() + "_";
+        const readOnlyAction = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
+        const mutationTerms = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE|SEND_|MOVE_|ARCHIVE|TRASH|SHARE|UNSHARE|COMPLETE|CANCEL|SUBMIT|POST_/;
+        if (!env.COMPOSIO_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
+        if (!toolSlug.startsWith(expectedPrefix) || !readOnlyAction.test(toolSlug) || mutationTerms.test(toolSlug)) {
           return json({ error: "connector_tool_not_allowed" }, 403);
         }
         const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments) ? body.arguments : {};
