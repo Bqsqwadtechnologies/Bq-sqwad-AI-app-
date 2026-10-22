@@ -6838,8 +6838,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             }
             connectorStatus = if (result.first == "connected") "Connected · ${result.second.size} tools discovered." else "Not connected yet. Connect this account to enable its tools."
             connectorTools = result.second
-            if (result.first == "connected") {
-                connectorAccessMode = withContext(Dispatchers.IO) {
+            connectorAccessMode = withContext(Dispatchers.IO) {
                     val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
                     val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
                     try {
@@ -6853,7 +6852,6 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                         if (status !in 200..299) "read_only" else if (permissionPayload.optString("accessMode") == "full_access") "full_access" else "read_only"
                     } finally { permissionConnection.disconnect() }
                 }
-            }
         } catch (error: Throwable) {
             connectorStatus = error.message ?: "Could not check connector status."
         } finally { checkingConnector = false }
@@ -6887,7 +6885,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     Text(connector.description)
                     Text("Secure account connection", fontWeight = FontWeight.SemiBold)
                     Text("Continue to the provider authorization page to choose what BQ Sqwad AI may access. You can cancel there at any time.")
-                    if (connectorStatus?.startsWith("Connected") == true) {
+                    if (connectorStatus != null && connector.name !in setOf("Local device", "Bluetooth devices") && connectorToolkit(connector.name) != "unsupported") {
                         Text("Permission for this connector", fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
                             if (!savingConnectorAccess) connectorScope.launch {
