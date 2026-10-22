@@ -898,7 +898,7 @@ private fun friendlyGoogleAuthError(error: Throwable): String {
         is GetCredentialException -> "Google sign-in could not be completed. Please choose a Google account and try again."
         is TimeoutCancellationException -> "Google sign-in timed out. Please try again."
         is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "This Google account is already linked to another sign-in method."
-        is com.google.firebase.FirebaseNetworkException -> "Network connection failed. Check your internet connection and try again."
+        is com.google.firebase.FirebaseNetworkException -> "No internet connection detected. Check your Wi-Fi or mobile data and try again."
         else -> "Google sign-in could not be completed. Please try again."
     }
 }
@@ -4357,8 +4357,8 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "A dedicated companion workspace with personality, memory and check-in controls governed by the account and feature configuration."
     Workspace.LEARNING -> "Learning Studio provides subject tutoring, lessons, homework help, revision and exam-preparation workflows."
     Workspace.BUSINESS -> "Business AI connects the business workspace, assistants, knowledge, contacts, leads, pipelines, inbox, automation, channels, advanced AI and enterprise configuration."
-    Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio provides professional organization intelligence, production coordination and the connected organization tools exposed by the backend."
-    Workspace.ADMIN -> "Admin Control Center manages server-side configuration, providers, billing/catalog controls, security and testing. Administrative secrets remain server-side."
+    Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio provides professional organization intelligence, production coordination and your connected organization tools."
+    Workspace.ADMIN -> "Admin Control Center manages service settings, billing, security and testing. Sensitive configuration is protected."
 }
 
 private fun featureHowItWorks(w: Workspace): String = when (w) {
@@ -4368,22 +4368,22 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.TRUTH_GUARD -> "TruthGuard can search the web first, then send the evidence to its configured AI capability for claim analysis."
     Workspace.FRONTIER_LAB -> "Frontier Lab uses the configured capability route and can attach web-search evidence before the AI response."
     Workspace.DATA_ANALYSIS -> "Data Analysis uses the server capability route and central credit controls."
-    Workspace.CAMERA -> "Android starts the camera or screen foreground service, captures supported frames, and sends analysis requests through the configured backend."
+    Workspace.CAMERA -> "Use the camera or supported screen-sharing flow for live visual analysis."
     Workspace.VOICE -> "Start a real-time voice conversation with interruption support and microphone controls."
     Workspace.PERSONAL -> "Workspace requests are routed with the selected capability and account context; memory is loaded or changed only through the account APIs."
     Workspace.LIFE -> "Requests are routed to the life capability and returned to the workspace result surface."
     Workspace.COMPANION -> "Companion requests use the companion workspace and its configured account features, including available memory and check-in controls."
     Workspace.LEARNING -> "Learning requests are routed to the learning capability and use the server catalog and configuration for availability and limits."
-    Workspace.BUSINESS -> "Business screens call the workspace APIs for records, automation, social accounts, integrations and enterprise settings; provider credentials remain encrypted server-side."
+    Workspace.BUSINESS -> "Manage records, automation, social accounts, integrations and organization settings in Business Studio."
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio helps you work with the services you have connected and authorized."
-    Workspace.ADMIN -> "Admin actions call protected server endpoints after server-side authorization. Sensitive provider credentials and security material are never embedded in the APK."
+    Workspace.ADMIN -> "Admin actions require administrator permission. Sensitive credentials and security information are protected."
 }
 
 private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.CHAT -> "No camera or microphone permission is required just to read or type chat. Speech-to-text requests microphone access through Android when used; attachments use Android's document picker."
     Workspace.VIDEO -> "Video generation does not require camera or microphone permission unless the user explicitly selects a capture or media input feature."
     Workspace.SEARCH -> "No special device permission is required for ordinary web search."
-    Workspace.TRUTH_GUARD -> "No special device permission is required; web-search credentials remain server-side."
+    Workspace.TRUTH_GUARD -> "No special device permission is required for web-based claim checking."
     Workspace.FRONTIER_LAB -> "No special device permission is required unless an enabled experiment explicitly requests one."
     Workspace.DATA_ANALYSIS -> "No special device permission is required for ordinary structured-data analysis."
     Workspace.CAMERA -> "Camera permission is required for camera capture. Screen analysis separately uses Android's MediaProjection consent flow."
@@ -4394,7 +4394,7 @@ private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.LEARNING -> "Ordinary learning requests do not require special device permissions."
     Workspace.BUSINESS -> "Connected channels and integrations use account authorization and provider permissions configured for that integration."
     Workspace.ORGANIZATION_STUDIO -> "Connected production or organization tools request only the permissions required for the selected operation."
-    Workspace.ADMIN -> "Administrative operations require server-side authorization; secrets are managed on the server rather than exposed to end users."
+    Workspace.ADMIN -> "Administrative operations require administrator permission. Sensitive settings are protected."
 }
 
 private fun featurePrivacyHeading(w: Workspace): String = when (w) {
@@ -4531,7 +4531,7 @@ private fun capabilityDescription(id: String): String = when (id) {
     "ai_generated_reports" -> "Generate structured reports from AI conversations and analyzed data."
     "background_generation_jobs", "generation_queue" -> "Run longer AI generation work in a tracked background queue."
     "cross_device_sync" -> "Keep supported AI data synchronized across signed-in devices."
-    else -> "Connected BQ Sqwad AI capability controlled by the server-side feature catalog."
+    else -> "A BQ Sqwad AI capability available for your account."
 }
 
 private val ADMIN_ONLY_CAPABILITIES = setOf(
@@ -5020,7 +5020,7 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpe
                 SurfaceCard("Web Search", "Web evidence is available to this capability through the shared search service.")
             }
             if (entry?.credits != false) {
-                SurfaceCard("Credits", "Usage is charged through the shared backend credit system. Pricing and limits follow the published BQ Sqwad AI catalog.")
+                SurfaceCard("Credits", "Usage is deducted from your BQ Sqwad AI credits. Pricing and limits follow the current plans and credit options.")
             }
             AiTaskWorkspace(feature.title, feature.description, feature.capability, false, feature.webSearch, onOpenSettings = onOpenSettings)
         }
@@ -5388,7 +5388,7 @@ private fun DataAnalysisWorkspace() {
         if (streaming.isNotBlank()) SurfaceCard("Live analysis", streaming)
         if (result.isNotBlank()) SurfaceCard("AI report", result)
         if (dataText.isNotBlank()) SurfaceCard("Dataset preview", dataText.lineSequence().take(8).joinToString("\n"))
-        SurfaceCard("Credits", "Data analysis uses the shared backend credit system and the current service pricing configuration.")
+        SurfaceCard("Credits", "Data analysis uses your BQ Sqwad AI credits according to the current pricing.")
     }
 }
 
