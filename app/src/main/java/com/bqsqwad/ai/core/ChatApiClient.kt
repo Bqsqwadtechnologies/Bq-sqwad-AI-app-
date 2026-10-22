@@ -309,5 +309,5 @@ class ChatApiClient(
         } finally {
             connection.disconnect()
         }
-    } } } }
+    } } }
 }
