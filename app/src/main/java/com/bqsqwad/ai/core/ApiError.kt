@@ -6,9 +6,9 @@ sealed class ApiError(message: String) : Exception(message) {
     data object InsufficientCredits : ApiError("You do not have enough credits for this request.")
     data object CapabilityDisabled : ApiError("This AI capability is currently unavailable.")
     data object RateLimited : ApiError("Too many requests. Please try again shortly.")
-    data object NotMigrated : ApiError("This feature is temporarily unavailable while the backend is being migrated.")
+    data object NotMigrated : ApiError("This feature is temporarily unavailable. Please try again later.")
     data object ProviderUnavailable : ApiError("The AI service is temporarily unavailable. Please try again shortly.")
-    data class Unknown(val status: Int, val detail: String? = null) : ApiError(detail ?: "The request could not be completed.")
+    data class Unknown(val status: Int, val detail: String? = null) : ApiError("BQ Sqwad AI couldn't complete that request. Please try again.")
 }
 
 fun apiErrorFrom(status: Int, code: String?): ApiError = when (code?.lowercase()) {
