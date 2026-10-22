@@ -9,6 +9,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.io.IOException
+import java.net.UnknownHostException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.util.UUID
 
 data class ChatReply(
@@ -26,12 +30,24 @@ class ChatApiClient(
         return Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
     }
 
+    private suspend fun <T> withFriendlyNetworkErrors(block: suspend () -> T): T = try {
+        block()
+    } catch (e: UnknownHostException) {
+        throw IllegalStateException("You're offline or your connection is unstable. Check your internet connection and try again.", e)
+    } catch (e: ConnectException) {
+        throw IllegalStateException("You're offline or your connection is unstable. Check your internet connection and try again.", e)
+    } catch (e: SocketTimeoutException) {
+        throw IllegalStateException("The request took too long. Check your connection and try again.", e)
+    } catch (e: IOException) {
+        throw IllegalStateException("BQ Sqwad AI couldn't connect. Check your internet connection and try again.", e)
+    }
+
     suspend fun sendMessage(
         message: String,
         capability: String = "chat",
         system: String? = null,
         modelRegistryId: String? = null
-    ): ChatReply =
+    ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
             val idempotencyKey = UUID.randomUUID().toString()
@@ -90,7 +106,7 @@ class ChatApiClient(
                 modelId = body.optString("modelId").takeIf { it.isNotBlank() },
                 creditsCharged = body.optDouble("creditsCharged", 0.0)
             )
-        } }
+        } } }
 
     suspend fun streamMessage(
         message: String,
@@ -98,7 +114,8 @@ class ChatApiClient(
         onDelta: (String) -> Unit,
         system: String? = null,
         modelRegistryId: String? = null
-    ): ChatReply = withTimeout(120000) {
+    ): ChatReply = withFriendlyNetworkErrors {
+        withTimeout(120000) {
         withContext(Dispatchers.IO) {
             val token = authToken()
             val idempotencyKey = UUID.randomUUID().toString()
@@ -220,6 +237,7 @@ class ChatApiClient(
                 connection.disconnect()
             }
         }
+        }
     }
 
     suspend fun analyzeCameraFrame(
@@ -230,7 +248,7 @@ class ChatApiClient(
         system: String? = null,
         additionalImages: List<Pair<String, String>> = emptyList(),
         additionalFiles: List<Triple<String, String, String>> = emptyList()
-    ): ChatReply = withTimeout(120000) { withContext(Dispatchers.IO) {
+    ): ChatReply = withFriendlyNetworkErrors { withTimeout(120000) { withContext(Dispatchers.IO) {
         val token = authToken()
         val connection = (URL("$baseUrl/ai/vision").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -266,11 +284,19 @@ class ChatApiClient(
             val body = runCatching { JSONObject(raw) }.getOrNull()
             if (status !in 200..299) {
                 val serverError = body?.optString("error").orEmpty()
-                val detail = serverError.ifBlank { raw.trim().take(2000).ifBlank { "No response body" } }
-                throw IllegalStateException("HTTP $status: $detail")
+                val code = serverError.lowercase()
+                val friendly = when {
+                    status == 401 || code.contains("auth") -> "Please sign in again to continue."
+                    status == 402 || code.contains("credit") -> "You don't have enough credits for this request."
+                    status == 403 || code.contains("consent") -> "Please review the required permissions to continue."
+                    status == 429 -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                    status >= 500 -> "BQ Sqwad AI is temporarily unavailable. Please try again shortly."
+                    else -> "BQ Sqwad AI couldn't complete that request. Please try again."
+                }
+                throw IllegalStateException(friendly)
             }
             if (body == null) {
-                throw IllegalStateException("HTTP $status: Invalid JSON response: " + raw.trim().take(2000).ifBlank { "No response body" })
+                throw IllegalStateException("BQ Sqwad AI received an unexpected response. Please try again.")
             }
             val responseText = body.optString("text").trim()
             if (responseText.isBlank()) throw IllegalStateException("AI service returned an empty response.")
@@ -283,5 +309,5 @@ class ChatApiClient(
         } finally {
             connection.disconnect()
         }
-    } }
+    } } }
 }
