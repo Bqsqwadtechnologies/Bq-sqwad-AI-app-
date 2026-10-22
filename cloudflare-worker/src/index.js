@@ -1356,8 +1356,8 @@ async function recordConfiguredMediaCost(uid, feature, control, result, cost, mo
 async function reserveMonthlyUsageCounter(collection,uid,monthKey,planId,limit,errorCode){const path=collection+"/"+uid+"_"+monthKey;for(let attempt=0;attempt<6;attempt++){const current=await firestoreGet(path);const count=Math.max(0,Number(current?.count||0));if(count>=limit)throw Object.assign(new Error(errorCode),{httpStatus:429,safeError:errorCode});const data={uid,monthKey,planId,count:count+1,updatedAt:new Date()};try{if(current)await firestoreCommit([{path,data,updateTime:current.__updateTime}]);else await firestoreCommit([{path,data,create:true}]);return path}catch(error){if(attempt===5)throw new Error("workspace_usage_reservation_failed")}}throw new Error("workspace_usage_reservation_failed")}
 async function releaseMonthlyUsageCounter(path){for(let attempt=0;attempt<5;attempt++){const current=await firestoreGet(path);if(!current||Number(current.count||0)<=0)return;try{await firestoreCommit([{path,data:{uid:current.uid,monthKey:current.monthKey,planId:current.planId,count:Math.max(0,Number(current.count||0)-1),updatedAt:new Date()},updateTime:current.__updateTime}]);return}catch{if(attempt===4)return}}}
 const COMPOSIO_TOOLKITS = new Set([
-  "googledrive", "googlecalendar", "gmail", "github", "microsoftonedrive",
-  "microsoftoutlook", "dropbox", "notion", "slack", "trello", "linear",
+  "googledrive", "googlecalendar", "gmail", "github", "one_drive",
+  "outlook", "dropbox", "notion", "slack", "trello", "linear",
   "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"
 ]);
 
@@ -1391,7 +1391,7 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   if (!COMPOSIO_TOOLKITS.has(cleanToolkit) || !/^[A-Z0-9_]{1,100}$/.test(cleanSlug)) {
     return { ok: false, error: "connector_tool_not_allowed" };
   }
-  const prefixes = { microsoftonedrive: "MICROSOFT_ONEDRIVE_", microsoftoutlook: "MICROSOFT_OUTLOOK_" };
+  const prefixes = { one_drive: "MICROSOFT_ONEDRIVE_", outlook: "MICROSOFT_OUTLOOK_" };
   const prefix = prefixes[cleanToolkit] || (cleanToolkit.toUpperCase() + "_");
   const readOnly = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
   const mutation = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE|SEND_|MOVE_|ARCHIVE|TRASH|SHARE|UNSHARE|COMPLETE|CANCEL|SUBMIT|POST_/;
@@ -1452,7 +1452,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
         if (toolDefs.length >= 35) break;
         const slug = String(item.slug || item.name || "").trim().toUpperCase();
         if (!/^[A-Z0-9_]{1,100}$/.test(slug)) continue;
-        const prefix = toolkit === "microsoftonedrive" ? "MICROSOFT_ONEDRIVE_" : toolkit === "microsoftoutlook" ? "MICROSOFT_OUTLOOK_" : toolkit.toUpperCase() + "_";
+        const prefix = toolkit === "one_drive" ? "ONE_DRIVE_" : toolkit === "outlook" ? "OUTLOOK_" : toolkit.toUpperCase() + "_";
         const permission = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
         const accessMode = permission && permission.uid === user.uid && permission.toolkit === toolkit && permission.accessMode === "full_access" ? "full_access" : "read_only";
         if (!slug.startsWith(prefix)) continue;
@@ -4521,7 +4521,7 @@ export default {
         const requestedToolkit = String(body.toolkit || "").trim().toLowerCase();
         const allowedToolkits = new Set([
           "googledrive", "googlecalendar", "gmail", "github",
-          "microsoftonedrive", "microsoftoutlook", "dropbox", "notion",
+          "one_drive", "outlook", "dropbox", "notion",
           "slack", "trello", "linear", "googledocs", "googlesheets",
           "googlemeet", "figma", "jira", "airtable", "zapier"
         ]);
@@ -4582,8 +4582,8 @@ export default {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
-        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "microsoftonedrive", "microsoftoutlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
+        if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         const saved = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
         const accessMode = saved && saved.uid === user.uid && saved.toolkit === toolkit && saved.accessMode === "full_access" ? "full_access" : "read_only";
@@ -4596,9 +4596,9 @@ export default {
         const body = await readBody(request);
         const toolkit = String(body.toolkit || "").trim().toLowerCase();
         const accessMode = String(body.accessMode || "").trim().toLowerCase();
-        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
+        if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         if (!["read_only", "full_access"].includes(accessMode)) return json({ error: "connector_access_mode_invalid" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "microsoftonedrive", "microsoftoutlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "zapier"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         await firestoreSet("composioPermissions/" + user.uid + "__" + toolkit, {
           uid: user.uid, toolkit, accessMode, updatedAt: new Date().toISOString()
@@ -4611,7 +4611,7 @@ export default {
         enforceRateLimit(user.uid, 30);
         const allowedToolkits = new Set([
           "googledrive", "googlecalendar", "gmail", "github",
-          "microsoftonedrive", "microsoftoutlook", "dropbox", "notion",
+          "one_drive", "outlook", "dropbox", "notion",
           "slack", "trello", "linear", "googledocs", "googlesheets",
           "googlemeet", "figma", "jira", "airtable", "zapier"
         ]);
@@ -4639,7 +4639,7 @@ export default {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
-        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
+        if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const response = await fetch(
@@ -4664,12 +4664,12 @@ export default {
         const body = await readBody(request);
         const toolkit = String(body.toolkit || "").trim().toLowerCase();
         const toolSlug = String(body.toolSlug || "").trim().toUpperCase();
-        if (!toolkit || !/^[a-z0-9]+$/.test(toolkit) || !toolSlug || !/^[A-Z0-9_]+$/.test(toolSlug)) return json({ error: "connector_toolkit_and_slug_required" }, 400);
+        if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit) || !toolSlug || !/^[A-Z0-9_]+$/.test(toolSlug)) return json({ error: "connector_toolkit_and_slug_required" }, 400);
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const toolkitPrefixes = {
-          microsoftonedrive: "MICROSOFT_ONEDRIVE_",
-          microsoftoutlook: "MICROSOFT_OUTLOOK_"
+          one_drive: "ONE_DRIVE_",
+          outlook: "OUTLOOK_"
         };
         const expectedPrefix = toolkitPrefixes[toolkit] || (toolkit.toUpperCase() + "_");
         const readOnlyAction = /_(GET|LIST|SEARCH|FIND|READ|VIEW|CHECK|WHOAMI|QUERY|FETCH|RETRIEVE|LOOKUP|INFO|DETAILS|STATUS|PROFILE|DESCRIBE|ENUMERATE|DOWNLOAD_METADATA)(_|$)/;
