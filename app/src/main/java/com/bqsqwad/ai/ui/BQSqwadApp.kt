@@ -6704,6 +6704,28 @@ fun DeviceIntelligencePanel(featureName: String) {
 @Composable
 private data class BqConnectorInfo(val name: String, val group: String, val description: String, val mark: String)
 
+private fun connectorToolkit(name: String): String = when (name) {
+    "Google Drive" -> "googledrive"
+    "Google Calendar" -> "googlecalendar"
+    "Gmail" -> "gmail"
+    "GitHub" -> "github"
+    "Microsoft OneDrive" -> "microsoftonedrive"
+    "Microsoft Outlook" -> "microsoftoutlook"
+    "Dropbox" -> "dropbox"
+    "Notion" -> "notion"
+    "Slack" -> "slack"
+    "Trello" -> "trello"
+    "Linear" -> "linear"
+    "Google Docs" -> "googledocs"
+    "Google Sheets" -> "googlesheets"
+    "Google Meet" -> "googlemeet"
+    "Figma" -> "figma"
+    "Jira" -> "jira"
+    "Airtable" -> "airtable"
+    "Zapier" -> "zapier"
+    else -> "unsupported"
+}
+
 @Composable
 private fun ConnectorLogo(name: String, fallback: String) {
     val domain = when (name) {
@@ -6757,18 +6779,70 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         BqConnectorInfo("Google Docs", "Documents", "Create and summarize documents after authorization.", "G"),
         BqConnectorInfo("Google Sheets", "Data", "Analyze authorized spreadsheet data.", "Sh"),
         BqConnectorInfo("Google Meet", "Meetings", "Prepare meeting notes from files you provide.", "Me"),
+        BqConnectorInfo("Figma", "Design", "Review authorized design files and handoff details.", "F"),
+        BqConnectorInfo("Jira", "Project management", "Review authorized issues and project status.", "J"),
+        BqConnectorInfo("Airtable", "Data", "Review authorized records and tables.", "A"),
+        BqConnectorInfo("Zapier", "Automation", "Discover supported automation tools for your account.", "Z"),
         BqConnectorInfo("Local device", "Android device", "Use supported files, camera and microphone through Android permissions.", "📱"),
         BqConnectorInfo("Bluetooth devices", "Android device", "Device integrations depend on Android support and pairing.", "BT")
     )
     var selectedConnector by remember { mutableStateOf<BqConnectorInfo?>(null) }
     var connectorConnecting by remember { mutableStateOf(false) }
     var connectorError by remember { mutableStateOf<String?>(null) }
+    var connectorStatus by remember { mutableStateOf<String?>(null) }
+    var connectorTools by remember { mutableStateOf<List<String>>(emptyList()) }
+    var checkingConnector by remember { mutableStateOf(false) }
     val connectorScope = rememberCoroutineScope()
+
+    LaunchedEffect(selectedConnector?.name) {
+        val connector = selectedConnector ?: return@LaunchedEffect
+        val toolkit = connectorToolkit(connector.name)
+        val user = FirebaseAuth.getInstance().currentUser
+        connectorStatus = null
+        connectorTools = emptyList()
+        if (toolkit == "unsupported" || user == null) {
+            connectorStatus = if (user == null) "Sign in to check this connector's status." else "This connector is not supported by the cloud connector backend."
+            return@LaunchedEffect
+        }
+        checkingConnector = true
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
+                val connection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 12000
+                    connection.readTimeout = 15000
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                    val status = connection.responseCode
+                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                    val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                    if (status == 404 || payload.optString("error") == "connector_not_initialized") {
+                        "not_connected" to emptyList<String>()
+                    } else if (status !in 200..299) {
+                        throw IllegalStateException("Could not check connector status (HTTP $status).")
+                    } else {
+                        val tools = payload.optJSONArray("tools")
+                        val names = List(tools?.length() ?: 0) { index ->
+                            val tool = tools!!.optJSONObject(index) ?: JSONObject()
+                            tool.optString("name", tool.optString("slug", "Available tool"))
+                        }
+                        "connected" to names
+                    }
+                } finally { connection.disconnect() }
+            }
+            connectorStatus = if (result.first == "connected") "Connected · ${result.second.size} tools discovered." else "Not connected yet. Connect this account to enable its tools."
+            connectorTools = result.second
+        } catch (error: Throwable) {
+            connectorStatus = error.message ?: "Could not check connector status."
+        } finally { checkingConnector = false }
+    }
+
     Scaffold(topBar = { TopAppBar(title = { Text("Connectors") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } }) }) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Bring your tools into BQ Sqwad AI", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Tap any service to view its connection status. Secure account authorization is not enabled on the server yet; these entries do not mean an account is connected.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Connect each service separately through the secure Cloudflare backend. The Composio API key stays on the server; BQ checks the tools available to each authorized account.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             } } }
             item { Text("Available connector targets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(connectors, key = { it.name }) { connector ->
@@ -6792,6 +6866,13 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     Text(connector.description)
                     Text("Secure account connection", fontWeight = FontWeight.SemiBold)
                     Text("Continue to the provider authorization page to choose what BQ Sqwad AI may access. You can cancel there at any time.")
+                    if (checkingConnector) Text("Checking connection and available tools…", style = MaterialTheme.typography.bodySmall)
+                    connectorStatus?.let { Text(it, color = if (it.startsWith("Connected")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                    if (connectorTools.isNotEmpty()) {
+                        Text("Available tools", fontWeight = FontWeight.SemiBold)
+                        connectorTools.take(12).forEach { tool -> Text("• $tool", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        if (connectorTools.size > 12) Text("And ${connectorTools.size - 12} more tools", style = MaterialTheme.typography.bodySmall)
+                    }
                     connectorError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     if (connector.name == "Local device" || connector.name == "Bluetooth devices") {
                         Text("This target uses Android permissions or device pairing instead of a cloud-account connection.")
@@ -6802,23 +6883,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                 TextButton(
                     enabled = !connectorConnecting && connector.name !in setOf("Local device", "Bluetooth devices"),
                     onClick = {
-                        val toolkit = when (connector.name) {
-                            "Google Drive" -> "googledrive"
-                            "Google Calendar" -> "googlecalendar"
-                            "Gmail" -> "gmail"
-                            "GitHub" -> "github"
-                            "Microsoft OneDrive" -> "microsoftonedrive"
-                            "Microsoft Outlook" -> "microsoftoutlook"
-                            "Dropbox" -> "dropbox"
-                            "Notion" -> "notion"
-                            "Slack" -> "slack"
-                            "Trello" -> "trello"
-                            "Linear" -> "linear"
-                            "Google Docs" -> "googledocs"
-                            "Google Sheets" -> "googlesheets"
-                            "Google Meet" -> "googlemeet"
-                            else -> "unsupported"
-                        }
+                        val toolkit = connectorToolkit(connector.name)
                         val user = FirebaseAuth.getInstance().currentUser
                         if (user == null) {
                             connectorError = "Sign in to BQ Sqwad AI before connecting a service."
