@@ -27,6 +27,15 @@ import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runti
 import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 
+// Composio project keys (ak_...) use x-api-key; user keys (uak_...) use x-user-api-key.
+function composioHeaders(apiKey, extraHeaders = {}) {
+  const key = String(apiKey || "").trim();
+  const authHeader = key.startsWith("uak_")
+    ? { "x-user-api-key": key }
+    : { "x-api-key": key };
+  return { ...authHeader, ...extraHeaders };
+}
+
 const rateBuckets = new Map();
 
 async function requestKeyHash(value) {
@@ -1388,7 +1397,7 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   if (!env.COMPOSIO_API_KEY) return { ok: false, error: "connector_service_not_configured" };
   const response = await fetch("https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute", {
     method: "POST",
-    headers: { "x-api-key": String(env.COMPOSIO_API_KEY), "Content-Type": "application/json", "Accept": "application/json" },
+    headers: composioHeaders(env.COMPOSIO_API_KEY, { "Content-Type": "application/json", "Accept": "application/json" }),
     body: JSON.stringify({ tool_slug: cleanSlug, arguments: safeArgs }),
     signal: AbortSignal.timeout(25000)
   });
@@ -1420,7 +1429,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
     const toolkit = String(session.toolkit);
     try {
       const response = await fetch("https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(session.sessionId)) + "/tools", {
-        headers: { "x-api-key": String(env.COMPOSIO_API_KEY), "Accept": "application/json" },
+        headers: composioHeaders(env.COMPOSIO_API_KEY, { "Accept": "application/json" }),
         signal: AbortSignal.timeout(8000)
       });
       if (!response.ok) continue;
@@ -4505,10 +4514,7 @@ export default {
         ]);
         if (!allowedToolkits.has(requestedToolkit)) return connectorJson({ error: "unsupported_connector" }, 400);
         if (!env.COMPOSIO_API_KEY) return connectorJson({ error: "connector_service_not_configured" }, 503);
-        const headers = {
-          "x-api-key": String(env.COMPOSIO_API_KEY),
-          "Content-Type": "application/json"
-        };
+        const headers = composioHeaders(env.COMPOSIO_API_KEY, { "Content-Type": "application/json" });
         const sessionResponse = await fetch("https://backend.composio.dev/api/v3/tool_router/session", {
           method: "POST",
           headers,
@@ -4625,7 +4631,7 @@ export default {
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const response = await fetch(
           "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/tools",
-          { headers: { "x-api-key": String(env.COMPOSIO_API_KEY || ""), "Accept": "application/json" }, signal: AbortSignal.timeout(15000) }
+          { headers: composioHeaders(env.COMPOSIO_API_KEY, { "Accept": "application/json" }), signal: AbortSignal.timeout(15000) }
         );
         const data = await response.json().catch(() => ({}));
         if (!response.ok) return json({ error: "connector_tools_unavailable", providerStatus: response.status }, 502);
@@ -4667,7 +4673,7 @@ export default {
           "https://backend.composio.dev/api/v3/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute",
           {
             method: "POST",
-            headers: { "x-api-key": String(env.COMPOSIO_API_KEY || ""), "Content-Type": "application/json", "Accept": "application/json" },
+            headers: composioHeaders(env.COMPOSIO_API_KEY, { "Content-Type": "application/json", "Accept": "application/json" }),
             body: JSON.stringify({ tool_slug: toolSlug, arguments: args }),
             signal: AbortSignal.timeout(30000)
           }
