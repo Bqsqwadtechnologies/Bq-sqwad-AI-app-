@@ -1486,10 +1486,14 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
       throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
     }
     input = [];
-    for (const call of calls.slice(0, 5)) {
+    for (const [callIndex, call] of calls.entries()) {
+      if (callIndex >= 5) {
+        input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: false, error: "Too many tool calls in one round; continue with a smaller read-only request." }) });
+        continue;
+      }
       const binding = toolMap.get(String(call.name));
-      if (!binding || !call.call_id) {
-        input.push({ type: "function_call_output", call_id: String(call.call_id || ""), output: JSON.stringify({ ok: false, error: "Tool is not available." }) });
+      if (!binding) {
+        input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: false, error: "Tool is not available." }) });
         continue;
       }
       let args = {};
