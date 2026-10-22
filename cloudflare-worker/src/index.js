@@ -4544,7 +4544,13 @@ export default {
             ? sessionData.error
             : sessionData.error?.code || sessionData.code || sessionData.type || "session_creation_rejected";
           const providerCode = String(rawCode).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80) || "session_creation_rejected";
-          return connectorJson({ error: "connector_session_creation_failed", providerStatus: sessionResponse.status, providerCode }, 502);
+          return connectorJson({
+            error: "connector_session_creation_failed",
+            stage: "session_creation",
+            providerStatus: sessionResponse.status,
+            providerCode,
+            providerMessage: sanitizeProviderMessage(sessionData.error?.message || sessionData.message || sessionData.detail || "")
+          }, 502);
         }
         const linkResponse = await fetch(
           "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
@@ -4561,7 +4567,13 @@ export default {
             ? linkData.error
             : linkData.error?.code || linkData.code || linkData.type || "authorization_link_rejected";
           const providerCode = String(rawCode).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80) || "authorization_link_rejected";
-          return connectorJson({ error: "connector_authorization_link_failed", providerStatus: linkResponse.status, providerCode }, 502);
+          return connectorJson({
+            error: "connector_authorization_link_failed",
+            stage: "authorization_link_creation",
+            providerStatus: linkResponse.status,
+            providerCode,
+            providerMessage: sanitizeProviderMessage(linkData.error?.message || linkData.message || linkData.detail || "")
+          }, 502);
         }
         await firestoreSet("composioSessions/" + user.uid + "__" + requestedToolkit, {
           uid: user.uid,
