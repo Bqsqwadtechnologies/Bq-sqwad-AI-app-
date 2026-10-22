@@ -1452,7 +1452,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
         if (toolDefs.length >= 35) break;
         const slug = String(item.slug || item.name || "").trim().toUpperCase();
         if (!/^[A-Z0-9_]{1,100}$/.test(slug)) continue;
-        const prefix = toolkit === "one_drive" ? "MICROSOFT_ONEDRIVE_" : toolkit === "outlook" ? "MICROSOFT_OUTLOOK_" : toolkit.toUpperCase() + "_";
+        const prefix = toolkit === "one_drive" ? "ONE_DRIVE_" : toolkit === "outlook" ? "OUTLOOK_" : toolkit.toUpperCase() + "_";
         const permission = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
         const accessMode = permission && permission.uid === user.uid && permission.toolkit === toolkit && permission.accessMode === "full_access" ? "full_access" : "read_only";
         if (!slug.startsWith(prefix)) continue;
