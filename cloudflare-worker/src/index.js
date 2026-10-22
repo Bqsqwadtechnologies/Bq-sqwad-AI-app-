@@ -4544,7 +4544,9 @@ export default {
             ? sessionData.error
             : sessionData.error?.code || sessionData.code || sessionData.type || "session_creation_rejected";
           const providerCode = String(rawCode).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80) || "session_creation_rejected";
-          return connectorJson({ error: "connector_session_creation_failed", stage: "session_creation", providerStatus: sessionResponse.status, providerCode }, 502);
+          const rawMessage = sessionData.message || sessionData.error_description || sessionData.error?.message || "";
+          const providerMessage = String(rawMessage).replace(/[\\r\\n\\t]/g, " ").replace(/[^a-zA-Z0-9 .,:_()/-]/g, "").trim().slice(0, 180);
+          return connectorJson({ error: "connector_session_creation_failed", stage: "session_creation", providerStatus: sessionResponse.status, providerCode, ...(providerMessage ? { providerMessage } : {}) }, 502);
         }
         const linkResponse = await fetch(
           "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(sessionData.session_id)) + "/link",
@@ -4561,7 +4563,9 @@ export default {
             ? linkData.error
             : linkData.error?.code || linkData.code || linkData.type || "authorization_link_rejected";
           const providerCode = String(rawCode).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80) || "authorization_link_rejected";
-          return connectorJson({ error: "connector_authorization_link_failed", stage: "authorization_link", providerStatus: linkResponse.status, providerCode }, 502);
+          const rawMessage = linkData.message || linkData.error_description || linkData.error?.message || "";
+          const providerMessage = String(rawMessage).replace(/[\\r\\n\\t]/g, " ").replace(/[^a-zA-Z0-9 .,:_()/-]/g, "").trim().slice(0, 180);
+          return connectorJson({ error: "connector_authorization_link_failed", stage: "authorization_link", providerStatus: linkResponse.status, providerCode, ...(providerMessage ? { providerMessage } : {}) }, 502);
         }
         await firestoreSet("composioSessions/" + user.uid + "__" + requestedToolkit, {
           uid: user.uid,
