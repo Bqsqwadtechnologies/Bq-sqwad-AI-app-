@@ -6875,7 +6875,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     }
                 }
             }
-            item { Text("Security: connected accounts must be authorized before BQ Sqwad AI can read them. Sending messages, deleting files or publishing content should require confirmation.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text("Each connected service has its own permission choice. Read-only blocks changes; Full access allows supported actions when you explicitly request them. You can change the choice at any time.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
     selectedConnector?.let { connector ->
