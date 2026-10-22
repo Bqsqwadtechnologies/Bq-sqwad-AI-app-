@@ -57,12 +57,29 @@ class GenerationApiClient {
                 val stream = if (status in 200..299) c.inputStream else c.errorStream
                 val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
-                if (status !in 200..299) error(body.optString("error", "Generation request failed"))
+                if (status !in 200..299) {
+                    val code = body.optString("error").lowercase()
+                    val message = when {
+                        status == 401 || code.contains("auth") -> "Please sign in again to continue."
+                        status == 402 || code.contains("credit") -> "You don't have enough credits for this request."
+                        status == 403 || code.contains("consent") -> "Please review the required permissions to continue."
+                        status == 429 -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                        status >= 500 -> "BQ Sqwad AI is temporarily unavailable. Please try again shortly."
+                        else -> "BQ Sqwad AI couldn't complete that request. Please try again."
+                    }
+                    error(message)
+                }
                 body.optJSONObject("redirect")?.let { redirect ->
                     WorkspaceRedirectStore.publish(redirect)
                     throw WorkspaceRedirectException()
                 }
                 body
+            } catch (e: java.net.UnknownHostException) {
+                throw IllegalStateException("You're offline or your connection is unstable. Check your internet connection and try again.", e)
+            } catch (e: java.net.ConnectException) {
+                throw IllegalStateException("You're offline or your connection is unstable. Check your internet connection and try again.", e)
+            } catch (e: java.net.SocketTimeoutException) {
+                throw IllegalStateException("The request took too long. Check your connection and try again.", e)
             } finally {
                 c.disconnect()
             }
