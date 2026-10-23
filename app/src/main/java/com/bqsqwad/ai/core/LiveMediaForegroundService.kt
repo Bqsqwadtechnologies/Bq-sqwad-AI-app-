@@ -168,6 +168,18 @@ class LiveMediaForegroundService : Service() {
         }
     }
 
+    private fun shouldEndLiveSessionCommand(speaker: String, text: String): Boolean {
+        val normalized = text.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+        if (speaker.equals("You", ignoreCase = true)) {
+            return normalized in setOf("stop", "stop now", "stop talking", "end it", "end this", "end session", "end the session", "stop session", "stop the session", "disconnect", "close live", "close the live session") ||
+                listOf("end live voice", "stop live voice", "end live camera", "stop live camera", "end live session", "stop live session", "turn off live voice", "turn off live camera", "end this live session", "stop this live session", "stop the live session", "end the live session").any(normalized::contains)
+        }
+        if (speaker.equals("BQ Sqwad AI", ignoreCase = true)) {
+            return listOf("i am ending this live session now", "i'm ending this live session now", "i will end this live session now", "i'll end this live session now", "i am stopping the live camera now", "i'm stopping the live camera now", "i am ending the live voice session now", "i'm ending the live voice session now").any(normalized::contains)
+        }
+        return false
+    }
+
     private fun startVoice() {
         if (realtimeVoice != null) return
         liveSessionMode = "voice"
@@ -206,7 +218,13 @@ class LiveMediaForegroundService : Service() {
                         onError = { error -> reportTimelineFailure("voice", "live_voice_runtime_error"); writeError(error); stopSelf() },
                         onAudioLevel = { level -> updateAudioLevel(level) },
                         onOutputAudioLevel = { level -> updateOutputAudioLevel(level) },
-                        onTranscript = { speaker, text -> appendLog("$speaker: $text") },
+                        onTranscript = { speaker, text ->
+                            appendLog("$speaker: $text")
+                            if (shouldEndLiveSessionCommand(speaker, text)) {
+                                appendLog("Ending live session by voice command.")
+                                stopSelf()
+                            }
+                        },
                         onDiagnostic = { detail -> appendLog(detail) }
                     ).also { it.start() }
                     startRealtimeBillingHeartbeat(MODE_VOICE)
@@ -278,6 +296,10 @@ class LiveMediaForegroundService : Service() {
                     appendLog("$speaker: $text")
                     if (speaker == "BQ Sqwad AI" && text.isNotBlank()) {
                         writeState(true, text)
+                    }
+                    if (shouldEndLiveSessionCommand(speaker, text)) {
+                        appendLog("Ending live session by voice command.")
+                        stopSelf()
                     }
                 }
             ).also { it.start() }
