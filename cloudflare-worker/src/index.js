@@ -4686,6 +4686,7 @@ export default {
         enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
+        if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
         const saved = await firestoreGet("composioSessions/" + user.uid + "__" + toolkit);
         if (!saved || saved.uid !== user.uid || saved.toolkit !== toolkit || !saved.sessionId) return json({ error: "connector_not_initialized" }, 404);
         const response = await fetch(
