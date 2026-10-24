@@ -87,12 +87,27 @@ class PlayBillingClient(
         if (connected) {
             queryCatalog()
             restorePurchases()
+        } else {
+            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
         }
     }
 
     override fun onBillingServiceDisconnected() {
         connected = false
         connecting = false
+        onPurchaseState(PlayPurchaseState("failed", "Google Play billing disconnected. Check your connection and retry."))
+    }
+
+    private fun friendlyBillingMessage(responseCode: Int): String = when (responseCode) {
+        BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE,
+        BillingClient.BillingResponseCode.NETWORK_ERROR -> "Google Play billing could not connect. Check your internet connection and try again."
+        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Google Play billing is not available on this device or account."
+        BillingClient.BillingResponseCode.ITEM_UNAVAILABLE -> "These products are not available for this install. Install from the Play testing link with a licensed tester account."
+        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "Google Play could not validate this purchase setup. Please contact support."
+        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Google Play billing is not supported on this device."
+        BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> "This purchase is already owned. Refresh or restore purchases to verify access."
+        BillingClient.BillingResponseCode.USER_CANCELED -> ""
+        else -> "Google Play billing could not complete this request. Please retry."
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
@@ -106,7 +121,7 @@ class PlayBillingClient(
             return
         }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
-            onPurchaseState(PlayPurchaseState("failed", result.debugMessage.ifBlank { "Purchase did not complete." }))
+            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
             return
         }
         purchases.forEach { purchase ->
@@ -236,6 +251,10 @@ class PlayBillingClient(
                             details.clear()
                             queried.productDetailsList.forEach { details[it.productId] = it }
                         }
+                    } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                        onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+                    } else {
+                        onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
                     }
                 }
             }
