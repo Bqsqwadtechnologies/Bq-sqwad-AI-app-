@@ -3065,8 +3065,10 @@ export default {
         const id = "clientdiag_" + refCode;
         await firestoreSet("adminIssues/" + id, {
           id, refCode, category: "client_diagnostic", severity: httpStatus >= 500 ? "warning" : "info",
-          state: "open", status: "open", route: safeRoute, step: safeStep, httpStatus, safeCode,
-          appVersion, androidVersion, signedIn, note: note || null, createdAt: new Date().toISOString()
+          state: "open", status: httpStatus, code: safeCode, route: safeRoute, step: safeStep, httpStatus, safeCode,
+          appVersion, androidVersion, signedIn, note: note || null,
+          message: "Client issue reference " + refCode + " (" + safeCode + ")",
+          createdAt: new Date().toISOString()
         }, false);
         return json({ ok: true, received: true, refCode });
       }
