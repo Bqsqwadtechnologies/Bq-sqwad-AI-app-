@@ -866,7 +866,7 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
         ?: throw IllegalStateException("Firebase did not return a signed-in user.")
 }
 
-private fun friendlyGoogleAuthError(error: Throwable): String {
+internal fun friendlyGoogleAuthError(error: Throwable): String {
     val chain = generateSequence(error) { it.cause }.take(8).toList()
     val details = chain.joinToString(" ") { it.message.orEmpty() }.lowercase()
     val types = chain.joinToString(" ") { it.javaClass.simpleName }.lowercase()
