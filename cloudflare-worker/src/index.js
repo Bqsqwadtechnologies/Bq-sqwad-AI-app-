@@ -3061,7 +3061,14 @@ export default {
         const appVersion = String(body.appVersion || "unknown").replace(/[^a-zA-Z0-9.+_-]/g, "").slice(0, 32) || "unknown";
         const androidVersion = String(body.androidVersion || "unknown").replace(/[^a-zA-Z0-9.+_-]/g, "").slice(0, 32) || "unknown";
         const signedIn = body.signedIn === true;
-        const note = typeof body.note === "string" ? body.note.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, 500) : "";
+        const note = typeof body.note === "string"
+          ? body.note
+              .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+              .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email redacted]")
+              .replace(/\b(?:Bearer\s+)?[A-Za-z0-9_-]{32,}\b/g, "[token redacted]")
+              .trim()
+              .slice(0, 500)
+          : "";
         const id = "clientdiag_" + refCode;
         await firestoreCreate("adminIssues/" + id, {
           id, refCode, category: "client_diagnostic", severity: httpStatus >= 500 || safeCode === "server_busy" ? "warning" : "info",
