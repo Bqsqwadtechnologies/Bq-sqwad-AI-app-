@@ -1271,7 +1271,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
-                            label = { Text("Chat History") },
+                            label = { Text(if (firebaseUser == null) "Chat History · 🔒 Sign in" else "Chat History") },
                             selected = history,
                             onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.History, null) }
@@ -1325,7 +1325,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
-                            label = { Text("File Box") },
+                            label = { Text(if (firebaseUser == null) "File Box · 🔒 Sign in" else "File Box") },
                             selected = fileBoxOpen,
                             onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
@@ -1346,7 +1346,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
-                            label = { Text("Connectors") },
+                            label = { Text(if (firebaseUser == null) "Connectors · 🔒 Sign in" else "Connectors") },
                             selected = connectorsOpen,
                             onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { connectorsOpen = true; settings = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.Extension, null) }
