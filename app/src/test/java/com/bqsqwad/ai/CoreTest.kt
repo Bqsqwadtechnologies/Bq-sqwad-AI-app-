@@ -102,6 +102,16 @@ class CoreTest {
         val expired = com.bqsqwad.ai.ui.issueFrom(httpStatus = 401, signedIn = true)
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.NOT_SIGNED_IN, expired.kind)
 
+        val forbidden = com.bqsqwad.ai.ui.issueFrom(httpStatus = 403)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.PERMISSION_DENIED, forbidden.kind)
+
+        val timeout = com.bqsqwad.ai.ui.issueFrom(java.net.SocketTimeoutException("request timed out"))
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.OFFLINE, timeout.kind)
+
+        val cancelled = com.bqsqwad.ai.ui.issueFrom(kotlinx.coroutines.CancellationException("cancelled"))
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.CANCELLED, cancelled.kind)
+        assertEquals("", cancelled.message)
+
         val credits = com.bqsqwad.ai.ui.issueFrom(httpStatus = 402)
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.OUT_OF_CREDITS, credits.kind)
 
@@ -114,6 +124,7 @@ class CoreTest {
 
         val unknown = com.bqsqwad.ai.ui.issueFrom(IllegalStateException("private provider details"))
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.UNKNOWN, unknown.kind)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueAction.REPORT_PROBLEM, unknown.secondaryAction)
         assertTrue(unknown.refCode?.matches(Regex("[A-F0-9]{8}")) == true)
         assertFalse(unknown.message.contains("private provider details"))
     }
