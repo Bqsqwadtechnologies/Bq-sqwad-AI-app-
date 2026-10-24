@@ -11,7 +11,7 @@ import kotlinx.coroutines.CancellationException
 
 enum class BqIssueKind { OFFLINE, NOT_SIGNED_IN, SESSION_EXPIRED, EMAIL_NOT_VERIFIED, CONSENT_REQUIRED, OUT_OF_CREDITS, PLAN_REQUIRED, FEATURE_OFF, RATE_LIMITED, FILE_TOO_LARGE, PERMISSION_DENIED, SERVER_BUSY, CANCELLED, UNKNOWN }
 enum class BqIssueAction { NONE, RETRY, SIGN_IN, VERIFY_EMAIL, REVIEW, BUY_CREDITS, VIEW_PLANS, OPEN_SETTINGS, REPORT_PROBLEM }
-data class BqIssue(val kind: BqIssueKind, val title: String, val message: String, val primaryAction: BqIssueAction, val refCode: String? = null)
+data class BqIssue(val kind: BqIssueKind, val title: String, val message: String, val primaryAction: BqIssueAction, val refCode: String? = null, val secondaryAction: BqIssueAction? = null)
 
 private fun newBqRefCode(): String = UUID.randomUUID().toString().replace("-", "").take(8).uppercase(Locale.ROOT)
 private fun Throwable.safeCauseText(): String = generateSequence(this) { it.cause }.take(8).joinToString(" ") { it.message.orEmpty() }.lowercase(Locale.ROOT)
@@ -45,12 +45,12 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     }
     if (httpStatus == 429 || text.contains("rate_limited") || text.contains("rate limit")) return issue(BqIssueKind.RATE_LIMITED, "Please wait", "You are sending requests too quickly. Wait a moment and try again.", BqIssueAction.RETRY)
     if (text.contains("file_too_large") || text.contains("payload_too_large") || text.contains("attachment_payload_too_large")) return issue(BqIssueKind.FILE_TOO_LARGE, "File too large", "This file or message is too large. Try a smaller file.", BqIssueAction.NONE)
-    if (text.contains("permission_denied") || text.contains("camera_permission_missing") || text.contains("microphone_permission_missing") || text.contains("permission denied")) {
+    if (httpStatus == 403 || text.contains("permission_denied") || text.contains("camera_permission_missing") || text.contains("microphone_permission_missing") || text.contains("permission denied")) {
         return issue(BqIssueKind.PERMISSION_DENIED, "Permission needed", "Allow the required permission in Android settings, then try again.", BqIssueAction.OPEN_SETTINGS)
     }
     if ((httpStatus != null && httpStatus >= 500) || text.contains("server_busy") || text.contains("provider outage") || text.contains("http 5") || text.contains("temporarily unavailable. the bq sqwad ai team is working")) {
         return issue(BqIssueKind.SERVER_BUSY, "Temporarily unavailable", "BQ Sqwad AI is busy right now. Please try again in a minute.", BqIssueAction.RETRY, true)
     }
     val ref = newBqRefCode()
-    return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref)
+    return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
 }
