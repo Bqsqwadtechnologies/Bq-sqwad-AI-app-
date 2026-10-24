@@ -63,7 +63,7 @@ Publish these website changes through the existing Lovable-connected workflow.
 4. Wait a few minutes, then sign out and retry Google sign-in from the Play-installed app.
 5. Only replace `app/google-services.json` after owner approval. Do not change package ID, signing, or release identifiers as part of this fix.
 
-The app now maps known Google configuration failures to a safe message and logs only a sanitized configuration code locally. **This does not prove the Firebase/Google OAuth configuration is fixed**; the owner must complete the console checks and test the Play-installed app.
+The app now maps known Google configuration failures to a safe message and submits only a sanitized configuration code to support diagnostics (no token or email). **This does not prove the Firebase/Google OAuth configuration is fixed**; the owner must complete the console checks and test the Play-installed app.
 
 ## Guest/auth, diagnostics, billing and connector sweep — source status
 
