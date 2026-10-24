@@ -1273,7 +1273,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Chat History") },
                             selected = history,
-                            onClick = { shellScope.launch { drawerState.close(); history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1327,7 +1327,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("File Box") },
                             selected = fileBoxOpen,
-                            onClick = { shellScope.launch { drawerState.close(); fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
                         )
                     }
@@ -1348,7 +1348,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Connectors") },
                             selected = connectorsOpen,
-                            onClick = { shellScope.launch { drawerState.close(); connectorsOpen = true; settings = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else { connectorsOpen = true; settings = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.Extension, null) }
                         )
                     }
@@ -1446,7 +1446,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 adminAuthorized = adminAuthorized,
                 onOpenAdminDashboard = { settings = false; workspace = Workspace.ADMIN },
                 onSignOut = { signOutFromShell() },
-                onOpenAccountProtection = { accountProtection = true },
+                onOpenAccountProtection = { if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
                 onNotificationsChanged = { notificationsEnabled = it },
                 notificationStatus = notificationStatus,
