@@ -6725,7 +6725,6 @@ private fun connectorToolkit(name: String): String = when (name) {
     "Figma" -> "figma"
     "Jira" -> "jira"
     "Airtable" -> "airtable"
-    "Zapier" -> "zapier"
     else -> "unsupported"
 }
 
@@ -6809,14 +6808,14 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         connectorAccessMode = "read_only"
         connectorPermissionError = null
         if (toolkit == "unsupported" || user == null) {
-            connectorStatus = if (user == null) "Sign in to check this connector's status." else "This connector is not supported by the cloud connector backend."
+            connectorStatus = if (user == null) "Sign in to check this connector's status." else "Coming soon · disabled for this connector."
             return@LaunchedEffect
         }
         checkingConnector = true
         try {
             val result = withContext(Dispatchers.IO) {
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                val connection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                val connection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
                 try {
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 12000
@@ -6843,7 +6842,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             connectorTools = result.second
             connectorAccessMode = withContext(Dispatchers.IO) {
                     val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                    val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                    val permissionConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/permissions?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
                     try {
                         permissionConnection.requestMethod = "GET"
                         permissionConnection.connectTimeout = 12000
@@ -6872,7 +6871,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { ConnectorLogo(connector.name, connector.mark) } }
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) { Text(connector.name, fontWeight = FontWeight.SemiBold); Text(connector.group, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary); Text(connector.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text("View setup", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) { Text(if (connectorToolkit(connector.name) == "unsupported") "Coming soon · disabled" else "View setup", modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
             }
@@ -6900,7 +6899,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                     val result = runCatching {
                                         withContext(Dispatchers.IO) {
                                             val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                                            val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions").openConnection() as java.net.HttpURLConnection
+                                            val permissionConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/permissions").openConnection() as java.net.HttpURLConnection
                                             try {
                                                 permissionConnection.requestMethod = "POST"
                                                 permissionConnection.connectTimeout = 12000
@@ -6940,7 +6939,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                     val result = runCatching {
                                         withContext(Dispatchers.IO) {
                                             val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                                            val permissionConnection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/permissions").openConnection() as java.net.HttpURLConnection
+                                            val permissionConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/permissions").openConnection() as java.net.HttpURLConnection
                                             try {
                                                 permissionConnection.requestMethod = "POST"
                                                 permissionConnection.connectTimeout = 12000
@@ -6988,7 +6987,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(
-                    enabled = !connectorConnecting && connector.name !in setOf("Local device", "Bluetooth devices"),
+                    enabled = !connectorConnecting && connector.name !in setOf("Local device", "Bluetooth devices", "Zapier") && connectorToolkit(connector.name) != "unsupported",
                     onClick = {
                         val toolkit = connectorToolkit(connector.name)
                         val user = FirebaseAuth.getInstance().currentUser
@@ -7004,7 +7003,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                     withContext(Dispatchers.IO) {
                                         val token = Tasks.await(user.getIdToken(false)).token
                                             ?: throw IllegalStateException("Could not authenticate your account.")
-                                        val connection = URL("https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/connectors/link")
+                                        val connection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/link")
                                             .openConnection() as java.net.HttpURLConnection
                                         try {
                                             connection.requestMethod = "POST"
@@ -7048,7 +7047,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                             }
                         }
                     }
-                ) { Text(if (connectorConnecting) "Preparing…" else "Connect account") }
+                ) { Text(if (connector.name == "Zapier" || connectorToolkit(connector.name) == "unsupported") "Coming soon" else if (connectorConnecting) "Preparing…" else "Connect account") }
             },
             dismissButton = { TextButton(enabled = !connectorConnecting, onClick = { selectedConnector = null; connectorError = null }) { Text("Close") } }
         )
