@@ -8,6 +8,14 @@ import java.net.NoRouteToHostException
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import com.google.firebase.auth.FirebaseAuth
+import com.bqsqwad.ai.BuildConfig
+import com.bqsqwad.ai.core.WorkspaceApiClient
+import org.json.JSONObject
 
 enum class BqIssueKind { OFFLINE, NOT_SIGNED_IN, SESSION_EXPIRED, EMAIL_NOT_VERIFIED, CONSENT_REQUIRED, OUT_OF_CREDITS, PLAN_REQUIRED, FEATURE_OFF, RATE_LIMITED, FILE_TOO_LARGE, PERMISSION_DENIED, SERVER_BUSY, CANCELLED, UNKNOWN }
 enum class BqIssueAction { NONE, RETRY, SIGN_IN, VERIFY_EMAIL, REVIEW, BUY_CREDITS, VIEW_PLANS, OPEN_SETTINGS, REPORT_PROBLEM }
@@ -53,4 +61,29 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     }
     val ref = newBqRefCode()
     return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
+}
+
+
+internal object BqIssueReporter {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun report(issue: BqIssue, route: String, step: String, httpStatus: Int = 0, safeCode: String = issue.kind.name.lowercase(), note: String? = null) {
+        if (issue.kind != BqIssueKind.UNKNOWN && issue.kind != BqIssueKind.SERVER_BUSY && note.isNullOrBlank()) return
+        val refCode = issue.refCode ?: newBqRefCode()
+        scope.launch {
+            runCatching {
+                WorkspaceApiClient().reportClientDiagnostic(JSONObject().apply {
+                    put("refCode", refCode)
+                    put("route", route.take(80))
+                    put("step", step.take(60))
+                    put("httpStatus", httpStatus.coerceIn(0, 599))
+                    put("safeCode", safeCode.filter { it.isLetterOrDigit() || it in "_.-" }.take(80))
+                    put("appVersion", BuildConfig.VERSION_NAME.take(32))
+                    put("androidVersion", android.os.Build.VERSION.RELEASE.orEmpty().take(32))
+                    put("signedIn", FirebaseAuth.getInstance().currentUser != null)
+                    if (!note.isNullOrBlank()) put("note", note.take(500))
+                })
+            }
+        }
+    }
 }
