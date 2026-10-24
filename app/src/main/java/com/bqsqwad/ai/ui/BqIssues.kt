@@ -39,24 +39,24 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     if (!signedIn || text.contains("sign in is required") || text.contains("sign_in_required") || text.contains("auth_required")) {
         return issue(BqIssueKind.NOT_SIGNED_IN, "Sign in required", "Please sign in to use this.", BqIssueAction.SIGN_IN)
     }
-    if (httpStatus == 401 || text.contains("session_expired") || text.contains("token refresh failed") || text.contains("authentication token unavailable") || text.contains("invalid_id_token") || text.contains("user token expired")) {
+    if (httpStatus == 401 || text.contains("session_expired") || text.contains("token refresh failed") || text.contains("authentication token unavailable") || text.contains("invalid_id_token") || text.contains("user token expired") || text.contains("sign in again")) {
         return issue(BqIssueKind.SESSION_EXPIRED, "Session expired", "Your session expired. Sign in again to continue.", BqIssueAction.SIGN_IN)
     }
     if (text.contains("email_not_verified") || text.contains("email is not verified")) return issue(BqIssueKind.EMAIL_NOT_VERIFIED, "Verify your email", "Verify your email to continue.", BqIssueAction.VERIFY_EMAIL)
-    if (text.contains("consent_required") || text.contains("consent required")) return issue(BqIssueKind.CONSENT_REQUIRED, "Consent required", "Accept the Terms and Privacy to continue.", BqIssueAction.REVIEW)
-    if (httpStatus == 402 || text.contains("insufficient_credits") || text.contains("insufficient credits") || text.contains("credit_balance") || text.contains("out of credits")) {
+    if (text.contains("consent_required") || text.contains("consent required") || text.contains("accept the required bq sqwad ai terms")) return issue(BqIssueKind.CONSENT_REQUIRED, "Consent required", "Accept the Terms and Privacy to continue.", BqIssueAction.REVIEW)
+    if (httpStatus == 402 || text.contains("insufficient_credits") || text.contains("insufficient credits") || text.contains("credit_balance") || text.contains("out of credits") || text.contains("usage allowance is unavailable")) {
         return issue(BqIssueKind.OUT_OF_CREDITS, "Out of credits", "You are out of credits.", BqIssueAction.BUY_CREDITS)
     }
     if (text.contains("plan_required") || text.contains("entitlement_required")) return issue(BqIssueKind.PLAN_REQUIRED, "Plan required", "This feature isn’t included in your current plan. Review plans to continue.", BqIssueAction.VIEW_PLANS)
     if (text.contains("capability_disabled") || text.contains("capability_killed") || text.contains("image_generation_disabled") || text.contains("feature_disabled")) {
         return issue(BqIssueKind.FEATURE_OFF, "Feature unavailable", "This feature is currently turned off. Please try another feature.", BqIssueAction.NONE)
     }
-    if (httpStatus == 429 || text.contains("rate_limited") || text.contains("rate limit")) return issue(BqIssueKind.RATE_LIMITED, "Please wait", "You are sending requests too quickly. Wait a moment and try again.", BqIssueAction.RETRY)
+    if (httpStatus == 429 || text.contains("rate_limited") || text.contains("rate limit") || text.contains("sending requests too quickly") || text.contains("wait a moment and try again")) return issue(BqIssueKind.RATE_LIMITED, "Please wait", "You are sending requests too quickly. Wait a moment and try again.", BqIssueAction.RETRY)
     if (text.contains("file_too_large") || text.contains("payload_too_large") || text.contains("attachment_payload_too_large")) return issue(BqIssueKind.FILE_TOO_LARGE, "File too large", "This file or message is too large. Try a smaller file.", BqIssueAction.NONE)
     if (httpStatus == 403 || text.contains("permission_denied") || text.contains("camera_permission_missing") || text.contains("microphone_permission_missing") || text.contains("permission denied")) {
         return issue(BqIssueKind.PERMISSION_DENIED, "Permission needed", "Allow the required permission in Android settings, then try again.", BqIssueAction.OPEN_SETTINGS)
     }
-    if ((httpStatus != null && httpStatus >= 500) || text.contains("server_busy") || text.contains("provider outage") || text.contains("http 5") || text.contains("temporarily unavailable. the bq sqwad ai team is working")) {
+    if ((httpStatus != null && httpStatus >= 500) || text.contains("server_busy") || text.contains("provider outage") || text.contains("http 5") || text.contains("temporarily unavailable. the bq sqwad ai team is working") || text.contains("experiencing a temporary issue") || text.contains("team is working on it")) {
         val ref = newBqRefCode()
         return BqIssue(BqIssueKind.SERVER_BUSY, "Temporarily unavailable", "BQ Sqwad AI is busy right now. Please try again in a minute. Reference $ref.", BqIssueAction.RETRY, ref)
     }
