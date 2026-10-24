@@ -7424,8 +7424,8 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                             }
                             Column(Modifier.weight(1f)) {
                                 Text("Your account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text(FirebaseAuth.getInstance().currentUser?.email ?: "Signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("AI age · $aiAgeLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(FirebaseAuth.getInstance().currentUser?.email ?: "Not signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(if (FirebaseAuth.getInstance().currentUser == null) "Sign in to see your AI’s age" else "AI age · $aiAgeLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -7442,7 +7442,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                             Surface(Modifier.weight(1f), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                 Column(Modifier.padding(14.dp)) {
                                     Text("Plans", style = MaterialTheme.typography.labelLarge)
-                                    Text(entitlements.size.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                    Text(if (FirebaseAuth.getInstance().currentUser == null) "Sign in" else entitlements.size.toString(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                     Text("Verified access", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
