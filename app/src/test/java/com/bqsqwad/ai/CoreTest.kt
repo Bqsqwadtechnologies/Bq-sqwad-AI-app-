@@ -71,10 +71,8 @@ class CoreTest {
     @Test fun userFacingErrorsNeverExposePrivateWorkerOrRepositoryDetails() {
         val privateDetails = IllegalStateException("Request failed for owner@example.com at https://private-worker.workers.dev; repo https://github.com/private/repo")
         val shown = com.bqsqwad.ai.ui.safeUserFacingIssue(privateDetails, "Try again.")
-        assertEquals(
-            "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.",
-            shown
-        )
+        assertTrue(shown.startsWith("Something went wrong. Reference "))
+        assertTrue(shown.substringAfter("Reference ").trim().trimEnd('.').matches(Regex("[A-F0-9]{8}")))
         assertFalse(shown.contains("@"))
         assertFalse(shown.contains("workers.dev"))
         assertFalse(shown.contains("github.com"))
@@ -89,6 +87,35 @@ class CoreTest {
         assertFalse(shown.contains("400"))
         assertFalse(shown.contains("realtime_session_failed"))
         assertFalse(shown.contains("provider_not_configured"))
+    }
+
+    @Test fun sharedIssueMapperDistinguishesGuestOfflineAndServerFailure() {
+        val guest = com.bqsqwad.ai.ui.issueFrom(signedIn = false)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.NOT_SIGNED_IN, guest.kind)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueAction.SIGN_IN, guest.primaryAction)
+
+        val offline = com.bqsqwad.ai.ui.issueFrom(java.net.UnknownHostException("hidden host"))
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.OFFLINE, offline.kind)
+        assertTrue(offline.message.contains("Wi-Fi or mobile data"))
+        assertFalse(offline.message.contains("hidden host"))
+
+        val expired = com.bqsqwad.ai.ui.issueFrom(httpStatus = 401, signedIn = true)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.NOT_SIGNED_IN, expired.kind)
+
+        val credits = com.bqsqwad.ai.ui.issueFrom(httpStatus = 402)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.OUT_OF_CREDITS, credits.kind)
+
+        val rateLimited = com.bqsqwad.ai.ui.issueFrom(httpStatus = 429)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.RATE_LIMITED, rateLimited.kind)
+
+        val server = com.bqsqwad.ai.ui.issueFrom(httpStatus = 503)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.SERVER_BUSY, server.kind)
+        assertTrue(server.refCode?.matches(Regex("[A-F0-9]{8}")) == true)
+
+        val unknown = com.bqsqwad.ai.ui.issueFrom(IllegalStateException("private provider details"))
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.UNKNOWN, unknown.kind)
+        assertTrue(unknown.refCode?.matches(Regex("[A-F0-9]{8}")) == true)
+        assertFalse(unknown.message.contains("private provider details"))
     }
 
     @Test fun workspaceRedirectStorePublishesAndClearsTarget() {
