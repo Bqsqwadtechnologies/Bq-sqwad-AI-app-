@@ -121,45 +121,18 @@ import org.json.JSONObject
 
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
-    val causes = generateSequence(throwable) { it.cause }.take(8).toList()
-    if (causes.any { it is UnknownHostException || it is NoRouteToHostException || it is ConnectException } ||
-        causes.any { cause ->
-            val text = cause.message.orEmpty().lowercase()
-            text.contains("network is unreachable") ||
-                text.contains("no address associated with hostname") ||
-                text.contains("unable to resolve host") ||
-                text.contains("failed to connect") ||
-                text.contains("network connection lost")
-        }) {
-        return "No internet connection detected. Check your Wi-Fi or mobile data and try again."
-    }
-    if (causes.any { it is SocketTimeoutException }) {
-        return "The connection is taking too long. Check your internet connection and try again."
-    }
-    val message = throwable.message?.trim().orEmpty()
-    if (message.isBlank()) return fallback
-    val lower = message.lowercase()
-    if (lower.contains("insufficient credits") || lower.contains("insufficient_credits") || lower.contains("credit_balance")) {
-        return "You need more credits to continue. Choose Buy credits to add credits."
-    }
-    if (lower.contains("capability_disabled") || lower.contains("capability_killed") ||
-        lower.contains("image_generation_disabled") || lower.contains("feature_disabled")) {
-        return "This BQ Sqwad AI feature is currently turned off. Try another feature or contact support."
-    }
-    if (lower.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."
-    if (lower.contains("history_message_too_large") || lower.contains("history_prompt_too_large")) return "A message is too large to save in history. Keep individual messages under 20,000 characters."
-    if (lower.contains("history_payload_too_large")) return "This conversation is too large to save as one history item. Start a new chat to keep history complete."
-    if (lower.contains("history_attachment_limit_exceeded") || lower.contains("history_attachment_name_too_large")) return "This message has too many or too-large attachment names to save."
-    if (lower.contains("attachment_payload_too_large")) return "The combined attachment size is too large. Send fewer or smaller files."
-    if (lower.contains("attachment_count_invalid")) return "Attach up to 8 images and up to 4 PDFs per message. Send extra files in another message."
-    if (lower.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
-    if (lower.contains("consent_required")) return "Accept the required consent in Settings before using AI features."
-    if (lower.contains("plan_required") || lower.contains("entitlement_required")) return "This feature is not included in your current plan. Open Plans & Billing to review access."
-    if (lower.contains("rate limit") || lower.contains("rate_limited") || lower.contains("http 429")) return "You are sending requests too quickly. Wait a moment and try again."
-    // Never echo raw exception text to a normal user. It can contain account
-    // email addresses, worker/repository URLs, provider responses, or file paths.
-    // Detailed diagnostics belong only in the authenticated admin dashboard.
-    return "BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly."
+    val message = throwable.message.orEmpty().lowercase()
+    // Preserve actionable domain-specific guidance while routing common failures
+    // through the shared, privacy-safe issue mapper.
+    if (message.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."
+    if (message.contains("history_message_too_large") || message.contains("history_prompt_too_large")) return "A message is too large to save in history. Keep individual messages under 20,000 characters."
+    if (message.contains("history_payload_too_large")) return "This conversation is too large to save as one history item. Start a new chat to keep history complete."
+    if (message.contains("history_attachment_limit_exceeded") || message.contains("history_attachment_name_too_large")) return "This message has too many or too-large attachment names to save."
+    if (message.contains("attachment_payload_too_large")) return "The combined attachment size is too large. Send fewer or smaller files."
+    if (message.contains("attachment_count_invalid")) return "Attach up to 8 images and up to 4 PDFs per message. Send extra files in another message."
+    if (message.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
+    val issue = issueFrom(throwable)
+    return issue.message.ifBlank { fallback }
 }
 
 private val bqTextScaleState = mutableFloatStateOf(1.0f)
