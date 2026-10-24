@@ -21,6 +21,55 @@ test("token billing prices uncached input, cached input, and output separately",
   assert.ok(Math.abs(result.customerCredits - 0.034) < 1e-12);
 });
 
+test("native Main Chat follows website per-token metering instead of stale USD conversion", () => {
+  const result = calculateTokenCost({
+    usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
+    pricing: {
+      inputPriceUsdPerMillion: 1,
+      cachedInputPriceUsdPerMillion: 0.25,
+      outputPriceUsdPerMillion: 2,
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.00003,
+        creditsPerOutputToken: 0.00024,
+        creditsPerCachedInputToken: 0.000003,
+        minimumCredits: 0.002,
+        fallbackCredits: 0.05,
+        precision: 4,
+        conversionRate: 1,
+      },
+      sharedModelMultiplier: 1,
+    },
+    creditReferenceValueUsd: 0.1,
+    multiplier: 2,
+  });
+  // (600 uncached × .00003) + (400 cached × .000003) + (500 output × .00024)
+  // = 0.1392 credits. Provider USD rates must not override the shared website rates.
+  assert.equal(result.customerCredits, 0.1392);
+});
+
+test("native Main Chat applies configured model weight to per-token credits", () => {
+  const result = calculateTokenCost({
+    usage: { inputTokens: 1000, outputTokens: 500 },
+    pricing: {
+      inputPriceUsdPerMillion: 1,
+      outputPriceUsdPerMillion: 2,
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.00003,
+        creditsPerOutputToken: 0.00024,
+        creditsPerCachedInputToken: 0.000003,
+        minimumCredits: 0.002,
+        fallbackCredits: 0.05,
+        precision: 4,
+        conversionRate: 1,
+      },
+      sharedModelMultiplier: 3,
+    },
+    creditReferenceValueUsd: 0.1,
+    multiplier: 2,
+  });
+  assert.equal(result.customerCredits, 0.45);
+});
+
 test("token billing rejects missing or zero provider rates", () => {
   assert.throws(
     () => calculateTokenCost({
