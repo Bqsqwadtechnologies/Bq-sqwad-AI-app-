@@ -7087,6 +7087,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     var savingRetention by remember { mutableStateOf(false) }
     val aiBirthTimestamp = remember(uid) { BqLifecycleNotifications.birthTimestamp(context) }
     val aiAgeLabel = remember(aiBirthTimestamp) {
+        if (aiBirthTimestamp <= 0L) return@remember "unavailable"
         val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
         val months = (days / 30.4375).toInt()
         when {
@@ -7424,7 +7425,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
                             Column(Modifier.weight(1f)) {
                                 Text("Your account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                 Text(FirebaseAuth.getInstance().currentUser?.email ?: "Not signed in", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(if (FirebaseAuth.getInstance().currentUser == null) "Sign in to see your AI’s age" else "AI age · $aiAgeLabel", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                Text(if (FirebaseAuth.getInstance().currentUser == null) "Sign in to see your AI’s age" else if (aiBirthTimestamp > 0L) "Your AI was born on " + java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp)) else "AI age unavailable", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -7528,7 +7529,7 @@ item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscrip
             }
             if (settingsCategory == "All settings" || settingsCategory == "Account") {
                 item {
-                    SurfaceCard("AI age", "Your BQ Sqwad AI has been growing for $aiAgeLabel. Its age is based on the account's first recorded app activity.")
+                    SurfaceCard("AI age", if (FirebaseAuth.getInstance().currentUser == null) "Sign in to see your AI’s age." else if (aiBirthTimestamp > 0L) "Your AI was born on " + java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp)) + ". Its age is based on your account creation date." else "Your account creation date is unavailable.")
                 }
             }
             if (settingsCategory == "All settings" || settingsCategory == "Appearance") {
