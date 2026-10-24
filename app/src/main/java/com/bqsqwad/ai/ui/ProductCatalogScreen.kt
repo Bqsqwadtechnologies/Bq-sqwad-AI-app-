@@ -634,7 +634,15 @@ private fun LivePlanCard(
                 ?: supportedPeriods.firstOrNull().orEmpty()
         }
     }
-    val selectedEntry = playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
+    // Credit packs are one-time INAPP products and have no subscription billing period.
+    // The old period-only lookup left selectedEntry null for every credit pack, so
+    // the visible "Continue with Google Pay" button was disabled and taps did nothing.
+    val isCreditPack = plan.module.equals("credits", ignoreCase = true)
+    val selectedEntry = if (isCreditPack) {
+        playEntries.firstOrNull { it.productType == ProductType.INAPP }
+    } else {
+        playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
+    }
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
