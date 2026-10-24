@@ -90,7 +90,7 @@ class WorkspaceApiClient {
         }
         val (status, raw) = statusAndBody
         if(status !in 200..299) error(
-            if (status >= 500) "server_busy"
+            if (status >= 500) "server_busy_http_$status"
             else "BQ Sqwad AI couldn't load this information right now. Please try again."
         )
         runCatching { JSONObject(raw) }.getOrElse {
