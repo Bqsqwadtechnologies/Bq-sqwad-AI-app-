@@ -195,7 +195,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         message = "Google connected to this account."
                                         refresh()
                                     } catch (t: Throwable) {
-                                        message = friendlyGoogleAuthError(t).ifBlank { null }
+                                        message = friendlyGoogleAuthError(t).takeIf { it.isNotBlank() }
                                     } finally { busy = false }
                                 }
                             }
