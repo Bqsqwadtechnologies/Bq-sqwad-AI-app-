@@ -793,11 +793,23 @@ private fun LivePlanCard(
                             isContactSales -> onContact()
                             canPurchase -> {
                                 val result = billing!!.launchPurchase(selectedProduct!!.productId, selectedEntry!!.basePlanId)
-                                onStatus(
-                                    if (result?.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
-                                        "Purchase started for " + plan.id + "/" + (selectedEntry!!.basePlanId ?: selectedPeriod) + ". Access unlocks only after server verification."
-                                    else result?.debugMessage?.ifBlank { "Purchase could not be started." } ?: "Purchase could not be started."
-                                )
+                                // launchPurchase reports a specific UI status when it returns null
+                                // (for example, missing Play product details or an offer mismatch).
+                                // Do not immediately overwrite that useful message with a generic one.
+                                if (result != null) {
+                                    if (result.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                                        onStatus(
+                                            "Purchase started for " + plan.id + "/" +
+                                                (selectedEntry!!.basePlanId ?: selectedPeriod) +
+                                                ". Access unlocks only after server verification."
+                                        )
+                                    } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
+                                        onStatus(
+                                            result.debugMessage.takeIf { it.isNotBlank() }
+                                                ?: "Google Play could not open checkout. Please retry."
+                                        )
+                                    }
+                                }
                             }
                             else -> onStatus(purchaseBlockReason ?: "This plan is not currently purchasable on this device.")
                         }
