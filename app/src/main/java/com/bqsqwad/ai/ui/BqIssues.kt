@@ -36,10 +36,10 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
         text.contains("no internet") || text.contains("network is unreachable") || text.contains("unable to resolve host") || text.contains("dns")) {
         return issue(BqIssueKind.OFFLINE, "You’re offline", "You are offline. Check your Wi-Fi or mobile data and try again.", BqIssueAction.RETRY)
     }
-    if (!signedIn || text.contains("sign in is required") || text.contains("sign_in_required") || text.contains("auth_required") || httpStatus == 401) {
+    if (!signedIn || text.contains("sign in is required") || text.contains("sign_in_required") || text.contains("auth_required")) {
         return issue(BqIssueKind.NOT_SIGNED_IN, "Sign in required", "Please sign in to use this.", BqIssueAction.SIGN_IN)
     }
-    if (text.contains("session_expired") || text.contains("token refresh failed") || text.contains("authentication token unavailable") || text.contains("invalid_id_token") || text.contains("user token expired")) {
+    if (httpStatus == 401 || text.contains("session_expired") || text.contains("token refresh failed") || text.contains("authentication token unavailable") || text.contains("invalid_id_token") || text.contains("user token expired")) {
         return issue(BqIssueKind.SESSION_EXPIRED, "Session expired", "Your session expired. Sign in again to continue.", BqIssueAction.SIGN_IN)
     }
     if (text.contains("email_not_verified") || text.contains("email is not verified")) return issue(BqIssueKind.EMAIL_NOT_VERIFIED, "Verify your email", "Verify your email to continue.", BqIssueAction.VERIFY_EMAIL)
