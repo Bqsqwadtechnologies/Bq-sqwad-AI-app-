@@ -111,10 +111,7 @@ class PlayBillingClient(
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
-        if (result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
-            onPurchaseState(PlayPurchaseState("cancelled", "Purchase cancelled. No payment was completed. You can try again whenever you're ready."))
-            return
-        }
+        if (result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) return
         if (result.responseCode == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
             onPurchaseState(PlayPurchaseState("verifying", "This purchase is already owned. Refreshing verified access…"))
             restorePurchases()
