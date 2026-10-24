@@ -117,7 +117,41 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     cachedInputUsdPerToken: cachedRate / 1_000_000,
     outputUsdPerToken: outputRate / 1_000_000
   });
-  const customerCredits = canonicalCalculation.credits;
+  // The website's config/aiModels.metering is the authoritative Main Chat
+  // credit schedule shared with Android. These values are already customer
+  // credits per token (including the website's configured conversion), so do
+  // not run them through provider-USD conversion or apply markup a second time.
+  // This is also what prevents Android from charging according to a stale or
+  // mismatched USD-per-credit fallback while the website charges per token.
+  const sharedMetering = pricing?.sharedCreditMetering;
+  let customerCredits = canonicalCalculation.credits;
+  if (sharedMetering && typeof sharedMetering === "object") {
+    const configuredInput = Number(sharedMetering.creditsPerInputToken);
+    const configuredOutput = Number(sharedMetering.creditsPerOutputToken);
+    const configuredCached = Number(sharedMetering.creditsPerCachedInputToken);
+    const configuredMinimum = Number(sharedMetering.minimumCredits ?? 0);
+    const configuredFallback = Number(sharedMetering.fallbackCredits ?? 0);
+    const configuredConversion = Number(sharedMetering.conversionRate ?? 1);
+    const configuredPrecision = Math.min(6, Math.max(0, Math.round(Number(sharedMetering.precision ?? 4))));
+    const modelWeight = Number(pricing?.sharedModelMultiplier ?? 1);
+    const configuredRates = [configuredInput, configuredOutput, configuredCached, configuredMinimum, configuredFallback, configuredConversion, modelWeight];
+    if (!configuredRates.every(value => Number.isFinite(value) && value >= 0) || configuredConversion <= 0 || modelWeight <= 0) {
+      throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+    }
+    if (inputTokens + outputTokens === 0) {
+      customerCredits = configuredFallback * modelWeight * configuredConversion;
+    } else {
+      const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
+      const measuredCredits = (
+        uncachedInputTokens * configuredInput +
+        cachedInputTokens * configuredCached +
+        outputTokens * configuredOutput
+      ) * modelWeight * configuredConversion;
+      customerCredits = Math.max(configuredMinimum, measuredCredits);
+    }
+    const factor = 10 ** configuredPrecision;
+    customerCredits = Math.round((customerCredits + Number.EPSILON) * factor) / factor;
+  }
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
