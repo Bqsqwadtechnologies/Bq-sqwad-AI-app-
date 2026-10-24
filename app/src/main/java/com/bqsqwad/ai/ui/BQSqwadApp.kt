@@ -6819,8 +6819,17 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
     var savingConnectorAccess by remember { mutableStateOf(false) }
     var connectorPermissionError by remember { mutableStateOf<String?>(null) }
     val connectorScope = rememberCoroutineScope()
+    var connectorResumeNonce by remember { mutableIntStateOf(0) }
+    val connectorLifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
+    DisposableEffect(connectorLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) connectorResumeNonce += 1
+        }
+        connectorLifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { connectorLifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
 
-    LaunchedEffect(selectedConnector?.name) {
+    LaunchedEffect(selectedConnector?.name, connectorResumeNonce) {
         val connector = selectedConnector ?: return@LaunchedEffect
         val toolkit = connectorToolkit(connector.name)
         val user = FirebaseAuth.getInstance().currentUser
