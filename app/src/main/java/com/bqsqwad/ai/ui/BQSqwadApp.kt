@@ -190,7 +190,7 @@ private fun EmailVerificationGate(modifier: Modifier, onVerified: () -> Unit) {
         }
     }
 
-    AuthSurface {
+    AuthSurface(hideVideoControls = error != null) {
         Text("Verify your email", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Please verify your email address before continuing. This is separate from the required Terms and Privacy consent.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -290,7 +290,7 @@ private fun ConsentGate(modifier: Modifier, onComplete: () -> Unit) {
             BqSqwadLoadingIndicator(Modifier.size(48.dp))
         }
     } else {
-        AuthSurface {
+        AuthSurface(hideVideoControls = error != null) {
             Text("Before you continue", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
                 "Please accept the BQ Sqwad AI Terms and Conditions and Privacy Policy. This consent is verified by the server before protected AI features can be used.",
@@ -392,7 +392,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
     var notice by remember { mutableStateOf<String?>(null) }
     var showForgot by remember { mutableStateOf(false) }
 
-    AuthSurface {
+    AuthSurface(hideVideoControls = error != null) {
         Text("BQ Sqwad AI", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Sign in to continue", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -547,7 +547,7 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    AuthSurface {
+    AuthSurface(hideVideoControls = error != null) {
         Text("Create your account", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Join BQ Sqwad AI", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -682,7 +682,7 @@ private fun applyAuthVideoCrop(view: TextureView, videoWidth: Int, videoHeight: 
 }
 
 @Composable
-private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
+private fun AuthSurface(hideVideoControls: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
     var authVideoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
@@ -800,7 +800,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                 }
             )
         }
-        if (backgroundVideoUrl != null && !keyboardOpen) {
+        if (backgroundVideoUrl != null && !keyboardOpen && !hideVideoControls) {
             Surface(
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                 color = Color.Black.copy(alpha = 0.68f),
