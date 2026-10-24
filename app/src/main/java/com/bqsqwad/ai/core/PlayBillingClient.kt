@@ -178,7 +178,8 @@ class PlayBillingClient(
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
         val product = details[productId] ?: run {
-            reportBillingDiagnostic("billing_item_unavailable")
+            reportBillingDiagnostic("billing_product_details_missing")
+            onPurchaseState(PlayPurchaseState("failed", "Google Play has not returned purchase details for this item yet. Refresh the catalog and try again."))
             return null
         }
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
@@ -201,7 +202,24 @@ class PlayBillingClient(
                 } else {
                     offersForBasePlan.firstOrNull()
                 }
-                offer?.offerToken ?: return null
+                if (offer == null) {
+                    reportBillingDiagnostic(
+                        if (offersForBasePlan.isEmpty()) "billing_base_plan_unavailable"
+                        else "billing_subscription_offer_mismatch"
+                    )
+                    onPurchaseState(
+                        PlayPurchaseState(
+                            "failed",
+                            if (offersForBasePlan.isEmpty()) {
+                                "Google Play did not return the selected subscription plan. Refresh the catalog or check the Play Console product setup."
+                            } else {
+                                "The selected subscription offer does not match an offer currently available in Google Play. Checkout was stopped to avoid showing different terms. Please contact support."
+                            }
+                        )
+                    )
+                    return null
+                }
+                offer.offerToken
             }
             ProductType.INAPP -> product.oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
             else -> null
@@ -211,7 +229,14 @@ class PlayBillingClient(
             .setProductDetailsParamsList(listOf(params.build()))
             .setObfuscatedAccountId(obfuscatedUid())
             .build()
-        return client.launchBillingFlow(activity, flow)
+        val result = client.launchBillingFlow(activity, flow)
+        if (result.responseCode != BillingClient.BillingResponseCode.OK &&
+            result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED
+        ) {
+            reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
+            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+        }
+        return result
     }
 
     fun restorePurchases() {
