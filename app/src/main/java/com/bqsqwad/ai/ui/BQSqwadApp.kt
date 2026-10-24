@@ -1413,8 +1413,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         openSettings = { settings = true },
                         openPlans = { plansInitialSection = "all"; plans = true },
                         openCredits = { plansInitialSection = "credits"; plans = true },
-                        openFileBox = { fileBoxOpen = true },
-                        openHistory = { history = true },
+                        openFileBox = { if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else fileBoxOpen = true },
+                        openHistory = { if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else history = true },
                         openPlugins = { featureHub = true },
                         onLearnMore = { featureInfo = Workspace.CHAT },
                         onPrivacy = { featurePrivacy = Workspace.CHAT },
@@ -1446,7 +1446,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             featureHub -> FeatureHub(
                 onBack = { featureHub = false },
                 onPlans = { featureHub = false; plansInitialSection = "all"; plans = true },
-                onHistory = { featureHub = false; history = true },
+                onHistory = { featureHub = false; if (firebaseUser == null) { signInRequired = true; signUpRequired = false } else history = true },
                 onWorkspace = { selected ->
                     featureHub = false
                     openWorkspace(selected)
@@ -1473,7 +1473,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenLegalCenter = { legalCenter = true },
                 onNotificationsChanged = { notificationsEnabled = it },
                 notificationStatus = notificationStatus,
-                onOpenWorkspace = { selected -> settings = false; openWorkspace(selected) },
+                onOpenWorkspace = { selected -> settings = false; if (firebaseUser == null && selected !in setOf(Workspace.CHAT, Workspace.SEARCH)) { signInRequired = true; signUpRequired = false } else openWorkspace(selected) },
                 onOpenPlans = { plansInitialSection = "all"; plans = true }
             )
             history -> HistoryScreen(
