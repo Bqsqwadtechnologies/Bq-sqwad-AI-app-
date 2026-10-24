@@ -6856,8 +6856,12 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
                     if (status == 404 || payload.optString("error") == "connector_not_initialized") {
                         "not_connected" to emptyList<String>()
+                    } else if (payload.optString("error") == "connector_service_not_configured") {
+                        "setup_needed" to emptyList<String>()
+                    } else if (payload.optString("error") == "connector_needs_auth") {
+                        "needs_auth" to emptyList<String>()
                     } else if (status !in 200..299) {
-                        throw IllegalStateException("Could not check connector status (HTTP $status).")
+                        throw IllegalStateException("Could not check connector status.")
                     } else {
                         val tools = payload.optJSONArray("tools")
                         val names = List(tools?.length() ?: 0) { index ->
@@ -6868,7 +6872,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     }
                 } finally { connection.disconnect() }
             }
-            connectorStatus = if (result.first == "connected") "Connected · ${result.second.size} tools discovered." else "Not connected yet. Connect this account to enable its tools."
+            connectorStatus = when (result.first) { "connected" -> "Connected · ${result.second.size} tools discovered."; "setup_needed" -> "Setup needed (admin)."; "needs_auth" -> "Sign in to the provider to continue."; else -> "Not connected yet. Connect this account to enable its tools." }
             connectorTools = result.second
             connectorAccessMode = withContext(Dispatchers.IO) {
                     val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
