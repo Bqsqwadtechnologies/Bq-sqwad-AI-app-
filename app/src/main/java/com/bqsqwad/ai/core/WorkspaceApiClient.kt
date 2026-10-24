@@ -454,6 +454,25 @@ class WorkspaceApiClient {
     suspend fun adminReadinessSelfTest():JSONObject = request("/admin/self-test", payload=JSONObject())
     suspend fun reportIssue(route: String, code: String = "client_runtime_issue"): JSONObject = request("/issues/report", payload = JSONObject().put("route", route).put("code", code))
 
+    suspend fun reportClientDiagnostic(payload: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val connection = (URL(baseUrl.trimEnd('/') + "/diagnostics/client").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 3000
+            readTimeout = 3000
+            doInput = true
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+        }
+        try {
+            connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun publicAppConfig():JSONObject = publicRequest("/public/app-config","GET")
 
     suspend fun adminAppLayout(): JSONObject = request("/admin/app-layout", "GET")
