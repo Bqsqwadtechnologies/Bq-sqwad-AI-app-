@@ -790,7 +790,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
             color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.62f)
         ) {
             Column(
-                Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                Modifier.fillMaxSize().imePadding().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 content = {
