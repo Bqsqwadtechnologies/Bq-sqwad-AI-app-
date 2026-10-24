@@ -468,7 +468,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                         notice = "Google sign-in successful."
                         onAuthenticated()
                     } catch (t: Throwable) {
-                        error = friendlyGoogleAuthError(t)
+                        error = friendlyGoogleAuthError(t).takeIf { it.isNotBlank() }
                     } finally {
                         busy = false
                     }
