@@ -670,8 +670,20 @@ private fun LegalConsentLinks() {
     }
 }
 
+private fun applyAuthVideoCrop(view: TextureView, videoWidth: Int, videoHeight: Int) {
+    val width = view.width
+    val height = view.height
+    if (width <= 0 || height <= 0 || videoWidth <= 0 || videoHeight <= 0) return
+    val videoRatio = videoWidth.toFloat() / videoHeight.toFloat()
+    val viewRatio = width.toFloat() / height.toFloat()
+    val scaleX = if (videoRatio > viewRatio) videoRatio / viewRatio else 1f
+    val scaleY = if (videoRatio < viewRatio) viewRatio / videoRatio else 1f
+    view.setTransform(android.graphics.Matrix().apply { setScale(scaleX, scaleY, width / 2f, height / 2f) })
+}
+
 @Composable
 private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
+    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var backgroundVideoUrl by remember { mutableStateOf<String?>(null) }
     var authVideoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     var authVideoSurface by remember { mutableStateOf<AndroidSurface?>(null) }
@@ -706,6 +718,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
             AndroidView(
                 factory = { context ->
                     TextureView(context).apply {
+                        val textureView = this
                         isOpaque = false
                         surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                             override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
@@ -720,6 +733,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                                     player.setOnPreparedListener { preparedPlayer ->
                                         authVideoPrepared = true
                                         preparedPlayer.isLooping = true
+                                        applyAuthVideoCrop(textureView, preparedPlayer.videoWidth, preparedPlayer.videoHeight)
                                         preparedPlayer.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f)
                                         preparedPlayer.start()
                                         if (authVideoPaused) preparedPlayer.pause()
@@ -738,7 +752,9 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                                 }
                             }
 
-                            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) = Unit
+                            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+                                authVideoPlayer?.let { player -> applyAuthVideoCrop(textureView, player.videoWidth, player.videoHeight) }
+                            }
                             override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
 
                             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
@@ -771,7 +787,7 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
         }
         Surface(
             Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.48f)
+            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.62f)
         ) {
             Column(
                 Modifier.fillMaxSize().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -784,9 +800,9 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                 }
             )
         }
-        if (backgroundVideoUrl != null) {
+        if (backgroundVideoUrl != null && !keyboardOpen) {
             Surface(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                 color = Color.Black.copy(alpha = 0.68f),
                 shape = RoundedCornerShape(24.dp)
             ) {
@@ -803,13 +819,13 @@ private fun AuthSurface(content: @Composable ColumnScope.() -> Unit) {
                                 else if (authVideoPrepared) player.start()
                             }
                         }
-                    }) { Text(if (authVideoPaused) "Play video" else "Pause video", color = Color.White) }
+                    }) { Text(if (authVideoPaused) "▶" else "Ⅱ", color = Color.White) }
                     TextButton(onClick = {
                         authVideoMuted = !authVideoMuted
                         authVideoPlayer?.let { player ->
                             runCatching { player.setVolume(if (authVideoMuted) 0f else 1f, if (authVideoMuted) 0f else 1f) }
                         }
-                    }) { Text(if (authVideoMuted) "Unmute" else "Mute", color = Color.White) }
+                    }) { Text(if (authVideoMuted) "🔇" else "🔊", color = Color.White) }
                 }
             }
         }
