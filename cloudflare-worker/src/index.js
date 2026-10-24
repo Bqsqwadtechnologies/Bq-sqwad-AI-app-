@@ -4011,9 +4011,9 @@ export default {
       if (url.pathname === "/organization/social/oauth/start" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"channels"); const b=await readBody(request),platform=String(b.platform||"");if(!["youtube","tiktok"].includes(platform))throw new Error("organization_social_platform_not_supported");const orgId=String(b.organizationId||u.uid),org=await firestoreGet("organizationWorkspaces/"+orgId),member=Array.isArray(org?.members)?org.members.find(x=>String(x.id||"")===u.uid&&x.status!=="inactive"):null;if(!member||!["owner","admin","editor"].includes(String(member.role||"")))throw new Error("organization_social_access_denied");return json(await socialStart(env,u.uid,platform,String(b.redirectUri||"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback"),orgId)); }
       if (url.pathname === "/social/platforms" && request.method === "GET") {
         const configured = {
-          x: Boolean((env.X_CLIENT_ID || env.X_API_KEY) && (env.X_CLIENT_SECRET || env.X_API_SECRET)),
-          youtube: Boolean(env.YOUTUBE_CLIENT_ID && env.YOUTUBE_CLIENT_SECRET),
-          tiktok: Boolean((env.TIKTOK_CLIENT_KEY || env.TIKTOK_CLIENT_ID) && (env.TIKTOK_CLIENT_SECRET || env.TIKTOK_SECRET_KEY))
+          x: Boolean((env.X_CLIENT_ID || env.X_API_KEY || env.X_client_id || env.X_consumer_key) && (env.X_CLIENT_SECRET || env.X_API_SECRET || env.X_client_secret || env.X_secret_key)),
+          youtube: Boolean(env.YOUTUBE_CLIENT_ID && (env.YOUTUBE_CLIENT_SECRET || env.YouTube_OAuth_Client_Secret)),
+          tiktok: Boolean((env.TIKTOK_CLIENT_KEY || env.TIKTOK_CLIENT_ID || env.TikTok_client_key) && (env.TIKTOK_CLIENT_SECRET || env.TIKTOK_SECRET_KEY || env.TikTok_client_secret))
         };
         const platforms = Object.keys(configured).filter(platform => configured[platform]);
         return json({ platforms, config: { enabled: platforms.length > 0 } });
