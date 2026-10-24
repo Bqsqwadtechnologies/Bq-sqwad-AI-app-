@@ -1469,6 +1469,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 adminAuthorized = adminAuthorized,
                 onOpenAdminDashboard = { settings = false; workspace = Workspace.ADMIN },
                 onSignOut = { signOutFromShell() },
+                onOpenSignIn = { signInRequired = true; signUpRequired = false },
                 onOpenAccountProtection = { if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.ACCOUNT_PROTECTION)) { signInRequired = true; signUpRequired = false } else accountProtection = true },
                 onOpenLegalCenter = { legalCenter = true },
                 onNotificationsChanged = { notificationsEnabled = it },
@@ -7091,7 +7092,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenAdminDashboard: () -> Unit, onSignOut: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenAdminDashboard: () -> Unit, onSignOut: () -> Unit, onOpenSignIn: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val prefs = remember(uid) { accountPreferences(context) }
@@ -7501,13 +7502,17 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
                 }
             }
             item {
+                val signedInAccount = FirebaseAuth.getInstance().currentUser != null
                 OutlinedButton(
-                    onClick = { onSignOut() },
+                    onClick = { if (signedInAccount) onSignOut() else onOpenSignIn() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Logout, contentDescription = null)
+                    Icon(
+                        if (signedInAccount) Icons.Default.Logout else Icons.Default.Login,
+                        contentDescription = null
+                    )
                     Spacer(Modifier.width(8.dp))
-                    Text("Log out")
+                    Text(if (signedInAccount) "Log out" else "Log in")
                 }
             }
 
