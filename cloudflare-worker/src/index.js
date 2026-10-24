@@ -3063,13 +3063,13 @@ export default {
         const signedIn = body.signedIn === true;
         const note = typeof body.note === "string" ? body.note.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, 500) : "";
         const id = "clientdiag_" + refCode;
-        await firestoreSet("adminIssues/" + id, {
+        await firestoreCreate("adminIssues/" + id, {
           id, refCode, category: "client_diagnostic", severity: httpStatus >= 500 ? "warning" : "info",
           state: "open", status: httpStatus, code: safeCode, route: safeRoute, step: safeStep, httpStatus, safeCode,
           appVersion, androidVersion, signedIn, note: note || null,
           message: "Client issue reference " + refCode + " (" + safeCode + ")",
           createdAt: new Date().toISOString()
-        }, false);
+        });
         return json({ ok: true, received: true, refCode });
       }
 
