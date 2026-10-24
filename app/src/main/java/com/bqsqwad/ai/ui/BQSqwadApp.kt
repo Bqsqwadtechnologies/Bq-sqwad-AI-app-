@@ -893,8 +893,10 @@ internal fun friendlyGoogleAuthError(error: Throwable): String {
     val types = chain.joinToString(" ") { it.javaClass.simpleName }.lowercase()
     if (types.contains("cancellation") || details.contains("user cancelled") || details.contains("user canceled")) return ""
     if (details.contains("28444") || details.contains("developer console") || details.contains("error code 10") || details.contains("status code 10")) {
-        val ref = issueFrom(error).refCode ?: java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+        val issue = issueFrom(error)
+        val ref = issue.refCode ?: java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
         android.util.Log.w("BQAuth", "google_signin_config refCode=$ref")
+        BqIssueReporter.report(issue.copy(refCode = ref), "/auth/google", "sign_in", safeCode = "google_signin_config")
         return "Google sign-in is not available for this app version yet. Use your email and password, or contact support. Reference $ref."
     }
     if (types.contains("nocredential") || details.contains("no credential") || details.contains("no google account")) {
