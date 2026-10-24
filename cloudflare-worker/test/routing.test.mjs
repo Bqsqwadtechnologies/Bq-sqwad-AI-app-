@@ -53,7 +53,7 @@ test("routing never returns ReferenceError for feature paths", async () => {
     ["POST", "/ai/stream"],
     ["GET", "/credits"], ["GET", "/entitlement"], ["GET", "/entitlements"],
     ["POST", "/web-search"],
-    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/admin/self-test"], ["GET", "/admin/test-mode"], ["POST", "/admin/test-mode"], ["GET", "/admin/credit-trial"], ["POST", "/admin/credit-trial"], ["GET", "/admin/daily-free-credits"], ["POST", "/admin/daily-free-credits"], ["GET", "/admin/security/status"], ["POST", "/admin/security/password"], ["POST", "/admin/security/totp/start"], ["POST", "/admin/security/totp/confirm"], ["POST", "/admin/security/unlock"], ["GET", "/admin/security/biometric"], ["POST", "/admin/security/biometric/register"], ["POST", "/admin/security/biometric/challenge"], ["POST", "/admin/security/biometric/verify"], ["DELETE", "/admin/security/biometric"], ["POST", "/account/schedule-deletion"], ["POST", "/account/cancel-deletion"], ["GET", "/account/deletion-status"], ["DELETE", "/account"], ["POST", "/issues/report"], ["POST", "/realtime/session"], ["POST", "/realtime/heartbeat"], ["POST", "/business/plan-builder"], ["POST", "/business/advanced-ai"], ["POST", "/business/assistant"], ["GET", "/video/jobs/test/content"]
+    ["GET", "/history"], ["GET", "/memory"], ["GET", "/feature-settings"], ["POST", "/feedback"], ["POST", "/notifications/token"], ["GET", "/native/catalog"], ["GET", "/admin/issues"], ["POST", "/admin/self-test"], ["GET", "/admin/test-mode"], ["POST", "/admin/test-mode"], ["GET", "/admin/credit-trial"], ["POST", "/admin/credit-trial"], ["GET", "/admin/daily-free-credits"], ["POST", "/admin/daily-free-credits"], ["GET", "/admin/security/status"], ["POST", "/admin/security/password"], ["POST", "/admin/security/totp/start"], ["POST", "/admin/security/totp/confirm"], ["POST", "/admin/security/unlock"], ["GET", "/admin/security/biometric"], ["POST", "/admin/security/biometric/register"], ["POST", "/admin/security/biometric/challenge"], ["POST", "/admin/security/biometric/verify"], ["DELETE", "/admin/security/biometric"], ["POST", "/account/schedule-deletion"], ["POST", "/account/cancel-deletion"], ["GET", "/account/deletion-status"], ["DELETE", "/account"], ["POST", "/issues/report"], ["POST", "/diagnostics/client"], ["POST", "/realtime/session"], ["POST", "/realtime/heartbeat"], ["POST", "/business/plan-builder"], ["POST", "/business/advanced-ai"], ["POST", "/business/assistant"], ["GET", "/video/jobs/test/content"]
   ]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
@@ -62,6 +62,17 @@ test("routing never returns ReferenceError for feature paths", async () => {
     const body = await res.text();
     assert.ok(!/is not defined/.test(body), method + " " + path + " -> " + body);
   }
+});
+
+test("public client diagnostics reject malformed reference codes without requiring sign-in", async () => {
+  const res = await worker.fetch(new Request("https://x.dev/diagnostics/client", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refCode: "bad-code", route: "/ai", safeCode: "unknown" })
+  }), {});
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error, "diagnostic_ref_code_invalid");
 });
 
 test("account deletion cannot be performed immediately", async () => {
