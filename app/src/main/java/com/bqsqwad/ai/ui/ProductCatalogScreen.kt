@@ -70,6 +70,13 @@ private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean =
 fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     val context=androidx.compose.ui.platform.LocalContext.current
     val activity=context as? Activity
+    var signedIn by remember { mutableStateOf(com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null) }
+    DisposableEffect(Unit) {
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val listener = com.google.firebase.auth.FirebaseAuth.AuthStateListener { signedIn = it.currentUser != null }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
     val scope=rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -144,18 +151,26 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     context.getSharedPreferences("bq_product_catalog",Context.MODE_PRIVATE).edit()
                         .putString("catalog",live.toString()).apply()
                 }
-                credits=runCatching{api.credits()}.getOrNull()
-                entitlement=runCatching{api.entitlement()}.getOrNull()
-                entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
-                playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
-                salesNotice=runCatching {
-                    val a=api.contactSalesStatus().optJSONArray("requests")
-                    val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
-                    val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
-                    val seen=rows.firstOrNull { it.optString("status")=="seen" }
-                    contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
-                        ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by our sales team." }
-                }.getOrNull()
+                if (signedIn) {
+                    credits=runCatching{api.credits()}.getOrNull()
+                    entitlement=runCatching{api.entitlement()}.getOrNull()
+                    entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
+                    playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
+                    salesNotice=runCatching {
+                        val a=api.contactSalesStatus().optJSONArray("requests")
+                        val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
+                        val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
+                        val seen=rows.firstOrNull { it.optString("status")=="seen" }
+                        contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
+                            ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by our sales team." }
+                    }.getOrNull()
+                } else {
+                    credits = null
+                    entitlement = null
+                    entitlements = emptyList()
+                    playManagement = null
+                    salesNotice = null
+                }
             } catch(t:Throwable) {
                 if (hasCachedCatalog) {
                     offline = true
@@ -197,13 +212,14 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
             }
         }
     }
-    LaunchedEffect(Unit){load()}
-    LaunchedEffect(Unit) {
-        while (true) {
+    LaunchedEffect(signedIn){load()}
+    LaunchedEffect(signedIn) {
+        while (signedIn) {
             kotlinx.coroutines.delay(15_000)
             runCatching { WorkspaceApiClient().credits() }
                 .onSuccess { latest -> credits = latest }
         }
+        if (!signedIn) credits = null
     }
 
     // Customer plans come only from the live/cached server catalog. Add-ons and
