@@ -142,7 +142,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                             password = ""; confirmPassword = ""
                                             message = "Email and password connected."
                                             refresh()
-                                        } catch (t: Throwable) { message = t.message ?: "Could not connect password." }
+                                        } catch (t: Throwable) { message = safeUserFacingIssue(t, "Could not connect password. Please try again.") }
                                         finally { busy = false }
                                     }
                                 }
@@ -157,7 +157,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                             withContext(Dispatchers.IO) { Tasks.await(auth.currentUser?.unlink("password") ?: error("Sign in is required")) }
                                             message = "Password sign-in disconnected."
                                             refresh()
-                                        } catch (t: Throwable) { message = t.message ?: "Could not disconnect password." }
+                                        } catch (t: Throwable) { message = safeUserFacingIssue(t, "Could not disconnect password. Please try again.") }
                                         finally { busy = false }
                                     }
                                 }
@@ -195,7 +195,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         message = "Google connected to this account."
                                         refresh()
                                     } catch (t: Throwable) {
-                                        message = t.message ?: "Could not connect Google."
+                                        message = friendlyGoogleAuthError(t).ifBlank { null }
                                     } finally { busy = false }
                                 }
                             }
@@ -209,7 +209,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         withContext(Dispatchers.IO) { Tasks.await(auth.currentUser?.unlink("google.com") ?: error("Sign in is required")) }
                                         message = "Google disconnected."
                                         refresh()
-                                    } catch (t: Throwable) { message = t.message ?: "Could not disconnect Google." }
+                                    } catch (t: Throwable) { message = safeUserFacingIssue(t, "Could not disconnect Google. Please try again.") }
                                     finally { busy = false }
                                 }
                             }
@@ -234,7 +234,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                         passkeyClient.createPasskey()
                                         message = "Passkey connected. Your device credential provider protects the private key."
                                         refresh()
-                                    } catch (t: Throwable) { message = t.message ?: "Could not create passkey." }
+                                    } catch (t: Throwable) { message = safeUserFacingIssue(t, "Could not create a passkey. Please try again.") }
                                     finally { busy = false }
                                 }
                             }
@@ -251,7 +251,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                                 passkeyClient.removePasskey(id)
                                                 message = "Passkey disconnected."
                                                 refresh()
-                                            } catch (t: Throwable) { message = t.message ?: "Could not disconnect passkey." }
+                                            } catch (t: Throwable) { message = safeUserFacingIssue(t, "Could not disconnect this passkey. Please try again.") }
                                             finally { busy = false }
                                         }
                                     }
