@@ -444,7 +444,7 @@ class WorkspaceApiClient {
 
     suspend fun playCatalog():JSONObject = request("/play/catalog","GET")
 
-    suspend fun nativeCatalog():JSONObject = request("/native/catalog","GET")
+    suspend fun nativeCatalog():JSONObject = publicRequest("/native/catalog","GET")
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
     suspend fun registerNotificationToken(token:String):JSONObject = request("/notifications/token", payload=JSONObject().put("token", token).put("platform", "android"))
     suspend fun unregisterNotificationToken(token:String):JSONObject = request("/notifications/token", "DELETE", JSONObject().put("token", token))
