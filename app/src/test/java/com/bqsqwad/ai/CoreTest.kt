@@ -100,7 +100,7 @@ class CoreTest {
         assertFalse(offline.message.contains("hidden host"))
 
         val expired = com.bqsqwad.ai.ui.issueFrom(httpStatus = 401, signedIn = true)
-        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.NOT_SIGNED_IN, expired.kind)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.SESSION_EXPIRED, expired.kind)
 
         val forbidden = com.bqsqwad.ai.ui.issueFrom(httpStatus = 403)
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.PERMISSION_DENIED, forbidden.kind)
