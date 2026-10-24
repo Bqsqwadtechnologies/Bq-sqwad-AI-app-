@@ -53,11 +53,11 @@ object BqLifecycleNotifications {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFICATIONS_ENABLED, true)
 
     fun birthTimestamp(context: Context): Long {
+        val user = FirebaseAuth.getInstance().currentUser ?: return 0L
+        val createdAt = user.metadata?.creationTimestamp?.takeIf { it > 0L } ?: 0L
+        if (createdAt > 0L) return createdAt
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val saved = prefs.getLong(FIRST_OPEN, 0L)
-        if (saved > 0L) return saved
-        // Never invent an account birthday from the first local launch.
-        return FirebaseAuth.getInstance().currentUser?.metadata?.creationTimestamp?.takeIf { it > 0L } ?: 0L
+        return if (prefs.getString(ACCOUNT_UID, null) == user.uid) prefs.getLong(FIRST_OPEN, 0L) else 0L
     }
 
     fun onAppOpened(context: Context, notificationsEnabled: Boolean) {
@@ -80,16 +80,15 @@ object BqLifecycleNotifications {
         }
         prefs.edit().putBoolean(NOTIFICATIONS_ENABLED, notificationsEnabled).apply()
         if (!notificationsEnabled) {
-            prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
-                ?: prefs.edit().putLong(FIRST_OPEN, now).apply()
             prefs.edit().putLong(LAST_OPEN, now).apply()
             cancelInactivityReminder(context)
             cancelBirthdayReminder(context)
             return
         }
-        val firstOpen = prefs.getLong(FIRST_OPEN, 0L).takeIf { it > 0L }
-            ?: currentUser?.metadata?.creationTimestamp?.takeIf { it > 0L }
-            ?: 0L
+        val firstOpen = if (currentUser == null) 0L else
+            currentUser.metadata?.creationTimestamp?.takeIf { it > 0L }
+                ?: prefs.getLong(FIRST_OPEN, 0L).takeIf { prefs.getString(ACCOUNT_UID, null) == currentUser.uid && it > 0L }
+                ?: 0L
         if (firstOpen > 0L && prefs.getLong(FIRST_OPEN, 0L) <= 0L) {
             prefs.edit().putLong(FIRST_OPEN, firstOpen).apply()
         }
@@ -107,7 +106,7 @@ object BqLifecycleNotifications {
     fun onBirthdayAlarm(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
-        val firstOpen = prefs.getLong(FIRST_OPEN, 0L)
+        val firstOpen = birthTimestamp(context)
         if (firstOpen <= 0L) return
         processBirthdayMilestone(context, firstOpen, System.currentTimeMillis(), allowPost = !AppVisibility.isForeground)
     }
