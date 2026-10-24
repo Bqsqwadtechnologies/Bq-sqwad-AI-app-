@@ -1473,7 +1473,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onOpenLegalCenter = { legalCenter = true },
                 onNotificationsChanged = { notificationsEnabled = it },
                 notificationStatus = notificationStatus,
-                onOpenWorkspace = { selected -> settings = false; if (firebaseUser == null && selected !in setOf(Workspace.CHAT, Workspace.SEARCH)) { signInRequired = true; signUpRequired = false } else openWorkspace(selected) },
+                onOpenWorkspace = { selected -> settings = false; if (firebaseUser == null && selected != Workspace.CHAT) { signInRequired = true; signUpRequired = false } else openWorkspace(selected) },
                 onOpenPlans = { plansInitialSection = "all"; plans = true }
             )
             history -> HistoryScreen(
