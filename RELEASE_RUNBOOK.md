@@ -54,3 +54,13 @@ Publish these website changes through the existing Lovable-connected workflow.
 - Server-authoritative heartbeat accounting still needs final-stop settlement and concurrency/retry tests.
 - Generated image Storage upload and deletion are source changes only; they have not been tested against the live Firebase bucket or deployed Storage rules.
 - No Android build, Worker test run, website build, deployment, or device test has been performed in this work.
+
+## Google sign-in checklist (owner action; no rebuild for fingerprint registration)
+
+1. In Google Play Console, open **Test and release → App integrity → App signing**. Copy both SHA-1 and SHA-256 fingerprints from **App signing key certificate**, and also both fingerprints from **Upload key certificate**.
+2. In Firebase Console, open **Project settings → Your apps → com.bqsqwad.ai**. Add the Play app-signing SHA-1 and SHA-256, the upload-key SHA-1 and SHA-256, and the debug SHA-1 if debug builds are used.
+3. In Google Cloud Console, open **APIs & Services → OAuth consent screen**. Confirm the app is **In production** if it should be available to all users; if it is **Testing**, only listed test users can authenticate. Confirm the Web OAuth client referenced by `default_web_client_id` exists.
+4. Wait a few minutes, then sign out and retry Google sign-in from the Play-installed app.
+5. Only replace `app/google-services.json` after owner approval. Do not change package ID, signing, or release identifiers as part of this fix.
+
+The app now maps known Google configuration failures to a safe message and logs only a sanitized configuration code locally. **This does not prove the Firebase/Google OAuth configuration is fixed**; the owner must complete the console checks and test the Play-installed app.
