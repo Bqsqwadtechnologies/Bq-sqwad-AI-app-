@@ -867,13 +867,25 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
 }
 
 private fun friendlyGoogleAuthError(error: Throwable): String {
-    return when (error) {
-        is GetCredentialException -> "Google sign-in could not be completed. Please choose a Google account and try again."
-        is TimeoutCancellationException -> "Google sign-in timed out. Please try again."
-        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "This Google account is already linked to another sign-in method."
-        is com.google.firebase.FirebaseNetworkException -> "No internet connection detected. Check your Wi-Fi or mobile data and try again."
-        else -> "Google sign-in could not be completed. Please try again."
+    val chain = generateSequence(error) { it.cause }.take(8).toList()
+    val details = chain.joinToString(" ") { it.message.orEmpty() }.lowercase()
+    val types = chain.joinToString(" ") { it.javaClass.simpleName }.lowercase()
+    if (types.contains("cancellation") || details.contains("user cancelled") || details.contains("user canceled")) return ""
+    if (details.contains("28444") || details.contains("developer console") || details.contains("error code 10") || details.contains("status code 10")) {
+        val ref = issueFrom(error).refCode ?: java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+        android.util.Log.w("BQAuth", "google_signin_config refCode=$ref")
+        return "Google sign-in is not available for this app version yet. Use your email and password, or contact support. Reference $ref."
     }
+    if (types.contains("nocredential") || details.contains("no credential") || details.contains("no google account")) {
+        return "Add a Google account to this phone, then try again."
+    }
+    if (chain.any { it is com.google.firebase.FirebaseNetworkException || it is java.net.UnknownHostException || it is java.net.ConnectException || it is java.net.SocketTimeoutException } ||
+        details.contains("network") || details.contains("offline")) {
+        return "You are offline. Check your Wi-Fi or mobile data and try again."
+    }
+    if (types.contains("playservices") || details.contains("google play services")) return "Update Google Play services, then try again."
+    if (error is com.google.firebase.auth.FirebaseAuthUserCollisionException) return "This Google account is already linked to another sign-in method."
+    return "Google sign-in could not be completed. Try again or use your email and password."
 }
 
 @Composable
