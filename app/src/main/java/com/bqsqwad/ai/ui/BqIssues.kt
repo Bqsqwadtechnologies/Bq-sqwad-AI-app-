@@ -57,7 +57,8 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
         return issue(BqIssueKind.PERMISSION_DENIED, "Permission needed", "Allow the required permission in Android settings, then try again.", BqIssueAction.OPEN_SETTINGS)
     }
     if ((httpStatus != null && httpStatus >= 500) || text.contains("server_busy") || text.contains("provider outage") || text.contains("http 5") || text.contains("temporarily unavailable. the bq sqwad ai team is working")) {
-        return issue(BqIssueKind.SERVER_BUSY, "Temporarily unavailable", "BQ Sqwad AI is busy right now. Please try again in a minute.", BqIssueAction.RETRY, true)
+        val ref = newBqRefCode()
+        return BqIssue(BqIssueKind.SERVER_BUSY, "Temporarily unavailable", "BQ Sqwad AI is busy right now. Please try again in a minute. Reference $ref.", BqIssueAction.RETRY, ref)
     }
     val ref = newBqRefCode()
     return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
