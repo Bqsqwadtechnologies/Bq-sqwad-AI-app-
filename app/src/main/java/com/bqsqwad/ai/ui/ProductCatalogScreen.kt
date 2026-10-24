@@ -161,7 +161,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     offline = true
                     error = null
                 } else {
-                    error = "BQ Sqwad AI plans are temporarily unavailable. The team is working on it. Please try again shortly."
+                    error = safeUserFacingIssue(t, "Could not load plans. Please retry.")
                 }
             } finally { loading=false }
         }
@@ -278,7 +278,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         }
         when{
             loading->ProductLoading(Modifier.padding(padding))
-            error!=null->ProductError(Modifier.padding(padding),::load)
+            error!=null->ProductError(Modifier.padding(padding), error ?: "Could not load plans. Please retry.", ::load)
             else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 credits?.let { balance ->
                     item {
@@ -624,6 +624,7 @@ private fun LivePlanCard(
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
     val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true
     val purchaseBlockReason = when {
+        com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
         isFreePlan || isContactSales || canPurchase -> null
         plan.paymentChannel == "website" -> "This plan is only purchasable through the website, not inside this Android app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
@@ -932,7 +933,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
 }
 
 @Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
-@Composable private fun ProductError(modifier:Modifier,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Products unavailable",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text("The BQ Sqwad AI team is working to restore this service. Please try again shortly.",color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Try again")}}}
+@Composable private fun ProductError(modifier:Modifier,message:String,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Could not load plans",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Try again")}}}
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
 
 private fun parseFeatures(body:JSONObject):List<CatalogFeature>{
