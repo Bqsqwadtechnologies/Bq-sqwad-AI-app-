@@ -90,7 +90,7 @@ class WorkspaceApiClient {
         }
         val (status, raw) = statusAndBody
         if(status !in 200..299) error(
-            if (status >= 500) "BQ Sqwad AI is temporarily unavailable. The team is working on it. Please try again shortly."
+            if (status >= 500) "server_busy"
             else "BQ Sqwad AI couldn't load this information right now. Please try again."
         )
         runCatching { JSONObject(raw) }.getOrElse {
