@@ -132,6 +132,9 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (message.contains("attachment_count_invalid")) return "Attach up to 8 images and up to 4 PDFs per message. Send extra files in another message."
     if (message.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
     val issue = issueFrom(throwable)
+    if (issue.kind == BqIssueKind.UNKNOWN || issue.kind == BqIssueKind.SERVER_BUSY) {
+        BqIssueReporter.report(issue, "/app", "screen_error", safeCode = issue.kind.name.lowercase())
+    }
     return issue.message.ifBlank { fallback }
 }
 
