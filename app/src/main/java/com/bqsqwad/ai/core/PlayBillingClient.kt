@@ -18,6 +18,10 @@ import java.net.URL
 import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 data class PlayCatalogItem(
     val planId: String,
@@ -42,6 +46,7 @@ class PlayBillingClient(
 ) : BillingClientStateListener {
 
     private val baseUrl = "${ApiConfig.baseUrl}"
+    private val diagnosticsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val client = BillingClient.newBuilder(activity)
         .setListener { result, purchases ->
@@ -88,6 +93,7 @@ class PlayBillingClient(
             queryCatalog()
             restorePurchases()
         } else {
+            reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
             onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
         }
     }
@@ -95,7 +101,37 @@ class PlayBillingClient(
     override fun onBillingServiceDisconnected() {
         connected = false
         connecting = false
+        reportBillingDiagnostic("billing_service_disconnected")
         onPurchaseState(PlayPurchaseState("failed", "Google Play billing disconnected. Check your connection and retry."))
+    }
+
+    private fun billingDiagnosticCode(responseCode: Int): String = when (responseCode) {
+        BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE -> "billing_service_unavailable"
+        BillingClient.BillingResponseCode.NETWORK_ERROR -> "billing_network_error"
+        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "billing_unavailable"
+        BillingClient.BillingResponseCode.ITEM_UNAVAILABLE -> "billing_item_unavailable"
+        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "billing_developer_error"
+        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "billing_feature_not_supported"
+        BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> "billing_item_already_owned"
+        else -> "billing_response_unknown"
+    }
+
+    private fun reportBillingDiagnostic(safeCode: String, httpStatus: Int = 0) {
+        val refCode = java.util.UUID.randomUUID().toString().replace("-", "").take(8).uppercase()
+        diagnosticsScope.launch {
+            runCatching {
+                WorkspaceApiClient().reportClientDiagnostic(JSONObject().apply {
+                    put("refCode", refCode)
+                    put("route", "/play/catalog")
+                    put("step", "billing")
+                    put("httpStatus", httpStatus.coerceIn(0, 599))
+                    put("safeCode", safeCode.filter { it.isLetterOrDigit() || it in "_.-" }.take(80))
+                    put("appVersion", com.bqsqwad.ai.BuildConfig.VERSION_NAME.take(32))
+                    put("androidVersion", android.os.Build.VERSION.RELEASE.orEmpty().take(32))
+                    put("signedIn", FirebaseAuth.getInstance().currentUser != null)
+                })
+            }
+        }
     }
 
     private fun friendlyBillingMessage(responseCode: Int): String = when (responseCode) {
@@ -118,6 +154,7 @@ class PlayBillingClient(
             return
         }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
+            reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
             onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
             return
         }
@@ -140,7 +177,10 @@ class PlayBillingClient(
     fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null, null)
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
-        val product = details[productId] ?: return null
+        val product = details[productId] ?: run {
+            reportBillingDiagnostic("billing_item_unavailable")
+            return null
+        }
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(product)
         val offerToken = when (product.productType) {
@@ -249,8 +289,10 @@ class PlayBillingClient(
                             queried.productDetailsList.forEach { details[it.productId] = it }
                         }
                     } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                        reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
                         onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
                     } else {
+                        reportBillingDiagnostic("billing_item_unavailable")
                         onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
                     }
                 }
