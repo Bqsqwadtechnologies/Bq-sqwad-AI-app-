@@ -3047,6 +3047,30 @@ export default {
         return json({ ok:true, removed:true });
       }
 
+      if (url.pathname === "/diagnostics/client" && request.method === "POST") {
+        const ip = String(request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 80);
+        enforceRateLimit("client_diag:" + ip, 5);
+        const body = await readBody(request);
+        const refCode = String(body.refCode || "").toUpperCase().replace(/[^A-F0-9]/g, "").slice(0, 8);
+        if (!/^[A-F0-9]{6,8}$/.test(refCode)) return json({ error: "diagnostic_ref_code_invalid" }, 400);
+        const safeRoute = String(body.route || "unknown").split("?")[0].replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 80) || "unknown";
+        const safeStep = String(body.step || "unknown").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 60) || "unknown";
+        const safeCode = String(body.safeCode || "unknown").toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 80) || "unknown";
+        const status = Number(body.httpStatus);
+        const httpStatus = Number.isFinite(status) && status >= 0 && status <= 599 ? Math.trunc(status) : 0;
+        const appVersion = String(body.appVersion || "unknown").replace(/[^a-zA-Z0-9.+_-]/g, "").slice(0, 32) || "unknown";
+        const androidVersion = String(body.androidVersion || "unknown").replace(/[^a-zA-Z0-9.+_-]/g, "").slice(0, 32) || "unknown";
+        const signedIn = body.signedIn === true;
+        const note = typeof body.note === "string" ? body.note.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, 500) : "";
+        const id = "clientdiag_" + refCode;
+        await firestoreSet("adminIssues/" + id, {
+          id, refCode, category: "client_diagnostic", severity: httpStatus >= 500 ? "warning" : "info",
+          state: "open", status: "open", route: safeRoute, step: safeStep, httpStatus, safeCode,
+          appVersion, androidVersion, signedIn, note: note || null, createdAt: new Date().toISOString()
+        }, false);
+        return json({ ok: true, received: true, refCode });
+      }
+
       if (url.pathname === "/issues/report" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid);
