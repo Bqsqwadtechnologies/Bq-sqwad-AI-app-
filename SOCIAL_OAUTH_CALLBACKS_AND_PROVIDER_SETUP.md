@@ -22,8 +22,8 @@ The Worker stores the exact `redirectUri` used for each authorization and exchan
 
 | Provider | Developer app type | OAuth/API product | Callback to register | Main credentials |
 |---|---|---|---|---|
-| Facebook Pages | Meta app | Facebook Login / Graph API | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Meta App ID + App Secret |
-| Instagram | Meta app | Instagram/Meta Graph API | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Meta App ID + App Secret |
+| Facebook Pages | Meta app | Not implemented in the current Worker | Not applicable until implemented | Meta App ID + App Secret (do not configure for this Worker yet) |
+| Instagram | Meta app | Not implemented in the current Worker | Not applicable until implemented | Meta App ID + App Secret (do not configure for this Worker yet) |
 | YouTube | Google Cloud **Web application** OAuth client | YouTube Data API v3 | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | OAuth Client ID + Client Secret |
 | TikTok | TikTok developer app | Login Kit | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Client key/ID + Client Secret |
 | X | X developer app | OAuth 2.0 | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Client ID + Client Secret |
