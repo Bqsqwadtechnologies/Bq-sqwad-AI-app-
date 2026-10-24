@@ -64,6 +64,20 @@ test("routing never returns ReferenceError for feature paths", async () => {
   }
 });
 
+test("social platforms reflect existing case-sensitive Worker secret bindings", async () => {
+  const res = await worker.fetch(new Request("https://x.dev/social/platforms"), {
+    X_client_id: "configured",
+    X_client_secret: "configured",
+    YOUTUBE_CLIENT_ID: "configured",
+    YouTube_OAuth_Client_Secret: "configured",
+    TikTok_client_key: "configured",
+    TikTok_client_secret: "configured"
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(body.platforms.sort(), ["tiktok", "x", "youtube"]);
+});
+
 test("public client diagnostics reject malformed reference codes without requiring sign-in", async () => {
   const res = await worker.fetch(new Request("https://x.dev/diagnostics/client", {
     method: "POST",
