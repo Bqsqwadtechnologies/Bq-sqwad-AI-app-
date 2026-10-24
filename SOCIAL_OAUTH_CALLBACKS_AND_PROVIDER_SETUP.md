@@ -10,29 +10,23 @@
 
 ## Verified callback from the main branch
 
-The repository's `functions/social-integrations.js` defines:
+The current app backend is the Cloudflare Worker `bq-sqwad-ai-app`, whose `cloudflare-worker/src/index.js` exposes `GET /social/oauth/callback`.
 
-`https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback`
+The canonical callback for social OAuth supported by the current Worker is:
 
-The repository's `functions/index.js` exposes:
+**https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback**
 
-`GET /social/oauth/callback`
-
-The full deployed callback is therefore:
-
-**https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback**
-
-The OAuth start flow stores the exact `redirectUri` used for each authorization and the callback exchanges the returned code using that same URI. Provider registration must therefore use the exact same URI.
+The Worker stores the exact `redirectUri` used for each authorization and exchanges the returned code using that same URI. Register this exact URI in each supported provider's developer console. Do not use the retired Firebase Functions callback for this Worker flow. The Worker currently implements X, YouTube and TikTok OAuth; Facebook and Instagram are not enabled by this Worker implementation and must not be presented as working connectors.
 
 ## Provider matrix
 
 | Provider | Developer app type | OAuth/API product | Callback to register | Main credentials |
 |---|---|---|---|---|
-| Facebook Pages | Meta app | Facebook Login / Graph API | `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback` | Meta App ID + App Secret |
-| Instagram | Meta app | Instagram/Meta Graph API | `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback` | Meta App ID + App Secret |
-| YouTube | Google Cloud **Web application** OAuth client | YouTube Data API v3 | `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback` | OAuth Client ID + Client Secret |
-| TikTok | TikTok developer app | Login Kit | `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback` | Client key/ID + Client Secret |
-| X | X developer app | OAuth 2.0 | `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback` | Client ID + Client Secret |
+| Facebook Pages | Meta app | Facebook Login / Graph API | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Meta App ID + App Secret |
+| Instagram | Meta app | Instagram/Meta Graph API | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Meta App ID + App Secret |
+| YouTube | Google Cloud **Web application** OAuth client | YouTube Data API v3 | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | OAuth Client ID + Client Secret |
+| TikTok | TikTok developer app | Login Kit | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Client key/ID + Client Secret |
+| X | X developer app | OAuth 2.0 | `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback` | Client ID + Client Secret |
 | WhatsApp | Meta app/business setup | WhatsApp Business Platform | Not this OAuth callback; webhook/business configuration is required | Meta business credentials/tokens |
 | Telegram | Telegram Bot | Bot API | Not OAuth; webhook is required | Bot token |
 | SMS | Messaging provider | Provider API/webhooks | Not OAuth; provider webhook is required | Provider credentials |
@@ -51,15 +45,13 @@ Do not replace the Firebase Auth callback with the Business social OAuth callbac
 
 ## Verified repository platforms
 
-The main-branch social integration code currently defines OAuth support for:
+The current Cloudflare Worker implements OAuth support for:
 
-- facebook
-- instagram
 - youtube
 - tiktok
 - x
 
-It defines provider authorization and token endpoints for each and uses the canonical Business social callback through the OAuth start/callback flow.
+The Worker reports only platforms whose required client-ID and client-secret bindings are present. This status means credentials are configured; it does not guarantee that the provider will approve the app or that a connection has been tested.
 
 ## YouTube recreation
 
@@ -69,12 +61,12 @@ Because the old YouTube Web OAuth client was deleted, recreate it as:
 - OAuth client type: **Web application**
 - Name: `BQ Sqwad AI — YouTube`
 - Authorized redirect URI:
-  `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback`
+  `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback`
 - API: YouTube Data API v3
 - Store the Client ID in the BQ Sqwad admin/provider configuration.
 - Store the Client Secret server-side only.
 
-The repository's YouTube scopes currently default to:
+The Worker’s YouTube scopes currently request:
 
 - `https://www.googleapis.com/auth/youtube.readonly`
 - `https://www.googleapis.com/auth/youtube.upload`
@@ -86,7 +78,7 @@ For Business social connections:
 - Meta App ID is configured for Facebook/Instagram.
 - Meta App Secret is stored server-side.
 - Business social callback:
-  `https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback`
+  `https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback`
 
 For Firebase Facebook Authentication:
 
@@ -99,13 +91,13 @@ These are two different flows.
 
 Use a TikTok developer app with Login Kit and register:
 
-`https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback`
+`https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback`
 
 ## X
 
 Use an X developer app with OAuth 2.0 and register:
 
-`https://europe-west1-bqsqwadai.cloudfunctions.net/bqSqwadApi/social/oauth/callback`
+`https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/social/oauth/callback`
 
 The repository generates PKCE values for X.
 
