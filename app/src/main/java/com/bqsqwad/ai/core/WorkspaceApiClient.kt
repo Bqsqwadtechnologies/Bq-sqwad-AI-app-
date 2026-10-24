@@ -86,13 +86,22 @@ class WorkspaceApiClient {
         } catch (failure: Throwable) {
             if (failure is CancellationException) throw failure
             if (isConnectionFailure(failure)) throw IllegalStateException(connectionUnavailableMessage(), failure)
-            error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
+            error("server_busy")
         }
         val (status, raw) = statusAndBody
-        if(status !in 200..299) error(
-            if (status >= 500) "server_busy_http_$status"
-            else "BQ Sqwad AI couldn't load this information right now. Please try again."
-        )
+        if (status !in 200..299) {
+            val body = runCatching { JSONObject(raw) }.getOrNull()
+            val code = body?.optString("error").orEmpty().lowercase()
+            error(when {
+                status == 401 || code in setOf("auth_required", "sign_in_required") -> "session_expired"
+                status == 403 && code.contains("consent") -> "consent_required"
+                status == 403 -> "permission_denied"
+                status == 402 || code in setOf("out_of_credits", "insufficient_credits") -> "out_of_credits"
+                status == 429 -> "rate_limited"
+                status >= 500 -> "server_busy"
+                else -> "request_failed"
+            })
+        }
         runCatching { JSONObject(raw) }.getOrElse {
             error("BQ Sqwad AI received an unexpected response. Please try again shortly.")
         }
@@ -122,7 +131,7 @@ class WorkspaceApiClient {
         } catch (failure: Throwable) {
             if (failure is CancellationException) throw failure
             if (isConnectionFailure(failure)) throw IllegalStateException(connectionUnavailableMessage(), failure)
-            error("BQ Sqwad AI is temporarily unavailable. The BQ Sqwad AI team is working on it. Please try again shortly.")
+            error("server_busy")
         }
         val (status, raw) = statusAndRaw
         val body=runCatching{JSONObject(raw)}.getOrNull()
@@ -184,24 +193,24 @@ class WorkspaceApiClient {
                     "Your Business workspace role does not allow this action. Ask the workspace owner or an administrator to update your access."
                 serverError == "business_member_role_invalid" || serverError == "business_owner_role_immutable" ->
                     "That workspace role change is not allowed. The owner role cannot be reassigned, and only the owner can promote an administrator."
-                serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") ->
-                    "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
+                serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") || serverError == "out_of_credits" ->
+                    "You are out of credits. Review Plans & Credits to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
                     "Please review and accept the required BQ Sqwad AI terms to continue."
                 serverError == "route_not_migrated" ->
                     "This feature is not connected to the current server yet. Please contact support."
                 status >= 500 ->
-                    "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
+                    "BQ Sqwad AI is busy right now. Please try again in a minute."
                 serverError == "admin_session_required" ->
                     "The admin unlock session has expired. Open Admin Security and unlock again."
-                status == 401 || serverError == "auth_required" ->
-                    "Please sign in again to continue."
+                status == 401 || serverError == "auth_required" || serverError == "sign_in_required" ->
+                    "Your session expired. Sign in again to continue."
                 status == 402 || serverError.contains("insufficient credits") ->
                     "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                 status == 403 || serverError.contains("consent") ->
                     "Please review and accept the required BQ Sqwad AI terms to continue."
                 status == 429 || serverError.contains("rate_limited") ->
-                    "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                    "You are sending requests too quickly. Wait a moment and try again."
                 else -> "BQ Sqwad AI couldn't complete that request. Please try again."
             }
             error(friendly)
