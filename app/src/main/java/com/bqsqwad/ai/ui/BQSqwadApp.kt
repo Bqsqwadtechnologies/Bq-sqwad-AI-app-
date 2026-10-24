@@ -133,7 +133,9 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
     if (message.contains("file_type_invalid")) return "This file type is not supported for original-file analysis. Use a PDF or a supported text document."
     val issue = issueFrom(throwable)
     if (issue.kind == BqIssueKind.UNKNOWN || issue.kind == BqIssueKind.SERVER_BUSY) {
-        BqIssueReporter.report(issue, "/app", "screen_error", safeCode = issue.kind.name.lowercase())
+        val status = Regex("(?:http[_ ]?)?([45]\\d{2})", RegexOption.IGNORE_CASE)
+            .find(throwable.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        BqIssueReporter.report(issue, "/app", "screen_error", httpStatus = status, safeCode = issue.kind.name.lowercase())
     }
     return issue.message.ifBlank { fallback }
 }
