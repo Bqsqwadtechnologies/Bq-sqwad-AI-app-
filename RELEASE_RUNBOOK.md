@@ -64,3 +64,20 @@ Publish these website changes through the existing Lovable-connected workflow.
 5. Only replace `app/google-services.json` after owner approval. Do not change package ID, signing, or release identifiers as part of this fix.
 
 The app now maps known Google configuration failures to a safe message and logs only a sanitized configuration code locally. **This does not prove the Firebase/Google OAuth configuration is fixed**; the owner must complete the console checks and test the Play-installed app.
+
+## Guest/auth, diagnostics, billing and connector sweep — source status
+
+Source-only changes made on `main` for the current owner prompt:
+
+- `app/src/main/java/com/bqsqwad/ai/ui/BqIssues.kt`: structured issue categories, safe messages, reference codes and sanitized diagnostics sender.
+- `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt`: common error mapping, safer Google configuration messaging, guest gates for History/File Box/Connectors/Account Protection, guest labels, auth-video crop/scrim/controls, shared API base for Android connector calls, connector status refresh on resume, and account-creation-based AI age display.
+- `app/src/main/java/com/bqsqwad/ai/core/WorkspaceApiClient.kt`: public native catalog read and client diagnostics request.
+- `app/src/main/java/com/bqsqwad/ai/ui/ProductCatalogScreen.kt`: catalog errors use the shared mapper; guests can browse but paid checkout is sign-in gated.
+- `app/src/main/java/com/bqsqwad/ai/core/PlayBillingClient.kt`: safe Google Play Billing response messages and sanitized billing diagnostics.
+- `app/src/main/java/com/bqsqwad/ai/core/BqLifecycleNotifications.kt`: birthday/age source is the signed-in Firebase account creation timestamp, not guest first-open time.
+- `cloudflare-worker/src/index.js`: rate-limited `POST /diagnostics/client`, Composio setup reporting, dynamic social-platform availability, and a single Worker social OAuth callback default.
+- `cloudflare-worker/test/routing.test.mjs`: diagnostic endpoint validation coverage added.
+- Website `src/components/settings/ConnectorsPanel.tsx`: safer connector errors, setup/auth status labels and refresh after returning from authorization.
+- `SOCIAL_OAUTH_CALLBACKS_AND_PROVIDER_SETUP.md`: callback documentation aligned to the current Worker; Facebook/Instagram are marked unsupported by the current Worker.
+
+**Verification:** changes are committed but source has not been built or tested here. No GitHub Actions workflow was triggered. No Cloudflare Worker deployment or website deployment was performed. Do not deploy the Worker until its test suite passes; the owner must register the canonical Worker callback in each supported provider console.
