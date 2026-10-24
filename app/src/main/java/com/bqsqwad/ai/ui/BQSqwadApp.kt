@@ -6855,7 +6855,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                     } finally { permissionConnection.disconnect() }
                 }
         } catch (error: Throwable) {
-            connectorStatus = error.message ?: "Could not check connector status."
+            connectorStatus = safeUserFacingIssue(error, "Could not check connector status. Please retry.")
         } finally { checkingConnector = false }
     }
 
@@ -7041,7 +7041,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(redirect))) }
                                         .onFailure { connectorError = "Could not open the secure authorization page on this device." }
                                 }.onFailure { error ->
-                                    connectorError = error.message ?: "Could not start connector authorization."
+                                    connectorError = safeUserFacingIssue(error, "Could not start connector authorization. Please retry.")
                                 }
                                 connectorConnecting = false
                             }
