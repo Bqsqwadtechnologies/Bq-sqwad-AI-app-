@@ -37,6 +37,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -59,6 +60,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
@@ -85,9 +87,12 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
@@ -6343,6 +6348,13 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         }
     }
 
+    if (active && smartMode) {
+        SmartPracticeFloatingPanel(
+            title = if (screenActive) "Smart Share Screen" else "Smart Practice",
+            transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
+            answer = liveAnswer
+        )
+    }
     if (showCameraSettings) {
         AlertDialog(
             onDismissRequest = { showCameraSettings = false },
@@ -6432,6 +6444,13 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         )
     }
 
+    if (active && smartMode) {
+        SmartPracticeFloatingPanel(
+            title = "Smart Practice",
+            transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
+            answer = liveUiState.answer
+        )
+    }
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
@@ -6723,6 +6742,92 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
 }
 
 
+
+@Composable
+private fun SmartPracticeFloatingPanel(title: String, transcript: String, answer: String) {
+    val density = LocalDensity.current
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
+    val maxWidth = maxOf(240.dp, minOf(560.dp, configuration.screenWidthDp.dp - 16.dp))
+    val maxHeight = maxOf(180.dp, minOf(600.dp, configuration.screenHeightDp.dp - 32.dp))
+    var panelOffset by remember { mutableStateOf(IntOffset(with(density) { 16.dp.roundToPx() }, with(density) { 96.dp.roundToPx() })) }
+    var panelWidth by remember { mutableStateOf(minOf(320.dp, maxWidth)) }
+    var panelHeight by remember { mutableStateOf(minOf(280.dp, maxHeight)) }
+    var minimized by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(true) }
+
+    if (visible) Popup(
+        alignment = Alignment.TopStart,
+        offset = panelOffset,
+        onDismissRequest = { visible = false },
+        properties = PopupProperties(focusable = false, dismissOnBackPress = false, dismissOnClickOutside = false, clippingEnabled = true)
+    ) {
+        Surface(
+            modifier = Modifier.width(panelWidth).height(if (minimized) 52.dp else panelHeight)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.75f), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+            tonalElevation = 8.dp,
+            shadowElevation = 12.dp
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)
+                        .pointerInput(panelOffset, panelWidth, panelHeight, minimized) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                panelOffset = IntOffset(
+                                    (panelOffset.x + dragAmount.x.roundToInt()).coerceIn(0, (screenWidthPx - with(density) { panelWidth.roundToPx() }).coerceAtLeast(0)),
+                                    (panelOffset.y + dragAmount.y.roundToInt()).coerceIn(0, (screenHeightPx - with(density) { (if (minimized) 52.dp else panelHeight).roundToPx() }).coerceAtLeast(0))
+                                )
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Default.DragIndicator, contentDescription = "Drag to move Smart Practice panel", tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text("BQ Sqwad AI · $title", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        Text("Visible text-only practice panel", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { minimized = !minimized }) {
+                        Icon(if (minimized) Icons.Default.OpenInFull else Icons.Default.Minimize, contentDescription = if (minimized) "Expand panel" else "Minimize panel")
+                    }
+                    IconButton(onClick = { visible = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close panel")
+                    }
+                }
+                if (!minimized) {
+                    Column(Modifier.weight(1f).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Heard question", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(transcript.ifBlank { "Listening for the next question…" }, style = MaterialTheme.typography.bodySmall, maxLines = 4)
+                        HorizontalDivider()
+                        Text("Suggested answer", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        SelectionContainer {
+                            Text(answer.ifBlank { "Your answer will appear here as text." }, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()))
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().padding(end = 8.dp, bottom = 6.dp), horizontalArrangement = Arrangement.End) {
+                        Box(
+                            modifier = Modifier.size(28.dp).pointerInput(panelWidth, panelHeight) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    panelWidth = (panelWidth + with(density) { dragAmount.x.toDp() }).coerceIn(240.dp, maxWidth)
+                                    panelHeight = (panelHeight + with(density) { dragAmount.y.toDp() }).coerceIn(180.dp, maxHeight)
+                                }
+                            },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.DragHandle, contentDescription = "Drag to resize panel", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun DeviceIntelligencePanel(featureName: String) {
