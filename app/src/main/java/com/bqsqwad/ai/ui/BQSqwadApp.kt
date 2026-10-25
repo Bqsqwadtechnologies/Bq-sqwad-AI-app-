@@ -1873,7 +1873,7 @@ private fun chargeMainChatPdf(title: String, content: String): Double {
         if (status !in 200..299 || body?.optBoolean("ok", false) != true) {
             val code = body?.optString("error").orEmpty()
             if (status == 402 || code.contains("credit", ignoreCase = true) || code.contains("insufficient", ignoreCase = true)) {
-                error("You need at least 0.5 credits to generate a PDF.")
+                error("You need 2 credits to generate a PDF.")
             }
             error("The PDF could not be charged securely. Please try again.")
         }
