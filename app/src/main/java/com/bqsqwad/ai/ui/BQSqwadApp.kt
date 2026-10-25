@@ -7038,7 +7038,9 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                             connectorScope.launch {
                                 val result = runCatching {
                                     withContext(Dispatchers.IO) {
-                                        val token = Tasks.await(user.getIdToken(false)).token
+                                        // Refresh Firebase auth before starting OAuth so a stale ID token
+                                        // does not turn a valid connection attempt into a 401.
+                                        val token = Tasks.await(user.getIdToken(true)).token
                                             ?: throw IllegalStateException("Could not authenticate your account.")
                                         val connection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/link")
                                             .openConnection() as java.net.HttpURLConnection
@@ -7065,7 +7067,14 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                             }
                                             val redirect = payload.optString("redirectUrl")
                                             val parsed = Uri.parse(redirect)
-                                            if (parsed.scheme != "https" || parsed.host != "app.composio.dev") {
+                                            val trustedComposioHost = parsed.host in setOf("app.composio.dev", "connect.composio.dev")
+                                            if (
+                                                parsed.scheme != "https" ||
+                                                !trustedComposioHost ||
+                                                !parsed.path.orEmpty().startsWith("/link/") ||
+                                                !parsed.userInfo.isNullOrEmpty() ||
+                                                !parsed.port.let { it == -1 || it == 443 }
+                                            ) {
                                                 throw IllegalStateException("The authorization service returned an untrusted destination.")
                                             }
                                             redirect
