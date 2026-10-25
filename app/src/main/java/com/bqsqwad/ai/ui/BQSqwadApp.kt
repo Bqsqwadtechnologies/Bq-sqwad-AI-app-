@@ -5564,6 +5564,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var lens by remember { mutableStateOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) }
     var screenActive by remember { mutableStateOf(false) }
     var smartMode by remember { mutableStateOf(false) }
+    var smartPanelVisible by remember { mutableStateOf(true) }
     var screenAnalyzing by remember { mutableStateOf(false) }
     var screenAnswer by remember { mutableStateOf("") }
     var screenPrompt by remember { mutableStateOf("What is happening on my screen?") }
@@ -6348,12 +6349,15 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         }
     }
 
-    if (active && smartMode) {
+    if (active && smartMode && smartPanelVisible) {
         SmartPracticeFloatingPanel(
             title = if (screenActive) "Smart Share Screen" else "Smart Practice",
             transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
-            answer = liveAnswer
+            answer = liveAnswer,
+            onClose = { smartPanelVisible = false }
         )
+    } else if (active && smartMode) {
+        TextButton(onClick = { smartPanelVisible = true }) { Text("Open Smart Practice panel") }
     }
     if (showCameraSettings) {
         AlertDialog(
@@ -6716,12 +6720,15 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
         }
     }
 
-    if (active && smartMode) {
+    if (active && smartMode && smartPanelVisible) {
         SmartPracticeFloatingPanel(
             title = "Smart Practice",
             transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
-            answer = liveUiState.answer
+            answer = liveUiState.answer,
+            onClose = { smartPanelVisible = false }
         )
+    } else if (active && smartMode) {
+        TextButton(onClick = { smartPanelVisible = true }) { Text("Open Smart Practice panel") }
     }
     if (permissionExplanation) {
         AlertDialog(
@@ -6744,7 +6751,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
 
 
 @Composable
-private fun SmartPracticeFloatingPanel(title: String, transcript: String, answer: String) {
+private fun SmartPracticeFloatingPanel(title: String, transcript: String, answer: String, onClose: () -> Unit) {
     val density = LocalDensity.current
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
@@ -6755,12 +6762,11 @@ private fun SmartPracticeFloatingPanel(title: String, transcript: String, answer
     var panelWidth by remember { mutableStateOf(minOf(320.dp, maxWidth)) }
     var panelHeight by remember { mutableStateOf(minOf(280.dp, maxHeight)) }
     var minimized by remember { mutableStateOf(false) }
-    var visible by remember { mutableStateOf(true) }
 
-    if (visible) Popup(
+    Popup(
         alignment = Alignment.TopStart,
         offset = panelOffset,
-        onDismissRequest = { visible = false },
+        onDismissRequest = onClose,
         properties = PopupProperties(focusable = false, dismissOnBackPress = false, dismissOnClickOutside = false, clippingEnabled = true)
     ) {
         Surface(
@@ -6795,7 +6801,7 @@ private fun SmartPracticeFloatingPanel(title: String, transcript: String, answer
                     IconButton(onClick = { minimized = !minimized }) {
                         Icon(if (minimized) Icons.Default.OpenInFull else Icons.Default.Minimize, contentDescription = if (minimized) "Expand panel" else "Minimize panel")
                     }
-                    IconButton(onClick = { visible = false }) {
+                    IconButton(onClick = onClose) {
                         Icon(Icons.Default.Close, contentDescription = "Close panel")
                     }
                 }
