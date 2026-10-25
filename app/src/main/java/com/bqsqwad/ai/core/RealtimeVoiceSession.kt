@@ -258,6 +258,23 @@ class RealtimeVoiceSession(
                 if (transcript.isNotBlank()) {
                     inputTranscript.setLength(0)
                     onTranscript("You", transcript)
+                    // A spoken stop command must stop the live audio session itself,
+                    // not merely ask the model to describe how to stop it.
+                    val command = transcript.lowercase(java.util.Locale.ROOT)
+                        .replace(Regex("[^a-z0-9\\s]"), " ")
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+                    val stopPhrases = listOf(
+                        "stop", "stop now", "stop listening", "stop talking",
+                        "stop voice", "stop live voice", "end voice chat",
+                        "end live voice", "end this session", "cancel voice",
+                        "be quiet", "that's enough", "that is enough"
+                    )
+                    if (command in stopPhrases) {
+                        onState("stopping")
+                        stopInternal()
+                        return
+                    }
                 }
             }
             "response.output_audio_transcript.delta", "response.audio_transcript.delta" -> {
