@@ -206,7 +206,7 @@ class RealtimeVoiceSession(
                 put("type", "message")
                 put("role", "user")
                 put("content", org.json.JSONArray()
-                    .put(JSONObject().put("type", "input_text").put("text", "Analyze this latest live camera or screen frame. Use it as visual context for the user's ongoing conversation; mention important visible details or changes without repeating unchanged observations."))
+                    .put(JSONObject().put("type", "input_text").put("text", if (silentTextMode) "Smart Practice: inspect this current camera or screen frame for a visible question or task and provide a concise, readable answer. If several numbered questions are visible, answer each visible question with matching numbers. Do not narrate the screen when no question or task is visible; wait for the user to ask or scroll to the next part." else "Analyze this latest live camera or screen frame. Use it as visual context for the user's ongoing conversation; mention important visible details or changes without repeating unchanged observations."))
                     .put(JSONObject().apply {
                         put("type", "input_image")
                         put("image_url", "data:image/jpeg;base64," + encoded)
