@@ -6565,6 +6565,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     var startError by remember { mutableStateOf<String?>(null) }
     var permissionExplanation by remember { mutableStateOf(false) }
     var smartMode by remember { mutableStateOf(false) }
+    var smartPanelVisible by remember { mutableStateOf(true) }
 
     fun startVoice() {
         // Raise the media stream before opening the realtime session so remote
