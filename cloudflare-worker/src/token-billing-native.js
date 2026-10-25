@@ -296,7 +296,17 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const sharedAiConfig = await firestoreGet("config/aiModels").catch(() => null);
   const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
     ? sharedAiConfig.metering
-    : {};
+    : {
+        // Match the website's ai-models.server.ts defaults when the canonical
+        // shared config has not yet been created in Firestore.
+        creditsPerInputToken: 0.00003,
+        creditsPerCachedInputToken: 0.000003,
+        creditsPerOutputToken: 0.00024,
+        minimumCredits: 0.002,
+        fallbackCredits: 0.05,
+        conversionRate: 1,
+        precision: 4,
+      };
   const modelIdLower = String(modelId || "").toLowerCase();
   const modelMultipliers = sharedMetering.modelMultipliers && typeof sharedMetering.modelMultipliers === "object"
     ? Object.entries(sharedMetering.modelMultipliers)
