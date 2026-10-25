@@ -252,8 +252,18 @@ class PlayBillingClient(
     private fun queryCatalog() {
         Thread {
             runCatching {
-                val user = FirebaseAuth.getInstance().currentUser ?: return@runCatching
-                val token = Tasks.await(user.getIdToken(false)).token ?: return@runCatching
+                val user = FirebaseAuth.getInstance().currentUser
+                if (user == null) {
+                    reportBillingDiagnostic("billing_catalog_requires_sign_in")
+                    onPurchaseState(PlayPurchaseState("failed", "Sign in to your BQ Sqwad AI account to load Google Play purchase options."))
+                    return@runCatching
+                }
+                val token = Tasks.await(user.getIdToken(false)).token
+                if (token.isNullOrBlank()) {
+                    reportBillingDiagnostic("billing_auth_token_missing")
+                    onPurchaseState(PlayPurchaseState("failed", "Your account could not be verified. Sign in again, then refresh purchase options."))
+                    return@runCatching
+                }
                 val catalogPath = if (catalogContext == "organization") "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
                 val connection = (URL(catalogPath).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -299,7 +309,11 @@ class PlayBillingClient(
                             .build()
                     }
                 }
-                if (products.isEmpty()) return@runCatching
+                if (products.isEmpty()) {
+                    reportBillingDiagnostic("billing_catalog_empty")
+                    onPurchaseState(PlayPurchaseState("failed", "No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup."))
+                    return@runCatching
+                }
                 client.queryProductDetailsAsync(
                     QueryProductDetailsParams.newBuilder().setProductList(products).build()
                 ) { result, queried ->
@@ -321,6 +335,9 @@ class PlayBillingClient(
                         onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
                     }
                 }
+            }.onFailure {
+                reportBillingDiagnostic("billing_catalog_load_failed")
+                onPurchaseState(PlayPurchaseState("failed", "Google Play purchase options could not be loaded. Check your connection and refresh the catalog."))
             }
         }.start()
     }
