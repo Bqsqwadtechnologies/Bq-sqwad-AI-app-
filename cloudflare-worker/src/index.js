@@ -3952,19 +3952,47 @@ export default {
           const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        body.model = control.modelId || "gpt-image-2";
+        body.model = "gpt-image-2.5-flare";
+        body.size = "1024x1024";
+        body.quality = "medium";
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = 1;
-        const result = await generateImageNative(
-          env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
-          (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id),
-          body.creditCost
-        );
-        if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image")
-          .catch(() => notifyAdminOfIssue(env, "/ai/image", 500, "media_cost_ledger_write_failed"));
-        return json(result);
+        const account = await firestoreGet("users/" + u.uid);
+        const createdAtRaw = account?.createdAt;
+        const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
+        const isNewAccount = Number.isFinite(createdAt) && Date.now() - createdAt >= 0 && Date.now() - createdAt <= 24 * 60 * 60 * 1000;
+        const claimId = crypto.randomUUID();
+        let freeImage = false;
+        if (isNewAccount) {
+          try {
+            await firestoreCreate("freeImageClaims/" + u.uid, { uid: u.uid, requestId: claimId, claimedAt: new Date().toISOString(), source: "android" });
+            freeImage = true;
+          } catch (claimError) {
+            if (!/ALREADY_EXISTS|already exists|409/i.test(String(claimError?.message || claimError))) {
+              throw new Error("We couldn't verify your one-time free image. Please try again shortly.");
+            }
+          }
+        }
+        body.creditCost = freeImage ? 0 : 2.5;
+        try {
+          const result = await generateImageNative(
+            env, u, body,
+            (uid, cost, name, user) => freeImage
+              ? Promise.resolve({ reservationId: null, amount: 0, freeImage: true })
+              : chargeCredits(uid, cost, name, user, { markupApplied: true }),
+            (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
+            (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
+            body.creditCost
+          );
+          if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image")
+            .catch(() => notifyAdminOfIssue(env, "/ai/image", 500, "media_cost_ledger_write_failed"));
+          return json({ ...result, freeImage });
+        } catch (imageError) {
+          if (freeImage) {
+            const claim = await firestoreGet("freeImageClaims/" + u.uid).catch(() => null);
+            if (claim?.requestId === claimId) await firestoreDelete("freeImageClaims/" + u.uid).catch(() => {});
+          }
+          throw imageError;
+        }
       }
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -3975,9 +4003,11 @@ export default {
           const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        body.model = control.modelId || "gpt-image-2";
+        body.model = "gpt-image-2.5-sunburst";
+        body.size = "1024x1024";
+        body.quality = "medium";
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = 0.5;
+        body.creditCost = 1.5;
         const result = await editImageNative(
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
