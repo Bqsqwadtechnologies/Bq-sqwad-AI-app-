@@ -5649,6 +5649,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                        .putExtra(LiveMediaForegroundService.EXTRA_SMART_MODE, smartMode)
                         .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                 }.onSuccess {
                     active = true
@@ -5724,6 +5725,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                         .putExtra(LiveMediaForegroundService.EXTRA_LIVE_ENDPOINT, streamEndpoint.trim())
                         .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                        .putExtra(LiveMediaForegroundService.EXTRA_SMART_MODE, smartMode)
                         .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                 }.onSuccess {
                     // Re-enable the preview container only after the service has had a
@@ -5842,6 +5844,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
+            OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active && !screenActive) { Text(if (smartMode) "Smart Practice: ON" else "Smart Practice") }
             var voiceExpanded by remember { mutableStateOf(false) }
             Box {
                 OutlinedButton(onClick = { voiceExpanded = true }) {
@@ -5902,6 +5905,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                                     .putExtra(LiveMediaForegroundService.EXTRA_PROMPT, prompt)
                                     .putExtra(LiveMediaForegroundService.EXTRA_LENS, lens)
                                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                                    .putExtra(LiveMediaForegroundService.EXTRA_SMART_MODE, smartMode)
                                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, ""))
                             }.onFailure {
                                 streamError = "The camera switched, but the AI microphone session could not restart. Tap Retry to reconnect."
@@ -5912,6 +5916,9 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
             }
             if (!screenActive && screenAnswer.isNotBlank()) {
                 Text(screenAnswer, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+            if (smartMode && liveAnswer.isNotBlank()) {
+                SurfaceCard(if (screenActive) "Smart Share Screen answer" else "Smart Practice answer", liveAnswer)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
@@ -5928,7 +5935,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         launchScreenWithMic()
                     }
                 }, enabled = !active || screenActive) {
-                    Text(if (screenActive) "Stop screen" else "Share screen")
+                    Text(if (screenActive) "Stop share" else if (smartMode) "Smart Share Screen" else "Share screen")
                 }
             }
         }
@@ -5945,7 +5952,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     BqLogo(64.dp)
                     Column(Modifier.weight(1f)) {
                         Text("Screen mode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("AI is listening and viewing your shared screen. Responses are voice-only.", style = MaterialTheme.typography.bodyMedium)
+                        Text(if (smartMode) "Smart Share Screen is active. The AI reads the selected screen and displays concise text answers without speaking." else "AI is listening and viewing your shared screen. Turn on Smart Practice before starting to display text-only answers.", style = MaterialTheme.typography.bodyMedium)
                     }
                     Icon(Icons.Default.GraphicEq, contentDescription = "Voice active", tint = MaterialTheme.colorScheme.primary)
                 }
@@ -6159,7 +6166,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     BqLogo(64.dp)
                     Column(Modifier.weight(1f)) {
                         Text("AI Live Camera", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("AI sees the camera and responds by voice. No AI answer text is displayed.", style = MaterialTheme.typography.bodyMedium)
+                        Text(if (smartMode) "Smart Practice is text-only: questions and suggested answers appear on screen without AI speech." else "AI sees the camera and responds by voice. Turn on Smart Practice before starting for text-only answers.", style = MaterialTheme.typography.bodyMedium)
                     }
                     Icon(Icons.Default.Mic, contentDescription = "Voice active", tint = MaterialTheme.colorScheme.primary)
                 }
@@ -6329,7 +6336,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                         color = Color.Black.copy(alpha = 0.62f),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text(visibleAnswer.take(500), modifier = Modifier.padding(12.dp), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                        Text((if (smartMode) "SMART PRACTICE · " else "") + visibleAnswer.take(700), modifier = Modifier.padding(12.dp), color = Color.White, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -6615,6 +6622,9 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             }
         }
 
+        OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active, modifier = Modifier.fillMaxWidth()) {
+            Text(if (smartMode) "Smart Practice: ON · text only" else "Enable Smart Practice · text-only answers")
+        }
         Text(
             if (active) state.replaceFirstChar { it.uppercase() } else "Voice off",
             style = MaterialTheme.typography.titleMedium
@@ -6672,7 +6682,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
 
         if (active) {
             Text(
-                "Voice assistant is active. Speak naturally and BQ Sqwad AI will respond with audio.",
+                if (smartMode) "Smart Practice is active. Speak naturally; answers appear as text and the AI does not speak." else "Voice assistant is active. Speak naturally and BQ Sqwad AI will respond with audio.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium
@@ -6681,7 +6691,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
 
         if (liveUiState.answer.isNotBlank()) {
             SurfaceCard(
-                if (liveUiState.status == "error") "Voice error" else "Voice status",
+                if (liveUiState.status == "error") "Voice error" else if (smartMode) "Smart Practice answer" else "Voice status",
                 liveUiState.answer
             )
         }
