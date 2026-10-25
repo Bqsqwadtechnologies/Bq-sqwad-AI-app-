@@ -543,18 +543,27 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun writeState(active: Boolean, answer: String) {
-        val previousStatus = _uiState.value.status
+        val previous = _uiState.value
+        val previousStatus = previous.status
         val nextStatus = answer.ifBlank { if (active) "active" else "stopped" }
+        val statusOnlyUpdate = smartMode && answer.trim().lowercase() in setOf(
+            "active", "connecting", "configuring", "connected", "listening", "thinking",
+            "speaking", "stopping", "stopped", "live"
+        )
+        // Keep the latest text answer visible while the transport status changes.
+        val displayAnswer = if (statusOnlyUpdate && previous.answer.isNotBlank() &&
+            previous.answer.trim().lowercase() !in setOf("active", "connecting", "configuring", "connected", "listening", "thinking", "speaking", "stopping", "stopped", "live")
+        ) previous.answer else answer
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean("active", active)
             .putString("mode", mode)
-            .putString("answer", answer)
+            .putString("answer", displayAnswer)
             .apply()
-        _uiState.value = _uiState.value.copy(
+        _uiState.value = previous.copy(
             active = active,
             mode = mode,
             status = nextStatus,
-            answer = answer,
+            answer = displayAnswer,
             onlineBroadcast = !liveEndpoint.isNullOrBlank()
         )
         if (nextStatus != previousStatus && nextStatus.lowercase() in setOf(
