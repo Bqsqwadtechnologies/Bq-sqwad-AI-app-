@@ -5558,6 +5558,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var answer by remember { mutableStateOf("") }
     var lens by remember { mutableStateOf(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) }
     var screenActive by remember { mutableStateOf(false) }
+    var smartMode by remember { mutableStateOf(false) }
     var screenAnalyzing by remember { mutableStateOf(false) }
     var screenAnswer by remember { mutableStateOf("") }
     var screenPrompt by remember { mutableStateOf("What is happening on my screen?") }
@@ -5772,6 +5773,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                     .putExtra(LiveMediaForegroundService.EXTRA_HEIGHT, metrics.heightPixels)
                     .putExtra(LiveMediaForegroundService.EXTRA_DENSITY, metrics.densityDpi)
                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_SMART_MODE, smartMode)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, "")
             )
             screenActive = true
@@ -6539,6 +6541,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     var state by remember { mutableStateOf("stopped") }
     var startError by remember { mutableStateOf<String?>(null) }
     var permissionExplanation by remember { mutableStateOf(false) }
+    var smartMode by remember { mutableStateOf(false) }
 
     fun startVoice() {
         // Raise the media stream before opening the realtime session so remote
@@ -6556,6 +6559,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
                 Intent(context, LiveMediaForegroundService::class.java)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODE, LiveMediaForegroundService.MODE_VOICE)
                     .putExtra(LiveMediaForegroundService.EXTRA_VOICE, selectedVoice)
+                    .putExtra(LiveMediaForegroundService.EXTRA_SMART_MODE, smartMode)
                     .putExtra(LiveMediaForegroundService.EXTRA_MODEL_REGISTRY_ID, "")
             )
         }.onSuccess {
