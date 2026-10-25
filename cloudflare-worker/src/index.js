@@ -718,6 +718,57 @@ async function requireConsent(uid) {
   const consent = await firestoreGet("userConsents/" + uid);
   if (!consent || consent.requiredAccepted !== true) throw new Error("required_consent_missing");
 }
+/**
+ * Save a validated fact into the shared, owner-scoped aiMemories collection.
+ * Both website chat and Android chat use this exact store.
+ */
+async function saveSharedMemoryFact(uid, category, keyInput, valueInput, source = "assistant") {
+  const profile = await firestoreGet("users/" + uid).catch(() => null);
+  if (profile?.memoryEnabled !== true) return { enabled: false, saved: false, reason: "memory_disabled" };
+  const categories = new Set(["projects", "preferences", "goals", "instructions", "work", "learning", "user_correction", "other"]);
+  const safeCategory = categories.has(String(category || "")) ? String(category) : "other";
+  const key = String(keyInput || "").trim().slice(0, 120);
+  const value = String(valueInput || "").trim().slice(0, 1000);
+  if (!key || value.length < 8) return { enabled: true, saved: false, reason: "invalid_fact" };
+  if (/\b(password|passcode|one[- ]time code|otp|api key|access token|refresh token|private key|secret key|bank account|card number|cvv|pin)\b/i.test(key + " " + value)) {
+    return { enabled: true, saved: false, reason: "sensitive_content" };
+  }
+  const rows = await firestoreQuery("aiMemories", {
+    filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
+    limit: 500
+  }).catch(() => []);
+  const existing = rows.find(row =>
+    String(row.category || "other") === safeCategory &&
+    String(row.key || "").trim().toLowerCase() === key.toLowerCase()
+  );
+  if (!existing && rows.length >= 500) return { enabled: true, saved: false, reason: "memory_full" };
+  const id = String(existing?.id || crypto.randomUUID());
+  const now = new Date().toISOString();
+  await firestoreSet("aiMemories/" + id, {
+    id, ownerUid: uid, category: safeCategory, key, value,
+    source: source === "assistant" ? "assistant" : "user",
+    pinned: existing?.pinned === true,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  }, true);
+  return { enabled: true, saved: true, key, category: safeCategory };
+}
+
+/** Save explicit "remember this" requests before generating the answer. */
+async function persistExplicitMemory(uid, message) {
+  const raw = String(message || "");
+  const match = raw.match(/\b(?:remember|save this|keep this in memory|do not forget|don't forget)\b[\s:,-]*(.+)$/i);
+  if (!match) return { enabled: true, saved: false };
+  const value = String(match[1] || "").trim().replace(/^(?:that|this is)\s+/i, "").slice(0, 1000);
+  if (value.length < 8) return { enabled: true, saved: false };
+  const category = /\b(project|app|application|repository|repo|website|codebase|build)\b/i.test(value) ? "projects"
+    : /\b(prefer|preference|please always|please never|style)\b/i.test(value) ? "preferences"
+    : /\b(goal|plan to|aim to|want to achieve)\b/i.test(value) ? "goals"
+    : "other";
+  const key = (value.split(/[.!?\n:]/, 1)[0] || value).trim().slice(0, 120);
+  return saveSharedMemoryFact(uid, category, key, value, "user");
+}
+
 async function memoryContext(uid) {
   const [profile, legacy] = await Promise.all([
     firestoreGet("users/" + uid),
@@ -1362,7 +1413,7 @@ const COMPOSIO_TOOLKITS = new Set([
 ]);
 
 function isConnectorRelatedPrompt(message) {
-  return /\b(gmail|e-?mail|google drive|drive files?|calendar|meetings?|github|repositories|repos|pull requests?|issues|dropbox|notion|slack|trello|linear|figma|jira|airtable|outlook|onedrive|google docs?|google sheets?|spreadsheets?)\b/i.test(String(message || ""));
+  return /\b(gmail|e-?mail|google drive|drive files?|calendar|meetings?|github|repositories|repos|pull requests?|issues|dropbox|notion|slack|trello|linear|figma|jira|airtable|outlook|onedrive|google docs?|google sheets?|spreadsheets?|connected services?|connected connectors?|connected apps?|use my connector|use my connected|my cloud files?|my inbox|my email|my files|my repository|my repo)\b/i.test(String(message || ""));
 }
 
 function connectorToolSchema(raw) {
@@ -1422,20 +1473,26 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
 }
 
 async function runConnectorAwareOpenAI(env, user, control, message, system, maxOutputTokens) {
-  if (String(control?.providerId || "").toLowerCase() !== "openai" || !env?.OPENAI_API_KEY || !isConnectorRelatedPrompt(message)) return null;
-  let sessions;
-  try {
-    sessions = await firestoreQuery("composioSessions", {
-      filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
-      limit: 30
-    });
-  } catch {
-    return null;
+  if (String(control?.providerId || "").toLowerCase() !== "openai" || !env?.OPENAI_API_KEY) return null;
+  const memoryProfile = await firestoreGet("users/" + user.uid).catch(() => null);
+  const memoryEnabled = memoryProfile?.memoryEnabled === true;
+  const connectorIntent = isConnectorRelatedPrompt(message);
+  if (!connectorIntent && !memoryEnabled) return null;
+  let sessions = [];
+  if (connectorIntent) {
+    try {
+      sessions = await firestoreQuery("composioSessions", {
+        filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+        limit: 30
+      });
+    } catch {
+      sessions = [];
+    }
   }
   const owned = (Array.isArray(sessions) ? sessions : []).filter(item =>
     item && item.uid === user.uid && item.sessionId && COMPOSIO_TOOLKITS.has(String(item.toolkit || ""))
   ).slice(0, 18);
-  if (!owned.length) return null;
+  if (!owned.length && !memoryEnabled) return null;
   const connectedServiceEntries = await Promise.all(owned.map(async (session) => {
     const toolkit = String(session.toolkit || "");
     const permission = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
@@ -1481,6 +1538,24 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
       // One unavailable toolkit must not block other connected services.
     }
     if (toolDefs.length >= 35) break;
+  }
+  if (memoryEnabled && toolDefs.length < 35) {
+    toolDefs.push({
+      type: "function",
+      name: "remember_fact",
+      description: "Save a durable fact for future conversations, especially ongoing projects, project architecture, stable preferences, goals, and corrections. Use only when it is likely to help later. Never save credentials, payment details, or sensitive personal details. Do not save transient conversation details.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: { type: "string", enum: ["projects", "preferences", "goals", "instructions", "work", "learning", "user_correction", "other"] },
+          key: { type: "string", description: "Short stable label for the fact, for example BQ Sqwad AI project" },
+          value: { type: "string", description: "Concise durable fact to remember, up to 1000 characters" }
+        },
+        required: ["category", "key", "value"],
+        additionalProperties: false
+      }
+    });
+    toolMap.set("remember_fact", { memory: true });
   }
   if (!toolDefs.length) return null;
 
@@ -1534,7 +1609,9 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
       }
       let args = {};
       try { args = JSON.parse(String(call.arguments || "{}")); } catch {}
-      const result = await executeComposioTool(user.uid, binding.toolkit, binding.slug, args);
+      const result = binding.memory
+        ? await saveSharedMemoryFact(user.uid, args.category, args.key, args.value, "assistant").catch(() => ({ ok: false, saved: false, error: "memory_save_failed" }))
+        : await executeComposioTool(user.uid, binding.toolkit, binding.slug, args);
       input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify(result).slice(0, 10000) });
     }
   }
@@ -1616,7 +1693,16 @@ async function ai(request, user, body) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const memory = await memoryContext(user.uid);
-  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+  const memoryEnabledForTurn = (await firestoreGet("users/" + user.uid).catch(() => null))?.memoryEnabled === true;
+  const memorySaveResult = await persistExplicitMemory(user.uid, userMessage).catch(() => ({ enabled: memoryEnabledForTurn, saved: false }));
+  const memoryInstruction = memorySaveResult.saved
+    ? "The user explicitly requested a fact to be remembered and it was saved successfully to shared long-term memory. You may confirm it briefly."
+    : !memoryEnabledForTurn
+      ? "LONG-TERM MEMORY IS OFF. Do not claim to have saved anything to long-term memory; tell the user memory must be enabled in Settings first."
+      : memorySaveResult.reason === "sensitive_content"
+        ? "The requested memory was not saved because it contained sensitive credentials or payment details. Never claim it was saved."
+        : "Long-term memory is enabled. If the user shares a durable project fact, stable preference, goal, or correction that will help in future chats, call remember_fact. Never store credentials, payment details, or sensitive personal details; do not save every transient message.";
+  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memoryInstruction, memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
@@ -1640,6 +1726,7 @@ async function ai(request, user, body) {
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+
     let creditsCharged = Number(reservation.amount || 0);
     let usageSummary = null;
     if (tokenBilling) {
@@ -1679,6 +1766,7 @@ async function ai(request, user, body) {
     }
     const responseBody = {
       text: result.text.trim(), providerId: result.providerId, modelId: result.modelId,
+      ...(memorySaveResult.saved ? { memorySaved: true } : {}),
       creditsCharged, ...(usageSummary ? { tokenUsage: usageSummary } : {}),
       incidentId: crypto.randomUUID()
     };
