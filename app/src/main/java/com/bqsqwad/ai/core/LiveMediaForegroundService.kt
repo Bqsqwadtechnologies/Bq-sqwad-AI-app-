@@ -19,6 +19,7 @@ data class LiveMediaUiState(
     val mode: String = "",
     val status: String = "stopped",
     val answer: String = "",
+    val smartMode: Boolean = false,
     val audioLevel: Float = 0f,
     val microphoneLevel: Float = 0f,
     val outputAudioLevel: Float = 0f,
@@ -80,6 +81,28 @@ class LiveMediaForegroundService : Service() {
     private var voice = "marin"
     private var smartMode = false
     private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_user_" + (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"), Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
+
+    private fun switchSmartMode(enabled: Boolean) {
+        if (smartMode == enabled) return
+        smartMode = enabled
+        serviceScope.launch {
+            if (mode == MODE_VOICE) {
+                val previous = realtimeVoice
+                realtimeVoice = null
+                previous?.stop()
+                delay(250L)
+                startVoice()
+            } else {
+                val previous = visualVoice
+                visualVoice = null
+                visualVoiceReady.set(false)
+                previous?.stop()
+                delay(250L)
+                runCatching { startVisualVoice() }
+                    .onFailure { writeError("Smart Practice could not switch modes. Please restart the live session."); stopSelf() }
+            }
+        }
+    }
     private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
@@ -212,6 +235,7 @@ class LiveMediaForegroundService : Service() {
                         allowWebSearch = webSearchEnabledForAccount(),
                         silentTextMode = smartMode,
                         onEndSessionCommand = { stopSelf() },
+                        onSmartModeCommand = { enabled -> switchSmartMode(enabled) },
                         onState = { state ->
                             writeState(true, state)
                             if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -285,6 +309,7 @@ class LiveMediaForegroundService : Service() {
                 allowWebSearch = webSearchEnabledForAccount(),
                 silentTextMode = smartMode,
                 onEndSessionCommand = { stopSelf() },
+                onSmartModeCommand = { enabled -> switchSmartMode(enabled) },
                 onState = { state ->
                     writeState(true, state)
                     if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -564,6 +589,7 @@ class LiveMediaForegroundService : Service() {
             mode = mode,
             status = nextStatus,
             answer = displayAnswer,
+            smartMode = smartMode,
             onlineBroadcast = !liveEndpoint.isNullOrBlank()
         )
         if (nextStatus != previousStatus && nextStatus.lowercase() in setOf(
@@ -663,7 +689,7 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", friendly)
             .apply()
-        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, audioLevel = 0f, microphoneLevel = 0f, outputAudioLevel = 0f, onlineBroadcast = false)
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, smartMode = smartMode, audioLevel = 0f, microphoneLevel = 0f, outputAudioLevel = 0f, onlineBroadcast = false)
         appendLog("BQ Sqwad AI status: $friendly")
     }
 
