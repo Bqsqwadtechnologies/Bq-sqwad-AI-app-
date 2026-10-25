@@ -53,7 +53,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     const bytes=new Uint8Array(binary.length);
     for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
     const form=new FormData();
-    form.append("model",String(b.model||"gpt-image-2"));
+    form.append("model",String(b.model||"gpt-image-2.5-sunburst"));
     form.append("prompt",prompt);
     form.append("size","1024x1024");
     form.append("quality","medium");
@@ -64,9 +64,9 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     validateGeneratedImageBase64(x.b64_json);
     const id=crypto.randomUUID();
     const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:String(b.model||"gpt-image-2"),status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:String(b.model||"gpt-image-2.5-sunburst"),status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
     await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:String(b.model||"gpt-image-2"),imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
+    return {providerId:"openai",modelId:String(b.model||"gpt-image-2.5-sunburst"),imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
 export async function createVideoNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){const prompt=String(b.prompt||"").trim().slice(0,12000);if(!prompt)throw new Error("video_prompt_required");const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"video_generation",user);try{const form=new FormData();form.append("model",String(b.model||"sora-2"));form.append("prompt",prompt);if(b.seconds)form.append("seconds",String(b.seconds));if(b.size)form.append("size",String(b.size));const z=await openai(env,"/videos",{method:"POST",body:form}),id=crypto.randomUUID();await firestoreCreate("videoGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",providerVideoId:String(z.id||""),modelId:String(z.model||b.model||"sora-2"),status:String(z.status||"queued"),progress:Number(z.progress||0),prompt,seconds:String(z.seconds||b.seconds||""),size:String(z.size||b.size||""),createdAt:new Date(),updatedAt:new Date()});await commit(user.uid,reservation.reservationId,"openai");return {jobId:id,providerVideoId:z.id,status:z.status,progress:Number(z.progress||0),modelId:z.model||b.model||"sora-2",creditsCharged:reservation.amount}}catch(e){await reverse(user.uid,reservation.reservationId);throw e}}
