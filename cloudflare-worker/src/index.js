@@ -1657,9 +1657,14 @@ async function ai(request, user, body) {
   }
   const memory = await memoryContext(user.uid);
   const memoryEnabledForTurn = (await firestoreGet("users/" + user.uid).catch(() => null))?.memoryEnabled === true;
-  const memoryInstruction = memoryEnabledForTurn
-    ? "LONG-TERM MEMORY IS ENABLED. If the user explicitly asks you to remember a lasting fact or project detail, you may acknowledge it; the request will be saved to the shared memory store after this turn unless it contains sensitive credentials."
-    : "LONG-TERM MEMORY IS OFF. Do not claim to have saved anything to long-term memory; tell the user memory must be enabled in Settings first.";
+  const memorySaveResult = await persistExplicitMemory(user.uid, userMessage).catch(() => ({ enabled: memoryEnabledForTurn, saved: false }));
+  const memoryInstruction = memorySaveResult.saved
+    ? "The user's explicit request to remember a lasting fact was saved successfully to shared long-term memory. You may confirm it briefly."
+    : !memoryEnabledForTurn
+      ? "LONG-TERM MEMORY IS OFF. Do not claim to have saved anything to long-term memory; tell the user memory must be enabled in Settings first."
+      : memorySaveResult.reason === "sensitive_content"
+        ? "The requested memory was not saved because it contained sensitive credentials or payment details. Never claim it was saved."
+        : "No new long-term memory was saved during this turn. Do not claim that a new fact was saved.";
   const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memoryInstruction, memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
@@ -1684,7 +1689,7 @@ async function ai(request, user, body) {
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
-    const memorySaveResult = await persistExplicitMemory(user.uid, userMessage).catch(() => ({ enabled: memoryEnabledForTurn, saved: false }));
+
     let creditsCharged = Number(reservation.amount || 0);
     let usageSummary = null;
     if (tokenBilling) {
