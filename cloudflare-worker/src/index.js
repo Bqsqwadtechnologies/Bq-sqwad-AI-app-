@@ -742,7 +742,7 @@ async function persistExplicitMemory(uid, message) {
   if (!key) return { enabled: true, saved: false };
   const rows = await firestoreQuery("aiMemories", {
     filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
-    limit: 100
+    limit: 500
   }).catch(() => []);
   const existing = rows.find(row => String(row.key || "").trim().toLowerCase() === key.toLowerCase());
   if (!existing && rows.length >= 500) return { enabled: true, saved: false, reason: "memory_full" };
