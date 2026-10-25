@@ -481,7 +481,6 @@ object BqLifecycleNotifications {
             val notification = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(smallIcon)
                 .setLargeIcon(largeLogo ?: BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
-                .setColor(android.graphics.Color.rgb(39, 112, 235))
                 .setContentTitle("BQ Sqwad AI")
                 .setContentText("$title · $body")
                 .setStyle(NotificationCompat.BigTextStyle().bigText("$title · $body"))
