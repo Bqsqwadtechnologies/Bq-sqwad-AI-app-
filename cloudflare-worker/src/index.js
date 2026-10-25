@@ -3935,7 +3935,7 @@ export default {
         if (!title || !content) return json({ error: "pdf_content_required" }, 400);
         let reservation = null;
         try {
-          reservation = await chargeCredits(u.uid, 0.5, "pdf", u);
+          reservation = await chargeCredits(u.uid, 2, "pdf", u);
           await commitCredits(u.uid, reservation.reservationId, "pdf");
           return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0.5)) });
         } catch (error) {
@@ -3954,10 +3954,10 @@ export default {
         }
         body.model = control.modelId || "gpt-image-2";
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        body.creditCost = 1;
         const result = await generateImageNative(
           env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id),
           body.creditCost
@@ -3977,10 +3977,10 @@ export default {
         }
         body.model = control.modelId || "gpt-image-2";
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        body.creditCost = 0.5;
         const result = await editImageNative(
           env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id),
           body.creditCost
