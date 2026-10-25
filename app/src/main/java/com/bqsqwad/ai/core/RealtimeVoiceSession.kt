@@ -21,6 +21,7 @@ class RealtimeVoiceSession(
     private val allowWebSearch: Boolean = true,
     private val silentTextMode: Boolean = false,
     private val onEndSessionCommand: () -> Unit = {},
+    private val onSmartModeCommand: (Boolean) -> Unit = {},
     private val onState: (String) -> Unit,
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
@@ -136,11 +137,11 @@ class RealtimeVoiceSession(
                 put("type", "realtime")
                 put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))
                 put("instructions", if (silentTextMode) {
-                    "You are BQ Sqwad AI Smart Practice for mock interviews, practice conversations, accessibility, and permitted open-resource work. Return concise, readable text only and never generate spoken audio. Use camera or screen frames as context for the user's question. Use numbered items for multiple questions. When a request conflicts with formal assessment rules, offer practice or explanatory help instead. If the user asks to stop or end the session, call end_live_session immediately."
+                    "You are BQ Sqwad AI Smart Practice for mock interviews, practice conversations, accessibility, and permitted open-resource work. Return concise, readable text only and never generate spoken audio. Use camera or screen frames as context for the user's question. Use numbered items for multiple questions. When a request conflicts with formal assessment rules, offer practice or explanatory help instead. If the user asks to stop or end the session, call end_live_session immediately. If the user asks to enable Smart Practice or silent text mode, call set_smart_mode with enabled=true; if the user asks to return to normal spoken mode, call set_smart_mode with enabled=false."
                 } else if (allowWebSearch) {
                     "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. For current facts, latest news, current prices, sports schedules/scores, or current office holders, call search_web and answer from its sources. If the tool fails or returns no sources, clearly say Web Search is unavailable right now. Do not claim you cannot access live results when search_web is available. Do not invent citations. Speak naturally. If the user asks to stop or end the session, call end_live_session immediately."
                 } else {
-                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. If the user asks for current facts, explain that Web Search is turned off and that the answer may not be current. Speak naturally. If the user asks to stop or end the session, call end_live_session immediately."
+                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. If the user asks for current facts, explain that Web Search is turned off and that the answer may not be current. Speak naturally. If the user asks to stop or end the session, call end_live_session immediately. If the user asks to enable Smart Practice or silent text mode, call set_smart_mode with enabled=true; if the user asks to return to normal spoken mode, call set_smart_mode with enabled=false."
                 })
                 put("tools", org.json.JSONArray().apply {
                     put(JSONObject().apply {
@@ -150,6 +151,17 @@ class RealtimeVoiceSession(
                         put("parameters", JSONObject().apply {
                             put("type", "object")
                             put("properties", JSONObject())
+                            put("additionalProperties", false)
+                        })
+                    })
+                    put(JSONObject().apply {
+                        put("type", "function")
+                        put("name", "set_smart_mode")
+                        put("description", "Switch between Smart Practice text-only answers and normal spoken answers when the user explicitly asks.")
+                        put("parameters", JSONObject().apply {
+                            put("type", "object")
+                            put("properties", JSONObject().put("enabled", JSONObject().put("type", "boolean").put("description", "True for Smart Practice text-only output; false for normal spoken output.")))
+                            put("required", org.json.JSONArray().put("enabled"))
                             put("additionalProperties", false)
                         })
                     })
@@ -339,6 +351,12 @@ class RealtimeVoiceSession(
             "response.function_call_arguments.done" -> {
                 if (event.optString("name") == "end_live_session") {
                     onEndSessionCommand()
+                    stopInternal()
+                    return
+                }
+                if (event.optString("name") == "set_smart_mode") {
+                    val enabled = runCatching { JSONObject(event.optString("arguments")).optBoolean("enabled", false) }.getOrDefault(false)
+                    onSmartModeCommand(enabled)
                     stopInternal()
                     return
                 }
