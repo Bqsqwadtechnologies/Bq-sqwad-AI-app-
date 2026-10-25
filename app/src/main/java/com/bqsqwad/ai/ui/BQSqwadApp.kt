@@ -6444,13 +6444,6 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         )
     }
 
-    if (active && smartMode) {
-        SmartPracticeFloatingPanel(
-            title = "Smart Practice",
-            transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
-            answer = liveUiState.answer
-        )
-    }
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
@@ -6723,6 +6716,13 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
         }
     }
 
+    if (active && smartMode) {
+        SmartPracticeFloatingPanel(
+            title = "Smart Practice",
+            transcript = liveUiState.log.takeLast(1).firstOrNull().orEmpty(),
+            answer = liveUiState.answer
+        )
+    }
     if (permissionExplanation) {
         AlertDialog(
             onDismissRequest = { permissionExplanation = false },
