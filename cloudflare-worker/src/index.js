@@ -2483,7 +2483,7 @@ export default {
         const receiptPath = "mainChatPdfCharges/" + user.uid + "_" + requestId;
         const existing = await firestoreGet(receiptPath);
         if (existing?.status === "charged" && String(existing.uid || "") === user.uid) {
-          return json({ ok: true, alreadyCharged: true, creditsCharged: Number(existing.creditsCharged || 0.5) });
+          return json({ ok: true, alreadyCharged: true, creditsCharged: Number(existing.creditsCharged || 2) });
         }
         if (existing?.status === "pending") return json({ error: "pdf_charge_in_progress" }, 409);
         try {
@@ -2491,13 +2491,13 @@ export default {
         } catch {
           const concurrent = await firestoreGet(receiptPath);
           if (concurrent?.status === "charged" && String(concurrent.uid || "") === user.uid) {
-            return json({ ok: true, alreadyCharged: true, creditsCharged: Number(concurrent.creditsCharged || 0.5) });
+            return json({ ok: true, alreadyCharged: true, creditsCharged: Number(concurrent.creditsCharged || 2) });
           }
           return json({ error: "pdf_charge_in_progress" }, 409);
         }
         let reservation = null;
         try {
-          reservation = await chargeCredits(user.uid, 0.5, "pdf", user);
+          reservation = await chargeCredits(user.uid, 2, "pdf", user);
           await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, {
