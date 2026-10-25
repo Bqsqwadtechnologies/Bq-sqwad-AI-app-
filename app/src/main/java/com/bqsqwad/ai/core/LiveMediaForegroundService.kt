@@ -39,6 +39,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_RIGHTS_ID = "rights_id"
         const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
         const val EXTRA_VOICE = "voice"
+        const val EXTRA_SMART_MODE = "smart_mode"
         const val EXTRA_MODEL_REGISTRY_ID = "model_registry_id"
         const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
         const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
@@ -77,6 +78,7 @@ class LiveMediaForegroundService : Service() {
     private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
+    private var smartMode = false
     private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_user_" + (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"), Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
     private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
@@ -106,6 +108,7 @@ class LiveMediaForegroundService : Service() {
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
         voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
+        smartMode = intent?.getBooleanExtra(EXTRA_SMART_MODE, smartMode) ?: smartMode
         modelRegistryId = intent?.getStringExtra(EXTRA_MODEL_REGISTRY_ID)?.trim()?.takeIf { it.isNotBlank() }
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
@@ -207,6 +210,8 @@ class LiveMediaForegroundService : Service() {
                         model = model,
                         voice = sessionVoice,
                         allowWebSearch = webSearchEnabledForAccount(),
+                        silentTextMode = smartMode,
+                        onEndSessionCommand = { stopSelf() },
                         onState = { state ->
                             writeState(true, state)
                             if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -278,6 +283,8 @@ class LiveMediaForegroundService : Service() {
                 model = model,
                 voice = sessionVoice,
                 allowWebSearch = webSearchEnabledForAccount(),
+                silentTextMode = smartMode,
+                onEndSessionCommand = { stopSelf() },
                 onState = { state ->
                     writeState(true, state)
                     if (state.lowercase() in setOf("connected", "listening", "speaking")) {
