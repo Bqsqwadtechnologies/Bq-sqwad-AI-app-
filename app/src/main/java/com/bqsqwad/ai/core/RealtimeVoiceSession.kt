@@ -370,7 +370,7 @@ class RealtimeVoiceSession(
                                     })
                                 }.toString())
                                 if (outputSent) {
-                                    ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().put("output_modalities", org.json.JSONArray().put("audio"))).toString())
+                                    ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))).toString())
                                 } else {
                                     onError("Web Search results could not be returned to the live session.")
                                 }
