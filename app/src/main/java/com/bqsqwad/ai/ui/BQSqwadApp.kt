@@ -224,6 +224,48 @@ private fun accountPreferences(context: Context, baseName: String = "bq_sqwad_us
     return context.getSharedPreferences(baseName + "_" + uid, Context.MODE_PRIVATE)
 }
 
+/**
+ * Shared Live Voice/Live Camera voice preference backed by the website-owned
+ * profile. Local preferences provide instant startup and offline fallback.
+ */
+@Composable
+private fun rememberSyncedLiveVoice(): MutableState<String> {
+    val context = LocalContext.current
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+    val prefs = remember(userId) { accountPreferences(context, "bq_live_voice") }
+    val selectedVoice = remember(userId) {
+        mutableStateOf(prefs.getString("voiceId", "marin")?.takeIf { it.isNotBlank() } ?: "marin")
+    }
+    var remoteLoaded by remember(userId) { mutableStateOf(false) }
+
+    LaunchedEffect(userId) {
+        if (userId != "guest") {
+            runCatching {
+                val response = SettingsSyncClient.load()
+                response.optJSONObject("settings")
+                    ?.optString("voiceId")
+                    ?.takeIf { it.isNotBlank() && it.length <= 64 }
+                    ?.let { remoteVoice ->
+                        selectedVoice.value = remoteVoice
+                        prefs.edit().putString("voiceId", remoteVoice).apply()
+                    }
+            }
+        }
+        remoteLoaded = true
+    }
+
+    LaunchedEffect(userId, selectedVoice.value, remoteLoaded) {
+        if (!remoteLoaded) return@LaunchedEffect
+        prefs.edit().putString("voiceId", selectedVoice.value).apply()
+        if (userId != "guest") {
+            runCatching {
+                SettingsSyncClient.save(JSONObject().put("voiceId", selectedVoice.value))
+            }
+        }
+    }
+    return selectedVoice
+}
+
 private fun performSignOut(context: Context, onReset: () -> Unit = {}) {
     val auth = FirebaseAuth.getInstance()
     val uid = auth.currentUser?.uid
@@ -5569,7 +5611,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     }
     var showLiveTerms by remember { mutableStateOf(false) }
     var pendingLiveAction by remember { mutableStateOf("camera") }
-    var selectedVoice by remember { mutableStateOf("marin") }
+    var selectedVoice by rememberSyncedLiveVoice()
     var flashlightOn by remember { mutableStateOf(false) }
     val cameraLog = remember { mutableStateListOf<String>() }
     val cameraLogState = rememberLazyListState()
@@ -6485,7 +6527,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     var voiceVolume by remember {
         mutableStateOf((voiceAudioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / voiceAudioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)).coerceIn(0f, 1f))
     }
-    var selectedVoice by remember { mutableStateOf("marin") }
+    var selectedVoice by rememberSyncedLiveVoice()
     var voicePickerExpanded by remember { mutableStateOf(false) }
     val availableLiveVoices = listOf("marin" to "Aurora", "cedar" to "Cedar", "alloy" to "Clarity", "ash" to "Ember", "ballad" to "Velvet", "coral" to "Coral", "echo" to "Echo", "sage" to "Sage", "shimmer" to "Shimmer", "verse" to "Verse")
     fun setVoiceVolume(value: Float) {
