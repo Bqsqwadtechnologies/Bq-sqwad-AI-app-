@@ -459,15 +459,18 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
         val scope = rememberCoroutineScope()
         OutlinedButton(
             onClick = {
+                android.util.Log.i("BQAuth", "Google sign-in button tapped")
                 busy = true
                 error = null
                 notice = null
                 scope.launch {
                     try {
                         withTimeout(15000) { performGoogleSignIn(context, auth) }
+                        android.util.Log.i("BQAuth", "Google sign-in completed")
                         notice = "Google sign-in successful."
                         onAuthenticated()
                     } catch (t: Throwable) {
+                        android.util.Log.e("BQAuth", "Google sign-in failed: ${t.javaClass.simpleName}", t)
                         error = friendlyGoogleAuthError(t).takeIf { it.isNotBlank() }
                     } finally {
                         busy = false
@@ -577,13 +580,16 @@ private fun SignUpScreen(onBackToSignIn: () -> Unit, onAuthenticated: () -> Unit
 
         OutlinedButton(
             onClick = {
+                android.util.Log.i("BQAuth", "Google sign-up button tapped")
                 busy = true
                 error = null
                 googleScope.launch {
                     try {
                         performGoogleSignIn(context, auth)
+                        android.util.Log.i("BQAuth", "Google sign-up completed")
                         onAuthenticated()
                     } catch (t: Throwable) {
+                        android.util.Log.e("BQAuth", "Google sign-up failed: ${t.javaClass.simpleName}", t)
                         error = friendlyGoogleAuthError(t)
                     } finally {
                         busy = false
