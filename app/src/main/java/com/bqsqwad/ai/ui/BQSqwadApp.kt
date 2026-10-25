@@ -6923,7 +6923,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(connector.description)
                     Text("Secure account connection", fontWeight = FontWeight.SemiBold)
-                    Text("Continue to the provider authorization page to choose what BQ Sqwad AI may access. You can cancel there at any time.")
+                    Text("Composio securely provides the hosted authorization handoff, so the sign-in page may show Composio branding. You are authorizing your selected account for use by BQ Sqwad AI; you can review the provider's permissions or cancel at any time.")
                     if (connectorStatus != null && connector.name !in setOf("Local device", "Bluetooth devices") && connectorToolkit(connector.name) != "unsupported") {
                         Text("Permission for this connector", fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
