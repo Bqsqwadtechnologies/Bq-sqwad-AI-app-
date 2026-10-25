@@ -3959,7 +3959,7 @@ export default {
         const account = await firestoreGet("users/" + u.uid);
         const createdAtRaw = account?.createdAt;
         const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
-        const isNewAccount = Number.isFinite(createdAt) && Date.now() - createdAt >= 0 && Date.now() - createdAt <= 24 * 60 * 60 * 1000;
+        const isNewAccount = Number.isFinite(createdAt) && createdAt >= Date.parse("2026-10-25T00:00:00.000Z") && Date.now() >= createdAt;
         const claimId = crypto.randomUUID();
         let freeImage = false;
         if (isNewAccount) {
