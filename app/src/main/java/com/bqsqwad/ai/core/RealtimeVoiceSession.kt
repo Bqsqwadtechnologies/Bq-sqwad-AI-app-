@@ -19,6 +19,9 @@ class RealtimeVoiceSession(
     private val model: String,
     private val voice: String = "marin",
     private val allowWebSearch: Boolean = true,
+    private val silentTextMode: Boolean = false,
+    private val onEndSessionCommand: () -> Unit = {},
+    private val onSmartModeCommand: (Boolean) -> Unit = {},
     private val onState: (String) -> Unit,
     private val onError: (String) -> Unit,
     private val onAudioLevel: (Float) -> Unit = {},
@@ -132,12 +135,36 @@ class RealtimeVoiceSession(
             put("type", "session.update")
             put("session", JSONObject().apply {
                 put("type", "realtime")
-                put("instructions", if (allowWebSearch) {
-                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. For current facts, latest news, current prices, sports schedules/scores, or current office holders, call search_web and answer from its sources. If the tool fails or returns no sources, clearly say Web Search is unavailable right now. Do not claim you cannot access live results when search_web is available. Do not invent citations. Respond with voice audio only."
+                put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))
+                put("instructions", if (silentTextMode) {
+                    "You are BQ Sqwad AI Smart Practice for mock interviews, practice conversations, accessibility, and permitted open-resource work. Return concise, readable text only and never generate spoken audio. Use camera or screen frames as context for the user's question. Use numbered items for multiple questions. When a request conflicts with formal assessment rules, offer practice or explanatory help instead. If the user asks to stop or end the session, call end_live_session immediately. If the user asks to enable Smart Practice or silent text mode, call set_smart_mode with enabled=true; if the user asks to return to normal spoken mode, call set_smart_mode with enabled=false."
+                } else if (allowWebSearch) {
+                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. For current facts, latest news, current prices, sports schedules/scores, or current office holders, call search_web and answer from its sources. If the tool fails or returns no sources, clearly say Web Search is unavailable right now. Do not claim you cannot access live results when search_web is available. Do not invent citations. Speak naturally. If the user asks to stop or end the session, call end_live_session immediately. If the user asks to enable Smart Practice or silent text mode, call set_smart_mode with enabled=true; if the user asks to return to normal spoken mode, call set_smart_mode with enabled=false."
                 } else {
-                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. If the user asks for current facts, explain that Web Search is turned off and that the answer may not be current. Respond with voice audio only."
+                    "You are BQ Sqwad AI. Have a natural, helpful, concise voice conversation. When a live camera or screen image is supplied, use it as visual context. If the user asks for current facts, explain that Web Search is turned off and that the answer may not be current. Speak naturally. If the user asks to stop or end the session, call end_live_session immediately. If the user asks to enable Smart Practice or silent text mode, call set_smart_mode with enabled=true; if the user asks to return to normal spoken mode, call set_smart_mode with enabled=false."
                 })
                 put("tools", org.json.JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("type", "function")
+                        put("name", "end_live_session")
+                        put("description", "End the active live session when the user asks to stop, end, disconnect, or close it.")
+                        put("parameters", JSONObject().apply {
+                            put("type", "object")
+                            put("properties", JSONObject())
+                            put("additionalProperties", false)
+                        })
+                    })
+                    put(JSONObject().apply {
+                        put("type", "function")
+                        put("name", "set_smart_mode")
+                        put("description", "Switch between Smart Practice text-only answers and normal spoken answers when the user explicitly asks.")
+                        put("parameters", JSONObject().apply {
+                            put("type", "object")
+                            put("properties", JSONObject().put("enabled", JSONObject().put("type", "boolean").put("description", "True for Smart Practice text-only output; false for normal spoken output.")))
+                            put("required", org.json.JSONArray().put("enabled"))
+                            put("additionalProperties", false)
+                        })
+                    })
                     if (allowWebSearch) put(JSONObject().apply {
                         put("type", "function")
                         put("name", "search_web")
@@ -150,11 +177,11 @@ class RealtimeVoiceSession(
                         })
                     })
                 })
-                put("tool_choice", if (allowWebSearch) "auto" else "none")
+                put("tool_choice", "auto")
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
-                        put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
+                        if (silentTextMode) put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
@@ -191,7 +218,7 @@ class RealtimeVoiceSession(
                 put("type", "message")
                 put("role", "user")
                 put("content", org.json.JSONArray()
-                    .put(JSONObject().put("type", "input_text").put("text", "Analyze this latest live camera or screen frame. Use it as visual context for the user's ongoing conversation; mention important visible details or changes without repeating unchanged observations."))
+                    .put(JSONObject().put("type", "input_text").put("text", if (silentTextMode) "Smart Practice: inspect this current camera or screen frame for a visible question or task and provide a concise, readable answer. If several numbered questions are visible, answer each visible question with matching numbers. Do not narrate the screen when no question or task is visible; wait for the user to ask or scroll to the next part." else "Analyze this latest live camera or screen frame. Use it as visual context for the user's ongoing conversation; mention important visible details or changes without repeating unchanged observations."))
                     .put(JSONObject().apply {
                         put("type", "input_image")
                         put("image_url", "data:image/jpeg;base64," + encoded)
@@ -200,7 +227,7 @@ class RealtimeVoiceSession(
             })
         }.toString())
         val responseSent = itemSent && ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
-            put("output_modalities", org.json.JSONArray().put("audio"))
+            put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))
         }).toString())
         if (!responseSent) responseInProgress.set(false)
     }
@@ -277,6 +304,17 @@ class RealtimeVoiceSession(
                     }
                 }
             }
+            "response.output_text.delta", "response.text.delta" -> {
+                val delta = event.optString("delta")
+                if (delta.isNotBlank()) outputTranscript.append(delta)
+            }
+            "response.output_text.done", "response.text.done" -> {
+                val transcript = event.optString("text").trim().ifBlank { outputTranscript.toString().trim() }
+                if (transcript.isNotBlank()) {
+                    outputTranscript.setLength(0)
+                    onTranscript("BQ Sqwad AI", transcript)
+                }
+            }
             "response.output_audio_transcript.delta", "response.audio_transcript.delta" -> {
                 val delta = event.optString("delta")
                 if (delta.isNotBlank()) {
@@ -311,6 +349,17 @@ class RealtimeVoiceSession(
                 }
             }
             "response.function_call_arguments.done" -> {
+                if (event.optString("name") == "end_live_session") {
+                    onEndSessionCommand()
+                    stopInternal()
+                    return
+                }
+                if (event.optString("name") == "set_smart_mode") {
+                    val enabled = runCatching { JSONObject(event.optString("arguments")).optBoolean("enabled", false) }.getOrDefault(false)
+                    onSmartModeCommand(enabled)
+                    stopInternal()
+                    return
+                }
                 if (allowWebSearch && event.optString("name") == "search_web") {
                     val callId = event.optString("call_id")
                     val query = runCatching { JSONObject(event.optString("arguments")).optString("query").trim() }.getOrDefault("")
@@ -339,7 +388,7 @@ class RealtimeVoiceSession(
                                     })
                                 }.toString())
                                 if (outputSent) {
-                                    ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().put("output_modalities", org.json.JSONArray().put("audio"))).toString())
+                                    ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))).toString())
                                 } else {
                                     onError("Web Search results could not be returned to the live session.")
                                 }

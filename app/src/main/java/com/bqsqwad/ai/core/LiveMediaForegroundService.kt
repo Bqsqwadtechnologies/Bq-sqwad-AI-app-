@@ -19,6 +19,7 @@ data class LiveMediaUiState(
     val mode: String = "",
     val status: String = "stopped",
     val answer: String = "",
+    val smartMode: Boolean = false,
     val audioLevel: Float = 0f,
     val microphoneLevel: Float = 0f,
     val outputAudioLevel: Float = 0f,
@@ -39,6 +40,7 @@ class LiveMediaForegroundService : Service() {
         const val EXTRA_RIGHTS_ID = "rights_id"
         const val EXTRA_LIVE_ENDPOINT = "live_endpoint"
         const val EXTRA_VOICE = "voice"
+        const val EXTRA_SMART_MODE = "smart_mode"
         const val EXTRA_MODEL_REGISTRY_ID = "model_registry_id"
         const val EXTRA_YOUTUBE_ACCOUNT_ID = "youtube_account_id"
         const val EXTRA_YOUTUBE_BROADCAST_ID = "youtube_broadcast_id"
@@ -77,7 +79,30 @@ class LiveMediaForegroundService : Service() {
     private var organizationLiveMode = "host_only"
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
+    private var smartMode = false
     private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_user_" + (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"), Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
+
+    private fun switchSmartMode(enabled: Boolean) {
+        if (smartMode == enabled) return
+        smartMode = enabled
+        serviceScope.launch {
+            if (mode == MODE_VOICE) {
+                val previous = realtimeVoice
+                realtimeVoice = null
+                previous?.stop()
+                delay(250L)
+                startVoice()
+            } else {
+                val previous = visualVoice
+                visualVoice = null
+                visualVoiceReady.set(false)
+                previous?.stop()
+                delay(250L)
+                runCatching { startVisualVoice() }
+                    .onFailure { writeError("Smart Practice could not switch modes. Please restart the live session."); stopSelf() }
+            }
+        }
+    }
     private var modelRegistryId: String? = null
     private var organizationBillingJob: Job? = null
     private var realtimeBillingJob: Job? = null
@@ -106,6 +131,7 @@ class LiveMediaForegroundService : Service() {
         rightsId = intent?.getStringExtra(EXTRA_RIGHTS_ID)?.trim()?.takeIf { it.isNotBlank() } ?: rightsId
         liveEndpoint = intent?.getStringExtra(EXTRA_LIVE_ENDPOINT)?.trim()?.takeIf { it.isNotBlank() } ?: liveEndpoint
         voice = intent?.getStringExtra(EXTRA_VOICE)?.trim()?.takeIf { it.isNotBlank() } ?: voice
+        smartMode = intent?.getBooleanExtra(EXTRA_SMART_MODE, smartMode) ?: smartMode
         modelRegistryId = intent?.getStringExtra(EXTRA_MODEL_REGISTRY_ID)?.trim()?.takeIf { it.isNotBlank() }
         youtubeAccountId = intent?.getStringExtra(EXTRA_YOUTUBE_ACCOUNT_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeAccountId
         youtubeBroadcastId = intent?.getStringExtra(EXTRA_YOUTUBE_BROADCAST_ID)?.trim()?.takeIf { it.isNotBlank() } ?: youtubeBroadcastId
@@ -207,6 +233,9 @@ class LiveMediaForegroundService : Service() {
                         model = model,
                         voice = sessionVoice,
                         allowWebSearch = webSearchEnabledForAccount(),
+                        silentTextMode = smartMode,
+                        onEndSessionCommand = { stopSelf() },
+                        onSmartModeCommand = { enabled -> switchSmartMode(enabled) },
                         onState = { state ->
                             writeState(true, state)
                             if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -278,6 +307,9 @@ class LiveMediaForegroundService : Service() {
                 model = model,
                 voice = sessionVoice,
                 allowWebSearch = webSearchEnabledForAccount(),
+                silentTextMode = smartMode,
+                onEndSessionCommand = { stopSelf() },
+                onSmartModeCommand = { enabled -> switchSmartMode(enabled) },
                 onState = { state ->
                     writeState(true, state)
                     if (state.lowercase() in setOf("connected", "listening", "speaking")) {
@@ -536,18 +568,28 @@ class LiveMediaForegroundService : Service() {
     }
 
     private fun writeState(active: Boolean, answer: String) {
-        val previousStatus = _uiState.value.status
+        val previous = _uiState.value
+        val previousStatus = previous.status
         val nextStatus = answer.ifBlank { if (active) "active" else "stopped" }
+        val statusOnlyUpdate = smartMode && answer.trim().lowercase() in setOf(
+            "active", "connecting", "configuring", "connected", "listening", "thinking",
+            "speaking", "stopping", "stopped", "live"
+        )
+        // Keep the latest text answer visible while the transport status changes.
+        val displayAnswer = if (statusOnlyUpdate && previous.answer.isNotBlank() &&
+            previous.answer.trim().lowercase() !in setOf("active", "connecting", "configuring", "connected", "listening", "thinking", "speaking", "stopping", "stopped", "live")
+        ) previous.answer else answer
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
             .putBoolean("active", active)
             .putString("mode", mode)
-            .putString("answer", answer)
+            .putString("answer", displayAnswer)
             .apply()
-        _uiState.value = _uiState.value.copy(
+        _uiState.value = previous.copy(
             active = active,
             mode = mode,
             status = nextStatus,
-            answer = answer,
+            answer = displayAnswer,
+            smartMode = smartMode,
             onlineBroadcast = !liveEndpoint.isNullOrBlank()
         )
         if (nextStatus != previousStatus && nextStatus.lowercase() in setOf(
@@ -647,7 +689,7 @@ class LiveMediaForegroundService : Service() {
             .putString("mode", mode)
             .putString("answer", friendly)
             .apply()
-        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, audioLevel = 0f, microphoneLevel = 0f, outputAudioLevel = 0f, onlineBroadcast = false)
+        _uiState.value = _uiState.value.copy(active = false, mode = mode, status = "error", answer = friendly, smartMode = smartMode, audioLevel = 0f, microphoneLevel = 0f, outputAudioLevel = 0f, onlineBroadcast = false)
         appendLog("BQ Sqwad AI status: $friendly")
     }
 
