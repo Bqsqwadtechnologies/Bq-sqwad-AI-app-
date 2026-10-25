@@ -4628,7 +4628,14 @@ export default {
           {
             method: "POST",
             headers,
-            body: JSON.stringify({ toolkit: requestedToolkit, alias: "bq-" + requestedToolkit + "-" + user.uid.slice(0, 12) + "-" + Date.now() }),
+            body: JSON.stringify({
+              toolkit: requestedToolkit,
+              alias: "bq-" + requestedToolkit + "-" + user.uid.slice(0, 12) + "-" + Date.now(),
+              // Return the user to BQ Sqwad AI after provider consent instead of leaving
+              // them stranded on a provider completion page. Override via Worker env only
+              // if the canonical website callback changes.
+              callback_url: String(env.BQ_CONNECTOR_CALLBACK_URL || "https://bqsqwadai.com/connectors?oauth=complete")
+            }),
             signal: AbortSignal.timeout(15000)
           }
         );
