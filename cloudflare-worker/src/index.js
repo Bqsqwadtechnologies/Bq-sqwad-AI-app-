@@ -718,6 +718,46 @@ async function requireConsent(uid) {
   const consent = await firestoreGet("userConsents/" + uid);
   if (!consent || consent.requiredAccepted !== true) throw new Error("required_consent_missing");
 }
+/**
+ * Save a fact only when the user explicitly asks the assistant to remember it.
+ * Writes directly to aiMemories, the same owner-scoped collection used by the website.
+ */
+async function persistExplicitMemory(uid, message) {
+  const profile = await firestoreGet("users/" + uid).catch(() => null);
+  if (profile?.memoryEnabled !== true) return { enabled: false, saved: false };
+  const raw = String(message || "");
+  const match = raw.match(/\b(?:remember|save this|keep this in memory|do not forget|don't forget)\b[\s:,-]*(.+)$/i);
+  if (!match) return { enabled: true, saved: false };
+  let value = String(match[1] || "").trim().replace(/^(?:that|this is)\s+/i, "").slice(0, 1000);
+  if (value.length < 8) return { enabled: true, saved: false };
+  // Never turn credentials or payment secrets into long-term memory.
+  if (/\b(password|passcode|one[- ]time code|otp|api key|access token|refresh token|private key|secret key|bank account|card number|cvv|pin)\b/i.test(value)) {
+    return { enabled: true, saved: false, reason: "sensitive_content" };
+  }
+  const category = /\b(project|app|application|repository|repo|website|codebase|build)\b/i.test(value) ? "projects"
+    : /\b(prefer|preference|please always|please never|style)\b/i.test(value) ? "preferences"
+    : /\b(goal|plan to|aim to|want to achieve)\b/i.test(value) ? "goals"
+    : "other";
+  const key = (value.split(/[.!?\n:]/, 1)[0] || value).trim().slice(0, 120);
+  if (!key) return { enabled: true, saved: false };
+  const rows = await firestoreQuery("aiMemories", {
+    filters: [{ field: { fieldPath: "ownerUid" }, op: "EQUAL", value: { stringValue: uid } }],
+    limit: 100
+  }).catch(() => []);
+  const existing = rows.find(row => String(row.key || "").trim().toLowerCase() === key.toLowerCase());
+  if (!existing && rows.length >= 500) return { enabled: true, saved: false, reason: "memory_full" };
+  const id = String(existing?.id || crypto.randomUUID());
+  const now = new Date().toISOString();
+  await firestoreSet("aiMemories/" + id, {
+    id, ownerUid: uid, category,
+    key, value, source: "user",
+    pinned: existing?.pinned === true,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  }, true);
+  return { enabled: true, saved: true, key, category };
+}
+
 async function memoryContext(uid) {
   const [profile, legacy] = await Promise.all([
     firestoreGet("users/" + uid),
@@ -1616,7 +1656,11 @@ async function ai(request, user, body) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const memory = await memoryContext(user.uid);
-  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
+  const memoryEnabledForTurn = (await firestoreGet("users/" + user.uid).catch(() => null))?.memoryEnabled === true;
+  const memoryInstruction = memoryEnabledForTurn
+    ? "LONG-TERM MEMORY IS ENABLED. If the user explicitly asks you to remember a lasting fact or project detail, you may acknowledge it; the request will be saved to the shared memory store after this turn unless it contains sensitive credentials."
+    : "LONG-TERM MEMORY IS OFF. Do not claim to have saved anything to long-term memory; tell the user memory must be enabled in Settings first.";
+  const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", workspaceScopeSystemPrompt(capabilityName), memoryInstruction, memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
@@ -1640,6 +1684,7 @@ async function ai(request, user, body) {
       fallbackModels: control.config?.fallbackModels || {}
     }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
+    const memorySaveResult = await persistExplicitMemory(user.uid, userMessage).catch(() => ({ enabled: memoryEnabledForTurn, saved: false }));
     let creditsCharged = Number(reservation.amount || 0);
     let usageSummary = null;
     if (tokenBilling) {
@@ -1679,6 +1724,7 @@ async function ai(request, user, body) {
     }
     const responseBody = {
       text: result.text.trim(), providerId: result.providerId, modelId: result.modelId,
+      ...(memorySaveResult.saved ? { memorySaved: true } : {}),
       creditsCharged, ...(usageSummary ? { tokenUsage: usageSummary } : {}),
       incidentId: crypto.randomUUID()
     };
