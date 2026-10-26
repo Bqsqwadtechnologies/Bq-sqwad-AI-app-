@@ -35,6 +35,26 @@ jobs:
             exit 1
           fi
 
+      - name: Validate website repository token permissions
+        env:
+          BQ_WEBSITE_REPO_TOKEN: ${{ secrets.BQ_WEBSITE_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${BQ_WEBSITE_REPO_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/bqsqwadai/bqsqwadai-b3064406)"
+          if [[ "$status" != "200" ]]; then
+            echo "::error::BQ_WEBSITE_REPO_TOKEN cannot read bqsqwadai/bqsqwadai-b3064406 (GitHub API HTTP $status). Create a fine-grained token for the website repository with Contents: Read-only, approve it for the repository owner if required, then update this secret."
+            rm -f "$response_file"
+            exit 1
+          fi
+          rm -f "$response_file"
+          echo "Website repository token has read access."
+
       - name: Checkout website
         uses: actions/checkout@v4
         with:
