@@ -70,6 +70,60 @@ test("native Main Chat applies configured model weight to per-token credits", ()
   assert.equal(result.customerCredits, 0.45);
 });
 
+test("shared website meter applies minimum only to nonzero usage and never overrides token rates", () => {
+  const pricing = {
+    inputPriceUsdPerMillion: 1,
+    outputPriceUsdPerMillion: 2,
+    cachedInputPriceUsdPerMillion: 0.25,
+    sharedCreditMetering: {
+      creditsPerInputToken: 0.00003,
+      creditsPerCachedInputToken: 0.000003,
+      creditsPerOutputToken: 0.00024,
+      minimumCredits: 0.002,
+      precision: 4,
+      conversionRate: 1,
+    },
+    sharedModelMultiplier: 1,
+  };
+  const empty = calculateTokenCost({
+    usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
+    pricing,
+    creditReferenceValueUsd: 0.1199,
+    multiplier: 7,
+  });
+  assert.equal(empty.customerCredits, 0);
+
+  const tiny = calculateTokenCost({
+    usage: { inputTokens: 1, cachedInputTokens: 0, outputTokens: 0 },
+    pricing,
+    creditReferenceValueUsd: 0.1199,
+    multiplier: 7,
+  });
+  assert.equal(tiny.customerCredits, 0.002);
+});
+
+test("shared website meter rejects invalid admin metering instead of charging unpredictably", () => {
+  assert.throws(
+    () => calculateTokenCost({
+      usage: { inputTokens: 100, cachedInputTokens: 0, outputTokens: 100 },
+      pricing: {
+        inputPriceUsdPerMillion: 1,
+        outputPriceUsdPerMillion: 2,
+        sharedCreditMetering: {
+          creditsPerInputToken: -1,
+          creditsPerCachedInputToken: 0,
+          creditsPerOutputToken: 0.00024,
+          precision: 4,
+          conversionRate: 1,
+        },
+      },
+      creditReferenceValueUsd: 0.1199,
+      multiplier: 7,
+    }),
+    /shared_token_metering_invalid/,
+  );
+});
+
 test("token billing rejects missing or zero provider rates", () => {
   assert.throws(
     () => calculateTokenCost({
