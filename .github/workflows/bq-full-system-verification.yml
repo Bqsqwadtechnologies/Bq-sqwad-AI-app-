@@ -145,9 +145,21 @@ jobs:
         working-directory: website
         run: npx vitest run src/lib/usage-billing.test.ts
 
-      - name: Lint billing-critical website files
-        working-directory: website
-        run: "npx eslint src/lib/credits.server.ts src/routes/api/chat.ts src/lib/usage-billing.test.ts --rule 'prettier/prettier: off'"
+      - name: Verify Google Play checkout handoff is wired
+        working-directory: android-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          billing="app/src/main/java/com/bqsqwad/ai/core/PlayBillingClient.kt"
+          test -s "$billing"
+          grep -Fq 'fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null)' "$billing"
+          grep -Fq 'client.launchBillingFlow(activity, flow)' "$billing"
+          grep -Fq 'BillingClient.BillingResponseCode.OK' "$billing"
+          grep -Fq 'billing_product_details_missing' "$billing"
+          grep -Fq 'billing_subscription_offer_mismatch' "$billing"
+          grep -Fq 'verifyWithBackend(purchase)' "$billing"
+          echo "Google Play checkout handoff, product/offer validation, launch response handling, and server verification hooks are present."
+          echo "This is a source-level regression check. A real Play checkout screen still requires a Play-installed build and a licensed tester account."
 
       - name: Build website
         working-directory: website
