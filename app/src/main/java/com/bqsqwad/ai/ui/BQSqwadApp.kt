@@ -1437,7 +1437,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                 plans = false
                                 featureHub = false
                                 fileBoxOpen = false
-                                helpOpen = true
                                 workspace = null
                             } },
                             icon = { Icon(Icons.Default.HelpOutline, null) }
@@ -1491,7 +1490,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             }
         } else {
             val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
-                !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
+                !plans && !helpOpen && !accountProtection && featureInfo == null && featurePrivacy == null &&
                 !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
                 key(firebaseUser?.uid, chatSessionNonce) {
