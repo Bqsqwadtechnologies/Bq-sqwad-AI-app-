@@ -225,13 +225,11 @@ class CoreTest {
         assertTrue(blocks[2] is MdBlock.Code)
     }
 
-    @Test fun markdownRecognizesImageLinks() {
+    @Test fun markdownHidesRemoteImageLinksForPrivacy() {
         val blocks = parseBlocks("![preview](https://example.com/image.png)")
         assertEquals(1, blocks.size)
-        assertTrue(blocks[0] is MdBlock.Image)
-        val image = blocks[0] as MdBlock.Image
-        assertEquals("preview", image.alt)
-        assertEquals("https://example.com/image.png", image.url)
+        assertTrue(blocks[0] is MdBlock.Para)
+        assertEquals("External image preview hidden for privacy.", (blocks[0] as MdBlock.Para).text)
     }
 
     @Test fun csvDimensionsRespectQuotedCommasAndMultilineFields() {
