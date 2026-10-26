@@ -73,7 +73,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="bqsqwadai.com" android:path="/connectors/oauth-return" />
+                <data android:scheme="https" android:host="bqsqwadai.com" android:pathPrefix="/connectors" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
