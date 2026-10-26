@@ -54,9 +54,9 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
             text = {
                 Text(
                     if (nextActive)
-                        "This restores this user's BQ Sqwad AI Business access. It does not change the Google Play subscription."
+                        "This restores this user's BQ Sqwad AI Business access. It does not change the payment-provider subscription."
                     else
-                        "This immediately blocks this user's Business access in BQ Sqwad AI. It does not cancel or refund the Google Play subscription."
+                        "This immediately blocks this user's Business access in BQ Sqwad AI. It does not cancel or refund the payment-provider subscription."
                 )
             },
             confirmButton = {
@@ -118,7 +118,7 @@ fun BusinessAITestPanel(onBack: () -> Unit) {
             item {
                 Text("Customer Business subscriptions", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Each verified Business entitlement is listed here. Deactivation is an app-access override only; Google Play remains the payment and subscription system.",
+                    "Each verified Business entitlement is listed here. Deactivation is an app-access override only; the payment provider remains responsible for billing and subscriptions.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

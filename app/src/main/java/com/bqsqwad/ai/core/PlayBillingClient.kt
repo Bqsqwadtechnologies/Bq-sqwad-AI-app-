@@ -58,12 +58,15 @@ class PlayBillingClient(
                 .enablePrepaidPlans()
                 .build()
         )
+        .enableAutoServiceReconnection()
         .build()
 
     private val details = mutableMapOf<String, ProductDetails>()
     private val catalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
     private var connected = false
     private var connecting = false
+    private var retryCount = 0
+    private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
     @Volatile private var catalogQueryComplete = false
 
     fun hasCompletedCatalogQuery(): Boolean = catalogQueryComplete
@@ -85,6 +88,7 @@ class PlayBillingClient(
     }
 
     fun close() {
+        retryHandler.removeCallbacksAndMessages(null)
         client.endConnection()
         connected = false
     }
@@ -92,24 +96,34 @@ class PlayBillingClient(
     override fun onBillingSetupFinished(result: BillingResult) {
         connecting = false
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
+        if (connected) retryCount = 0
         if (!connected) {
             catalogQueryComplete = true
-            onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
         }
         if (connected) {
             queryCatalog()
             restorePurchases()
         } else {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
+            if (result.responseCode == BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE || result.responseCode == BillingClient.BillingResponseCode.NETWORK_ERROR) scheduleReconnect()
         }
+    }
+
+    private fun scheduleReconnect() {
+        if (retryCount >= 4) return
+        val delayMs = (1500L shl retryCount).coerceAtMost(15_000L)
+        retryCount++
+        retryHandler.postDelayed({ if (!client.isReady && !connecting) start() }, delayMs)
     }
 
     override fun onBillingServiceDisconnected() {
         connected = false
         connecting = false
         catalogQueryComplete = true
-        onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play billing disconnected. Check your connection and retry."))
+        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("Google Play billing disconnected. Check your connection and retry.")))
         reportBillingDiagnostic("billing_service_disconnected")
+        scheduleReconnect()
     }
 
     private fun billingDiagnosticCode(responseCode: Int): String = when (responseCode) {
@@ -136,6 +150,46 @@ class PlayBillingClient(
                     put("appVersion", com.bqsqwad.ai.BuildConfig.VERSION_NAME.take(32))
                     put("androidVersion", android.os.Build.VERSION.RELEASE.orEmpty().take(32))
                     put("signedIn", FirebaseAuth.getInstance().currentUser != null)
+                    // Temporary checkout diagnostics: verify install source, app identity,
+                    // uploaded build version and whether live product details reached the client.
+                    put("applicationId", activity.packageName.take(100))
+                    put("installerPackage", runCatching {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            activity.packageManager.getInstallSourceInfo(activity.packageName).installingPackageName
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getInstallerPackageName(activity.packageName)
+                        }
+                    }.getOrNull().orEmpty().take(100))
+                    put("versionCode", runCatching {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            activity.packageManager.getPackageInfo(activity.packageName, 0).longVersionCode
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode.toLong()
+                        }
+                    }.getOrDefault(0L))
+                    put("signingCertSha256", runCatching {
+                        val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            activity.packageManager.getPackageInfo(activity.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getPackageInfo(activity.packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+                        }
+                        val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            packageInfo.signingInfo?.apkContentsSigners
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageInfo.signatures
+                        }
+                        signatures?.firstOrNull()?.toByteArray()?.let { signature ->
+                            java.security.MessageDigest.getInstance("SHA-256").digest(signature)
+                                .joinToString("") { byte -> "%02X".format(byte) }
+                        }.orEmpty()
+                    }.getOrDefault(""))
+                    put("billingReady", client.isReady)
+                    put("catalogProductCount", details.size)
+                    put("catalogProductIds", details.keys.joinToString(",").take(300))
                 })
             }
         }
@@ -143,14 +197,14 @@ class PlayBillingClient(
 
     private fun friendlyBillingMessage(responseCode: Int): String = when (responseCode) {
         BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE,
-        BillingClient.BillingResponseCode.NETWORK_ERROR -> "Google Play billing could not connect. Check your internet connection and try again."
-        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Google Play billing is not available on this device or account."
+        BillingClient.BillingResponseCode.NETWORK_ERROR -> "We couldn't reach the BQ Sqwad AI catalog. Check your internet connection and try again."
+        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Purchases aren't available on this device or account."
         BillingClient.BillingResponseCode.ITEM_UNAVAILABLE -> "These products are not available for this install. Install from the Play testing link with a licensed tester account."
-        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "Google Play could not validate this purchase setup. Please contact support."
-        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Google Play billing is not supported on this device."
+        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "We couldn't confirm this purchase setup. Please contact support."
+        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Purchases aren't supported on this device."
         BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> "This purchase is already owned. Refresh or restore purchases to verify access."
         BillingClient.BillingResponseCode.USER_CANCELED -> ""
-        else -> "Google Play billing could not complete this request. Please retry."
+        else -> "Checkout couldn't be completed. Please try again."
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
@@ -162,7 +216,7 @@ class PlayBillingClient(
         }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
             return
         }
         purchases.forEach { purchase ->
@@ -184,9 +238,19 @@ class PlayBillingClient(
     fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null, null)
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            retryHandler.post { launchPurchase(productId, basePlanId, offerId) }
+            onPurchaseState(PlayPurchaseState("pending", "Opening secure checkout…"))
+            return null
+        }
+        if (!client.isReady) {
+            start()
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Checkout is reconnecting. Please tap Buy again in a moment.")))
+            return null
+        }
         val product = details[productId] ?: run {
             reportBillingDiagnostic("billing_product_details_missing")
-            onPurchaseState(PlayPurchaseState("failed", "Google Play has not returned purchase details for this item yet. Refresh the catalog and try again."))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Google Play has not returned purchase details for this item yet. Refresh the catalog and try again.")))
             return null
         }
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
@@ -218,9 +282,9 @@ class PlayBillingClient(
                         PlayPurchaseState(
                             "failed",
                             if (offersForBasePlan.isEmpty()) {
-                                "Google Play did not return the selected subscription plan. Refresh the catalog or check the Play Console product setup."
+                                BrandCopy.checkout("Google Play did not return the selected subscription plan. Refresh the catalog or check the Play Console product setup.")
                             } else {
-                                "The selected subscription offer does not match an offer currently available in Google Play. Checkout was stopped to avoid showing different terms. Please contact support."
+                                BrandCopy.checkout("The selected subscription offer does not match an offer currently available in Google Play. Checkout was stopped to avoid showing different terms. Please contact support.")
                             }
                         )
                     )
@@ -241,7 +305,7 @@ class PlayBillingClient(
             result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED
         ) {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
         }
         return result
     }
@@ -264,7 +328,7 @@ class PlayBillingClient(
                 if (user == null) {
                     catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_requires_sign_in")
-                    onPurchaseState(PlayPurchaseState("catalog_failed", "Sign in to your BQ Sqwad AI account to load Google Play purchase options."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", "Sign in to your BQ Sqwad AI account to load your plans."))
                     return@runCatching
                 }
                 val token = Tasks.await(user.getIdToken(false)).token
@@ -322,7 +386,7 @@ class PlayBillingClient(
                 if (products.isEmpty()) {
                     catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_empty")
-                    onPurchaseState(PlayPurchaseState("catalog_failed", "No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup.")))
                     return@runCatching
                 }
                 client.queryProductDetailsAsync(
@@ -339,28 +403,28 @@ class PlayBillingClient(
                             queried.productDetailsList.forEach { details[it.productId] = it }
                         }
                         catalogQueryComplete = true
-                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Google Play returned live product details."))
+                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Live prices are ready."))
                     } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                         catalogQueryComplete = true
                         reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
                     } else {
                         catalogQueryComplete = true
                         reportBillingDiagnostic("billing_item_unavailable")
-                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE))))
                     }
                 }
             }.onFailure {
                 catalogQueryComplete = true
                 reportBillingDiagnostic("billing_catalog_load_failed")
-                onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play purchase options could not be loaded. Check your connection and refresh the catalog."))
+                onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("Google Play purchase options could not be loaded. Check your connection and refresh the catalog.")))
             }
         }.start()
     }
 
     private fun verifyWithBackend(purchase: Purchase) {
         if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
-            onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan after Google Play confirms it."))
+            onPurchaseState(PlayPurchaseState("pending", "Payment pending. Your plan will activate after the payment is confirmed."))
             return
         }
         Thread {
@@ -368,7 +432,7 @@ class PlayBillingClient(
                 val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to verify this purchase.")
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable.")
                 val products = purchase.products
-                if (products.isEmpty()) error("Google Play returned no product for this purchase.")
+                if (products.isEmpty()) error("No product was returned for this purchase.")
                 val payload = JSONObject()
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
@@ -399,7 +463,7 @@ class PlayBillingClient(
                 }
                 val verifiedBody = JSONObject(raw)
                 val verified = verifiedBody.optBoolean("ok", false)
-                if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
+                if (!verified) throw IllegalStateException("The server did not confirm this purchase.")
 
                 // The secure backend verifies, grants and acknowledges/consumes the purchase.
                 // Do not duplicate that operation from the Android client.

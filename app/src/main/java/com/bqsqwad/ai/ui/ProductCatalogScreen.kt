@@ -27,6 +27,7 @@ import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.BillingClient.ProductType
 import com.bqsqwad.ai.core.NativeFeatureRegistry
 import com.bqsqwad.ai.core.PlayBillingClient
+import com.bqsqwad.ai.core.BrandCopy
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -81,6 +82,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var loading by remember { mutableStateOf(true) }
     var catalogRefreshNonce by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
+    var storeNotice by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var planSearch by remember { mutableStateOf("") }
@@ -194,11 +196,16 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 when (state.status) {
                     "catalog_loaded" -> {
                         playProducts = billing?.availableProducts().orEmpty()
-                        if (plans.isNotEmpty()) error = null
+                        storeNotice = null
+                        error = null
                         loading = false
                     }
                     "catalog_failed" -> {
-                        error = state.message
+                        val safe = BrandCopy.checkout(state.message)
+                        if (plans.isEmpty()) error = safe else {
+                            storeNotice = safe
+                            error = null
+                        }
                         loading = false
                     }
                     "success" -> load()
@@ -218,10 +225,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 playProducts = manager.availableProducts()
                 if (playProducts.isNotEmpty()) {
                     if (plans.isNotEmpty()) error = null
-                } else if (error == null) {
-                    error = status.ifBlank {
-                        "Google Play has not returned purchase details for this account. Check Play Console product setup, then retry."
-                    }
+                } else if (plans.isEmpty()) {
+                    error = BrandCopy.checkout(status.ifBlank { "Plans could not be loaded. Please try again." })
+                } else {
+                    storeNotice = "Checkout is reconnecting. Prices will appear in a moment."
                 }
                 loading = false
                 return@LaunchedEffect
@@ -231,9 +238,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         val manager = billing
         playProducts = manager?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            error = status.ifBlank {
-                "Google Play has not returned product details yet. Check your connection and retry."
-            }
+            if (plans.isEmpty()) error = BrandCopy.checkout(status.ifBlank { "Plans could not be loaded. Please try again." })
+            else storeNotice = "Checkout is reconnecting. Prices will appear in a moment."
         }
         loading = false
     }
@@ -319,8 +325,10 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         }
         when{
             loading->ProductLoading(Modifier.padding(padding))
-            error!=null->ProductError(Modifier.padding(padding), error ?: "Could not load plans. Please retry.", ::load)
+            error!=null->ProductError(Modifier.padding(padding), BrandCopy.checkout(error ?: "Could not load plans. Please retry."), ::load)
             else->LazyColumn(state=listState, modifier=Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp),contentPadding=PaddingValues(top=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                storeNotice?.let { notice -> item { Card(Modifier.fillMaxWidth(), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)) { Row(Modifier.padding(12.dp), verticalAlignment=Alignment.CenterVertically) { Text(notice, Modifier.weight(1f), style=MaterialTheme.typography.bodySmall); TextButton(onClick={ storeNotice = null; billing?.refreshCatalog() }) { Text("Retry") } } } }
+                }
                 credits?.let { balance ->
                     item {
                         Card(Modifier.fillMaxWidth(), shape=RoundedCornerShape(18.dp), colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)) {
@@ -338,7 +346,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
-                        Text("Buy credits for eligible AI features. Store prices are localized by Google Play.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Buy credits for eligible AI features. Prices are shown in your local currency.", color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (creditPacks.isEmpty()) {
@@ -386,7 +394,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     }
                 }
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled automatically.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
@@ -671,7 +679,7 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
-    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isReady() == true
+    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null
     val purchaseBlockReason = when {
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
         isFreePlan || isContactSales || canPurchase -> null
@@ -825,7 +833,11 @@ private fun LivePlanCard(
                         when {
                             isContactSales -> onContact()
                             canPurchase -> {
-                                val result = billing!!.launchPurchase(selectedProduct!!.productId, selectedEntry!!.basePlanId)
+                                val mgr = billing; val product = selectedProduct; val entry = selectedEntry
+                                if (mgr == null || product == null || entry == null) {
+                                    onStatus("Checkout is not ready yet. Please retry in a moment.")
+                                } else {
+                                val result = mgr.launchPurchase(product.productId, entry.basePlanId)
                                 // launchPurchase reports a specific UI status when it returns null
                                 // (for example, missing Play product details or an offer mismatch).
                                 // Do not immediately overwrite that useful message with a generic one.
@@ -833,15 +845,16 @@ private fun LivePlanCard(
                                     if (result.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
                                         onStatus(
                                             "Purchase started for " + plan.id + "/" +
-                                                (selectedEntry!!.basePlanId ?: selectedPeriod) +
+                                                (entry.basePlanId ?: selectedPeriod) +
                                                 ". Access unlocks only after server verification."
                                         )
                                     } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
                                         onStatus(
-                                            result.debugMessage.takeIf { it.isNotBlank() }
-                                                ?: "Google Play could not open checkout. Please retry."
+                                            BrandCopy.checkout(result.debugMessage.takeIf { it.isNotBlank() }
+                                                ?: "Checkout couldn't be completed. Please try again.")
                                         )
                                     }
+                                }
                                 }
                             }
                             else -> onStatus(purchaseBlockReason ?: "This plan is not currently purchasable on this device.")
@@ -1004,7 +1017,7 @@ private fun ProductLoading(modifier: Modifier) {
         Text("Loading BQ Sqwad AI plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         CircularProgressIndicator()
         Text(
-            "Waiting for the live catalog and Google Play product details. Prices will appear only after the store returns them.",
+            "Loading the BQ Sqwad AI catalog and live prices…",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )

@@ -485,7 +485,7 @@ private fun MemberForm(api: WorkspaceApiClient, workspaceId: String, saving: Boo
     var uid by remember { mutableStateOf("") }
     var role by remember { mutableStateOf("member") }
     val scope = rememberCoroutineScope()
-    OutlinedTextField(uid, { uid = it }, label = { Text("Member Firebase UID") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(uid, { uid = it }, label = { Text("Member account ID") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(role, { role = it }, label = { Text("Role: viewer/member/manager/admin") }, modifier = Modifier.fillMaxWidth())
     Button(enabled = uid.isNotBlank() && !saving, onClick = {
         setSaving(true)
@@ -913,7 +913,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                     if (id == "rest_api") {
                         SurfaceCard(
                             "Authenticated API",
-                            "Use the existing Firebase-authenticated Business endpoints from your server or automation. No provider API key is stored in the app."
+                            "Use the existing authenticated Business endpoints from your server or automation. No provider API key is stored in the app."
                         )
                     }
                 }

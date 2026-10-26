@@ -451,7 +451,7 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Add Organization funds", style = MaterialTheme.typography.titleLarge)
-                    Text("Deposit usage funds through Google Play. These funds are non-transferable and can only pay for Organization AI usage.")
+                    Text("Add usage funds securely. These funds are non-transferable and can only pay for Organization AI usage.")
                     val deposits = organizationBilling?.optJSONArray("depositProducts") ?: org.json.JSONArray()
                     for (i in 0 until deposits.length()) {
                         val item = deposits.optJSONObject(i) ?: continue
@@ -462,13 +462,13 @@ fun OrganizationStudioWorkspace() {
                             onClick = {
                                 val result = playBilling?.launchPurchase(productId)
                                 billingWarning = if (result?.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
-                                    "Google Play checkout opened for ${"%.2f".format(java.util.Locale.US, amount)}."
-                                else result?.debugMessage?.ifBlank { "Google Play checkout could not start." } ?: "Google Play billing is not ready."
+                                    "Secure checkout opened for ${"%.2f".format(java.util.Locale.US, amount)}."
+                                else "Secure checkout could not be completed. Please retry."
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Continue with Google Pay · Deposit ${"%.2f".format(java.util.Locale.US, amount)}") }
                     }
-                    Text("The secure server verifies the Google Play purchase before adding the balance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Every purchase is verified securely before your balance is updated.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -608,7 +608,7 @@ fun OrganizationStudioWorkspace() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Members & roles", style = MaterialTheme.typography.titleLarge)
                     Text("Owner, admin, editor, viewer and member roles are persisted server-side.")
-                    OutlinedTextField(memberId, { memberId = it }, Modifier.fillMaxWidth(), label = { Text("Member Firebase UID") })
+                    OutlinedTextField(memberId, { memberId = it }, Modifier.fillMaxWidth(), label = { Text("Member account ID") })
                     OutlinedTextField(memberRole, { memberRole = it }, Modifier.fillMaxWidth(), label = { Text("Role") })
                     Button(
                         enabled = memberId.isNotBlank(),

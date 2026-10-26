@@ -99,14 +99,14 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text("Sign-in methods", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Connect more than one way to recover and access the same Firebase account.")
+                Text("Connect more than one way to recover and access the same BQ Sqwad AI account.")
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Email & password", fontWeight = FontWeight.Bold)
                         Text(if ("password" in providers) "Connected" else "Not connected")
-                        Text("Use your Firebase email/password sign-in as a recovery method.")
+                        Text("Use your email/password sign-in as a recovery method.")
                     }
                 }
             }
@@ -162,7 +162,7 @@ fun AccountProtectionScreen(onBack: () -> Unit) {
                                     }
                                 }
                             ) { Text("Disconnect password") }
-                            if (providers.size <= 1) Text("Connect Google or a passkey before disconnecting your only Firebase sign-in provider.", style = MaterialTheme.typography.bodySmall)
+                            if (providers.size <= 1) Text("Connect Google or a passkey before disconnecting your only sign-in method.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }

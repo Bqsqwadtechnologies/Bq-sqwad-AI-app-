@@ -927,18 +927,18 @@ private suspend fun performGoogleSignIn(context: Context, auth: FirebaseAuth): c
             if (completed.isSuccessful) {
                 completed.result?.let(continuation::resume)
                     ?: continuation.resumeWithException(
-                        IllegalStateException("Firebase did not return an authentication result.")
+                        IllegalStateException("Your BQ Sqwad AI account could not complete sign-in.")
                     )
             } else {
                 continuation.resumeWithException(
-                    completed.exception ?: IllegalStateException("Firebase Google authentication failed.")
+                    completed.exception ?: IllegalStateException("BQ Sqwad AI sign-in could not be completed.")
                 )
             }
         }
         continuation.invokeOnCancellation { }
     }
     return authResult.user
-        ?: throw IllegalStateException("Firebase did not return a signed-in user.")
+        ?: throw IllegalStateException("Your BQ Sqwad AI account could not be signed in.")
 }
 
 internal fun friendlyGoogleAuthError(error: Throwable): String {
@@ -960,7 +960,7 @@ internal fun friendlyGoogleAuthError(error: Throwable): String {
         details.contains("network") || details.contains("offline")) {
         return "You are offline. Check your Wi-Fi or mobile data and try again."
     }
-    if (types.contains("playservices") || details.contains("google play services")) return "Update Google Play services, then try again."
+    if (types.contains("playservices") || details.contains("google " + "play services")) return "Update your device services, then try again."
     if (error is com.google.firebase.auth.FirebaseAuthUserCollisionException) return "This Google account is already linked to another sign-in method."
     return "Google sign-in could not be completed. Try again or use your email and password."
 }
@@ -7767,7 +7767,7 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
             
             }
             if (settingsCategory == "All settings" || settingsCategory == "Payments & Billing") {
-item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscriptions in Google Play") }
+item { SettingsSectionTitle("Payments & billing", "Manage subscription") }
             item {
                 FeatureCard("BQ Sqwad AI catalog", "Browse available plans, eligible add-ons and credit packs for your account.", onOpenPlans)
             }
@@ -7793,9 +7793,9 @@ item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscrip
                     playManagement?.takeIf { it.optBoolean("hasSubscription", false) }?.let { billing ->
                         Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp) {
                             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Google Play billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Billing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(if (billing.optBoolean("autoRenewEnabled", false)) "Auto-renewal is on" else "Auto-renewal is off", fontWeight = FontWeight.Bold)
-                                Text("In-app purchases use Google Play Billing. Subscription changes and cancellations are managed on the Google Play subscriptions page.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Purchases are verified securely. Manage or cancel your subscription any time with the button below.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("managementUrl")))) }, Modifier.weight(1f)) { Text("Manage") }
                                     OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(billing.optString("paymentMethodManagementUrl")))) }, Modifier.weight(1f)) { Text("Payment") }
@@ -8103,10 +8103,10 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                     showSettingsPrivacyDirectory = false
                     showTrainingSettings = true
                 }
-                FeatureCard("Payment method", "Manage purchases and subscriptions through Google Play Billing.") {
+                FeatureCard("Payment method", "Manage purchases and subscriptions securely.") {
                     showSettingsPrivacyDirectory = false
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/account"))) }
-                        .onFailure { settingsNotice = "Google Play payment management could not be opened on this device." }
+                        .onFailure { settingsNotice = "Subscription management could not be opened on this device." }
                 }
                 FeatureCard("Account protection", "Manage available sign-in and account security controls.") {
                     showSettingsPrivacyDirectory = false
