@@ -1800,10 +1800,7 @@ async function vision(request, user, body) {
   const supportedImageTypes = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
   const images = rawImages.map(item => {
     const requestedMime = String(item?.mimeType || "image/jpeg").slice(0, 80).toLowerCase();
-    return {
-      imageBase64: String(item?.imageBase64 || ""),
-      mimeType: requestedMime === "image/jpg" ? "image/jpeg" : requestedMime
-    };
+    return { imageBase64: String(item?.imageBase64 || ""), mimeType: requestedMime === "image/jpg" ? "image/jpeg" : requestedMime };
   });
   const files = rawFiles.map(item => ({
     name: String(item?.name || "document.pdf").replace(/[\\/]/g, "_").slice(0, 180),
@@ -1817,41 +1814,47 @@ async function vision(request, user, body) {
   const encodedSize = images.reduce((total, image) => total + image.imageBase64.length, 0)
     + files.reduce((total, file) => total + file.fileBase64.length, 0);
   if (encodedSize > 8000000) throw new Error("attachment_payload_too_large");
-  // Keep live camera on its own capability by default, while allowing the
-  // authenticated main-chat attachment path to use the selected chat capability.
-  // The capability resolver remains the authority for availability and pricing.
   const capabilityName = String(body.capability || "live_camera").trim().slice(0, 100);
-  if (["life_matters", "frontier_lab", "learning_studio", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  if (["life_matters", "frontier_lab", "learning_studio", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) {
+    throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
+  }
   const redirect = await workspaceScopeRedirect(capabilityName, message);
   if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
   if (body.modelRegistryId && capabilityName === "live_camera") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "live-camera");
-    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: selected.creditCost };
+    control = { ...control, providerId: selected.providerId, modelId: selected.modelId, creditCost: 0 };
   }
-  const reservation = await chargeCredits(user.uid, control.creditCost || 0, capabilityName, user);
+  const requestedSystem = String(body.system || "").slice(0, 12000).trim();
+  const system = requestedSystem ? BQ_APP_KNOWLEDGE + "\n\n" + requestedSystem : BQ_APP_KNOWLEDGE;
+  const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
+  const configuredVisionModelRaw = String(control.config?.visionModelId || control.visionModelId || "").trim();
+  const configuredVisionModel = configuredVisionModelRaw.startsWith("gpt-realtime") ? "" : configuredVisionModelRaw;
+  const capabilityModel = String(control.modelId || "").trim();
+  const compatibleCapabilityModel = capabilityModel && !capabilityModel.startsWith("gpt-realtime");
+  const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-4.1-mini";
+  const primaryModelId = primaryProviderId === control.providerId
+    ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
+    : defaultVisionModel;
+  const fallbackProviderIds = (control.config?.fallbackProviderIds || [])
+    .filter(providerId => ["openai", "gemini"].includes(providerId) && providerId !== primaryProviderId);
+  const pricingFeature = capabilityName === "live_camera" ? "live-camera" : "chat";
+  let tokenPricing = await resolveTokenPricing(primaryProviderId, primaryModelId, pricingFeature, control);
+  if (!tokenPricing.configured) tokenPricing = await resolveTokenPricing(primaryProviderId, primaryModelId, "chat", control);
+  if (!tokenPricing.configured) {
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
+  }
+  const attachmentTokens = images.length * 1500 + files.length * 4000;
+  const reservationAmount = estimateTokenReservation({
+    message: message + " ".repeat(Math.ceil(attachmentTokens * 4)),
+    system,
+    pricing: tokenPricing
+  });
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
+    allowFractional: true,
+    markupApplied: true
+  });
   try {
-    const requestedSystem = String(body.system || "").slice(0, 12000).trim();
-    const system = requestedSystem
-      ? BQ_APP_KNOWLEDGE + "\n\n" + requestedSystem
-      : BQ_APP_KNOWLEDGE;
-    // Image understanding is supported by OpenAI and Gemini. If a capability
-    // is configured for a non-vision provider (for example search), use the
-    // default OpenAI vision model while still enforcing that capability's gate
-    // and credit cost.
-    const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
-    const configuredVisionModelRaw = String(control.config?.visionModelId || control.visionModelId || "").trim();
-    const configuredVisionModel = configuredVisionModelRaw.startsWith("gpt-realtime") ? "" : configuredVisionModelRaw;
-    const capabilityModel = String(control.modelId || "").trim();
-    // The live-camera realtime model is for WebSocket voice/video sessions, not
-    // the Responses API used by this single-frame vision endpoint.
-    const compatibleCapabilityModel = capabilityModel && !capabilityModel.startsWith("gpt-realtime");
-    const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-4.1-mini";
-    const primaryModelId = primaryProviderId === control.providerId
-      ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
-      : defaultVisionModel;
-    const fallbackProviderIds = (control.config?.fallbackProviderIds || [])
-      .filter(providerId => ["openai", "gemini"].includes(providerId) && providerId !== primaryProviderId);
     const result = await runProvider(globalThis.__bqEnv, {
       primaryProviderId,
       primaryModelId,
@@ -1860,8 +1863,29 @@ async function vision(request, user, body) {
     }, { message, system, images, files });
     const responseText = String(result.text || "").trim();
     if (!responseText) throw new Error("The AI service returned an empty response.");
-    await commitCredits(user.uid, reservation.reservationId, result.providerId);
-    return json({ text: responseText, providerId: result.providerId, modelId: result.modelId, creditsCharged: reservation.amount });
+    const usage = normalizeProviderUsage(result.providerId, result.usage || {});
+    if (usage.inputTokens + usage.outputTokens <= 0) {
+      throw Object.assign(new Error("provider_usage_unavailable"), { httpStatus: 502, safeError: "provider_usage_unavailable" });
+    }
+    const actualPricing = await resolveTokenPricing(result.providerId, result.modelId, pricingFeature, control);
+    const settledPricing = actualPricing.configured ? actualPricing : tokenPricing;
+    const calculation = calculateTokenCost({
+      usage,
+      pricing: settledPricing,
+      creditReferenceValueUsd: settledPricing.creditReferenceValueUsd,
+      multiplier: settledPricing.customerMultiplier
+    });
+    const settled = await settleCreditReservation(user.uid, reservation.reservationId, calculation.customerCredits, result.providerId);
+    await recordTokenUsage({
+      uid: user.uid, feature: capabilityName, providerId: result.providerId, modelId: result.modelId,
+      usage, pricing: settledPricing, calculation, requestId: reservation.reservationId || crypto.randomUUID(),
+      chargedCredits: Number(settled.amount || 0), planCovered: reservation.planCovered === true, modality: "image"
+    }).catch(() => {});
+    return json({
+      text: responseText, providerId: result.providerId, modelId: result.modelId,
+      creditsCharged: Number(settled.amount || 0),
+      tokenUsage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cachedInputTokens: usage.cachedInputTokens }
+    });
   } catch (error) {
     await reverseCredits(user.uid, reservation.reservationId);
     throw error;
@@ -2592,13 +2616,13 @@ export default {
         } catch {
           const concurrent = await firestoreGet(receiptPath);
           if (concurrent?.status === "charged" && String(concurrent.uid || "") === user.uid) {
-            return json({ ok: true, alreadyCharged: true, creditsCharged: Number(concurrent.creditsCharged || 2) });
+            return json({ ok: true, alreadyCharged: true, creditsCharged: Number(concurrent.creditsCharged || 0) });
           }
           return json({ error: "pdf_charge_in_progress" }, 409);
         }
         let reservation = null;
         try {
-          reservation = await chargeCredits(user.uid, 2, "pdf", user);
+          const pdfControl = await capability(user.uid, "pdf");\n          reservation = await chargeCredits(user.uid, pdfControl.creditCost, "pdf", user);
           await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, {
@@ -4147,7 +4171,7 @@ export default {
         if (!title || !content) return json({ error: "pdf_content_required" }, 400);
         let reservation = null;
         try {
-          reservation = await chargeCredits(u.uid, 2, "pdf", u);
+          const pdfControl = await capability(u.uid, "pdf");\n          reservation = await chargeCredits(u.uid, pdfControl.creditCost, "pdf", u);
           await commitCredits(u.uid, reservation.reservationId, "pdf");
           return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0.5)) });
         } catch (error) {
@@ -5053,7 +5077,7 @@ export default {
         const deepResearch = Boolean(body.deepResearch);
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
-        const charge = Math.max(deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 5) : Number(control.config?.creditsPerSearch ?? 1.7), Number(control.creditCost || 0));
+        const charge = Math.max(0, deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 0) : Number(control.config?.creditsPerSearch ?? 0));
         const reservation = await chargeCredits(user.uid, charge, capabilityName, user);
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
