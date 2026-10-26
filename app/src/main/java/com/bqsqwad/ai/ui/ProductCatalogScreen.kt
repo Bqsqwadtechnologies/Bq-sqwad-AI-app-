@@ -79,6 +79,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     }
     val scope=rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
+    var catalogRefreshNonce by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
@@ -100,6 +101,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var credits by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
+        loading = true
+        catalogRefreshNonce += 1
         // A previous unauthenticated catalog query cannot fetch Play mappings.
         // Retry on refresh so signing in does not require leaving this screen.
         billing?.refreshCatalog()
@@ -120,7 +123,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         } else {
             offline = false
         }
-        loading = !hasCachedCatalog
+        loading = true
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
@@ -178,39 +181,61 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 } else {
                     error = safeUserFacingIssue(t, "Could not load plans. Please retry.")
                 }
-            } finally { loading=false }
+            } finally {
+                if (billing?.hasCompletedCatalogQuery() == true) loading = false
+            }
         }
     }
 
     DisposableEffect(activity) {
         if(activity!=null){
-            val manager=PlayBillingClient(activity, onPurchaseState={state->status=state.message; if(state.status=="success") load()})
+            val manager=PlayBillingClient(activity, onPurchaseState={state->
+                status = state.message
+                when (state.status) {
+                    "catalog_loaded" -> {
+                        playProducts = billing?.availableProducts().orEmpty()
+                        if (plans.isNotEmpty()) error = null
+                        loading = false
+                    }
+                    "catalog_failed" -> {
+                        error = state.message
+                        loading = false
+                    }
+                    "success" -> load()
+                }
+            })
             billing=manager; manager.start()
             onDispose{manager.close()}
         } else onDispose{}
     }
-    LaunchedEffect(billing) {
-        // Billing can connect before queryProductDetailsAsync has returned. Keep polling
-        // briefly so the plan cards don't incorrectly appear unavailable on fast devices.
+    LaunchedEffect(billing, catalogRefreshNonce) {
+        // Keep the branded loading screen visible until Play's asynchronous product
+        // details query actually finishes. A connected BillingClient alone is not proof
+        // that Google Play has returned prices.
         repeat(30) {
             val manager = billing
-            if (manager?.isReady() == true) {
-                val loaded = manager.availableProducts()
-                if (loaded.isNotEmpty()) {
-                    playProducts = loaded
-                    return@LaunchedEffect
+            if (manager?.hasCompletedCatalogQuery() == true) {
+                playProducts = manager.availableProducts()
+                if (playProducts.isNotEmpty()) {
+                    if (plans.isNotEmpty()) error = null
+                } else if (error == null) {
+                    error = status.ifBlank {
+                        "Google Play has not returned purchase details for this account. Check Play Console product setup, then retry."
+                    }
                 }
+                loading = false
+                return@LaunchedEffect
             }
             kotlinx.coroutines.delay(400)
         }
-        playProducts = billing?.availableProducts().orEmpty()
+        val manager = billing
+        playProducts = manager?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            status = if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
-                "Browse the BQ Sqwad AI plans freely. Sign in before purchasing so checkout and access can be verified securely."
-            } else {
-                "Your BQ Sqwad AI plans are shown above, but Google Pay checkout is not ready on this device yet. Refresh the catalog and try again shortly."
+            error = status.ifBlank {
+                "Google Play has not returned product details yet. Check your connection and retry."
             }
         }
+        loading = false
     }
     LaunchedEffect(signedIn){load()}
     LaunchedEffect(signedIn) {
