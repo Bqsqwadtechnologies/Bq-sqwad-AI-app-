@@ -968,7 +968,24 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
         }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 }
 
-@Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
+@Composable @Composable
+private fun ProductLoading(modifier: Modifier) {
+    Column(
+        modifier.fillMaxSize().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        BqLogo(76.dp)
+        Text("Loading BQ Sqwad AI plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        CircularProgressIndicator()
+        Text(
+            "Waiting for the live catalog and Google Play product details. Prices will appear only after the store returns them.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        repeat(3) { Card(Modifier.fillMaxWidth().height(96.dp), shape = RoundedCornerShape(18.dp)) {} }
+    }
+}
 @Composable private fun ProductError(modifier:Modifier,message:String,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Could not load plans",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Try again")}}}
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
 
