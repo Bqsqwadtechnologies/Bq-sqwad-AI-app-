@@ -3212,11 +3212,11 @@ export default {
       }
 
       if (url.pathname === "/diagnostics/client" && request.method === "POST") {
-        const ip = String(request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 80);
-        enforceRateLimit("client_diag:" + ip, 5);
         const body = await readBody(request);
         const refCode = String(body.refCode || "").toUpperCase().replace(/[^A-F0-9]/g, "").slice(0, 8);
         if (!/^[A-F0-9]{6,8}$/.test(refCode)) return json({ error: "diagnostic_ref_code_invalid" }, 400);
+        const ip = String(request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 80);
+        enforceRateLimit("client_diag:" + ip, 5);
         const safeRoute = String(body.route || "unknown").split("?")[0].replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 80) || "unknown";
         const safeStep = String(body.step || "unknown").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 60) || "unknown";
         const safeCode = String(body.safeCode || "unknown").toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 80) || "unknown";
@@ -5081,7 +5081,7 @@ export default {
       const message = error?.message || "backend_unavailable";
       const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|consent_required|Admin access required/.test(message) ? 403 : /Insufficient credits|insufficient_credits/.test(message) ? 402 : /select_replacement_model_before_/.test(message) ? 409 : /model_|selected_model|provider_model|provider_not_supported_for_feature|default_model_must_be_enabled|default_model_must_be_published/.test(message) ? 400 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
       if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
-      const candidateCode = error?.safeError || (/required_consent_missing|consent_required/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : /route_not_migrated/.test(message) ? "route_not_migrated" : /Authentication required|Invalid or expired authentication token/.test(message) ? "auth_required" : /Admin access required|admin_session_required/.test(message) ? "admin_access_required" : /rate_limited/.test(message) ? "rate_limited" : status >= 500 ? "service_temporarily_unavailable" : "request_failed");
+      const candidateCode = error?.safeError || (/required_consent_missing|consent_required/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : /Authentication required|Invalid or expired authentication token/.test(message) ? "auth_required" : /Admin access required|admin_session_required/.test(message) ? "admin_access_required" : /rate_limited/.test(message) ? "rate_limited" : status >= 500 ? "service_temporarily_unavailable" : "request_failed");
       // Public responses contain only stable, machine-readable codes. Never send
       // arbitrary exception text, URLs, account details, or provider messages to clients.
       const code = /^[a-z0-9_.-]{1,80}$/i.test(String(candidateCode)) ? String(candidateCode) : (status >= 500 ? "service_temporarily_unavailable" : "request_failed");
