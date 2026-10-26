@@ -99,7 +99,7 @@ class PlayBillingClient(
         if (connected) retryCount = 0
         if (!connected) {
             catalogQueryComplete = true
-            onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
         }
         if (connected) {
             queryCatalog()
@@ -176,7 +176,7 @@ class PlayBillingClient(
         }
         if (result.responseCode != BillingClient.BillingResponseCode.OK || purchases == null) {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
             return
         }
         purchases.forEach { purchase ->
@@ -362,7 +362,7 @@ class PlayBillingClient(
                             queried.productDetailsList.forEach { details[it.productId] = it }
                         }
                         catalogQueryComplete = true
-                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Google Play returned live product details."))
+                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Live prices are ready."))
                     } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                         catalogQueryComplete = true
                         reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
@@ -370,7 +370,7 @@ class PlayBillingClient(
                     } else {
                         catalogQueryComplete = true
                         reportBillingDiagnostic("billing_item_unavailable")
-                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE))))
                     }
                 }
             }.onFailure {
