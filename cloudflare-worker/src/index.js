@@ -5081,10 +5081,10 @@ export default {
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
         const configuredSearchCharge = deepResearch ? control.config?.creditsPerDeepResearch : control.config?.creditsPerSearch;
-        if (configuredSearchCharge == null || !Number.isFinite(Number(configuredSearchCharge)) || Number(configuredSearchCharge) < 0) {
+        if (typeof configuredSearchCharge !== "number" || !Number.isFinite(configuredSearchCharge) || configuredSearchCharge < 0) {
           throw Object.assign(new Error("search_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
         }
-        const charge = Number(configuredSearchCharge);
+        const charge = configuredSearchCharge;
         // The search-provider fee is a separate, explicitly configured charge.
         // A configured zero fee must not fall through to the legacy capability price.
         const reservation = charge > 0
