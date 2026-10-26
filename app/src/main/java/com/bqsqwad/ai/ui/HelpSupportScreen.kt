@@ -39,12 +39,12 @@ import kotlinx.coroutines.withContext
 
 private data class HelpGuide(val title: String, val category: String, val steps: List<String>)
 private val helpGuides = listOf(
-    HelpGuide("Sign-in or account access", "account", listOf("Confirm you are using the correct BQ account.", "Update BQ Sqwad AI from Google Play and reopen it.", "If your session expired, sign out and sign in again.", "If it continues, report the safe error/reference code. Never share your password or one-time code.")),
+    HelpGuide("Sign-in or account access", "account", listOf("Confirm you are using the correct BQ account.", "Update BQ Sqwad AI and reopen it.", "If your session expired, sign out and sign in again.", "If it continues, report the safe error/reference code. Never share your password or one-time code.")),
     HelpGuide("Connect a provider", "connector", listOf("Open the Connectors section in BQ Sqwad AI.", "Choose the provider and tap Connect.", "Complete the provider's authorization screen and review its permissions.", "Return to BQ Sqwad AI and refresh connector status.", "If it remains disconnected, report the provider name and error reference. Never share provider passwords or access tokens.")),
     HelpGuide("Upload a file or PDF", "app", listOf("Choose a non-empty file no larger than 25 MB.", "Use a stable connection and wait until upload finishes.", "Retry once if processing fails.", "Report the reference code and file type without including private file contents.")),
-    HelpGuide("Credits or purchases", "billing", listOf("Confirm app and website use the same BQ account.", "Refresh your balance and check transaction history.", "For Android purchases, check the Google Play account used to pay.", "Report the product name and reference code. Never send full card details.")),
+    HelpGuide("Credits or purchases", "billing", listOf("Confirm app and website use the same BQ account.", "Refresh your balance and check transaction history.", "For Android purchases, check the account used to pay.", "Report the product name and reference code. Never send full card details.")),
     HelpGuide("Live voice or camera", "app", listOf("Check camera/microphone permissions and Android privacy toggles.", "Close other apps using the microphone or camera.", "Restart the live session and check your connection.", "Report the safe error code and app/device version.")),
-    HelpGuide("Plans or prices not loading", "catalog", listOf("Check the internet connection and reopen Plans.", "Update Google Play Store and use the Play-installed BQ app.", "Refresh the live catalog and wait for store details.", "If prices remain unavailable, submit the error reference. BQ Sqwad AI should not guess store prices."))
+    HelpGuide("Plans or prices not loading", "catalog", listOf("Check the internet connection and reopen Plans.", "Update the store app and use the officially installed BQ Sqwad AI app.", "Refresh the live catalog and wait for store details.", "If prices remain unavailable, submit the error reference. BQ Sqwad AI should not guess store prices."))
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
