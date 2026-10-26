@@ -58,6 +58,14 @@
       "kind": "fixed",
       "configuredCredits": 1.7,
       "expectedCredits": 1.7
+    },
+    {
+      "id": "chat-cached-explicit",
+      "kind": "tokens",
+      "uncachedInputTokens": 1500,
+      "cachedInputTokens": 500,
+      "outputTokens": 250,
+      "expectedCredits": 0.00817
     }
   ]
 }
