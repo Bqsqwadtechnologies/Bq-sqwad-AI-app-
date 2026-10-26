@@ -117,6 +117,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     cachedInputUsdPerToken: cachedRate / 1_000_000,
     outputUsdPerToken: outputRate / 1_000_000
   });
+  const customerCredits = canonicalCalculation.credits;
   // The website's config/aiModels.metering is the authoritative Main Chat
   // credit schedule shared with Android. These values are already customer
   // credits per token (including the website's configured conversion), so do
