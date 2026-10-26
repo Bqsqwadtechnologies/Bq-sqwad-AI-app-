@@ -79,6 +79,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     }
     val scope=rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
+    var catalogRefreshNonce by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
@@ -100,6 +101,8 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var credits by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
+        loading = true
+        catalogRefreshNonce += 1
         // A previous unauthenticated catalog query cannot fetch Play mappings.
         // Retry on refresh so signing in does not require leaving this screen.
         billing?.refreshCatalog()
@@ -120,7 +123,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         } else {
             offline = false
         }
-        loading = !hasCachedCatalog
+        loading = true
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
@@ -178,39 +181,61 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 } else {
                     error = safeUserFacingIssue(t, "Could not load plans. Please retry.")
                 }
-            } finally { loading=false }
+            } finally {
+                if (billing?.hasCompletedCatalogQuery() == true) loading = false
+            }
         }
     }
 
     DisposableEffect(activity) {
         if(activity!=null){
-            val manager=PlayBillingClient(activity, onPurchaseState={state->status=state.message; if(state.status=="success") load()})
+            val manager=PlayBillingClient(activity, onPurchaseState={state->
+                status = state.message
+                when (state.status) {
+                    "catalog_loaded" -> {
+                        playProducts = billing?.availableProducts().orEmpty()
+                        if (plans.isNotEmpty()) error = null
+                        loading = false
+                    }
+                    "catalog_failed" -> {
+                        error = state.message
+                        loading = false
+                    }
+                    "success" -> load()
+                }
+            })
             billing=manager; manager.start()
             onDispose{manager.close()}
         } else onDispose{}
     }
-    LaunchedEffect(billing) {
-        // Billing can connect before queryProductDetailsAsync has returned. Keep polling
-        // briefly so the plan cards don't incorrectly appear unavailable on fast devices.
+    LaunchedEffect(billing, catalogRefreshNonce) {
+        // Keep the branded loading screen visible until Play's asynchronous product
+        // details query actually finishes. A connected BillingClient alone is not proof
+        // that Google Play has returned prices.
         repeat(30) {
             val manager = billing
-            if (manager?.isReady() == true) {
-                val loaded = manager.availableProducts()
-                if (loaded.isNotEmpty()) {
-                    playProducts = loaded
-                    return@LaunchedEffect
+            if (manager?.hasCompletedCatalogQuery() == true) {
+                playProducts = manager.availableProducts()
+                if (playProducts.isNotEmpty()) {
+                    if (plans.isNotEmpty()) error = null
+                } else if (error == null) {
+                    error = status.ifBlank {
+                        "Google Play has not returned purchase details for this account. Check Play Console product setup, then retry."
+                    }
                 }
+                loading = false
+                return@LaunchedEffect
             }
             kotlinx.coroutines.delay(400)
         }
-        playProducts = billing?.availableProducts().orEmpty()
+        val manager = billing
+        playProducts = manager?.availableProducts().orEmpty()
         if (playProducts.isEmpty()) {
-            status = if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
-                "Browse the BQ Sqwad AI plans freely. Sign in before purchasing so checkout and access can be verified securely."
-            } else {
-                "Your BQ Sqwad AI plans are shown above, but Google Pay checkout is not ready on this device yet. Refresh the catalog and try again shortly."
+            error = status.ifBlank {
+                "Google Play has not returned product details yet. Check your connection and retry."
             }
         }
+        loading = false
     }
     LaunchedEffect(signedIn){load()}
     LaunchedEffect(signedIn) {
@@ -968,7 +993,24 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
         }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 }
 
-@Composable private fun ProductLoading(modifier:Modifier){Column(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){repeat(4){Card(Modifier.fillMaxWidth().height(132.dp),shape=RoundedCornerShape(18.dp)){}}}}
+@Composable
+private fun ProductLoading(modifier: Modifier) {
+    Column(
+        modifier.fillMaxSize().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        BqLogo(76.dp)
+        Text("Loading BQ Sqwad AI plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        CircularProgressIndicator()
+        Text(
+            "Waiting for the live catalog and Google Play product details. Prices will appear only after the store returns them.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        repeat(3) { Card(Modifier.fillMaxWidth().height(96.dp), shape = RoundedCornerShape(18.dp)) {} }
+    }
+}
 @Composable private fun ProductError(modifier:Modifier,message:String,retry:()->Unit){Column(modifier.fillMaxSize().padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){BqLogo(64.dp);Spacer(Modifier.height(16.dp));Text("Could not load plans",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant);Spacer(Modifier.height(16.dp));Button(onClick=retry){Text("Try again")}}}
 @Composable private fun ProductNotice(title:String,body:String){Surface(color=MaterialTheme.colorScheme.surfaceContainerHigh,shape=RoundedCornerShape(16.dp),modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(title,fontWeight=FontWeight.SemiBold);Text(body,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
 

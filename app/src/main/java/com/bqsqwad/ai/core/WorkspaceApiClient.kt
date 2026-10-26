@@ -557,6 +557,17 @@ class WorkspaceApiClient {
             put("features", JSONArray(features)); put("message", message)
         })
 
+    suspend fun supportMessages(): JSONObject = request("/support/messages", "GET")
+
+    suspend fun submitSupportIssue(subject: String, description: String, category: String, correlationCode: String = ""): JSONObject =
+        request("/support/issue", payload = JSONObject().apply {
+            put("subject", subject.trim().take(120))
+            put("description", description.trim().take(2000))
+            put("category", category.take(20))
+            put("correlationCode", correlationCode.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(100))
+            put("requestId", java.util.UUID.randomUUID().toString())
+        })
+
     suspend fun submitSupportMessage(name:String, email:String, subject:String, message:String):JSONObject =
         request("/contact", payload=JSONObject().apply {
             put("name", name.take(160)); put("email", email.take(320))

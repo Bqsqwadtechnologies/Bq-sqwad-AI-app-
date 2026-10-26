@@ -151,7 +151,8 @@ private val bqTextScaleState = mutableFloatStateOf(1.0f)
 fun BQSqwadApp(
     modifier: Modifier = Modifier,
     sharedText: String? = null,
-    onSharedTextConsumed: () -> Unit = {}
+    onSharedTextConsumed: () -> Unit = {},
+    openConnectorsNonce: Int = 0
 ) {
     val systemDensity = LocalDensity.current
     CompositionLocalProvider(
@@ -160,15 +161,15 @@ fun BQSqwadApp(
             fontScale = systemDensity.fontScale * bqTextScaleState.floatValue.coerceIn(0.85f, 1.8f)
         )
     ) {
-        AuthGate(modifier, sharedText, onSharedTextConsumed)
+        AuthGate(modifier, sharedText, onSharedTextConsumed, openConnectorsNonce)
     }
 }
 
 @Composable
-private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
+private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit, openConnectorsNonce: Int) {
     // Guest browsing remains available, but protected actions open the real Firebase auth flow.
     // MainShell observes FirebaseAuth state so a successful sign-in immediately updates the UI.
-    MainShell(modifier, sharedText, onSharedTextConsumed)
+    MainShell(modifier, sharedText, onSharedTextConsumed, openConnectorsNonce)
 }
 
 @Composable
@@ -984,7 +985,7 @@ private fun GoogleLogoMark(size: Dp) {
 
 
 @Composable
-private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
+private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit, openConnectorsNonce: Int) {
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
     var firebaseUser by remember { mutableStateOf(auth.currentUser) }
@@ -1031,7 +1032,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
+    var helpOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = helpOpen) { helpOpen = false }
+    BackHandler(enabled = connectorsOpen) { connectorsOpen = false; helpOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -1060,6 +1063,18 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
+    LaunchedEffect(openConnectorsNonce) {
+        if (openConnectorsNonce > 0) {
+            workspace = null
+            history = false
+            settings = false
+            plans = false
+            fileBoxOpen = false
+            featureHub = false
+            helpOpen = false
+            connectorsOpen = true
+        }
+    }
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "workspace_access_cache").getBoolean("admin", false)) }
@@ -1331,11 +1346,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("New Chat") },
-                            selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans,
+                            selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans && !helpOpen,
                             onClick = {
                                 shellScope.launch {
                                     drawerState.close()
-                                    history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null
+                                    history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; featureHub = false; workspace = null
                                     restoredChat = null
                                     chatSessionNonce += 1
                                 }
@@ -1349,7 +1364,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text(if (firebaseUser == null) "Chat History · 🔒 Sign in" else "Chat History") },
                             selected = history,
-                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.CHAT_HISTORY)) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.CHAT_HISTORY)) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; helpOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1377,7 +1392,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                         runCatching { HistoryApiClient().load(historyItem.id) }
                                             .onSuccess { messages ->
                                                 restoredChat = historyItem.title to messages
-                                                history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
+                                                history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
                                                 chatSessionNonce += 1
                                                 drawerState.close()
                                             }
@@ -1403,8 +1418,28 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text(if (firebaseUser == null) "File Box · 🔒 Sign in" else "File Box") },
                             selected = fileBoxOpen,
-                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.FILE_BOX)) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.FILE_BOX)) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; workspace = null; featureHub = false } } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            label = { Text("Help & Support") },
+                            selected = helpOpen,
+                            onClick = { shellScope.launch {
+                                drawerState.close()
+                                helpOpen = true
+                                history = false
+                                settings = false
+                                connectorsOpen = false
+                                plans = false
+                                featureHub = false
+                                fileBoxOpen = false
+                                workspace = null
+                            } },
+                            icon = { Icon(Icons.Default.HelpOutline, null) }
                         )
                     }
                     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
@@ -1414,7 +1449,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Plans & Billing") },
                             selected = plans,
-                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; connectorsOpen = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; connectorsOpen = false; helpOpen = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1434,7 +1469,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
-                            onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; helpOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
@@ -1455,7 +1490,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             }
         } else {
             val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
-                !plans && !accountProtection && featureInfo == null && featurePrivacy == null &&
+                !plans && !helpOpen && !accountProtection && featureInfo == null && featurePrivacy == null &&
                 !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
                 key(firebaseUser?.uid, chatSessionNonce) {
@@ -1482,7 +1517,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
                 if (!showMainChat) when {
-            connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false })
+            helpOpen -> HelpSupportScreen(onBack = { helpOpen = false })
+            connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false; helpOpen = false })
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
                  onUseInChat = { attachment ->
@@ -7022,32 +7058,52 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         try {
             val result = withContext(Dispatchers.IO) {
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                val connection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
-                try {
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 12000
-                    connection.readTimeout = 15000
-                    connection.setRequestProperty("Authorization", "Bearer $token")
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val statusConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/status?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                val accountStatus = try {
+                    statusConnection.requestMethod = "GET"
+                    statusConnection.connectTimeout = 12000
+                    statusConnection.readTimeout = 15000
+                    statusConnection.setRequestProperty("Authorization", "Bearer $token")
+                    val status = statusConnection.responseCode
+                    val stream = if (status in 200..299) statusConnection.inputStream else statusConnection.errorStream
                     val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
-                    if (status == 404 || payload.optString("error") == "connector_not_initialized") {
-                        "not_connected" to emptyList<String>()
-                    } else if (payload.optString("error") == "connector_service_not_configured") {
-                        "setup_needed" to emptyList<String>()
-                    } else if (payload.optString("error") == "connector_needs_auth") {
-                        "needs_auth" to emptyList<String>()
-                    } else if (status !in 200..299) {
-                        throw IllegalStateException("Could not check connector status.")
-                    } else {
-                        val tools = payload.optJSONArray("tools")
-                        val names = List(tools?.length() ?: 0) { index ->
-                            val tool = tools!!.optJSONObject(index) ?: JSONObject()
-                            tool.optString("name", tool.optString("slug", "Available tool"))
-                        }
-                        "connected" to names
+                    when {
+                        status == 503 || payload.optString("error") == "connector_service_not_configured" -> "setup_needed"
+                        status !in 200..299 -> throw IllegalStateException("Could not check connector status.")
+                        payload.optBoolean("connected", false) -> "connected"
+                        else -> "not_connected"
                     }
-                } finally { connection.disconnect() }
+                } finally { statusConnection.disconnect() }
+                if (accountStatus != "connected") {
+                    accountStatus to emptyList<String>()
+                } else {
+                    val toolsConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                    try {
+                        toolsConnection.requestMethod = "GET"
+                        toolsConnection.connectTimeout = 12000
+                        toolsConnection.readTimeout = 15000
+                        toolsConnection.setRequestProperty("Authorization", "Bearer $token")
+                        val status = toolsConnection.responseCode
+                        val stream = if (status in 200..299) toolsConnection.inputStream else toolsConnection.errorStream
+                        val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                        if (status == 404 || payload.optString("error") == "connector_not_initialized") {
+                            "not_connected" to emptyList<String>()
+                        } else if (payload.optString("error") == "connector_service_not_configured") {
+                            "setup_needed" to emptyList<String>()
+                        } else if (payload.optString("error") == "connector_needs_auth") {
+                            "needs_auth" to emptyList<String>()
+                        } else if (status !in 200..299) {
+                            throw IllegalStateException("Could not check connector status.")
+                        } else {
+                            val tools = payload.optJSONArray("tools")
+                            val names = List(tools?.length() ?: 0) { index ->
+                                val tool = tools!!.optJSONObject(index) ?: JSONObject()
+                                tool.optString("name", tool.optString("slug", "Available tool"))
+                            }
+                            "connected" to names
+                        }
+                    } finally { toolsConnection.disconnect() }
+                }
             }
             connectorStatus = when (result.first) { "connected" -> "Connected · ${result.second.size} tools discovered."; "setup_needed" -> "Setup needed (admin)."; "needs_auth" -> "Sign in to the provider to continue."; else -> "Not connected yet. Connect this account to enable its tools." }
             connectorTools = result.second
@@ -7225,7 +7281,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                             connection.doOutput = true
                                             connection.setRequestProperty("Authorization", "Bearer $token")
                                             connection.setRequestProperty("Content-Type", "application/json")
-                                            connection.outputStream.use { it.write(JSONObject().put("toolkit", toolkit).toString().toByteArray(Charsets.UTF_8)) }
+                                            connection.outputStream.use { it.write(JSONObject().put("toolkit", toolkit).put("returnTo", "android").toString().toByteArray(Charsets.UTF_8)) }
                                             val status = connection.responseCode
                                             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                                             val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()

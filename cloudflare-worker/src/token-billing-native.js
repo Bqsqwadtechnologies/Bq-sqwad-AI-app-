@@ -43,7 +43,7 @@ export function normalizeProviderUsage(providerId, raw = {}) {
       modalityUsage: {}
     };
   }
-  if (provider === "gemini") {
+  if (["gemini", "google", "google-gemini"].includes(provider)) {
     return {
       inputTokens: Math.max(0, Number(raw.promptTokenCount ?? raw.prompt_token_count ?? 0)),
       outputTokens: Math.max(0, Number(raw.candidatesTokenCount ?? raw.candidates_token_count ?? 0)),
@@ -117,41 +117,11 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     cachedInputUsdPerToken: cachedRate / 1_000_000,
     outputUsdPerToken: outputRate / 1_000_000
   });
-  // The website's config/aiModels.metering is the authoritative Main Chat
-  // credit schedule shared with Android. These values are already customer
-  // credits per token (including the website's configured conversion), so do
-  // not run them through provider-USD conversion or apply markup a second time.
-  // This is also what prevents Android from charging according to a stale or
-  // mismatched USD-per-credit fallback while the website charges per token.
-  const sharedMetering = pricing?.sharedCreditMetering;
-  let customerCredits = canonicalCalculation.credits;
-  if (sharedMetering && typeof sharedMetering === "object") {
-    const configuredInput = Number(sharedMetering.creditsPerInputToken);
-    const configuredOutput = Number(sharedMetering.creditsPerOutputToken);
-    const configuredCached = Number(sharedMetering.creditsPerCachedInputToken);
-    const configuredMinimum = Number(sharedMetering.minimumCredits ?? 0);
-    const configuredFallback = Number(sharedMetering.fallbackCredits ?? 0);
-    const configuredConversion = Number(sharedMetering.conversionRate ?? 1);
-    const configuredPrecision = Math.min(6, Math.max(0, Math.round(Number(sharedMetering.precision ?? 4))));
-    const modelWeight = Number(pricing?.sharedModelMultiplier ?? 1);
-    const configuredRates = [configuredInput, configuredOutput, configuredCached, configuredMinimum, configuredFallback, configuredConversion, modelWeight];
-    if (!configuredRates.every(value => Number.isFinite(value) && value >= 0) || configuredConversion <= 0 || modelWeight <= 0) {
-      throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
-    }
-    if (inputTokens + outputTokens === 0) {
-      customerCredits = configuredFallback * modelWeight * configuredConversion;
-    } else {
-      const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-      const measuredCredits = (
-        uncachedInputTokens * configuredInput +
-        cachedInputTokens * configuredCached +
-        outputTokens * configuredOutput
-      ) * modelWeight * configuredConversion;
-      customerCredits = Math.max(configuredMinimum, measuredCredits);
-    }
-    const factor = 10 ** configuredPrecision;
-    customerCredits = Math.round((customerCredits + Number.EPSILON) * factor) / factor;
-  }
+  const customerCredits = canonicalCalculation.credits;
+  // Match the website's canonical cost-plus engine: use the active tokenPricingRules
+  // provider rates for uncached input, cached input and output tokens, then apply
+  // config/usageBilling markup, fee and USD-per-credit settings exactly once.
+  // Never turn a Main Chat request into a fixed one-credit charge.
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
@@ -268,7 +238,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   if (featureAliases.has("text-chat")) featureAliases.add("chat");
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
-    if (String(rule.provider || "").toLowerCase() !== String(providerId || "").toLowerCase()) return false;
+    if (!((["gemini", "google", "google-gemini"].includes(String(providerId || "").toLowerCase()) && ["gemini", "google", "google-gemini"].includes(String(rule.provider || "").toLowerCase())) || (["lovable-gateway", "lovable", "gateway"].includes(String(providerId || "").toLowerCase()) && ["lovable-gateway", "lovable", "gateway"].includes(String(rule.provider || "").toLowerCase())) || (String(rule.provider || "").toLowerCase() === String(providerId || "").toLowerCase()))) return false;
     if (String(rule.model || "*") !== "*" && String(rule.model) !== String(modelId || "")) return false;
     if (Array.isArray(rule.features) && rule.features.length && !rule.features.some(name => featureAliases.has(String(name)))) return false;
     if (Array.isArray(rule.plans) && rule.plans.length && (!control.planId || !rule.plans.includes(String(control.planId)))) return false;

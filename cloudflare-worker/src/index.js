@@ -899,9 +899,13 @@ function isSubscriptionCoveredCapability(profile, capabilityName) {
 }
 
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
-  // The caller supplies the final customer price. Normalize to the shared
-  // five-decimal credit precision here; never apply markup in the ledger layer.
-  let charge = computeFixedCredits(amount);
+  // The caller supplies the final customer price. Fixed-price features use the
+  // shared five-decimal rounding; measured token requests preserve fractional
+  // pricing and keep a tiny reservation so they never fall through to a
+  // legacy capability price (commonly 1 credit per chat).
+  let charge = options.allowFractional
+    ? Math.max(0.00001, computeFixedCredits(amount))
+    : computeFixedCredits(amount);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
@@ -913,7 +917,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   }
   // No trial-credit pool exists. Grant only the single daily free credit.
   await applyConfiguredDailyFreeCredits(uid);
-  if (!charge) {
+  if (!charge && !options.allowFractional) {
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
@@ -1324,6 +1328,7 @@ const BQ_APP_KNOWLEDGE = [
   "Text tools: help users draft, rewrite, correct, summarize, expand, shorten, translate, explain, structure, and reformat text; create headings, numbered lists, bullet lists, tables, templates, letters, reports, captions, and copy-ready messages. Use Markdown headings and bold emphasis when a user asks for larger or more prominent text; use concise plain text when they ask for smaller or simpler text. Use fenced code blocks for code and preserve indentation. Do not claim the AI can change Android font size itself; app-wide display size is controlled by Settings > Appearance > Text size.",
   "Recognize and explain the app's central brand controls: Settings > Brand & App Logo selects one shared in-app logo for all BqLogo components on this device, with the bundled BQ Sqwad AI logo as fallback. Do not claim this changes the Android launcher icon or other devices unless a verified service says so.",
   "Feature recognition should include Main Chat, image generation, file analysis, video generation, Web Search, TruthGuard AI, Frontier Lab, Data Analyst, AI Live Camera, screen sharing, Live Voice AI, Personal Intelligence, Life Matters, AI Companion, Learning Studio, Business AI, Organization Studio AI, Plans & Credits, Chat History, account protection, privacy/legal controls, admin operations, shared credits, and the registered advanced capabilities above. When asked what the app supports, list these clearly and distinguish shipped core features from registered/experimental features that still require verification.",
+  "BQ SUPPORT GUIDE: When a user reports an app or website error, sign-in problem, connector, upload, credit, plan, catalog, Live Voice or camera issue, guide them step by step. Ask whether they are using Android or the website when steps differ. Give numbered steps with one action each and say what success looks like. Start with safe reversible checks; ask for the visible safe error/reference code when needed. Never request passwords, one-time codes, API keys, access tokens, full payment details, or private screen contents. Never bypass provider consent or claim an admin changed the account. If the steps fail, direct them to Help & Support in the app or the website Help & Troubleshooting page and ask them to submit the reference code. Be honest about uncertainty and never claim a fix without user confirmation.",
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
 
@@ -3079,6 +3084,70 @@ export default {
         await firestoreSet("userFeatureSettings/" + user.uid, { uid:user.uid, settings:next, updatedAt:new Date() }, true);
         return json({ uid:user.uid, settings:next });
       }
+      if (url.pathname === "/support/messages" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const rows = await firestoreQuery("supportReplies", {
+          filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 50
+        });
+        const visible = rows.filter(row => row.visibleToUser === true)
+          .map(row => ({
+            id: String(row.id || ""),
+            message: String(row.message || "").slice(0, 2000)
+              .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+              .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+              .replace(/\b(?:sk-|AIza)[A-Za-z0-9_-]{12,}/g, "[REDACTED]"),
+            createdAt: String(row.createdAt || ""),
+            read: true
+          }))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        await Promise.all(visible.filter(row => row.id).map(row =>
+          firestoreSet("supportReplies/" + row.id, { read: true, readAt: new Date().toISOString() }, true).catch(() => {})
+        ));
+        return json({ replies: visible });
+      }
+
+      if (url.pathname === "/support/issue" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 10);
+        const body = await readBody(request);
+        const subject = String(body.subject || "").trim().slice(0, 120);
+        const description = String(body.description || "").trim().slice(0, 2000);
+        const category = String(body.category || "other").trim().toLowerCase();
+        const allowedCategories = new Set(["account", "billing", "connector", "catalog", "app", "other"]);
+        const requestId = String(body.requestId || "").trim();
+        const correlationCode = String(body.correlationCode || "").trim().slice(0, 100);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+          return json({ error: "support_request_id_invalid" }, 400);
+        }
+        if (subject.length < 4 || description.length < 8 || !allowedCategories.has(category)) {
+          return json({ error: "support_issue_fields_invalid" }, 400);
+        }
+        const sanitizeSupport = (value) => String(value || "").slice(0, 2000)
+          .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+          .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+          .replace(/\b(?:sk-|AIza)[A-Za-z0-9_-]{12,}/g, "[REDACTED]")
+          .replace(/((?:password|secret|token|api[_ -]?key|pin|otp)\s*[:=]\s*)\S+/gi, "$1[REDACTED]");
+        const id = user.uid + "_" + requestId;
+        const refCode = "BQ-" + requestId;
+        const existing = await firestoreGet("supportIssues/" + id).catch(() => null);
+        if (!existing) {
+          await firestoreCreate("supportIssues/" + id, {
+            uid: user.uid,
+            refCode,
+            subject: sanitizeSupport(subject).slice(0, 120),
+            description: sanitizeSupport(description),
+            category,
+            correlationCode: correlationCode.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 100),
+            status: "open",
+            source: "android",
+            createdAt: new Date().toISOString()
+          });
+        }
+        return json({ ok: true, refCode, status: existing?.status || "open" });
+      }
+
       if (url.pathname === "/contact" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
@@ -3939,7 +4008,53 @@ export default {
       }
       if (url.pathname === "/usage" && request.method === "GET") { const u=await verifyFirebaseUser(request),limit=Math.min(100,Math.max(1,Number(url.searchParams.get("limit")||50))); return json({items:(await firestoreQuery("creditLedger",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:100})).slice(0,limit)}); }
       if (url.pathname === "/play/subscription-management" && request.method === "GET") { const u=await verifyFirebaseUser(request),e=await firestoreGet("entitlements/"+u.uid),play=String(e?.source||"")==="play"&&Boolean(e?.purchaseToken)&&Boolean(e?.productId);return json({ok:true,provider:"google_play",hasSubscription:play,autoRenewEnabled:play?e.autoRenewEnabled!==false:false,state:String(e?.state||""),renewalState:String(e?.renewalState||""),endDate:e?.endDate||null,managementUrl:play?"https://play.google.com/store/account/subscriptions?sku="+encodeURIComponent(String(e.productId))+"&package="+encodeURIComponent("com.bqsqwad.ai"):null,paymentMethodManagementUrl:play?"https://play.google.com/store/paymentmethods":null,note:"Google Play is authoritative for auto-renewal and payment methods."}); }
-      if (url.pathname === "/contact-sales" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),email=String(b.email||u.email||"").trim().slice(0,320),companyName=String(b.companyName||"").trim().slice(0,180),companyEmail=String(b.companyEmail||"").trim().slice(0,320),planId=String(b.planId||"").trim().slice(0,100),planName=String(b.planName||"").trim().slice(0,180),billingPeriod=String(b.billingPeriod||"").trim().slice(0,40),message=String(b.message||"").trim().slice(0,6000);if(!email||!planId||!message)throw new Error("email_plan_and_message_required");const id=crypto.randomUUID();await firestoreCreate("contactSalesRequests/"+id,{uid:u.uid,email,companyName,companyEmail,planId,planName,billingPeriod,features:Array.isArray(b.features)?b.features.map(x=>String(x).slice(0,180)).slice(0,100):[],message,status:"new",createdAt:new Date(),updatedAt:new Date()});return json({ok:true,requestId:id,status:"new"}); }
+      if (url.pathname === "/contact-sales" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        const b = await readBody(request);
+        const email = String(b.email || u.email || "").trim().slice(0, 320);
+        const companyName = String(b.companyName || "").trim().slice(0, 180);
+        const companyEmail = String(b.companyEmail || "").trim().slice(0, 320);
+        const planId = String(b.planId || "").trim().slice(0, 100);
+        const planName = String(b.planName || "").trim().slice(0, 180);
+        const billingPeriod = String(b.billingPeriod || "").trim().slice(0, 40);
+        const message = String(b.message || "").trim().slice(0, 6000);
+        if (!email || !planId || !message) throw new Error("email_plan_and_message_required");
+        const id = crypto.randomUUID();
+        const features = Array.isArray(b.features) ? b.features.map(x => String(x).slice(0, 180)).slice(0, 100) : [];
+        const createdAt = new Date().toISOString();
+        // Keep the app's request queue and the website's canonical sales inbox in sync.
+        await firestoreCreate("contactSalesRequests/" + id, {
+          uid: u.uid, email, companyName, companyEmail, planId, planName, billingPeriod,
+          features, message, status: "new", createdAt, updatedAt: createdAt
+        });
+        try {
+          await firestoreCreate("businessLeads/" + id, {
+            uid: u.uid, name: email, email, company: companyName || "Not provided",
+            message: [`Plan: ${planName || planId}`, `Billing period: ${billingPeriod || "not specified"}`,
+              `Company email: ${companyEmail || "not provided"}`, `Requested features: ${features.join(", ") || "not specified"}`,
+              "", message].join("\n"),
+            planId, planName, billingPeriod, features, source: "android_contact_sales",
+            status: "new", createdAt, updatedAt: createdAt
+          });
+          // The shared lead is durable before the mail attempt; email must not block submission.
+          try {
+            const authorization = request.headers.get("authorization") || "";
+            if (/^Bearer\s+\S+/i.test(authorization)) {
+              await fetch("https://bqsqwadai.com/api/native/contact-sales-notify", {
+                method: "POST",
+                headers: { "Authorization": authorization, "Content-Type": "application/json" },
+                body: JSON.stringify({ leadId: id }),
+                signal: AbortSignal.timeout(8000)
+              });
+            }
+          } catch {
+            console.warn("[contact-sales] email notification unavailable; request remains saved.");
+          }
+        } catch (error) {
+          console.error("[contact-sales] canonical sales inbox mirror failed; request queue retained", error);
+        }
+        return json({ ok: true, requestId: id, status: "new" });
+      }
       if (url.pathname === "/contact-sales/status" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({requests:await firestoreQuery("contactSalesRequests",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:10})}); }
       if (url.pathname === "/admin/contact-sales" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({requests:await firestoreQuery("contactSalesRequests",{limit:100})}); }
       if (url.pathname === "/admin/contact-sales/status" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),status=["seen","contacted","replied","closed"].includes(String(b.status))?String(b.status):"";if(!status)throw new Error("invalid_request_status");await firestoreSet("contactSalesRequests/"+String(b.requestId||""),{status,lastAdminAction:status,lastAdminActionAt:new Date(),updatedAt:new Date()},true);return json({ok:true,requestId:String(b.requestId||""),status}); }
@@ -4729,7 +4844,7 @@ export default {
               // Return the user to BQ Sqwad AI after provider consent instead of leaving
               // them stranded on a provider completion page. Override via Worker env only
               // if the canonical website callback changes.
-              callback_url: String(env.BQ_CONNECTOR_CALLBACK_URL || "https://bqsqwadai.com/connectors?oauth=complete")
+              callback_url: String(String(body.returnTo || "").toLowerCase() === "android" ? "https://bqsqwadai.com/connectors?oauth=complete&source=android" : (env.BQ_CONNECTOR_CALLBACK_URL || "https://bqsqwadai.com/connectors?oauth=complete"))
             }),
             signal: AbortSignal.timeout(15000)
           }
@@ -4818,6 +4933,30 @@ export default {
           });
         const resolvedConnectors = await Promise.all(connectors);
         return json({ connectors: resolvedConnectors });
+      }
+
+      if (url.pathname === "/connectors/status" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
+        if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
+        if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
+        const query = new URLSearchParams({ user_ids: user.uid, toolkit_slugs: toolkit, statuses: "ACTIVE", limit: "100" });
+        const response = await fetch("https://backend.composio.dev/api/v3.1/connected_accounts?" + query.toString(), {
+          headers: composioHeaders(env, { "Accept": "application/json" }),
+          signal: AbortSignal.timeout(12000)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: "connector_status_unavailable", providerStatus: response.status }, 502);
+        const items = Array.isArray(data.items) ? data.items : [];
+        const active = items.filter(item =>
+          String(item.user_id || "") === user.uid &&
+          String(item.toolkit?.slug || "").toLowerCase() === toolkit &&
+          String(item.status || "").toUpperCase() === "ACTIVE" &&
+          item.is_disabled !== true
+        );
+        return json({ toolkit, connected: active.length > 0, status: active.length > 0 ? "connected" : "not-connected", connectedAccounts: active.length });
       }
 
       if (url.pathname === "/connectors/tools" && request.method === "GET") {

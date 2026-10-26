@@ -64,6 +64,9 @@ class PlayBillingClient(
     private val catalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
     private var connected = false
     private var connecting = false
+    @Volatile private var catalogQueryComplete = false
+
+    fun hasCompletedCatalogQuery(): Boolean = catalogQueryComplete
 
     fun start() {
         if (client.isReady) {
@@ -89,20 +92,24 @@ class PlayBillingClient(
     override fun onBillingSetupFinished(result: BillingResult) {
         connecting = false
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
+        if (!connected) {
+            catalogQueryComplete = true
+            onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
+        }
         if (connected) {
             queryCatalog()
             restorePurchases()
         } else {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
         }
     }
 
     override fun onBillingServiceDisconnected() {
         connected = false
         connecting = false
+        catalogQueryComplete = true
+        onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play billing disconnected. Check your connection and retry."))
         reportBillingDiagnostic("billing_service_disconnected")
-        onPurchaseState(PlayPurchaseState("failed", "Google Play billing disconnected. Check your connection and retry."))
     }
 
     private fun billingDiagnosticCode(responseCode: Int): String = when (responseCode) {
@@ -250,18 +257,21 @@ class PlayBillingClient(
     }
 
     private fun queryCatalog() {
+        catalogQueryComplete = false
         Thread {
             runCatching {
                 val user = FirebaseAuth.getInstance().currentUser
                 if (user == null) {
+                    catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_requires_sign_in")
-                    onPurchaseState(PlayPurchaseState("failed", "Sign in to your BQ Sqwad AI account to load Google Play purchase options."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", "Sign in to your BQ Sqwad AI account to load Google Play purchase options."))
                     return@runCatching
                 }
                 val token = Tasks.await(user.getIdToken(false)).token
                 if (token.isNullOrBlank()) {
+                    catalogQueryComplete = true
                     reportBillingDiagnostic("billing_auth_token_missing")
-                    onPurchaseState(PlayPurchaseState("failed", "Your account could not be verified. Sign in again, then refresh purchase options."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", "Your account could not be verified. Sign in again, then refresh purchase options."))
                     return@runCatching
                 }
                 val catalogPath = if (catalogContext == "organization") "$baseUrl/play/catalog?context=organization" else "$baseUrl/play/catalog"
@@ -310,8 +320,9 @@ class PlayBillingClient(
                     }
                 }
                 if (products.isEmpty()) {
+                    catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_empty")
-                    onPurchaseState(PlayPurchaseState("failed", "No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", "No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup."))
                     return@runCatching
                 }
                 client.queryProductDetailsAsync(
@@ -327,17 +338,22 @@ class PlayBillingClient(
                             details.clear()
                             queried.productDetailsList.forEach { details[it.productId] = it }
                         }
+                        catalogQueryComplete = true
+                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Google Play returned live product details."))
                     } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                        catalogQueryComplete = true
                         reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-                        onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
                     } else {
+                        catalogQueryComplete = true
                         reportBillingDiagnostic("billing_item_unavailable")
-                        onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)))
                     }
                 }
             }.onFailure {
+                catalogQueryComplete = true
                 reportBillingDiagnostic("billing_catalog_load_failed")
-                onPurchaseState(PlayPurchaseState("failed", "Google Play purchase options could not be loaded. Check your connection and refresh the catalog."))
+                onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play purchase options could not be loaded. Check your connection and refresh the catalog."))
             }
         }.start()
     }
