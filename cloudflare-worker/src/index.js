@@ -5080,8 +5080,16 @@ export default {
         const deepResearch = Boolean(body.deepResearch);
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
-        const charge = Math.max(0, deepResearch ? Number(control.config?.creditsPerDeepResearch ?? 0) : Number(control.config?.creditsPerSearch ?? 0));
-        const reservation = await chargeCredits(user.uid, charge, capabilityName, user);
+        const configuredSearchCharge = deepResearch ? control.config?.creditsPerDeepResearch : control.config?.creditsPerSearch;
+        if (configuredSearchCharge == null || !Number.isFinite(Number(configuredSearchCharge)) || Number(configuredSearchCharge) < 0) {
+          throw Object.assign(new Error("search_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
+        }
+        const charge = Number(configuredSearchCharge);
+        // The search-provider fee is a separate, explicitly configured charge.
+        // A configured zero fee must not fall through to the legacy capability price.
+        const reservation = charge > 0
+          ? await chargeCredits(user.uid, charge, capabilityName, user)
+          : { reservationId: null, amount: 0 };
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
           let answer = null;
@@ -5098,10 +5106,10 @@ export default {
             });
             answer = synthesis.text;
           }
-          await commitCredits(user.uid, reservation.reservationId, deepResearch ? "tavily+ai" : "tavily");
+          if (reservation.reservationId) await commitCredits(user.uid, reservation.reservationId, deepResearch ? "tavily+ai" : "tavily");
           return json({...result, answer, creditsCharged:reservation.amount});
         } catch(error) {
-          await reverseCredits(user.uid, reservation.reservationId);
+          if (reservation.reservationId) await reverseCredits(user.uid, reservation.reservationId);
           throw error;
         }
       }
