@@ -463,7 +463,7 @@ fun OrganizationStudioWorkspace() {
                                 val result = playBilling?.launchPurchase(productId)
                                 billingWarning = if (result?.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK)
                                     "Secure checkout opened for ${"%.2f".format(java.util.Locale.US, amount)}."
-                                else result?.debugMessage?.ifBlank { "Secure checkout could not start." } ?: "Checkout is not ready yet."
+                                else "Secure checkout could not be completed. Please retry."
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Continue with Google Pay · Deposit ${"%.2f".format(java.util.Locale.US, amount)}") }
