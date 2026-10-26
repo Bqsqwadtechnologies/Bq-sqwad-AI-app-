@@ -389,7 +389,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100 &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
-  const sharedCreditMetering = {
+  const isMainChatMeteredFeature = ["chat", "text-chat"].includes(String(feature || "").toLowerCase());
+  const sharedCreditMetering = isMainChatMeteredFeature ? {
     creditsPerInputToken: Number(sharedMetering.creditsPerInputToken ?? 0.00003),
     creditsPerOutputToken: Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
     creditsPerCachedInputToken: Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
@@ -397,7 +398,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
     precision: Number(sharedMetering.precision ?? 4),
     conversionRate: Number(sharedMetering.conversionRate ?? 1)
-  };
+  } : null;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, maxOutputTokens, configured,
