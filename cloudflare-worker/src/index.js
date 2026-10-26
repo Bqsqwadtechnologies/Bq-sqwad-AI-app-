@@ -3080,6 +3080,30 @@ export default {
         await firestoreSet("userFeatureSettings/" + user.uid, { uid:user.uid, settings:next, updatedAt:new Date() }, true);
         return json({ uid:user.uid, settings:next });
       }
+      if (url.pathname === "/support/messages" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const rows = await firestoreQuery("supportReplies", {
+          filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 50
+        });
+        const visible = rows.filter(row => row.visibleToUser === true)
+          .map(row => ({
+            id: String(row.id || ""),
+            message: String(row.message || "").slice(0, 2000)
+              .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+              .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+              .replace(/\b(?:sk-|AIza)[A-Za-z0-9_-]{12,}/g, "[REDACTED]"),
+            createdAt: String(row.createdAt || ""),
+            read: true
+          }))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        await Promise.all(visible.filter(row => row.id).map(row =>
+          firestoreSet("supportReplies/" + row.id, { read: true, readAt: new Date().toISOString() }, true).catch(() => {})
+        ));
+        return json({ replies: visible });
+      }
+
       if (url.pathname === "/support/issue" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 10);
