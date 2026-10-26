@@ -44,7 +44,7 @@ test("Tavily search authenticates with the configured Worker secret using Bearer
 test("Tavily search fails closed when the Worker secret is missing", async () => {
   await assert.rejects(
     () => callTavily({}, "test query"),
-    /TAVILY_API_KEY_not_configured/
+    /web_search_not_configured/
   );
 });
 
