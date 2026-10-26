@@ -43,7 +43,7 @@ export function normalizeProviderUsage(providerId, raw = {}) {
       modalityUsage: {}
     };
   }
-  if (provider === "gemini") {
+  if (["gemini", "google", "google-gemini"].includes(provider)) {
     return {
       inputTokens: Math.max(0, Number(raw.promptTokenCount ?? raw.prompt_token_count ?? 0)),
       outputTokens: Math.max(0, Number(raw.candidatesTokenCount ?? raw.candidates_token_count ?? 0)),
@@ -242,7 +242,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   if (featureAliases.has("text-chat")) featureAliases.add("chat");
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
-    if (String(rule.provider || "").toLowerCase() !== String(providerId || "").toLowerCase()) return false;
+    if (!((["gemini", "google", "google-gemini"].includes(String(providerId || "").toLowerCase()) && ["gemini", "google", "google-gemini"].includes(String(rule.provider || "").toLowerCase())) || (["lovable-gateway", "lovable", "gateway"].includes(String(providerId || "").toLowerCase()) && ["lovable-gateway", "lovable", "gateway"].includes(String(rule.provider || "").toLowerCase())) || (String(rule.provider || "").toLowerCase() === String(providerId || "").toLowerCase()))) return false;
     if (String(rule.model || "*") !== "*" && String(rule.model) !== String(modelId || "")) return false;
     if (Array.isArray(rule.features) && rule.features.length && !rule.features.some(name => featureAliases.has(String(name)))) return false;
     if (Array.isArray(rule.plans) && rule.plans.length && (!control.planId || !rule.plans.includes(String(control.planId)))) return false;
