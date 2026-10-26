@@ -2,7 +2,9 @@ name: BQ Sqwad AI — Validate Main and Debug APK
 
 on:
   workflow_dispatch:
-
+  push:
+    branches:
+      - main
 permissions:
   contents: read
 
