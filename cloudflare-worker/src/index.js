@@ -4175,7 +4175,8 @@ export default {
         if (!title || !content) return json({ error: "pdf_content_required" }, 400);
         let reservation = null;
         try {
-          const pdfControl = await capability(u.uid, "pdf");\n          reservation = await chargeCredits(u.uid, pdfControl.creditCost, "pdf", u);
+          const pdfControl = await capability(u.uid, "pdf");
+          reservation = await chargeCredits(u.uid, pdfControl.creditCost, "pdf", u);
           await commitCredits(u.uid, reservation.reservationId, "pdf");
           return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0)) });
         } catch (error) {
