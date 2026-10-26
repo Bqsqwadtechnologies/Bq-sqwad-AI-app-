@@ -968,7 +968,7 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
         }.sortedWith(compareBy<LivePlan> { it.sortOrder }.thenBy { it.name.lowercase(java.util.Locale.ROOT) })
 }
 
-@Composable @Composable
+@Composable
 private fun ProductLoading(modifier: Modifier) {
     Column(
         modifier.fillMaxSize().padding(20.dp),
