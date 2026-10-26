@@ -169,6 +169,24 @@ class PlayBillingClient(
                             activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode.toLong()
                         }
                     }.getOrDefault(0L))
+                    put("signingCertSha256", runCatching {
+                        val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            activity.packageManager.getPackageInfo(activity.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getPackageInfo(activity.packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+                        }
+                        val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            packageInfo.signingInfo?.apkContentsSigners
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageInfo.signatures
+                        }
+                        signatures?.firstOrNull()?.toByteArray()?.let { signature ->
+                            java.security.MessageDigest.getInstance("SHA-256").digest(signature)
+                                .joinToString("") { byte -> "%02X".format(byte) }
+                        }.orEmpty()
+                    }.getOrDefault(""))
                     put("billingReady", client.isReady)
                     put("catalogProductCount", details.size)
                     put("catalogProductIds", details.keys.joinToString(",").take(300))
