@@ -25,9 +25,9 @@ test("vision reserves an estimate, settles reported token usage, and reverses fa
 
 test("metered chat cannot use a flat creditCost reservation argument", () => {
   for (const [startMarker, endMarker] of [
-    ["async function ai(request, user, body)", "\nasync function stream("],
-    ["async function stream(request, user, body)", "\nasync function vision("],
-    ["async function vision(request, user, body)", "\nasync function "],
+    ["async function ai(request, user, body)", "\nasync function vision("],
+    ["async function stream(request, user, body)", "\nasync function "],
+    ["async function vision(request, user, body)", "\nasync function stream("],
   ]) {
     const start = source.indexOf(startMarker);
     const end = source.indexOf(endMarker, start + startMarker.length);
@@ -39,7 +39,7 @@ test("metered chat cannot use a flat creditCost reservation argument", () => {
 
 test("plain chat settles with provider-reported token formula, not a hard-coded one-credit charge", () => {
   const start = source.indexOf("async function ai(request, user, body)");
-  const end = source.indexOf("\nasync function stream(", start + 10);
+  const end = source.indexOf("\nasync function vision(", start + 10);
   const ai = source.slice(start, end);
   assert.match(ai, /const calculation = calculateTokenCost\(/);
   assert.match(ai, /settleCreditReservation\(user\.uid, reservation\.reservationId, calculation\.customerCredits/);
