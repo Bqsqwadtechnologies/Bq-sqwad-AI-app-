@@ -1433,10 +1433,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                 helpOpen = true
                                 history = false
                                 settings = false
-                                connectorsOpen = false; helpOpen = false
+                                connectorsOpen = false
                                 plans = false
                                 featureHub = false
                                 fileBoxOpen = false
+                                helpOpen = true
                                 workspace = null
                             } },
                             icon = { Icon(Icons.Default.HelpOutline, null) }
