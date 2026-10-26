@@ -151,7 +151,8 @@ private val bqTextScaleState = mutableFloatStateOf(1.0f)
 fun BQSqwadApp(
     modifier: Modifier = Modifier,
     sharedText: String? = null,
-    onSharedTextConsumed: () -> Unit = {}
+    onSharedTextConsumed: () -> Unit = {},
+    openConnectorsNonce: Int = 0
 ) {
     val systemDensity = LocalDensity.current
     CompositionLocalProvider(
@@ -160,15 +161,15 @@ fun BQSqwadApp(
             fontScale = systemDensity.fontScale * bqTextScaleState.floatValue.coerceIn(0.85f, 1.8f)
         )
     ) {
-        AuthGate(modifier, sharedText, onSharedTextConsumed)
+        AuthGate(modifier, sharedText, onSharedTextConsumed, openConnectorsNonce)
     }
 }
 
 @Composable
-private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
+private fun AuthGate(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit, openConnectorsNonce: Int) {
     // Guest browsing remains available, but protected actions open the real Firebase auth flow.
     // MainShell observes FirebaseAuth state so a successful sign-in immediately updates the UI.
-    MainShell(modifier, sharedText, onSharedTextConsumed)
+    MainShell(modifier, sharedText, onSharedTextConsumed, openConnectorsNonce)
 }
 
 @Composable
@@ -984,7 +985,7 @@ private fun GoogleLogoMark(size: Dp) {
 
 
 @Composable
-private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit) {
+private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsumed: () -> Unit, openConnectorsNonce: Int) {
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
     var firebaseUser by remember { mutableStateOf(auth.currentUser) }
@@ -1031,6 +1032,17 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(openConnectorsNonce) {
+        if (openConnectorsNonce > 0) {
+            workspace = null
+            history = false
+            settings = false
+            plans = false
+            fileBoxOpen = false
+            featureHub = false
+            connectorsOpen = true
+        }
+    }
     BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
