@@ -97,9 +97,56 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const providerCostCredits = providerCostUsd / creditValue;
-  // The shared pure billing engine performs the final customer-cost and credit
-  // rounding used by every token-billed Worker path. The effective multiplier
-  // already includes canonical markup, fee allowance, and model weight.
+
+  // Main Chat uses the website's canonical per-token credit meter when it is
+  // available. Provider USD rates are retained for usage/profit reporting, but
+  // must not override the website's configured credits-per-token policy.
+  const sharedMeter = pricing?.sharedCreditMetering;
+  if (sharedMeter && typeof sharedMeter === "object") {
+    const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
+    const inputCreditRate = Number(sharedMeter.creditsPerInputToken);
+    const cachedCreditRate = Number(sharedMeter.creditsPerCachedInputToken);
+    const outputCreditRate = Number(sharedMeter.creditsPerOutputToken);
+    const conversionRate = Number(sharedMeter.conversionRate ?? 1);
+    const minimumCredits = Number(sharedMeter.minimumCredits ?? 0);
+    const precision = Number(sharedMeter.precision ?? 4);
+    const modelWeight = Number(pricing.sharedModelMultiplier ?? 1);
+    const sharedValues = [inputCreditRate, cachedCreditRate, outputCreditRate, conversionRate, minimumCredits, precision, modelWeight];
+    if (!sharedValues.every(Number.isFinite) ||
+        inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
+        conversionRate < 0 || minimumCredits < 0 ||
+        !Number.isInteger(precision) || precision < 0 || precision > 8 ||
+        modelWeight <= 0 || modelWeight > 10) {
+      throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+    }
+    const rawCredits = (
+      uncachedInputTokens * inputCreditRate +
+      cachedInputTokens * cachedCreditRate +
+      outputTokens * outputCreditRate
+    ) * conversionRate * modelWeight;
+    const roundedCredits = rawCredits > 0
+      ? Math.max(minimumCredits, Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
+      : 0;
+    const grossUsageValueUsd = roundedCredits * creditValue;
+    const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
+    const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
+    return {
+      inputTokens, outputTokens, cachedInputTokens,
+      inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
+      creditReferenceValueUsd: creditValue,
+      customerMultiplier: modelWeight,
+      estimatedFeePercent,
+      estimatedFeeUsd,
+      providerCostCredits,
+      customerCredits: roundedCredits,
+      grossUsageValueUsd,
+      estimatedGrossProfitUsd,
+      estimatedNetProfitUsd: estimatedGrossProfitUsd - estimatedFeeUsd
+    };
+  }
+
+  // USD cost-plus is the fallback for features/providers that do not use the
+  // website's shared per-token credit meter.
   const effectiveMultiplier = Number(multiplier);
   if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier < 1 || effectiveMultiplier > 10000) {
     throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
@@ -342,17 +389,15 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100 &&
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
-  const sharedCreditMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
-    ? {
-        creditsPerInputToken: Number(sharedMetering.creditsPerInputToken ?? 0.00003),
-        creditsPerOutputToken: Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
-        creditsPerCachedInputToken: Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
-        minimumCredits: Number(sharedMetering.minimumCredits ?? 0.002),
-        fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
-        precision: Number(sharedMetering.precision ?? 4),
-        conversionRate: Number(sharedMetering.conversionRate ?? 1)
-      }
-    : null;
+  const sharedCreditMetering = {
+    creditsPerInputToken: Number(sharedMetering.creditsPerInputToken ?? 0.00003),
+    creditsPerOutputToken: Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
+    creditsPerCachedInputToken: Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
+    minimumCredits: Number(sharedMetering.minimumCredits ?? 0.002),
+    fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
+    precision: Number(sharedMetering.precision ?? 4),
+    conversionRate: Number(sharedMetering.conversionRate ?? 1)
+  };
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, maxOutputTokens, configured,
