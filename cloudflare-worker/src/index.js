@@ -4761,7 +4761,7 @@ export default {
               // Return the user to BQ Sqwad AI after provider consent instead of leaving
               // them stranded on a provider completion page. Override via Worker env only
               // if the canonical website callback changes.
-              callback_url: String(String(body.returnTo || "").toLowerCase() === "android" ? "https://bqsqwadai.com/connectors/oauth-return?source=android" : (env.BQ_CONNECTOR_CALLBACK_URL || "https://bqsqwadai.com/connectors?oauth=complete"))
+              callback_url: String(String(body.returnTo || "").toLowerCase() === "android" ? "https://bqsqwadai.com/connectors?oauth=complete&source=android" : (env.BQ_CONNECTOR_CALLBACK_URL || "https://bqsqwadai.com/connectors?oauth=complete"))
             }),
             signal: AbortSignal.timeout(15000)
           }
