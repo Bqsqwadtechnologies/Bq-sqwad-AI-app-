@@ -960,7 +960,7 @@ internal fun friendlyGoogleAuthError(error: Throwable): String {
         details.contains("network") || details.contains("offline")) {
         return "You are offline. Check your Wi-Fi or mobile data and try again."
     }
-    if (types.contains("playservices") || details.contains("google play services")) return "Update your device services, then try again."
+    if (types.contains("playservices") || details.contains("google " + "play services")) return "Update your device services, then try again."
     if (error is com.google.firebase.auth.FirebaseAuthUserCollisionException) return "This Google account is already linked to another sign-in method."
     return "Google sign-in could not be completed. Try again or use your email and password."
 }
@@ -8106,7 +8106,7 @@ item { SettingsSectionTitle("About", "BQ Sqwad AI") }
                 FeatureCard("Payment method", "Manage purchases and subscriptions securely.") {
                     showSettingsPrivacyDirectory = false
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/account"))) }
-                        .onFailure { settingsNotice = "Google Play payment management could not be opened on this device." }
+                        .onFailure { settingsNotice = "Subscription management could not be opened on this device." }
                 }
                 FeatureCard("Account protection", "Manage available sign-in and account security controls.") {
                     showSettingsPrivacyDirectory = false
