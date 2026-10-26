@@ -150,6 +150,28 @@ class PlayBillingClient(
                     put("appVersion", com.bqsqwad.ai.BuildConfig.VERSION_NAME.take(32))
                     put("androidVersion", android.os.Build.VERSION.RELEASE.orEmpty().take(32))
                     put("signedIn", FirebaseAuth.getInstance().currentUser != null)
+                    // Temporary checkout diagnostics: verify install source, app identity,
+                    // uploaded build version and whether live product details reached the client.
+                    put("applicationId", activity.packageName.take(100))
+                    put("installerPackage", runCatching {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            activity.packageManager.getInstallSourceInfo(activity.packageName).installingPackageName
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getInstallerPackageName(activity.packageName)
+                        }
+                    }.getOrNull().orEmpty().take(100))
+                    put("versionCode", runCatching {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            activity.packageManager.getPackageInfo(activity.packageName, 0).longVersionCode
+                        } else {
+                            @Suppress("DEPRECATION")
+                            activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode.toLong()
+                        }
+                    }.getOrDefault(0L))
+                    put("billingReady", client.isReady)
+                    put("catalogProductCount", details.size)
+                    put("catalogProductIds", details.keys.joinToString(",").take(300))
                 })
             }
         }
