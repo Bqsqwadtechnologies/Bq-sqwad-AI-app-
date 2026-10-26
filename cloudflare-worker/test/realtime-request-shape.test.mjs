@@ -31,7 +31,7 @@ test("realtime public errors use safe codes rather than provider diagnostics", a
 
 test("live voice and camera defaults are free unless admin explicitly configures a positive price", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
-  assert.match(source, /name === "live_voice" \|\| name === "live_camera"/);
+  assert.match(source, /TOKEN_METERED\.has\(name\)/);
   assert.match(source, /Number\(value\.creditCost == null \? 0 : value\.creditCost\)/);
 });
 
