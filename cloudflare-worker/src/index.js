@@ -3213,8 +3213,9 @@ export default {
 
       if (url.pathname === "/diagnostics/client" && request.method === "POST") {
         const body = await readBody(request);
-        const refCode = String(body.refCode || "").toUpperCase().replace(/[^A-F0-9]/g, "").slice(0, 8);
-        if (!/^[A-F0-9]{6,8}$/.test(refCode)) return json({ error: "diagnostic_ref_code_invalid" }, 400);
+        const rawRefCode = String(body.refCode || "").trim().toUpperCase();
+        if (!/^[A-F0-9]{6,8}$/.test(rawRefCode)) return json({ error: "diagnostic_ref_code_invalid" }, 400);
+        const refCode = rawRefCode;
         const ip = String(request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 80);
         enforceRateLimit("client_diag:" + ip, 5);
         const safeRoute = String(body.route || "unknown").split("?")[0].replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 80) || "unknown";
