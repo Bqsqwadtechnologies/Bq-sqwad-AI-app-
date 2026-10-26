@@ -199,7 +199,8 @@ class PlayBillingClient(
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Checkout is reconnecting. Please tap Buy again in a moment.")))
+            retryHandler.post { launchPurchase(productId, basePlanId, offerId) }
+            onPurchaseState(PlayPurchaseState("pending", "Opening secure checkout…"))
             return null
         }
         if (!client.isReady) {
