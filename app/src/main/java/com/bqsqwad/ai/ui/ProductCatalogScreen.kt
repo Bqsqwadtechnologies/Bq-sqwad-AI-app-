@@ -346,7 +346,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 item {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
-                        Text("Buy credits for eligible AI features. Store prices are localized by Google Play.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Buy credits for eligible AI features. Prices are shown in your local currency.", color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (creditPacks.isEmpty()) {
@@ -394,7 +394,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     }
                 }
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled by Google Play.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled automatically.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
@@ -851,7 +851,7 @@ private fun LivePlanCard(
                                     } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
                                         onStatus(
                                             result.debugMessage.takeIf { it.isNotBlank() }
-                                                ?: "Google Play could not open checkout. Please retry."
+                                                ?: "Checkout couldn't be completed. Please try again."
                                         )
                                     }
                                 }
@@ -1017,7 +1017,7 @@ private fun ProductLoading(modifier: Modifier) {
         Text("Loading BQ Sqwad AI plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         CircularProgressIndicator()
         Text(
-            "Waiting for the live catalog and Google Play product details. Prices will appear only after the store returns them.",
+            "Loading the BQ Sqwad AI catalog and live prices…",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
