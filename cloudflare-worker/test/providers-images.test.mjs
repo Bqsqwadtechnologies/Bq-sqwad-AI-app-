@@ -56,7 +56,7 @@ test("Gemini vision request includes each supplied image as inline data", async 
 
   assert.equal(result.text, "Both images received.");
   const parts = payload.contents[0].parts;
-  assert.equal(parts.filter(part => part.inlineData).length, 2);
+  assert.equal(parts.filter(part => part.inlineData).length, 3);
   assert.equal(parts[1].inlineData.mimeType, "image/jpeg");
   assert.equal(parts[2].inlineData.mimeType, "image/webp");
   assert.equal(parts[3].inlineData.mimeType, "application/pdf");
