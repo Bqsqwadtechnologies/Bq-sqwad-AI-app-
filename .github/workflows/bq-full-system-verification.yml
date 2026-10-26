@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout Android app and Cloudflare Worker
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Bqsqwadtechnologies/Bq-sqwad-AI-app-
           ref: main
@@ -56,7 +56,7 @@ jobs:
           echo "Website repository token has read access."
 
       - name: Checkout website
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: bqsqwadai/bqsqwadai-b3064406
           ref: main
@@ -65,7 +65,7 @@ jobs:
           token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
