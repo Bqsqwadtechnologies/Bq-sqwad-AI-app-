@@ -1032,17 +1032,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
-    LaunchedEffect(openConnectorsNonce) {
-        if (openConnectorsNonce > 0) {
-            workspace = null
-            history = false
-            settings = false
-            plans = false
-            fileBoxOpen = false
-            featureHub = false
-            connectorsOpen = true
-        }
-    }
     BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
@@ -1072,6 +1061,17 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureInfo by remember { mutableStateOf<Workspace?>(null) }
     var featurePrivacy by remember { mutableStateOf<Workspace?>(null) }
     var featureHub by remember { mutableStateOf(false) }
+    LaunchedEffect(openConnectorsNonce) {
+        if (openConnectorsNonce > 0) {
+            workspace = null
+            history = false
+            settings = false
+            plans = false
+            fileBoxOpen = false
+            featureHub = false
+            connectorsOpen = true
+        }
+    }
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "workspace_access_cache").getBoolean("admin", false)) }
