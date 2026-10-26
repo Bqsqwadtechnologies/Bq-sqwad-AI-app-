@@ -4008,6 +4008,20 @@ export default {
             planId, planName, billingPeriod, features, source: "android_contact_sales",
             status: "new", createdAt, updatedAt: createdAt
           });
+          // The shared lead is durable before the mail attempt; email must not block submission.
+          try {
+            const authorization = request.headers.get("authorization") || "";
+            if (/^Bearer\s+\S+/i.test(authorization)) {
+              await fetch("https://bqsqwadai.com/api/native/contact-sales-notify", {
+                method: "POST",
+                headers: { "Authorization": authorization, "Content-Type": "application/json" },
+                body: JSON.stringify({ leadId: id }),
+                signal: AbortSignal.timeout(8000)
+              });
+            }
+          } catch {
+            console.warn("[contact-sales] email notification unavailable; request remains saved.");
+          }
         } catch (error) {
           console.error("[contact-sales] canonical sales inbox mirror failed; request queue retained", error);
         }
