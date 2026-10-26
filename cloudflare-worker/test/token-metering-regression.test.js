@@ -54,3 +54,13 @@ test("fixed-price shared-charge helper rejects token-metered capabilities", () =
   assert.match(helper, /TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)/);
   assert.match(helper, /token_metering_route_required/);
 });
+
+test("search fees require the explicit admin setting and cannot inherit the chat capability price", () => {
+  const start = source.indexOf('const configuredSearchCharge = deepResearch ?');
+  const end = source.indexOf('\n      }', start);
+  assert.ok(start >= 0 && end > start);
+  const block = source.slice(start, end);
+  assert.match(block, /control\.config\?\.creditsPerSearch/);
+  assert.match(block, /search_pricing_not_configured/);
+  assert.doesNotMatch(block, /Math\.max\([^\n]*control\.creditCost/);
+});
