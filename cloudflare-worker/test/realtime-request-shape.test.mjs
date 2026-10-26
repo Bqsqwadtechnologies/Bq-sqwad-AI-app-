@@ -41,5 +41,5 @@ test("opt-in training library is admin-only and checks explicit consent before r
   assert.match(source, /url\.pathname === \"\/admin\/training-library\" && request\.method === \"GET\"/);
   assert.match(source, /if \(!isSuperAdmin\(u, env\)\) throw new Error\(\"Admin access required\"\)/);
   assert.match(source, /fieldPath:\s*\"trainingConsent\"[\s\S]*?booleanValue:\s*true/);
-  assert.match(source, /firestoreGet\(\"aiTrainingContributions\/" \+ uid\)/);
+  assert.match(source, /firestoreQuery\("consented_contributions"/);
 });
