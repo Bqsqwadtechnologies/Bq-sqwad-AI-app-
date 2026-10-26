@@ -3939,7 +3939,39 @@ export default {
       }
       if (url.pathname === "/usage" && request.method === "GET") { const u=await verifyFirebaseUser(request),limit=Math.min(100,Math.max(1,Number(url.searchParams.get("limit")||50))); return json({items:(await firestoreQuery("creditLedger",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:100})).slice(0,limit)}); }
       if (url.pathname === "/play/subscription-management" && request.method === "GET") { const u=await verifyFirebaseUser(request),e=await firestoreGet("entitlements/"+u.uid),play=String(e?.source||"")==="play"&&Boolean(e?.purchaseToken)&&Boolean(e?.productId);return json({ok:true,provider:"google_play",hasSubscription:play,autoRenewEnabled:play?e.autoRenewEnabled!==false:false,state:String(e?.state||""),renewalState:String(e?.renewalState||""),endDate:e?.endDate||null,managementUrl:play?"https://play.google.com/store/account/subscriptions?sku="+encodeURIComponent(String(e.productId))+"&package="+encodeURIComponent("com.bqsqwad.ai"):null,paymentMethodManagementUrl:play?"https://play.google.com/store/paymentmethods":null,note:"Google Play is authoritative for auto-renewal and payment methods."}); }
-      if (url.pathname === "/contact-sales" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),email=String(b.email||u.email||"").trim().slice(0,320),companyName=String(b.companyName||"").trim().slice(0,180),companyEmail=String(b.companyEmail||"").trim().slice(0,320),planId=String(b.planId||"").trim().slice(0,100),planName=String(b.planName||"").trim().slice(0,180),billingPeriod=String(b.billingPeriod||"").trim().slice(0,40),message=String(b.message||"").trim().slice(0,6000);if(!email||!planId||!message)throw new Error("email_plan_and_message_required");const id=crypto.randomUUID();await firestoreCreate("contactSalesRequests/"+id,{uid:u.uid,email,companyName,companyEmail,planId,planName,billingPeriod,features:Array.isArray(b.features)?b.features.map(x=>String(x).slice(0,180)).slice(0,100):[],message,status:"new",createdAt:new Date(),updatedAt:new Date()});return json({ok:true,requestId:id,status:"new"}); }
+      if (url.pathname === "/contact-sales" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        const b = await readBody(request);
+        const email = String(b.email || u.email || "").trim().slice(0, 320);
+        const companyName = String(b.companyName || "").trim().slice(0, 180);
+        const companyEmail = String(b.companyEmail || "").trim().slice(0, 320);
+        const planId = String(b.planId || "").trim().slice(0, 100);
+        const planName = String(b.planName || "").trim().slice(0, 180);
+        const billingPeriod = String(b.billingPeriod || "").trim().slice(0, 40);
+        const message = String(b.message || "").trim().slice(0, 6000);
+        if (!email || !planId || !message) throw new Error("email_plan_and_message_required");
+        const id = crypto.randomUUID();
+        const features = Array.isArray(b.features) ? b.features.map(x => String(x).slice(0, 180)).slice(0, 100) : [];
+        const createdAt = new Date().toISOString();
+        // Keep the app's request queue and the website's canonical sales inbox in sync.
+        await firestoreCreate("contactSalesRequests/" + id, {
+          uid: u.uid, email, companyName, companyEmail, planId, planName, billingPeriod,
+          features, message, status: "new", createdAt, updatedAt: createdAt
+        });
+        try {
+          await firestoreCreate("businessLeads/" + id, {
+            uid: u.uid, name: email, email, company: companyName || "Not provided",
+            message: [`Plan: ${planName || planId}`, `Billing period: ${billingPeriod || "not specified"}`,
+              `Company email: ${companyEmail || "not provided"}`, `Requested features: ${features.join(", ") || "not specified"}`,
+              "", message].join("\\n"),
+            planId, planName, billingPeriod, features, source: "android_contact_sales",
+            status: "new", createdAt, updatedAt: createdAt
+          });
+        } catch (error) {
+          console.error("[contact-sales] canonical sales inbox mirror failed; request queue retained", error);
+        }
+        return json({ ok: true, requestId: id, status: "new" });
+      }
       if (url.pathname === "/contact-sales/status" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({requests:await firestoreQuery("contactSalesRequests",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:10})}); }
       if (url.pathname === "/admin/contact-sales" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json({requests:await firestoreQuery("contactSalesRequests",{limit:100})}); }
       if (url.pathname === "/admin/contact-sales/status" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),status=["seen","contacted","replied","closed"].includes(String(b.status))?String(b.status):"";if(!status)throw new Error("invalid_request_status");await firestoreSet("contactSalesRequests/"+String(b.requestId||""),{status,lastAdminAction:status,lastAdminActionAt:new Date(),updatedAt:new Date()},true);return json({ok:true,requestId:String(b.requestId||""),status}); }
