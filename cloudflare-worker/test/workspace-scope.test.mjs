@@ -55,7 +55,7 @@ test("out-of-scope redirects are checked before direct workspace credit charging
     ["companionChat", 'workspaceScopeRedirect("companion", m)', 'charge(user.uid'],
     ["companionCheckin", 'workspaceScopeRedirect("companion", p)', 'charge(user.uid']
   ]) {
-    const start = source.indexOf("export async function " + name);
+    const start = source.indexOf("export async function " + name + "(");
     assert.notEqual(start, -1, name + " handler must exist");
     const next = source.indexOf("\nexport async function ", start + 1);
     const body = source.slice(start, next < 0 ? source.length : next);
