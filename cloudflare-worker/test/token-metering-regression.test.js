@@ -24,13 +24,17 @@ test("vision reserves an estimate, settles reported token usage, and reverses fa
 });
 
 test("metered chat cannot use a flat creditCost reservation argument", () => {
-  const lines = source.split("\n");
-  const offenders = lines.filter(line =>
-    /chargeCredits\(/.test(line) &&
-    /control\.creditCost\s*\|\|\s*0/.test(line) &&
-    /capabilityName/.test(line)
-  );
-  assert.deepEqual(offenders, [], "remove flat capability-cost reservations from chat/vision routes");
+  for (const [startMarker, endMarker] of [
+    ["async function ai(request, user, body)", "\\nasync function stream("],
+    ["async function stream(request, user, body)", "\\nasync function vision("],
+    ["async function vision(request, user, body)", "\\nasync function "],
+  ]) {
+    const start = source.indexOf(startMarker);
+    const end = source.indexOf(endMarker.replace("\\n", "\n"), start + startMarker.length);
+    assert.ok(start >= 0 && end > start, "metered handler boundaries must exist");
+    const handler = source.slice(start, end);
+    assert.doesNotMatch(handler, /chargeCredits\\(user\\.uid,\\s*control\\.creditCost\\s*\\|\\|\\s*0/);
+  }
 });
 
 test("plain chat settles with provider-reported token formula, not a hard-coded one-credit charge", () => {
