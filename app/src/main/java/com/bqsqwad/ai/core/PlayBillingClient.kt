@@ -58,12 +58,15 @@ class PlayBillingClient(
                 .enablePrepaidPlans()
                 .build()
         )
+        .enableAutoServiceReconnection()
         .build()
 
     private val details = mutableMapOf<String, ProductDetails>()
     private val catalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
     private var connected = false
     private var connecting = false
+    private var retryCount = 0
+    private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
     @Volatile private var catalogQueryComplete = false
 
     fun hasCompletedCatalogQuery(): Boolean = catalogQueryComplete
@@ -85,6 +88,7 @@ class PlayBillingClient(
     }
 
     fun close() {
+        retryHandler.removeCallbacksAndMessages(null)
         client.endConnection()
         connected = false
     }
@@ -92,6 +96,7 @@ class PlayBillingClient(
     override fun onBillingSetupFinished(result: BillingResult) {
         connecting = false
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
+        if (connected) retryCount = 0
         if (!connected) {
             catalogQueryComplete = true
             onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
@@ -101,7 +106,15 @@ class PlayBillingClient(
             restorePurchases()
         } else {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
+            if (result.responseCode == BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE || result.responseCode == BillingClient.BillingResponseCode.NETWORK_ERROR) scheduleReconnect()
         }
+    }
+
+    private fun scheduleReconnect() {
+        if (retryCount >= 4) return
+        val delayMs = (1500L shl retryCount).coerceAtMost(15_000L)
+        retryCount++
+        retryHandler.postDelayed({ if (!client.isReady && !connecting) start() }, delayMs)
     }
 
     override fun onBillingServiceDisconnected() {
@@ -110,6 +123,7 @@ class PlayBillingClient(
         catalogQueryComplete = true
         onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play billing disconnected. Check your connection and retry."))
         reportBillingDiagnostic("billing_service_disconnected")
+        scheduleReconnect()
     }
 
     private fun billingDiagnosticCode(responseCode: Int): String = when (responseCode) {
@@ -184,6 +198,15 @@ class PlayBillingClient(
     fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null, null)
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Checkout is reconnecting. Please tap Buy again in a moment.")))
+            return null
+        }
+        if (!client.isReady) {
+            start()
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Checkout is reconnecting. Please tap Buy again in a moment.")))
+            return null
+        }
         val product = details[productId] ?: run {
             reportBillingDiagnostic("billing_product_details_missing")
             onPurchaseState(PlayPurchaseState("failed", "Google Play has not returned purchase details for this item yet. Refresh the catalog and try again."))
