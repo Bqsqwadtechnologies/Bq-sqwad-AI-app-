@@ -64,5 +64,6 @@ test("per-token rates use $11.99 per 100 credits and the effective 600% model mu
   assert.ok(Math.abs(result.providerCostUsd - 0.30) < 1e-10);
   assert.equal(result.creditReferenceValueUsd, CREDIT_VALUE_USD);
   assert.equal(result.customerMultiplier, 8.4);
-  assert.ok(Math.abs(result.customerCredits - (0.30 / CREDIT_VALUE_USD) * 8.4) < 1e-8);
+  const unroundedCredits = (0.30 / CREDIT_VALUE_USD) * 8.4;
+  assert.equal(result.customerCredits, Math.round(unroundedCredits / 5) * 5);
 });
