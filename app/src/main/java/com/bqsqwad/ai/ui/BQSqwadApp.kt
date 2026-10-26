@@ -7767,7 +7767,7 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
             
             }
             if (settingsCategory == "All settings" || settingsCategory == "Payments & Billing") {
-item { SettingsSectionTitle("Payments & billing", "Manage purchases and subscriptions in Google Play") }
+item { SettingsSectionTitle("Payments & billing", "Manage subscription") }
             item {
                 FeatureCard("BQ Sqwad AI catalog", "Browse available plans, eligible add-ons and credit packs for your account.", onOpenPlans)
             }
