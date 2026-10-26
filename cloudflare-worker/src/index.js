@@ -4820,6 +4820,30 @@ export default {
         return json({ connectors: resolvedConnectors });
       }
 
+      if (url.pathname === "/connectors/status" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 30);
+        const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
+        if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
+        if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
+        const query = new URLSearchParams({ user_ids: user.uid, toolkit_slugs: toolkit, statuses: "ACTIVE", limit: "100" });
+        const response = await fetch("https://backend.composio.dev/api/v3.1/connected_accounts?" + query.toString(), {
+          headers: composioHeaders(env, { "Accept": "application/json" }),
+          signal: AbortSignal.timeout(12000)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: "connector_status_unavailable", providerStatus: response.status }, 502);
+        const items = Array.isArray(data.items) ? data.items : [];
+        const active = items.filter(item =>
+          String(item.user_id || "") === user.uid &&
+          String(item.toolkit?.slug || "").toLowerCase() === toolkit &&
+          String(item.status || "").toUpperCase() === "ACTIVE" &&
+          item.is_disabled !== true
+        );
+        return json({ toolkit, connected: active.length > 0, status: active.length > 0 ? "connected" : "not-connected", connectedAccounts: active.length });
+      }
+
       if (url.pathname === "/connectors/tools" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid, 30);
