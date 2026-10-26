@@ -102,8 +102,8 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                             ticketCode = result.optString("refCode")
                             message = "Support request saved. Keep the reference code for follow-up."
                             subject = ""; description = ""; reference = ""
-                        } catch (e: Exception) {
-                            message = e.message?.takeIf { it.length < 180 && !it.contains("token", true) } ?: "Could not submit the request. Check your connection and sign-in, then retry."
+                        } catch (_: Exception) {
+                            message = "Could not submit the request. Check your connection and sign-in, then retry."
                         } finally { busy = false }
                     }
                 }
