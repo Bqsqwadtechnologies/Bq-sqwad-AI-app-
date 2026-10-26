@@ -557,6 +557,8 @@ class WorkspaceApiClient {
             put("features", JSONArray(features)); put("message", message)
         })
 
+    suspend fun supportMessages(): JSONObject = request("/support/messages", "GET")
+
     suspend fun submitSupportIssue(subject: String, description: String, category: String, correlationCode: String = ""): JSONObject =
         request("/support/issue", payload = JSONObject().apply {
             put("subject", subject.trim().take(120))
