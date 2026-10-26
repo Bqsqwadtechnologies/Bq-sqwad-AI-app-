@@ -1,4 +1,5 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
+const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "live_camera", "live_voice"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
@@ -695,8 +696,8 @@ async function capability(uid, name) {
     enabled: value.enabled !== false,
     providerId: value.providerId || d.providerId,
     modelId: value.modelId || d.modelId,
-    creditCost: (name === "live_voice" || name === "live_camera")
-      ? Math.max(0, Number(value.creditCost == null ? 0 : value.creditCost))
+    creditCost: TOKEN_METERED.has(name)
+      ? 0
       : Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" || name === "chat_background_upload" ? 2 : 1)) : value.creditCost)),
     config: {
       ...(value.config || {}),
@@ -917,7 +918,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   }
   // No trial-credit pool exists. Grant only the single daily free credit.
   await applyConfiguredDailyFreeCredits(uid);
-  if (!charge && !options.allowFractional) {
+  if (!charge && !options.allowFractional && !TOKEN_METERED.has(String(capabilityName || ""))) {
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
