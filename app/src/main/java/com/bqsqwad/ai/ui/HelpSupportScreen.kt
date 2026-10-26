@@ -50,7 +50,7 @@ private val helpGuides = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HelpSupportScreen(onBack: () -> Unit) {
-    var selected by remember { mutableStateOf(1) }
+    var selected by remember { mutableStateOf(0) }
     var subject by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var reference by remember { mutableStateOf("") }
