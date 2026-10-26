@@ -147,7 +147,7 @@ jobs:
 
       - name: Lint billing-critical website files
         working-directory: website
-        run: npx eslint src/lib/credits.server.ts src/routes/api/chat.ts src/lib/usage-billing.test.ts --rule 'prettier/prettier: off'
+        run: "npx eslint src/lib/credits.server.ts src/routes/api/chat.ts src/lib/usage-billing.test.ts --rule 'prettier/prettier: off'"
 
       - name: Build website
         working-directory: website
