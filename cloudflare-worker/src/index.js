@@ -2625,7 +2625,8 @@ export default {
         }
         let reservation = null;
         try {
-          const pdfControl = await capability(user.uid, "pdf");\n          reservation = await chargeCredits(user.uid, pdfControl.creditCost, "pdf", user);
+          const pdfControl = await capability(user.uid, "pdf");
+          reservation = await chargeCredits(user.uid, pdfControl.creditCost, "pdf", user);
           await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, {
