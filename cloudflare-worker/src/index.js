@@ -4173,7 +4173,7 @@ export default {
         try {
           const pdfControl = await capability(u.uid, "pdf");\n          reservation = await chargeCredits(u.uid, pdfControl.creditCost, "pdf", u);
           await commitCredits(u.uid, reservation.reservationId, "pdf");
-          return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0.5)) });
+          return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0)) });
         } catch (error) {
           if (reservation?.reservationId) await reverseCredits(u.uid, reservation.reservationId).catch(() => {});
           throw error;
