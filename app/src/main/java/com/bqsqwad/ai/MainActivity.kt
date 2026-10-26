@@ -13,6 +13,7 @@ import com.bqsqwad.ai.ui.theme.BQSqwadTheme
 
 class MainActivity : FragmentActivity() {
     private var sharedText by mutableStateOf<String?>(null)
+    private var openConnectorsNonce by mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,7 +23,8 @@ class MainActivity : FragmentActivity() {
                 BQSqwadApp(
                     modifier = Modifier,
                     sharedText = sharedText,
-                    onSharedTextConsumed = { sharedText = null }
+                    onSharedTextConsumed = { sharedText = null },
+                    openConnectorsNonce = openConnectorsNonce
                 )
             }
         }
@@ -36,6 +38,10 @@ class MainActivity : FragmentActivity() {
 
     private fun captureSharedText(source: Intent?) {
         if (source == null) return
+        val uri = source.data
+        if (uri?.scheme == "https" && uri.host == "bqsqwadai.com" && uri.path.orEmpty().startsWith("/connectors")) {
+            openConnectorsNonce += 1
+        }
         val text = when (source.action) {
             Intent.ACTION_SEND -> source.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
             Intent.ACTION_PROCESS_TEXT -> source.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
