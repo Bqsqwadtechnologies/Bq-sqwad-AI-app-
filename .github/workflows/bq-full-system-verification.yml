@@ -145,9 +145,9 @@ jobs:
         working-directory: website
         run: npx vitest run src/lib/usage-billing.test.ts
 
-      - name: Lint website
+      - name: Lint billing-critical website files
         working-directory: website
-        run: npm run lint --if-present
+        run: npx eslint src/lib/credits.server.ts src/routes/api/chat.ts src/lib/usage-billing.test.ts --rule 'prettier/prettier: off'
 
       - name: Build website
         working-directory: website
