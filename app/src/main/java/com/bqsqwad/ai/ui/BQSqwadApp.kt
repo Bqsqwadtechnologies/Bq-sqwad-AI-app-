@@ -7245,7 +7245,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
                                             connection.doOutput = true
                                             connection.setRequestProperty("Authorization", "Bearer $token")
                                             connection.setRequestProperty("Content-Type", "application/json")
-                                            connection.outputStream.use { it.write(JSONObject().put("toolkit", toolkit).toString().toByteArray(Charsets.UTF_8)) }
+                                            connection.outputStream.use { it.write(JSONObject().put("toolkit", toolkit).put("returnTo", "android").toString().toByteArray(Charsets.UTF_8)) }
                                             val status = connection.responseCode
                                             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
                                             val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
