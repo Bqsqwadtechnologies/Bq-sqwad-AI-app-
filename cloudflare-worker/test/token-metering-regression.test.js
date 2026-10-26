@@ -45,3 +45,12 @@ test("plain chat settles with provider-reported token formula, not a hard-coded 
   assert.match(ai, /settleCreditReservation\(user\.uid, reservation\.reservationId, calculation\.customerCredits/);
   assert.doesNotMatch(ai, /settleCreditReservation\(user\.uid, reservation\.reservationId,\s*1\s*,/);
 });
+
+test("fixed-price shared-charge helper rejects token-metered capabilities", () => {
+  const start = source.indexOf("async function withSharedCreditCharge(");
+  const end = source.indexOf("\nexport function isPublicCatalogPlan", start);
+  assert.ok(start >= 0 && end > start);
+  const helper = source.slice(start, end);
+  assert.match(helper, /TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)/);
+  assert.match(helper, /token_metering_route_required/);
+});
