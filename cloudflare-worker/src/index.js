@@ -899,9 +899,13 @@ function isSubscriptionCoveredCapability(profile, capabilityName) {
 }
 
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
-  // The caller supplies the final customer price. Normalize to the shared
-  // five-decimal credit precision here; never apply markup in the ledger layer.
-  let charge = computeFixedCredits(amount);
+  // The caller supplies the final customer price. Fixed-price features use the
+  // shared five-decimal rounding; measured token requests preserve fractional
+  // pricing and keep a tiny reservation so they never fall through to a
+  // legacy capability price (commonly 1 credit per chat).
+  let charge = options.allowFractional
+    ? Math.max(0.00001, computeFixedCredits(amount))
+    : computeFixedCredits(amount);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
@@ -913,7 +917,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   }
   // No trial-credit pool exists. Grant only the single daily free credit.
   await applyConfiguredDailyFreeCredits(uid);
-  if (!charge) {
+  if (!charge && !options.allowFractional) {
     const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
     charge = Math.max(0, Number(configured?.creditCost || 0));
   }
