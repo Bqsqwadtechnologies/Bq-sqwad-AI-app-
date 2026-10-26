@@ -1034,7 +1034,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var connectorsOpen by remember { mutableStateOf(false) }
     var helpOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = helpOpen) { helpOpen = false }
-    BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
+    BackHandler(enabled = connectorsOpen) { connectorsOpen = false; helpOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -1350,7 +1350,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             onClick = {
                                 shellScope.launch {
                                     drawerState.close()
-                                    history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null
+                                    history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; featureHub = false; workspace = null
                                     restoredChat = null
                                     chatSessionNonce += 1
                                 }
@@ -1364,7 +1364,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text(if (firebaseUser == null) "Chat History · 🔒 Sign in" else "Chat History") },
                             selected = history,
-                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.CHAT_HISTORY)) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.CHAT_HISTORY)) { signInRequired = true; signUpRequired = false } else { history = true; settings = false; connectorsOpen = false; helpOpen = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } } },
                             icon = { Icon(Icons.Default.History, null) }
                         )
                     }
@@ -1392,7 +1392,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                         runCatching { HistoryApiClient().load(historyItem.id) }
                                             .onSuccess { messages ->
                                                 restoredChat = historyItem.title to messages
-                                                history = false; settings = false; connectorsOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
+                                                history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
                                                 chatSessionNonce += 1
                                                 drawerState.close()
                                             }
@@ -1418,7 +1418,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text(if (firebaseUser == null) "File Box · 🔒 Sign in" else "File Box") },
                             selected = fileBoxOpen,
-                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.FILE_BOX)) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } } },
+                            onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.FILE_BOX)) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; workspace = null; featureHub = false } } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
                         )
                     }
@@ -1433,7 +1433,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                 helpOpen = true
                                 history = false
                                 settings = false
-                                connectorsOpen = false
+                                connectorsOpen = false; helpOpen = false
                                 plans = false
                                 featureHub = false
                                 fileBoxOpen = false
@@ -1449,7 +1449,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Plans & Billing") },
                             selected = plans,
-                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; connectorsOpen = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); plansInitialSection = "all"; plans = true; history = false; settings = false; connectorsOpen = false; helpOpen = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.CreditCard, null) }
                         )
                     }
@@ -1469,7 +1469,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
-                            onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
+                            onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; helpOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
@@ -1518,7 +1518,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 }
                 if (!showMainChat) when {
             helpOpen -> HelpSupportScreen(onBack = { helpOpen = false })
-            connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false })
+            connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false; helpOpen = false })
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
                  onUseInChat = { attachment ->
