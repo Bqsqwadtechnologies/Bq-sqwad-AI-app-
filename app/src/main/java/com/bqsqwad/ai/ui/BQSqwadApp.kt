@@ -7022,32 +7022,52 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
         try {
             val result = withContext(Dispatchers.IO) {
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Could not authenticate your account.")
-                val connection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
-                try {
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 12000
-                    connection.readTimeout = 15000
-                    connection.setRequestProperty("Authorization", "Bearer $token")
-                    val status = connection.responseCode
-                    val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val statusConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/status?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                val accountStatus = try {
+                    statusConnection.requestMethod = "GET"
+                    statusConnection.connectTimeout = 12000
+                    statusConnection.readTimeout = 15000
+                    statusConnection.setRequestProperty("Authorization", "Bearer $token")
+                    val status = statusConnection.responseCode
+                    val stream = if (status in 200..299) statusConnection.inputStream else statusConnection.errorStream
                     val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
-                    if (status == 404 || payload.optString("error") == "connector_not_initialized") {
-                        "not_connected" to emptyList<String>()
-                    } else if (payload.optString("error") == "connector_service_not_configured") {
-                        "setup_needed" to emptyList<String>()
-                    } else if (payload.optString("error") == "connector_needs_auth") {
-                        "needs_auth" to emptyList<String>()
-                    } else if (status !in 200..299) {
-                        throw IllegalStateException("Could not check connector status.")
-                    } else {
-                        val tools = payload.optJSONArray("tools")
-                        val names = List(tools?.length() ?: 0) { index ->
-                            val tool = tools!!.optJSONObject(index) ?: JSONObject()
-                            tool.optString("name", tool.optString("slug", "Available tool"))
-                        }
-                        "connected" to names
+                    when {
+                        status == 503 || payload.optString("error") == "connector_service_not_configured" -> "setup_needed"
+                        status !in 200..299 -> throw IllegalStateException("Could not check connector status.")
+                        payload.optBoolean("connected", false) -> "connected"
+                        else -> "not_connected"
                     }
-                } finally { connection.disconnect() }
+                } finally { statusConnection.disconnect() }
+                if (accountStatus != "connected") {
+                    accountStatus to emptyList<String>()
+                } else {
+                    val toolsConnection = URL(ApiConfig.baseUrl.trimEnd('/') + "/connectors/tools?toolkit=" + Uri.encode(toolkit)).openConnection() as java.net.HttpURLConnection
+                    try {
+                        toolsConnection.requestMethod = "GET"
+                        toolsConnection.connectTimeout = 12000
+                        toolsConnection.readTimeout = 15000
+                        toolsConnection.setRequestProperty("Authorization", "Bearer $token")
+                        val status = toolsConnection.responseCode
+                        val stream = if (status in 200..299) toolsConnection.inputStream else toolsConnection.errorStream
+                        val payload = JSONObject(stream?.bufferedReader()?.use { it.readText() }.orEmpty().ifBlank { "{}" })
+                        if (status == 404 || payload.optString("error") == "connector_not_initialized") {
+                            "not_connected" to emptyList<String>()
+                        } else if (payload.optString("error") == "connector_service_not_configured") {
+                            "setup_needed" to emptyList<String>()
+                        } else if (payload.optString("error") == "connector_needs_auth") {
+                            "needs_auth" to emptyList<String>()
+                        } else if (status !in 200..299) {
+                            throw IllegalStateException("Could not check connector status.")
+                        } else {
+                            val tools = payload.optJSONArray("tools")
+                            val names = List(tools?.length() ?: 0) { index ->
+                                val tool = tools!!.optJSONObject(index) ?: JSONObject()
+                                tool.optString("name", tool.optString("slug", "Available tool"))
+                            }
+                            "connected" to names
+                        }
+                    } finally { toolsConnection.disconnect() }
+                }
             }
             connectorStatus = when (result.first) { "connected" -> "Connected · ${result.second.size} tools discovered."; "setup_needed" -> "Setup needed (admin)."; "needs_auth" -> "Sign in to the provider to continue."; else -> "Not connected yet. Connect this account to enable its tools." }
             connectorTools = result.second
