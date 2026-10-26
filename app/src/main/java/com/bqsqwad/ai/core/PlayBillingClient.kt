@@ -101,7 +101,6 @@ class PlayBillingClient(
             restorePurchases()
         } else {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
         }
     }
 
@@ -111,7 +110,6 @@ class PlayBillingClient(
         catalogQueryComplete = true
         onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play billing disconnected. Check your connection and retry."))
         reportBillingDiagnostic("billing_service_disconnected")
-        onPurchaseState(PlayPurchaseState("failed", "Google Play billing disconnected. Check your connection and retry."))
     }
 
     private fun billingDiagnosticCode(responseCode: Int): String = when (responseCode) {
