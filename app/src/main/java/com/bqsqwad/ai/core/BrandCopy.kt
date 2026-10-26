@@ -7,6 +7,7 @@ object BrandCopy {
             l.isBlank() -> "Plans are unavailable right now. Please try again."
             "could not connect" in l || "disconnected" in l || "network" in l || "internet" in l ->
                 "We couldn't reach the BQ Sqwad AI catalog. Check your internet connection and try again."
+            "reconnecting" in l -> "Checkout is reconnecting. Please tap Buy again in a moment."
             "not available on this device" in l || "not supported" in l ->
                 "Purchases aren't available on this device or account."
             "play testing" in l || "not available for this install" in l ->
