@@ -121,7 +121,7 @@ class PlayBillingClient(
         connected = false
         connecting = false
         catalogQueryComplete = true
-        onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play billing disconnected. Check your connection and retry."))
+        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("Google Play billing disconnected. Check your connection and retry.")))
         reportBillingDiagnostic("billing_service_disconnected")
         scheduleReconnect()
     }
@@ -157,14 +157,14 @@ class PlayBillingClient(
 
     private fun friendlyBillingMessage(responseCode: Int): String = when (responseCode) {
         BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE,
-        BillingClient.BillingResponseCode.NETWORK_ERROR -> "Google Play billing could not connect. Check your internet connection and try again."
-        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Google Play billing is not available on this device or account."
+        BillingClient.BillingResponseCode.NETWORK_ERROR -> "We couldn't reach the BQ Sqwad AI catalog. Check your internet connection and try again."
+        BillingClient.BillingResponseCode.BILLING_UNAVAILABLE -> "Purchases aren't available on this device or account."
         BillingClient.BillingResponseCode.ITEM_UNAVAILABLE -> "These products are not available for this install. Install from the Play testing link with a licensed tester account."
-        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "Google Play could not validate this purchase setup. Please contact support."
-        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Google Play billing is not supported on this device."
+        BillingClient.BillingResponseCode.DEVELOPER_ERROR -> "We couldn't confirm this purchase setup. Please contact support."
+        BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED -> "Purchases aren't supported on this device."
         BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> "This purchase is already owned. Refresh or restore purchases to verify access."
         BillingClient.BillingResponseCode.USER_CANCELED -> ""
-        else -> "Google Play billing could not complete this request. Please retry."
+        else -> "Checkout couldn't be completed. Please try again."
     }
 
     private fun handlePurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
@@ -209,7 +209,7 @@ class PlayBillingClient(
         }
         val product = details[productId] ?: run {
             reportBillingDiagnostic("billing_product_details_missing")
-            onPurchaseState(PlayPurchaseState("failed", "Google Play has not returned purchase details for this item yet. Refresh the catalog and try again."))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout("Google Play has not returned purchase details for this item yet. Refresh the catalog and try again.")))
             return null
         }
         val params = BillingFlowParams.ProductDetailsParams.newBuilder()
@@ -241,9 +241,9 @@ class PlayBillingClient(
                         PlayPurchaseState(
                             "failed",
                             if (offersForBasePlan.isEmpty()) {
-                                "Google Play did not return the selected subscription plan. Refresh the catalog or check the Play Console product setup."
+                                BrandCopy.checkout("Google Play did not return the selected subscription plan. Refresh the catalog or check the Play Console product setup.")
                             } else {
-                                "The selected subscription offer does not match an offer currently available in Google Play. Checkout was stopped to avoid showing different terms. Please contact support."
+                                BrandCopy.checkout("The selected subscription offer does not match an offer currently available in Google Play. Checkout was stopped to avoid showing different terms. Please contact support.")
                             }
                         )
                     )
@@ -287,7 +287,7 @@ class PlayBillingClient(
                 if (user == null) {
                     catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_requires_sign_in")
-                    onPurchaseState(PlayPurchaseState("catalog_failed", "Sign in to your BQ Sqwad AI account to load Google Play purchase options."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", "Sign in to your BQ Sqwad AI account to load your plans."))
                     return@runCatching
                 }
                 val token = Tasks.await(user.getIdToken(false)).token
@@ -345,7 +345,7 @@ class PlayBillingClient(
                 if (products.isEmpty()) {
                     catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_empty")
-                    onPurchaseState(PlayPurchaseState("catalog_failed", "No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup."))
+                    onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup.")))
                     return@runCatching
                 }
                 client.queryProductDetailsAsync(
@@ -376,14 +376,14 @@ class PlayBillingClient(
             }.onFailure {
                 catalogQueryComplete = true
                 reportBillingDiagnostic("billing_catalog_load_failed")
-                onPurchaseState(PlayPurchaseState("catalog_failed", "Google Play purchase options could not be loaded. Check your connection and refresh the catalog."))
+                onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("Google Play purchase options could not be loaded. Check your connection and refresh the catalog.")))
             }
         }.start()
     }
 
     private fun verifyWithBackend(purchase: Purchase) {
         if (purchase.purchaseState == Purchase.PurchaseState.PENDING) {
-            onPurchaseState(PlayPurchaseState("pending", "Payment pending. We will unlock your plan after Google Play confirms it."))
+            onPurchaseState(PlayPurchaseState("pending", "Payment pending. Your plan will activate after the payment is confirmed."))
             return
         }
         Thread {
@@ -391,7 +391,7 @@ class PlayBillingClient(
                 val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required to verify this purchase.")
                 val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable.")
                 val products = purchase.products
-                if (products.isEmpty()) error("Google Play returned no product for this purchase.")
+                if (products.isEmpty()) error("No product was returned for this purchase.")
                 val payload = JSONObject()
                     .put("purchaseToken", purchase.purchaseToken)
                     .put("productId", products.first())
@@ -422,7 +422,7 @@ class PlayBillingClient(
                 }
                 val verifiedBody = JSONObject(raw)
                 val verified = verifiedBody.optBoolean("ok", false)
-                if (!verified) throw IllegalStateException("The server did not confirm this Google Play purchase.")
+                if (!verified) throw IllegalStateException("The server did not confirm this purchase.")
 
                 // The secure backend verifies, grants and acknowledges/consumes the purchase.
                 // Do not duplicate that operation from the Android client.
