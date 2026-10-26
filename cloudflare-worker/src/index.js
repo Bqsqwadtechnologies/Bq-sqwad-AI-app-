@@ -1151,6 +1151,9 @@ async function assertSharedCreditsAvailable(user) {
 }
 
 async function withSharedCreditCharge(user, capabilityName, action, modelRegistryId = null) {
+  if (TOKEN_METERED.has(String(capabilityName || ""))) {
+    throw Object.assign(new Error("token_metering_route_required"), { httpStatus: 409, safeError: "provider_unavailable" });
+  }
   let control = await capability(user.uid, capabilityName);
   if (modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(modelRegistryId, "text-chat");
