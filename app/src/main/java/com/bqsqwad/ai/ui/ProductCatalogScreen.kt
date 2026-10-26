@@ -850,8 +850,8 @@ private fun LivePlanCard(
                                         )
                                     } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
                                         onStatus(
-                                            result.debugMessage.takeIf { it.isNotBlank() }
-                                                ?: "Checkout couldn't be completed. Please try again."
+                                            BrandCopy.checkout(result.debugMessage.takeIf { it.isNotBlank() }
+                                                ?: "Checkout couldn't be completed. Please try again.")
                                         )
                                     }
                                 }
