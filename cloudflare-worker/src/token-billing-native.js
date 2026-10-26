@@ -118,14 +118,10 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     outputUsdPerToken: outputRate / 1_000_000
   });
   const customerCredits = canonicalCalculation.credits;
-  // The website's config/aiModels.metering is the authoritative Main Chat
-  // credit schedule shared with Android. These values are already customer
-  // credits per token (including the website's configured conversion), so do
-  // not run them through provider-USD conversion or apply markup a second time.
-  // This is also what prevents Android from charging according to a stale or
-  // mismatched USD-per-credit fallback while the website charges per token.
-  // Canonical website billing is authoritative: provider USD cost × markup/fee policy ÷ USD per credit.
-  // Do not replace measured provider-cost billing with fixed per-token credit rates.
+  // Match the website's canonical cost-plus engine: use the active tokenPricingRules
+  // provider rates for uncached input, cached input and output tokens, then apply
+  // config/usageBilling markup, fee and USD-per-credit settings exactly once.
+  // Never turn a Main Chat request into a fixed one-credit charge.
   const grossUsageValueUsd = customerCredits * creditValue;
   const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
