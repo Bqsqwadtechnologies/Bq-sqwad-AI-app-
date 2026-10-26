@@ -3963,7 +3963,7 @@ export default {
             uid: u.uid, name: email, email, company: companyName || "Not provided",
             message: [`Plan: ${planName || planId}`, `Billing period: ${billingPeriod || "not specified"}`,
               `Company email: ${companyEmail || "not provided"}`, `Requested features: ${features.join(", ") || "not specified"}`,
-              "", message].join("\\n"),
+              "", message].join("\n"),
             planId, planName, billingPeriod, features, source: "android_contact_sales",
             status: "new", createdAt, updatedAt: createdAt
           });
