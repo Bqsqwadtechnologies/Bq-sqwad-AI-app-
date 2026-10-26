@@ -124,16 +124,24 @@ test("shared website meter rejects invalid admin metering instead of charging un
   );
 });
 
-test("token billing rejects missing or zero provider rates", () => {
+test("token billing rejects missing rates but permits explicitly configured zero rates", () => {
   assert.throws(
     () => calculateTokenCost({
       usage: { inputTokens: 10, outputTokens: 10 },
-      pricing: { inputPriceUsdPerMillion: 0, outputPriceUsdPerMillion: 0 },
+      pricing: {},
       creditReferenceValueUsd: 0.1,
       multiplier: 2,
     }),
     /token_pricing_not_configured/,
   );
+  const free = calculateTokenCost({
+    usage: { inputTokens: 10, outputTokens: 10 },
+    pricing: { inputPriceUsdPerMillion: 0, outputPriceUsdPerMillion: 0 },
+    creditReferenceValueUsd: 0.1,
+    multiplier: 2,
+  });
+  assert.equal(free.providerCostUsd, 0);
+  assert.equal(free.customerCredits, 0);
 });
 
 test("reservation refunds restore only the original reserved buckets", () => {
