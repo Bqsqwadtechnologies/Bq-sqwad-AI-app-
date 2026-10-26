@@ -69,7 +69,7 @@ test("out-of-scope redirects are checked before direct workspace credit charging
   const aiCharge = indexSource.indexOf("chargeCredits(user.uid", aiStart);
   assert.ok(aiGuard >= 0 && aiCharge > aiGuard, "generic AI route must guard before charging");
   const videoStart = indexSource.indexOf('url.pathname === "/video/generate"');
-  const videoGuard = indexSource.indexOf('workspaceScopeRedirect("video",videoPrompt)', videoStart);
+  const videoGuard = indexSource.search(/workspaceScopeRedirect\("video",\s*videoPrompt\)/);
   const videoCreate = indexSource.indexOf("createVideoNative(", videoStart);
   assert.ok(videoGuard >= 0 && videoCreate > videoGuard, "video route must guard before generation/charging");
 });
