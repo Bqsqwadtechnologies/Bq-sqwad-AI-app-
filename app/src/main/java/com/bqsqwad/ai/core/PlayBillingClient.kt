@@ -264,7 +264,7 @@ class PlayBillingClient(
             result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED
         ) {
             reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-            onPurchaseState(PlayPurchaseState("failed", friendlyBillingMessage(result.responseCode)))
+            onPurchaseState(PlayPurchaseState("failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
         }
         return result
     }
@@ -366,7 +366,7 @@ class PlayBillingClient(
                     } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                         catalogQueryComplete = true
                         reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-                        onPurchaseState(PlayPurchaseState("catalog_failed", friendlyBillingMessage(result.responseCode)))
+                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
                     } else {
                         catalogQueryComplete = true
                         reportBillingDiagnostic("billing_item_unavailable")
