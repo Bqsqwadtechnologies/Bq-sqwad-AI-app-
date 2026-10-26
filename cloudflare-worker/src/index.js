@@ -3079,6 +3079,46 @@ export default {
         await firestoreSet("userFeatureSettings/" + user.uid, { uid:user.uid, settings:next, updatedAt:new Date() }, true);
         return json({ uid:user.uid, settings:next });
       }
+      if (url.pathname === "/support/issue" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 10);
+        const body = await readBody(request);
+        const subject = String(body.subject || "").trim().slice(0, 120);
+        const description = String(body.description || "").trim().slice(0, 2000);
+        const category = String(body.category || "other").trim().toLowerCase();
+        const allowedCategories = new Set(["account", "billing", "connector", "catalog", "app", "other"]);
+        const requestId = String(body.requestId || "").trim();
+        const correlationCode = String(body.correlationCode || "").trim().slice(0, 100);
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+          return json({ error: "support_request_id_invalid" }, 400);
+        }
+        if (subject.length < 4 || description.length < 8 || !allowedCategories.has(category)) {
+          return json({ error: "support_issue_fields_invalid" }, 400);
+        }
+        const sanitizeSupport = (value) => String(value || "").slice(0, 2000)
+          .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+          .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]")
+          .replace(/\b(?:sk-|AIza)[A-Za-z0-9_-]{12,}/g, "[REDACTED]")
+          .replace(/((?:password|secret|token|api[_ -]?key|pin|otp)\s*[:=]\s*)\S+/gi, "$1[REDACTED]");
+        const id = user.uid + "_" + requestId;
+        const refCode = "BQ-" + requestId;
+        const existing = await firestoreGet("supportIssues/" + id).catch(() => null);
+        if (!existing) {
+          await firestoreCreate("supportIssues/" + id, {
+            uid: user.uid,
+            refCode,
+            subject: sanitizeSupport(subject).slice(0, 120),
+            description: sanitizeSupport(description),
+            category,
+            correlationCode: correlationCode.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 100),
+            status: "open",
+            source: "android",
+            createdAt: new Date().toISOString()
+          });
+        }
+        return json({ ok: true, refCode, status: existing?.status || "open" });
+      }
+
       if (url.pathname === "/contact" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
