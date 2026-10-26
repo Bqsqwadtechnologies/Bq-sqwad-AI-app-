@@ -1032,6 +1032,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
+    var helpOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = helpOpen) { helpOpen = false }
     BackHandler(enabled = connectorsOpen) { connectorsOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
@@ -1069,6 +1071,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             plans = false
             fileBoxOpen = false
             featureHub = false
+            helpOpen = false
             connectorsOpen = true
         }
     }
@@ -1343,7 +1346,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
                             label = { Text("New Chat") },
-                            selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans,
+                            selected = workspace == null && !history && !settings && !fileBoxOpen && !featureHub && !plans && !helpOpen,
                             onClick = {
                                 shellScope.launch {
                                     drawerState.close()
@@ -1417,6 +1420,26 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             selected = fileBoxOpen,
                             onClick = { shellScope.launch { drawerState.close(); if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.FILE_BOX)) { signInRequired = true; signUpRequired = false } else { fileBoxOpen = true; history = false; settings = false; connectorsOpen = false; plans = false; workspace = null; featureHub = false } } },
                             icon = { Icon(Icons.Default.FolderOpen, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            label = { Text("Help & Support") },
+                            selected = helpOpen,
+                            onClick = { shellScope.launch {
+                                drawerState.close()
+                                helpOpen = true
+                                history = false
+                                settings = false
+                                connectorsOpen = false
+                                plans = false
+                                featureHub = false
+                                fileBoxOpen = false
+                                workspace = null
+                            } },
+                            icon = { Icon(Icons.Default.HelpOutline, null) }
                         )
                     }
                     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
@@ -1494,6 +1517,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
                 if (!showMainChat) when {
+            helpOpen -> HelpSupportScreen(onBack = { helpOpen = false })
             connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false })
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
