@@ -81,7 +81,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(guide.title, style = MaterialTheme.typography.titleMedium)
-                    guide.steps.forEachIndexed { index, step -> Text("\${index + 1}. $step", style = MaterialTheme.typography.bodyMedium) }
+                    guide.steps.forEachIndexed { index, step -> Text("${index + 1}. $step", style = MaterialTheme.typography.bodyMedium) }
                 }
             }
             Spacer(Modifier.height(4.dp))
