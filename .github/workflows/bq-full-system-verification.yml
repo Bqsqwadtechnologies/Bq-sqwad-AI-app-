@@ -24,6 +24,17 @@ jobs:
           path: android-app
           fetch-depth: 0
 
+      - name: Validate website repository access token
+        env:
+          BQ_WEBSITE_REPO_TOKEN: ${{ secrets.BQ_WEBSITE_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${BQ_WEBSITE_REPO_TOKEN}" ]]; then
+            echo "::error::Missing repository secret BQ_WEBSITE_REPO_TOKEN. The website repository is private; the default GITHUB_TOKEN cannot check it out from this separate repository. Add a fine-grained token with read access to bqsqwadai/bqsqwadai-b3064406 as a repository Actions secret named BQ_WEBSITE_REPO_TOKEN."
+            exit 1
+          fi
+
       - name: Checkout website
         uses: actions/checkout@v4
         with:
@@ -31,7 +42,7 @@ jobs:
           ref: main
           path: website
           fetch-depth: 0
-          token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN || github.token }}
+          token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
