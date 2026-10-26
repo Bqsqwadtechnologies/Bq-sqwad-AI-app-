@@ -293,9 +293,13 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // rates must be explicitly configured; never invent provider costs in code.
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
   const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
-  const inputTokenRate = tokenRule?.inputUsdPerToken ?? (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken;
-  const outputTokenRate = tokenRule?.outputUsdPerToken ?? (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken;
-  const cachedTokenRate = tokenRule?.cachedInputUsdPerToken ?? (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken;
+  // The admin UI edits the per-million USD fields. Prefer those canonical
+  // fields over legacy derived per-token mirrors, which can be stale after a
+  // price edit. This makes saved Main Chat input/output/cache prices effective
+  // immediately without requiring an admin to recreate the rule.
+  const inputTokenRate = (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.inputUsdPerToken ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken;
+  const outputTokenRate = (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.outputUsdPerToken ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken;
+  const cachedTokenRate = (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.cachedInputUsdPerToken ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken;
   // Non-OpenAI providers must have explicit provider/model rates in the registry,
   // tokenPricing, or provider-specific admin configuration. Never silently price
   // Gemini or another provider using a shared/OpenAI fallback rate.
