@@ -85,6 +85,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(4.dp))
+            SupportRepliesPanel()
             Text("Contact support", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(value = subject, onValueChange = { subject = it.take(120) }, modifier = Modifier.fillMaxWidth(), label = { Text("Subject") }, singleLine = true)
             OutlinedTextField(value = description, onValueChange = { description = it.take(2000) }, modifier = Modifier.fillMaxWidth(), label = { Text("What happened?") }, minLines = 3)
