@@ -2,6 +2,9 @@ name: BQ Sqwad AI — Signed Release APK and AAB
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
