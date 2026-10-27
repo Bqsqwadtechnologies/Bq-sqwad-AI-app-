@@ -10,18 +10,27 @@ object BrandCopy {
             "reconnecting" in l -> "Checkout is reconnecting. Please tap Buy again in a moment."
             "not available on this device" in l || "not supported" in l ->
                 "Purchases aren't available on this device or account."
-            "play testing" in l || "not available for this install" in l ->
+            "play testing" in l || "not available for this install" in l || "item_unavailable" in l ->
                 "These plans aren't available for this version of the app. Please update BQ Sqwad AI and try again."
             "validate" in l || "setup" in l || "console" in l ->
                 "We couldn't confirm this purchase setup. Please contact support."
             "already owned" in l -> "You already have this. Refresh your account to restore access."
             "sign in" in l -> "Sign in to your BQ Sqwad AI account to see plans."
-            else -> "Checkout couldn't be completed. Please try again."
+            else -> scrub(raw.orEmpty()).ifBlank { "Checkout couldn't be completed. Please try again." }
         }
     }
+
     fun scrub(text: String): String = text
         .replace("Google Play Billing", "secure checkout", ignoreCase = true)
         .replace("Google Play", "BQ Sqwad AI", ignoreCase = true)
         .replace("Play Console", "plan setup", ignoreCase = true)
         .replace("Firebase", "BQ account", ignoreCase = true)
+        .replace("Firestore", "BQ account storage", ignoreCase = true)
+        .replace("Cloudflare", "BQ Sqwad AI services", ignoreCase = true)
+        .replace("OpenAI", "BQ Sqwad AI", ignoreCase = true)
+        .replace("Composio", "BQ connectors", ignoreCase = true)
+        .replace("Supabase", "BQ services", ignoreCase = true)
+        .replace("Tavily", "web search", ignoreCase = true)
+        .replace("Paystack", "payment", ignoreCase = true)
+        .replace("Billing Client", "checkout", ignoreCase = true)
 }

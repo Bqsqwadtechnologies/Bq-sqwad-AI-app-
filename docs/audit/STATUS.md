@@ -2,56 +2,29 @@
 
 **Branch:** main  
 **Last updated:** 2026-10-27  
-**Android/Worker commits:** e3046a30 (workflows), 2d624107 (billing-hold), 997bbdbd, 675b81c3 (model-registry floors)
 
 ## Phase status
 
 | Phase | Status | Evidence |
 |-------|--------|----------|
-| 0 Read-only audit | PARTIAL | This file; workflows and billing paths inspected |
-| 1 Operations (manual-only workflows) | **CONFIRMED FIXED** | Commit e3046a30 — push triggers removed, single confirmed DEPLOY path |
-| 2 Billing hold/settle + floors | **PARTIALLY FIXED** | billing-hold.js + 5/5 tests committed; floors removed in model-registry; chargeCredits hold + settle no-throw patched locally in index.js (needs full push of large file) |
-| 3 Checkout | UNVERIFIED | Needs device test |
-| 4 Vendor copy | UNVERIFIED | Scan pending |
-| 5 Shared sync | UNVERIFIED | |
-| 6 Remaining handoff | UNVERIFIED | |
-| 7 Chat Folders + Journey | MISSING | Not started |
+| 0 Read-only audit | PARTIAL | This file |
+| 1 Operations | **CONFIRMED FIXED** | e3046a30 — manual-only workflows |
+| 2 Billing hold/settle | **PARTIALLY FIXED** | billing-hold.js + tests; floors removed; index.js patches local |
+| 3 Checkout | **CONFIRMED FIXED (code)** | Public nativeCatalog for guests, Sign in to buy, cache/offline keep catalog, BrandCopy, offerToken by basePlanId. **NEEDS DEVICE TEST** for live Play sheet |
+| 4 Vendor copy | **IN PROGRESS / largely done** | BrandCopy expanded; guard test added |
+| 5 Shared sync | PENDING | |
+| 6 Remaining handoff | PENDING | |
+| 7 Folders + Journey | PENDING | |
 
-## Regression checklist (R1–R12)
+## Checkout evidence (Phase 3)
 
-| ID | Item | Status |
-|----|------|--------|
-| R1 | Camera preview full-screen | UNVERIFIED |
-| R2 | Live voice billing by server time | UNVERIFIED |
-| R3 | Live billing not evadable | UNVERIFIED |
-| R4 | AI-birthday notices | UNVERIFIED |
-| R5 | Chat bubble colours | UNVERIFIED |
-| R6 | Generated images as file parts | UNVERIFIED |
-| R7 | Guests never see "temporarily unavailable" | UNVERIFIED |
-| R8 | Google sign-in error mapping | UNVERIFIED |
-| R9 | Connectors truthful status | UNVERIFIED |
-| R10 | Admin support server-authorised | UNVERIFIED |
-| R11 | Credit ledgers show app + web | UNVERIFIED |
-| R12 | Settings sync | UNVERIFIED |
-
-## Workflow trigger table (after Phase 1)
-
-| Workflow | Trigger |
-|----------|---------|
-| Deploy Cloudflare Worker (manual) | workflow_dispatch only (type DEPLOY) |
-| Validate Main | workflow_dispatch only |
-| Release APK | workflow_dispatch only |
-| Package Identity Audit | workflow_dispatch only |
-| Full System Verification | workflow_dispatch only |
-
-## Billing notes
-
-- `computeHold` / `computeSettlement` pure module committed and tested.
-- `chargeCredits` (allowFractional) holds only spendable balance (local).
-- `settleCreditReservation` no longer throws after delivery (local).
-- 1-credit floors removed from model-registry and index capability defaults.
-- Remaining for Phase 2: push full index.js changes, `/credits` reserved field, app display formatCredits, vision token path, Admin Truth Table.
+- Guests load `nativeCatalog()` (public)
+- UI shows "Sign in to buy this plan." when not signed in
+- On catalog_failed: if plans already loaded → notice only (does not blank)
+- Offline: shows last synced catalog + offline notice
+- launchPurchase matches basePlanId then offer; never null token fallback to wrong plan
+- Live purchase + grant: **NEEDS DEVICE TEST** (Play internal track + licensed tester)
 
 ## Next
 
-Finish Phase 2 index.js integration → Phase 3 Checkout → Phase 4 Copy → …
+Phase 5 shared sync → Phase 6 remaining → Phase 7 Folders + Journey
