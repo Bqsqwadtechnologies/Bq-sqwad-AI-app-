@@ -50,8 +50,15 @@ test("canonical Play mappings match existing credit plans and one-time offers", 
   assert.equal(businessOneTime.length, 3);
   assert.ok(businessOneTime.every(x => x.productType === "inapp" && x.basePlanId === null));
 
-  const companionBasicYearlyId = mappings.find(x => x.productId === "companionbasic" && x.basePlanId === "yearly");
-  assert.equal(companionBasicYearlyId.billingPeriod, "monthly");
+  assert.ok(!mappings.some(x => x.productId === "companionbasic" && x.basePlanId === "yearly"));
+  assert.ok(mappings.some(x => x.productId === "companionbasic" && x.basePlanId === "monthly"));
+
+  const weeklyCreditMappings = mappings.filter(x =>
+    ["credit100", "credit250", "credit500", "credit1000"].includes(x.productId) &&
+    x.basePlanId === "weakly"
+  );
+  assert.equal(weeklyCreditMappings.length, 4);
+  assert.ok(weeklyCreditMappings.every(x => x.billingPeriod === "weekly"));
 
   assert.ok(!mappings.some(x => ["frontierexplorer", "frontierpro", "frontierenterprise"].includes(x.productId)));
   assert.ok(!mappings.some(x => ["bizaoextraassistant", "bizaoteamuser"].includes(x.productId)));
