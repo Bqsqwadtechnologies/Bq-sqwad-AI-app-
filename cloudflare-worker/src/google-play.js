@@ -123,7 +123,7 @@ async function finalizePurchaseSideEffects(env, firestore, eventId, event) {
 function subscriptionPeriodFromBasePlan(basePlanId) {
   const id = String(basePlanId || "").toLowerCase();
   if (/year|annual/.test(id)) return "yearly";
-  if (/week/.test(id)) return "weekly";
+  if (/weakly|week/.test(id)) return "weekly";
   if (/term|semester|quarter/.test(id)) return "term";
   return "monthly";
 }
