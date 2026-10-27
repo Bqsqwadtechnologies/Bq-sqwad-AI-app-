@@ -13,19 +13,24 @@ function nonNegative(value, fallback = 0) {
 }
 
 export function computeTokenCredits(input, policy, rates) {
-  const markupPercent = nonNegative(policy?.markupPercent, 600);
-  const feePercent = nonNegative(policy?.feePercent, 0);
-  const usdPerCredit = nonNegative(policy?.usdPerCredit, 0.1199);
-  if (usdPerCredit <= 0) throw new Error("billing_usd_per_credit_invalid");
+  // User-facing credit prices are the source of truth. Provider USD cost,
+  // markup and USD-per-credit conversion must never determine a chat charge.
+  // Rates may be configured per token or per 1,000 tokens; otherwise use the
+  // established customer-credit defaults (fresh input 0.00003, cached 0.000003,
+  // output 0.00024 credits/token).
   const uncached = nonNegative(input?.uncachedInputTokens);
   const cached = nonNegative(input?.cachedInputTokens);
   const output = nonNegative(input?.outputTokens);
-  const providerCostUsd =
-    uncached * nonNegative(rates?.inputUsdPerToken) +
-    cached * nonNegative(rates?.cachedInputUsdPerToken, nonNegative(rates?.inputUsdPerToken)) +
-    output * nonNegative(rates?.outputUsdPerToken);
-  const customerUsd = providerCostUsd * (1 + markupPercent / 100) * (1 + feePercent / 100);
-  return { providerCostUsd, customerUsd, markupPercent, feePercent, credits: round5(customerUsd / usdPerCredit) };
+  const perToken = (direct, perThousand, fallback) => {
+    if (Number.isFinite(Number(direct)) && direct !== null && direct !== undefined) return Math.max(0, Number(direct));
+    if (Number.isFinite(Number(perThousand)) && perThousand !== null && perThousand !== undefined) return Math.max(0, Number(perThousand)) / 1000;
+    return fallback;
+  };
+  const inputRate = perToken(rates?.inputCreditsPerToken, rates?.inputCreditsPer1k, 0.00003);
+  const cachedRate = perToken(rates?.cachedInputCreditsPerToken, rates?.cachedInputCreditsPer1k, 0.000003);
+  const outputRate = perToken(rates?.outputCreditsPerToken, rates?.outputCreditsPer1k, 0.00024);
+  const credits = round5(uncached * inputRate + cached * cachedRate + output * outputRate);
+  return { providerCostUsd: 0, customerUsd: 0, markupPercent: 0, feePercent: 0, credits };
 }
 
 export function computeMinuteCredits(input, policy, rateUsdPerMinute, overrideCreditsPerMinute = null) {
