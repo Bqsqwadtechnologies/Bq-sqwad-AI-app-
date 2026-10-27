@@ -1,28 +1,48 @@
-# BQ Sqwad AI — Audit STATUS
+# BQ Sqwad AI — Audit STATUS (final session snapshot)
 
 **Branch:** main  
-**Last updated:** 2026-10-27  
+**Updated:** 2026-10-27
 
-## Phase status
+## Phase board
 
 | Phase | Status | Evidence |
 |-------|--------|----------|
-| 0 Read-only audit | PARTIAL | This file |
-| 1 Operations | **CONFIRMED FIXED** | e3046a30 |
-| 2 Billing hold/settle | **PARTIALLY FIXED** | billing-hold.js + tests; floors removed; index.js local |
-| 3 Checkout | **CONFIRMED FIXED (code)** | nativeCatalog, Sign in to buy, offline cache, BrandCopy. **NEEDS DEVICE TEST** |
-| 4 Vendor copy | **CONFIRMED FIXED** | BrandCopy expanded; guard test |
-| 5 Shared sync | **CONFIRMED (Worker)** | source=android ledgers; aiMemories; users/{uid} |
-| 6 Remaining handoff | **PARTIAL** | Logout gated on signedInAccount (BQSqwadApp.kt ~7744). Live voice/camera/connectors = NEEDS DEVICE TEST |
-| 7 Folders + Journey | **HANDOFF WRITTEN** | docs/website-handoff/chat-folders-and-journey.md — data model + APIs + acceptance tests. Full Compose/website UI implementation still required |
+| 1 Operations | **DONE** | `e3046a30` manual-only workflows |
+| 2 Billing hold | **MODULE DONE** | `billing-hold.js` + tests on main. `index.js` charge/settle wiring still **local only** (file too large for tool push) |
+| 3 Checkout | **DONE (code)** | Guests/nativeCatalog, Sign in to buy, offline cache, BrandCopy. Live Play = **NEEDS DEVICE TEST** |
+| 4 Vendor copy | **DONE** | BrandCopy expanded + guard test |
+| 5 Shared sync | **DONE (Worker)** | source=android ledgers |
+| 6 Handoff residuals | **PARTIAL** | Logout gated; live features need device |
+| 7 Folders + Journey | **HANDOFF DONE** | `docs/website-handoff/chat-folders-and-journey.md` — full UI not implemented |
 
-## Owner test list (from master prompt)
+## New chat modules on main
 
-**Billing:** 1 credit “hello” → fractional charge, no lock during reply — requires Worker deploy of hold/settle index.js patches.  
-**Checkout:** Play internal track + licensed tester — **NEEDS DEVICE TEST**.  
-**Operations:** push to branch → no auto workflow. Manual DEPLOY path ready.  
-**Folders / Journey:** data model specified; implementation pending website + app UI.
+| Module | Commit | Purpose |
+|--------|--------|--------|
+| `ui/chat/TeamChooserScreen.kt` | `8ffb5919` | One-time team picker with previews; change later in Settings |
+| `ui/chat/AiReplyActions.kt` | `8ffb5919` | Logo action bar + AiActivityCard for mid-task photos |
+| `ui/chat/MainChatHelpers.kt` | `d23b82e2` | Web search for current knowledge + credit helpers |
+| Integration notes | `d23b82e2` | `docs/audit/MAIN_CHAT_INTEGRATION.md` |
 
-## Deployment
+## Local-only (not yet on remote main)
 
-Do **not** deploy until owner confirms. Use Actions → Deploy Cloudflare Worker (manual) → type DEPLOY.
+1. **BQSqwadApp.kt** (~500 KB) — hide credits in main chat, expanded web-search, compact sources dropdown  
+2. **index.js** hold/settle call sites (import + chargeCredits + settleCreditReservation)
+
+**How to land them:** clone, apply from the working tree or follow MAIN_CHAT_INTEGRATION.md and the billing-hold module already on main, then `git push` with your credentials.
+
+## Owner next actions
+
+1. Push local `BQSqwadApp.kt` + `index.js` from a machine with git auth  
+2. Wire TeamChooser after sign-in + TeamSettingsRow in Settings (5–10 lines)  
+3. Wire AiReplyActionBar under AI bubbles  
+4. Manual Worker deploy (Actions → type DEPLOY) after index.js lands  
+5. Device test Play checkout on internal track  
+6. Website implements Folders/Journey from handoff doc  
+
+## Honest remaining product work
+
+- Full Chat Folders Compose UI + website APIs  
+- Full Chat Journey map UI  
+- Live wiring of AiActivityCard photo stream during tools  
+- End-to-end device verification of billing hold after Worker deploy  
