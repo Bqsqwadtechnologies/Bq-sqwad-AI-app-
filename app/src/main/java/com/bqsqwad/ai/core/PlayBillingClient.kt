@@ -260,19 +260,20 @@ class PlayBillingClient(
             ProductType.SUBS -> {
                 val mapping = catalog[productId].orEmpty().firstOrNull { basePlanId.isNullOrBlank() || it.basePlanId == basePlanId }
                 val preferredBasePlan = basePlanId ?: mapping?.basePlanId
-                val preferredOfferId = offerId ?: mapping?.offerId ?: mapping?.trialOfferId
+                val configuredOfferId = mapping?.offerId ?: mapping?.trialOfferId
                 val offersForBasePlan = product.subscriptionOfferDetails?.filter { detail ->
                     preferredBasePlan.isNullOrBlank() || detail.basePlanId == preferredBasePlan
                 }.orEmpty()
-                // Never silently fall back to a different subscription offer when the
-                // BQ catalog selected a specific offer (for example, a trial offer).
-                // The wrong token can launch checkout with terms different from the
-                // plan the customer selected. Fail closed until the configured offer
-                // is actually available from Google Play.
-                val offer = if (!preferredOfferId.isNullOrBlank()) {
-                    offersForBasePlan.firstOrNull { detail -> detail.offerId == preferredOfferId }
+                // An explicitly selected offer must match exactly. When the customer
+                // selected only a base plan, prefer its configured trial if Play returned
+                // it; otherwise use the base-plan offer (offerId == null), then another
+                // offer belonging to that same base plan. Never cross to another plan.
+                val offer = if (!offerId.isNullOrBlank()) {
+                    offersForBasePlan.firstOrNull { detail -> detail.offerId == offerId }
                 } else {
-                    offersForBasePlan.firstOrNull()
+                    offersForBasePlan.firstOrNull { detail -> !configuredOfferId.isNullOrBlank() && detail.offerId == configuredOfferId }
+                        ?: offersForBasePlan.firstOrNull { detail -> detail.offerId.isNullOrBlank() }
+                        ?: offersForBasePlan.firstOrNull()
                 }
                 if (offer == null) {
                     reportBillingDiagnostic(
