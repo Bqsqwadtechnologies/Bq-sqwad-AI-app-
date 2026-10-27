@@ -8,23 +8,21 @@
 | Phase | Status | Evidence |
 |-------|--------|----------|
 | 0 Read-only audit | PARTIAL | This file |
-| 1 Operations | **CONFIRMED FIXED** | e3046a30 — manual-only workflows |
-| 2 Billing hold/settle | **PARTIALLY FIXED** | billing-hold.js + tests; floors removed; index.js patches local |
-| 3 Checkout | **CONFIRMED FIXED (code)** | Public nativeCatalog, Sign in to buy, cache/offline, BrandCopy, offerToken. **NEEDS DEVICE TEST** |
-| 4 Vendor copy | **CONFIRMED FIXED** | BrandCopy expanded; NoInfrastructureNamesInUserCopyTest added |
-| 5 Shared sync | **CONFIRMED (Worker)** | creditTransactions/providerUsage source=android; aiMemories shared; users/{uid} authority |
-| 6 Remaining handoff | PENDING | |
-| 7 Folders + Journey | PENDING | |
+| 1 Operations | **CONFIRMED FIXED** | e3046a30 |
+| 2 Billing hold/settle | **PARTIALLY FIXED** | billing-hold.js + tests; floors removed; index.js local |
+| 3 Checkout | **CONFIRMED FIXED (code)** | nativeCatalog, Sign in to buy, offline cache, BrandCopy. **NEEDS DEVICE TEST** |
+| 4 Vendor copy | **CONFIRMED FIXED** | BrandCopy expanded; guard test |
+| 5 Shared sync | **CONFIRMED (Worker)** | source=android ledgers; aiMemories; users/{uid} |
+| 6 Remaining handoff | **PARTIAL** | Logout gated on signedInAccount (BQSqwadApp.kt ~7744). Live voice/camera/connectors = NEEDS DEVICE TEST |
+| 7 Folders + Journey | **HANDOFF WRITTEN** | docs/website-handoff/chat-folders-and-journey.md — data model + APIs + acceptance tests. Full Compose/website UI implementation still required |
 
-## Phase 5 — Shared data & sync (Worker side)
+## Owner test list (from master prompt)
 
-- `creditTransactions` and `providerUsage` written with `source: "android"`
-- Legacy `creditLedger`, `creditReservations`, `aiUsageLedger` remain readable
-- `aiMemories` is shared owner-scoped store
-- Single balance authority: `users/{uid}` buckets
-- Website parity for chat reserve/settle: covered by full-system verification workflow
-- featureSettings / background image / consent: primarily website + app clients
+**Billing:** 1 credit “hello” → fractional charge, no lock during reply — requires Worker deploy of hold/settle index.js patches.  
+**Checkout:** Play internal track + licensed tester — **NEEDS DEVICE TEST**.  
+**Operations:** push to branch → no auto workflow. Manual DEPLOY path ready.  
+**Folders / Journey:** data model specified; implementation pending website + app UI.
 
-## Next
+## Deployment
 
-Phase 6 remaining handoff priorities → Phase 7 Chat Folders + Journey
+Do **not** deploy until owner confirms. Use Actions → Deploy Cloudflare Worker (manual) → type DEPLOY.
