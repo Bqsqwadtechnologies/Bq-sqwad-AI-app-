@@ -13,24 +13,28 @@ function nonNegative(value, fallback = 0) {
 }
 
 export function computeTokenCredits(input, policy, rates) {
-  // User-facing credit prices are the source of truth. Provider USD cost,
-  // markup and USD-per-credit conversion must never determine a chat charge.
-  // Rates may be configured per token or per 1,000 tokens; otherwise use the
-  // established customer-credit defaults (fresh input 0.00003, cached 0.000003,
-  // output 0.00024 credits/token).
+  // Bill measured tokens using the configured provider rates, customer markup,
+  // fee and credit value. This is the shared website/Worker billing formula.
+  // Explicit zero rates remain valid; absent or invalid rates use conservative
+  // reference rates rather than turning a metered chat into a fixed one-credit charge.
   const uncached = nonNegative(input?.uncachedInputTokens);
   const cached = nonNegative(input?.cachedInputTokens);
   const output = nonNegative(input?.outputTokens);
-  const perToken = (direct, perThousand, fallback) => {
-    if (Number.isFinite(Number(direct)) && direct !== null && direct !== undefined) return Math.max(0, Number(direct));
-    if (Number.isFinite(Number(perThousand)) && perThousand !== null && perThousand !== undefined) return Math.max(0, Number(perThousand)) / 1000;
+  const rate = (direct, legacy, fallback) => {
+    if (direct !== null && direct !== undefined && Number.isFinite(Number(direct)) && Number(direct) >= 0) return Number(direct);
+    if (legacy !== null && legacy !== undefined && Number.isFinite(Number(legacy)) && Number(legacy) >= 0) return Number(legacy);
     return fallback;
   };
-  const inputRate = perToken(rates?.inputCreditsPerToken, rates?.inputCreditsPer1k, 0.00003);
-  const cachedRate = perToken(rates?.cachedInputCreditsPerToken, rates?.cachedInputCreditsPer1k, 0.000003);
-  const outputRate = perToken(rates?.outputCreditsPerToken, rates?.outputCreditsPer1k, 0.00024);
-  const credits = round5(uncached * inputRate + cached * cachedRate + output * outputRate);
-  return { providerCostUsd: 0, customerUsd: 0, markupPercent: 0, feePercent: 0, credits };
+  const inputRate = rate(rates?.inputUsdPerToken, rates?.inputUsdPerMillionTokens != null ? Number(rates.inputUsdPerMillionTokens) / 1_000_000 : undefined, 0.00000005);
+  const cachedRate = rate(rates?.cachedInputUsdPerToken, rates?.cachedInputUsdPerMillionTokens != null ? Number(rates.cachedInputUsdPerMillionTokens) / 1_000_000 : undefined, inputRate * 0.1);
+  const outputRate = rate(rates?.outputUsdPerToken, rates?.outputUsdPerMillionTokens != null ? Number(rates.outputUsdPerMillionTokens) / 1_000_000 : undefined, 0.00000025);
+  const providerCostUsd = uncached * inputRate + cached * cachedRate + output * outputRate;
+  const markupPercent = nonNegative(policy?.markupPercent, 600);
+  const feePercent = nonNegative(policy?.feePercent, 0);
+  const usdPerCredit = nonNegative(policy?.usdPerCredit, 0.1199) || 0.1199;
+  const customerUsd = providerCostUsd * (1 + markupPercent / 100) * (1 + feePercent / 100);
+  const credits = round5(customerUsd / usdPerCredit);
+  return { providerCostUsd, customerUsd, markupPercent, feePercent, credits };
 }
 
 export function computeMinuteCredits(input, policy, rateUsdPerMinute, overrideCreditsPerMinute = null) {
