@@ -5,5 +5,8 @@
   "compatibility_date": "2026-09-27",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  "triggers": { "crons": ["0 3 * * *"] }
+  "triggers": { "crons": ["0 3 * * *"] },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev,https://bqsqwadai.com,https://www.bqsqwadai.com"
+  }
 }
