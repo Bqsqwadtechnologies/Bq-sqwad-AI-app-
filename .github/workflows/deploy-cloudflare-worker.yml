@@ -1,38 +1,72 @@
-name: Deploy Cloudflare Worker
+name: Deploy Cloudflare Worker (manual)
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'cloudflare-worker/**'
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY to deploy the Worker to production"
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  deploy-worker:
+  test:
+    name: Worker syntax and unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: cloudflare-worker
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22"
 
-      - name: Install Worker dependencies
-        run: npm install
+      - name: Install dependencies
+        run: npm ci || npm install --no-audit --no-fund
 
-      - name: Validate Worker syntax
+      - name: Syntax check
         run: npm run check
 
-      - name: Deploy Cloudflare Worker
-        uses: cloudflare/wrangler-action@v3
+      - name: Unit tests
+        run: npm test
+
+  deploy:
+    name: Deploy Worker to production
+    needs: test
+    if: ${{ inputs.confirm == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    defaults:
+      run:
+        working-directory: cloudflare-worker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: cloudflare-worker
-          command: deploy
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci || npm install --no-audit --no-fund
+
+      - name: Record build id
+        run: echo "BQ_BUILD_ID=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Deploy with wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --var BQ_BUILD_ID:${{ env.BQ_BUILD_ID }}
