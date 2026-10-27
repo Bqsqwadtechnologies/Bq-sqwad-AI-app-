@@ -73,9 +73,17 @@ jobs:
                   client.get("client_info", {}).get("android_client_info", {}).get("package_name")
                   for client in clients
               ]
+              oauth_android_packages = [
+                  oauth.get("android_info", {}).get("package_name")
+                  for client in clients
+                  for oauth in client.get("oauth_client", [])
+                  if oauth.get("client_type") == 1 and oauth.get("android_info")
+              ]
               require(bool(android_packages), "Firebase google-services.json contains at least one Android client")
               require(all(p == EXPECTED for p in android_packages),
                       f"Every Firebase Android client package must be {EXPECTED}; found {android_packages}")
+              require(all(p == EXPECTED for p in oauth_android_packages),
+                      f"Every Android OAuth client package must be {EXPECTED}; found {oauth_android_packages}")
           except Exception as exc:
               errors.append(f"FAIL: Could not parse {firebase_path}: {exc}")
 
@@ -116,8 +124,8 @@ jobs:
                       continue
                   declared = match.group(1)
                   expected_path = ".".join(file.relative_to(source_root).parts[:-1])
-                  require(declared == expected_path,
-                          f"{file}: package declaration {declared!r} matches source directory {expected_path!r}")
+                  require(declared == expected_path and (declared == EXPECTED or declared.startswith(EXPECTED + ".")),
+                          f"{file}: package declaration {declared!r} must match its directory and be {EXPECTED} or a subpackage")
           require(source_count > 0, "Android Kotlin/Java source files were found for package-path audit")
 
           print("\n".join(checked))
