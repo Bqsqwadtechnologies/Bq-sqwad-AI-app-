@@ -55,7 +55,48 @@ const businessPlans = [
 const businessAddOnPlans = [
   plan("business-addons","bizaosupmigration","Business Support Migration",{productId:"bizaosupmigration",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",features:["One-time business support migration"],configurationNotes:["Existing Google Play one-time product. Google Play supplies the localized checkout price."]}),
   plan("business-addons","bizaosupsetup","Business Support Setup",{productId:"bizaosupsetup",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",features:["One-time business support setup"],configurationNotes:["Existing Google Play one-time product. Google Play supplies the localized checkout price."]}),
-  plan("business-addons","bizaosupdomain","Business Support Domain",{productId:"bizaosupdomain",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",features:["One-time business support domain"],configurationNotes:["Existing Google Play one-time product. Google Play supplies the localized checkout price."]})
+  plan("business-addons","bizaosupdomain","Business Support Domain",{productId:"bizaosupdomain",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",features:["One-time business support domain"],configurationNotes:["Existing Google Play one-time product. Google Play supplies the localized checkout price."]}),
+  plan("business-addons","bizaoaidocs","Business AI Documents",{productId:"bizaoaidocs",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Documents"]}),
+  plan("business-addons","bizaoaiworkflow","Business AI Workflow",{productId:"bizaoaiworkflow",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Workflow"]}),
+  plan("business-addons","bizaoaiemail","Business AI Email",{productId:"bizaoaiemail",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Email"]}),
+  plan("business-addons","bizaoaimarketing","Business AI Marketing",{productId:"bizaoaimarketing",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Marketing"]}),
+  plan("business-addons","bizaoaiphone","Business AI Phone",{productId:"bizaoaiphone",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Phone"]}),
+  plan("business-addons","bizaoaivoice","Business AI Voice",{productId:"bizaoaivoice",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Voice"]}),
+  plan("business-addons","bizaoaibooking","Business AI Booking",{productId:"bizaoaibooking",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business AI Booking"]}),
+  plan("business-addons","bizaoextraassistant","Extra Assistant",{productId:"bizaoextraassistant",billingPeriods:["monthly"],basePlans:["1qty"],playEligible:true,paymentChannel:"play",active:false,features:["Extra Assistant"]}),
+  plan("business-addons","bizaoadvcompliancemode","Advanced Compliance Mode",{productId:"bizaoadvcompliancemode",billingPeriods:["monthly"],basePlans:["qty-1"],playEligible:true,paymentChannel:"play",features:["Advanced Compliance Mode"]}),
+  plan("business-addons","bizaoadvproactive","Advanced Proactive AI",{productId:"bizaoadvproactive",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Advanced Proactive AI"]}),
+  plan("business-addons","bizaoadvcustomvoice","Advanced Custom Voice",{productId:"bizaoadvcustomvoice",billingPeriods:["monthly"],basePlans:["bizaoadvcustomvoice"],playEligible:true,paymentChannel:"play",features:["Advanced Custom Voice"]}),
+  plan("business-addons","bizaoadvunifiedmemory","Advanced Unified Memory",{productId:"bizaoadvunifiedmemory",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Advanced Unified Memory"]}),
+  plan("business-addons","bizaoadvabtesting","Advanced A/B Testing",{productId:"bizaoadvabtesting",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Advanced A/B Testing"]}),
+  plan("business-addons","bizaoadvauditexplain","Advanced Audit Explainability",{productId:"bizaoadvauditexplain",billingPeriods:["monthly"],basePlans:["businessaudit"],playEligible:true,paymentChannel:"play",features:["Advanced Audit Explainability"]}),
+  plan("business-addons","bizaoadvhumanhandoff","Advanced Human Handoff",{productId:"bizaoadvhumanhandoff",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Advanced Human Handoff"]}),
+  plan("business-addons","bizaoadvmultimodal","Advanced Multimodal",{productId:"bizaoadvmultimodal",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Advanced Multimodal"]}),
+  plan("business-addons","bizaoadvindustrymodule","Advanced Industry Module",{productId:"bizaoadvindustrymodule",billingPeriods:["qty-1","qty-5","qty-10","qty-25"],basePlans:["qty-1","qty-5","qty-10","qty-25"],playEligible:true,paymentChannel:"play",features:["Advanced Industry Module"]}),
+  plan("business-addons","bizaostorage10gb","Business Storage 10 GB",{productId:"bizaostorage10gb",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Storage 10 GB"]}),
+  plan("business-addons","bizaostorage100gb","Business Storage 100 GB",{productId:"bizaostorage100gb",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Storage 100 GB"]}),
+  plan("business-addons","bizaostorage1tb","Business Storage 1 TB",{productId:"bizaostorage1tb",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Storage 1 TB"]}),
+  plan("business-addons","bizaomsgs10k","Business Messages 10K",{productId:"bizaomsgs10k",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Messages 10K"]}),
+  plan("business-addons","bizaomsgs50k","Business Messages 50K",{productId:"bizaomsgs50k",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Messages 50K"]}),
+  plan("business-addons","bizaomsgs100k","Business Messages 100K",{productId:"bizaomsgs100k",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Messages 100K"]}),
+  plan("business-addons","bizaomsgsunlimited","Business Unlimited Messages",{productId:"bizaomsgsunlimited",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business Unlimited Messages"]}),
+  plan("business-addons","bizaosupportpriority","Priority Support",{productId:"bizaosupportpriority",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Priority Support"]}),
+  plan("business-addons","bizaosupportpremium","Premium Support",{productId:"bizaosupportpremium",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Premium Support"]}),
+  plan("business-addons","bizaosupportmanager","Dedicated Support Manager",{productId:"bizaosupportmanager",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Dedicated Support Manager"]}),
+  plan("business-addons","bizaosupwhitelabel","Business White Label",{productId:"bizaosupwhitelabel",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Business White Label"]}),
+  plan("business-addons","bizaoteamuser","Business Team User",{productId:"bizaoteamuser",billingPeriods:["monthly"],basePlans:["bizaoteamuser"],playEligible:true,paymentChannel:"play",active:false,features:["Business Team User"]}),
+  plan("business-addons","bizaointapi","API Integration",{productId:"bizaointapi",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["API Integration"]}),
+  plan("business-addons","bizaointcrm","CRM Integration",{productId:"bizaointcrm",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["CRM Integration"]}),
+  plan("business-addons","bizaointwhatsapp","WhatsApp Integration",{productId:"bizaointwhatsapp",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["WhatsApp Integration"]}),
+  plan("business-addons","bizaointtelegram","Telegram Integration",{productId:"bizaointtelegram",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Telegram Integration"]}),
+  plan("business-addons","bizaointmessenger","Messenger Integration",{productId:"bizaointmessenger",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Messenger Integration"]}),
+  plan("business-addons","bizaointinstagram","Instagram Integration",{productId:"bizaointinstagram",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Instagram Integration"]}),
+  plan("business-addons","bizaointslack","Slack Integration",{productId:"bizaointslack",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Slack Integration"]}),
+  plan("business-addons","bizaointdiscord","Discord Integration",{productId:"bizaointdiscord",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Discord Integration"]}),
+  plan("business-addons","bizaointzapier","Zapier Integration",{productId:"bizaointzapier",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Zapier Integration"]}),
+  plan("business-addons","bizaointshopify","Shopify Integration",{productId:"bizaointshopify",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["Shopify Integration"]}),
+  plan("business-addons","bizaointwoocommerce","WooCommerce Integration",{productId:"bizaointwoocommerce",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["WooCommerce Integration"]}),
+  plan("business-addons","bizaointwordpress","WordPress Integration",{productId:"bizaointwordpress",billingPeriods:["monthly"],basePlans:["monthly"],playEligible:true,paymentChannel:"play",features:["WordPress Integration"]})
 ];
 
 const companionPlans = [
@@ -256,11 +297,8 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
       const match = String(value).match(/^credit:(\d+)$/);
       return total + (match ? Number(match[1]) : 0);
     }, 0);
+    // Google Play supplies localized prices at checkout; fallback USD prices are optional.
     return pairs
-      .filter(pair => plan.productType === "inapp" || (
-        plan.price?.[pair.billingPeriod] != null &&
-        Number.isFinite(Number(plan.price[pair.billingPeriod]))
-      ))
       .map(pair => ({
         planId: String(plan.id),
         productId: String(plan.productId),
