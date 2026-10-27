@@ -53,5 +53,8 @@ test("canonical Play mappings match existing credit plans and one-time offers", 
   const companionBasicYearlyId = mappings.find(x => x.productId === "companionbasic" && x.basePlanId === "yearly");
   assert.equal(companionBasicYearlyId.billingPeriod, "monthly");
 
+  assert.ok(!mappings.some(x => ["frontierexplorer", "frontierpro", "frontierenterprise"].includes(x.productId)));
+  assert.ok(!mappings.some(x => ["bizaoextraassistant", "bizaoteamuser"].includes(x.productId)));
+
   assert.equal(validateCommercialCatalog(COMMERCIAL_CATALOG).ok, true);
 });
