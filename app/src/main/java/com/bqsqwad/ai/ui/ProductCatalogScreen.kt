@@ -58,7 +58,10 @@ private data class UserEntitlement(val id:String,val planId:String,val productId
 
 internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
     val available = ids.toSet()
-    return listOf("credit100", "credit250", "credit500", "credit1000").filter { it in available }
+    return listOf(
+        "credit100", "credit250", "credit500", "credit1000",
+        "addon-credits-100", "addon-credits-200", "addon-credits-500"
+    ).filter { it in available }
 }
 
 internal fun catalogCategoryHeaderIndex(totalItemCount: Int, trailingItemCount: Int, planCount: Int): Int =
@@ -673,6 +676,7 @@ private fun LivePlanCard(
     // disabled. This preserves all existing product/base-plan IDs and does not
     // convert a subscription into a consumable product.
     val isCreditPack = plan.module.equals("credits", ignoreCase = true)
+    val isOneTimeAddOn = plan.id.startsWith("addon-credits-")
     val selectedEntry = if (isCreditPack) {
         playEntries.firstOrNull { it.productType == ProductType.INAPP }
             ?: playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
@@ -802,6 +806,9 @@ private fun LivePlanCard(
                 }
             }
             Text(priceText, style=MaterialTheme.typography.titleMedium, fontWeight=FontWeight.Bold, color=MaterialTheme.colorScheme.primary)
+            if (isOneTimeAddOn) {
+                Text("One-time purchase • no automatic renewal • buy again whenever you need more credits", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
             }
@@ -869,6 +876,7 @@ private fun LivePlanCard(
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
+                            isOneTimeAddOn && canPurchase -> "Buy one-time add-on"
                             canPurchase -> "Continue with Google Pay"
                             plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
                             plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
@@ -990,7 +998,9 @@ private fun parsePlans(body:JSONObject):List<LivePlan>{
             p.optInt("sortOrder",0)
         )}.filter { plan ->
             val canonicalCreditPack = plan.id.matches(Regex("credit(100|250|500|1000)")) ||
-                plan.name.matches(Regex("(?i)(100|250|500|1,000) credits"))
+                plan.id.matches(Regex("addon-credits-(100|200|500)")) ||
+                plan.name.matches(Regex("(?i)(100|200|250|500|1,000) credits")) ||
+                plan.name.contains("credit add-on", ignoreCase = true)
             val searchable = (plan.id + " " + plan.name + " " + plan.module)
                 .lowercase(java.util.Locale.ROOT)
                 .replace(Regex("[^a-z0-9]+"), " ")
