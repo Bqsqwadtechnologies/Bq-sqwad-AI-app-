@@ -67,7 +67,9 @@ export async function playCatalog(firestore, context) {
     firestore.get("playCatalog/config"),
     firestore.get("planCatalog/config")
   ]);
-  const configuredProducts = Array.isArray(config?.products) ? config.products : [];
+  // Ignore stale/disabled projection rows. The canonical catalog fills missing pairs;
+  // disabled cached rows must not suppress every valid Play product.
+  const configuredProducts = (Array.isArray(config?.products) ? config.products : []).filter(p => p && p.enabled === true);
   const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
   const storedCatalog = planConfig?.catalog;
   const hasStoredPlans = Object.values(storedCatalog?.sections || {}).some(rows => Array.isArray(rows) && rows.length > 0);
@@ -141,7 +143,9 @@ export async function verifyPlayPurchase(env, firestore, input) {
     firestore.get("playCatalog/config"),
     firestore.get("planCatalog/config")
   ]);
-  const configuredProducts = Array.isArray(catalog?.products) ? catalog.products : [];
+  // Ignore stale/disabled projection rows. The canonical catalog fills missing pairs;
+  // disabled cached rows must not suppress every valid Play product.
+  const configuredProducts = (Array.isArray(catalog?.products) ? catalog.products : []).filter(p => p && p.enabled === true);
   const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
   const storedCatalog = planCatalog?.catalog;
   const hasStoredPlans = Object.values(storedCatalog?.sections || {}).some(rows => Array.isArray(rows) && rows.length > 0);
