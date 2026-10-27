@@ -94,6 +94,7 @@ class PlayBillingClient(
     }
 
     override fun onBillingSetupFinished(result: BillingResult) {
+        android.util.Log.i("BQBilling", "onBillingSetupFinished responseCode=${result.responseCode}")
         connecting = false
         connected = result.responseCode == BillingClient.BillingResponseCode.OK
         if (connected) retryCount = 0
@@ -300,7 +301,12 @@ class PlayBillingClient(
             .setProductDetailsParamsList(listOf(params.build()))
             .setObfuscatedAccountId(obfuscatedUid())
             .build()
+        android.util.Log.i(
+            "BQBilling",
+            "launchBillingFlow productId=$productId productType=${product.productType} basePlanId=${basePlanId.orEmpty()} offerTokenPresent=${!offerToken.isNullOrBlank()}"
+        )
         val result = client.launchBillingFlow(activity, flow)
+        android.util.Log.i("BQBilling", "launchBillingFlow responseCode=${result.responseCode}")
         if (result.responseCode != BillingClient.BillingResponseCode.OK &&
             result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED
         ) {
@@ -356,14 +362,16 @@ class PlayBillingClient(
                 }
                 val catalogJson = JSONObject(raw).optJSONArray("products") ?: JSONArray()
                 val nextCatalog = mutableMapOf<String, MutableList<PlayCatalogItem>>()
-                val products = mutableListOf<QueryProductDetailsParams.Product>()
-                val seenProducts = mutableSetOf<String>()
+                val productsByType = linkedMapOf(
+                    ProductType.SUBS to linkedMapOf<String, QueryProductDetailsParams.Product>(),
+                    ProductType.INAPP to linkedMapOf<String, QueryProductDetailsParams.Product>()
+                )
                 for (i in 0 until catalogJson.length()) {
-                    val item = catalogJson.getJSONObject(i)
+                    val item = catalogJson.optJSONObject(i) ?: continue
                     if (!item.optBoolean("enabled", false)) continue
                     val id = item.optString("productId")
                     val type = item.optString("productType")
-                    if (id.isBlank() || (type != ProductType.SUBS && type != ProductType.INAPP)) continue
+                    if (id.isBlank() || type !in setOf(ProductType.SUBS, ProductType.INAPP)) continue
                     nextCatalog.getOrPut(id) { mutableListOf() }.add(
                         PlayCatalogItem(
                             planId = item.optString("planId"),
@@ -376,42 +384,85 @@ class PlayBillingClient(
                             consumable = item.optBoolean("consumable", false)
                         )
                     )
-                    if (seenProducts.add(id + ":" + type)) {
-                        products += QueryProductDetailsParams.Product.newBuilder()
+                    productsByType.getValue(type).putIfAbsent(
+                        id,
+                        QueryProductDetailsParams.Product.newBuilder()
                             .setProductId(id)
                             .setProductType(type)
                             .build()
-                    }
+                    )
                 }
-                if (products.isEmpty()) {
+                val nonEmptyQueries = productsByType.filterValues { it.isNotEmpty() }
+                if (nonEmptyQueries.isEmpty()) {
                     catalogQueryComplete = true
                     reportBillingDiagnostic("billing_catalog_empty")
                     onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout("No Google Play purchase options are available for this account yet. Refresh the catalog or check the Play Console product setup.")))
                     return@runCatching
                 }
-                client.queryProductDetailsAsync(
-                    QueryProductDetailsParams.newBuilder().setProductList(products).build()
-                ) { result, queried ->
-                    if (result.responseCode == BillingClient.BillingResponseCode.OK && queried.productDetailsList.isNotEmpty()) {
-                        // Replace mappings/details together only after Play returned a valid
-                        // product-details response. Empty or failed refreshes keep the last
-                        // valid checkout mapping rather than leaving stale details unmapped.
-                        synchronized(catalog) {
-                            catalog.clear()
-                            nextCatalog.forEach { (id, mappings) -> catalog[id] = mappings }
-                            details.clear()
-                            queried.productDetailsList.forEach { details[it.productId] = it }
+
+                // Query SUBS and INAPP independently. This avoids a mixed-type request
+                // causing Google Play to reject or omit otherwise valid product details.
+                val completedTypes = java.util.concurrent.atomic.AtomicInteger(0)
+                val successfulDetails = java.util.concurrent.ConcurrentHashMap<String, ProductDetails>()
+                val failedTypes = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+                val expectedQueries = nonEmptyQueries.size
+                nonEmptyQueries.forEach { (type, productMap) ->
+                    val request = QueryProductDetailsParams.newBuilder()
+                        .setProductList(productMap.values.toList())
+                        .build()
+                    android.util.Log.i(
+                        "BQBilling",
+                        "queryProductDetailsAsync type=$type requestedCount=${productMap.size}"
+                    )
+                    client.queryProductDetailsAsync(request) { result, queried ->
+                        android.util.Log.i(
+                            "BQBilling",
+                            "queryProductDetailsAsync type=$type responseCode=${result.responseCode} returnedCount=${queried.productDetailsList.size}"
+                        )
+                        if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                            queried.productDetailsList.forEach { detail ->
+                                if (detail.productType == type) successfulDetails[detail.productId] = detail
+                            }
+                        } else {
+                            failedTypes.add(type)
+                            reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
                         }
-                        catalogQueryComplete = true
-                        onPurchaseState(PlayPurchaseState("catalog_loaded", "Live prices are ready."))
-                    } else if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                        catalogQueryComplete = true
-                        reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
-                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(result.responseCode))))
-                    } else {
-                        catalogQueryComplete = true
-                        reportBillingDiagnostic("billing_item_unavailable")
-                        onPurchaseState(PlayPurchaseState("catalog_failed", BrandCopy.checkout(friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE))))
+
+                        if (completedTypes.incrementAndGet() == expectedQueries) {
+                            if (successfulDetails.isNotEmpty()) {
+                                synchronized(catalog) {
+                                    catalog.clear()
+                                    nextCatalog.forEach { (id, mappings) ->
+                                        if (successfulDetails.containsKey(id)) catalog[id] = mappings
+                                    }
+                                    details.clear()
+                                    details.putAll(successfulDetails)
+                                }
+                                catalogQueryComplete = true
+                                if (failedTypes.isNotEmpty()) {
+                                    reportBillingDiagnostic("billing_partial_catalog_query")
+                                }
+                                onPurchaseState(PlayPurchaseState("catalog_loaded", "Live prices are ready."))
+                            } else {
+                                catalogQueryComplete = true
+                                reportBillingDiagnostic(
+                                    if (failedTypes.isNotEmpty()) "billing_product_details_query_failed"
+                                    else "billing_item_unavailable"
+                                )
+                                onPurchaseState(
+                                    PlayPurchaseState(
+                                        "catalog_failed",
+                                        BrandCopy.checkout(
+                                            if (failedTypes.isNotEmpty()) {
+                                                "Google Play could not return purchase details. Check your connection and refresh the catalog."
+                                            } else {
+                                                friendlyBillingMessage(BillingClient.BillingResponseCode.ITEM_UNAVAILABLE)
+                                            }
+                                        )
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }.onFailure {
