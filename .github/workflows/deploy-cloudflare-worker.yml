@@ -5,7 +5,6 @@ on:
     branches: [ main ]
     paths:
       - 'cloudflare-worker/**'
-      - '.github/workflows/deploy-cloudflare-worker.yml'
   workflow_dispatch:
 
 jobs:
@@ -23,11 +22,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: cloudflare-worker/package-lock.json
 
       - name: Install Worker dependencies
-        run: npm ci
+        run: npm install
 
       - name: Validate Worker syntax
         run: npm run check
