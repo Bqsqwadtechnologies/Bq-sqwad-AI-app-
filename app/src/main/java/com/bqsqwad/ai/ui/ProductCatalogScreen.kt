@@ -667,12 +667,15 @@ private fun LivePlanCard(
                 ?: supportedPeriods.firstOrNull().orEmpty()
         }
     }
-    // Credit packs are one-time INAPP products and have no subscription billing period.
-    // The old period-only lookup left selectedEntry null for every credit pack, so
-    // the visible "Continue with Google Pay" button was disabled and taps did nothing.
+    // Prefer a one-time INAPP mapping for credit packs. Some existing catalog
+    // configurations may still map the unchanged credit IDs as subscriptions.
+    // In that case fall back to the configured base plan so checkout is not silently
+    // disabled. This preserves all existing product/base-plan IDs and does not
+    // convert a subscription into a consumable product.
     val isCreditPack = plan.module.equals("credits", ignoreCase = true)
     val selectedEntry = if (isCreditPack) {
         playEntries.firstOrNull { it.productType == ProductType.INAPP }
+            ?: playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
     } else {
         playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
     }
