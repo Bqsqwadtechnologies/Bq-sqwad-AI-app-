@@ -11,6 +11,8 @@ const plan = (module, id, name, options = {}) => ({
   recurring: options.recurring ?? true,
   billingPeriods: options.billingPeriods ?? ["monthly"],
   basePlans: options.basePlans ?? options.billingPeriods?.map(p => p === "monthly" ? "monthly" : p === "yearly" ? "yearly" : p) ?? ["monthly"],
+  // Optional map for Play Console cases where a base-plan ID does not match its actual billing duration.
+  basePlanBillingPeriods: options.basePlanBillingPeriods ?? {},
   offerId: options.offerId ?? null,
   trialDays: options.trialDays ?? 0,
   trialEligible: options.trialEligible ?? false,
@@ -101,7 +103,7 @@ const businessAddOnPlans = [
 
 const companionPlans = [
   plan("companion","companionfree","Companion Free",{productId:null,productType:"free",recurring:false,billingPeriods:["free"],price:{free:0},playEligible:false,features:["Caring text conversation","Personality choice","Daily check-in prompts"]}),
-  plan("companion","companionbasic","Companion Basic",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:4.99,yearly:49.99},features:["Memory you control","Full history","Longer conversations"]}),
+  plan("companion","companionbasic","Companion Basic",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],basePlanBillingPeriods:{yearly:"monthly"},offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:4.99,yearly:49.99},features:["Memory you control","Full history","Longer conversations"]}),
   plan("companion","companionplus","Companion Plus",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:9.99,yearly:99.99},features:["Voice conversation","Extra voice choices","Avatar"]}),
   plan("companion","companionpremium","Companion Premium",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:19.99,yearly:199.99},features:["Real-time voice","Animated avatar","Interrupt/talk-over","Camera interactions"]}),
   plan("companion","companionultimate","Companion Ultimate",{billingPeriods:["monthly","yearly"],basePlans:["monthly","yearly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:34.99,yearly:349.99},features:["Advanced long-term memory","Routines/reminders","Priority response speed","Camera interactions"]})
@@ -116,9 +118,9 @@ const learningPlans = [
 
 const truthGuardPlans = [
   plan("truthguard","truthguardfree","TruthGuard Free",{productId:null,productType:"free",recurring:false,billingPeriods:["free"],price:{free:0},playEligible:false,limits:{checksPerMonth:5},features:["5 checks/month","Verdict","Confidence","Plain-English explanation","Up to 3 cited sources/check"]}),
-  plan("truthguard","tgplus","TruthGuard Plus",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:4.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:150},features:["150 checks/month","Live web evidence","Source reliability notes","Manipulation/bias signals","History"],configurationNotes:["Yearly price is approved at $49.70 USD\/year (monthly price × 12 × 0.83)."]}),
-  plan("truthguard","tgpro","TruthGuard Pro",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:14.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:1000},features:["1,000 checks/month","Deep evidence sweep","More sources","Claim breakdown for long articles/posts","Export-ready summaries","Priority processing"],configurationNotes:["Yearly price is approved at $149.30 USD/year (monthly price × 12 × 0.83)."]}),
-  plan("truthguard","tgteam","TruthGuard Team",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:49.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:"fair-use unlimited"},features:["Fair-use unlimited","Pro features","Shared organization history","Priority support"],configurationNotes:["Yearly price is approved at $497.90 USD\/year (monthly price × 12 × 0.83)."]})
+  plan("truthguard","tgplus","TruthGuard Plus",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:4.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:150},features:["150 checks/month","Live web evidence","Source reliability notes","Manipulation/bias signals","History"],configurationNotes:["Google Play Console currently lists only the monthly base plan for tgplus; Google Play supplies localized checkout pricing."]}),
+  plan("truthguard","tgpro","TruthGuard Pro",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:14.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:1000},features:["1,000 checks/month","Deep evidence sweep","More sources","Claim breakdown for long articles/posts","Export-ready summaries","Priority processing"],configurationNotes:["Google Play Console currently lists only the monthly base plan for tgpro; Google Play supplies localized checkout pricing."]}),
+  plan("truthguard","tgteam","TruthGuard Team",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:49.99},priceStatus:"approved",proposalPeriods:[],limits:{checksPerMonth:"fair-use unlimited"},features:["Fair-use unlimited","Pro features","Shared organization history","Priority support"],configurationNotes:["Google Play Console currently lists only the monthly base plan for tgteam; Google Play supplies localized checkout pricing."]})
 ];
 
 const frontierPlans = [
@@ -129,15 +131,15 @@ const frontierPlans = [
 
 const lifeMathisPlans = [
   plan("life-mathis","lifemathisfree","AI Life Mathis Free",{productId:null,productType:"free",recurring:false,billingPeriods:["free"],price:{free:0},playEligible:false,limits:{conversationsPerMonth:10},features:["10 conversations/month","Structured guidance","Grounded Life Mathis knowledge"]}),
-  plan("life-mathis","lmstandard","Life Mathis Standard",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:19.99},priceStatus:"approved",limits:{conversationsPerMonth:300},features:["300 conversations/month","Structured guidance","Deep Life Analysis","Voice notes","Spoken replies","Saved insights","Full history","Multi-perspective answers"],configurationNotes:["Monthly base plan ID: monthly. Yearly base plan ID: yearly."]}),
+  plan("life-mathis","lmstandard","Life Mathis Standard",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:19.99},priceStatus:"approved",limits:{conversationsPerMonth:300},features:["300 conversations/month","Structured guidance","Deep Life Analysis","Voice notes","Spoken replies","Saved insights","Full history","Multi-perspective answers"],configurationNotes:["Google Play Console mapping currently includes only the monthly base plan."]}),
   plan("life-mathis","lmultimate","Life Mathis Ultimate",{billingPeriods:["monthly"],basePlans:["monthly"],offerId:"trial-3d",trialDays:3,trialEligible:true,playEligible:true,price:{monthly:49.99},priceStatus:"approved",limits:{conversationsPerMonth:"fair-use unlimited"},features:["Fair-use unlimited","Unlimited Deep Life Analysis","Curated wisdom library","Super Wisdom","Life coaching plans","Priority processing/support"],configurationNotes:["Monthly base plan ID: monthly. Yearly base plan ID: yearly."]})
 ];
 
 const creditPlans = [
   plan("credits","credit100","100 Credits",{productId:"credit100",billingPeriods:["weakly","monthly"],basePlans:["weakly","monthly"],playEligible:true,price:{weakly:8.49,monthly:11.99},productType:"subs",recurring:true,features:["100 credits"],entitlements:["credit:100"],configurationNotes:["Google Play subscription ID is credit100. Base plans are weakly and monthly. The existing monthly price is preserved at $11.99; the weakly price is configured in the fallback catalog; Google Play remains authoritative at checkout."]}),
   plan("credits","credit250","250 Credits",{productId:"credit250",billingPeriods:["weakly","monthly"],basePlans:["weakly","monthly"],playEligible:true,price:{weakly:16.99,monthly:24.99},productType:"subs",recurring:true,features:["250 credits"],entitlements:["credit:250"],configurationNotes:["Google Play subscription ID is credit250. Base plans are weakly and monthly. The existing monthly price is preserved at $24.99; the weakly price is configured in the fallback catalog; Google Play remains authoritative at checkout."]}),
-  plan("credits","credit500","500 Credits",{productId:"credit500",billingPeriods:["weakly","monthly","yearly"],basePlans:["weakly","monthly","yearly"],playEligible:true,price:{weakly:29.99,monthly:44.99,yearly:49.99},productType:"subs",recurring:true,features:["500 credits"],entitlements:["credit:500"],configurationNotes:["Google Play subscription ID is credit500. Base plans are weakly and monthly. The existing monthly price is preserved at $44.99; the weakly price is configured in the fallback catalog; Google Play remains authoritative at checkout."]}),
-  plan("credits","credit1000","1,000 Credits",{productId:"credit1000",billingPeriods:["weakly","monthly","yearly"],basePlans:["weakly","monthly","yearly"],playEligible:true,price:{weakly:49.99,monthly:79.99,yearly:99.99},productType:"subs",recurring:true,features:["1,000 credits"],entitlements:["credit:1000"],configurationNotes:["Google Play subscription ID is credit1000. Base plans are weakly and monthly. The existing monthly price is preserved at $79.99; the weakly price is configured in the fallback catalog; Google Play remains authoritative at checkout."]}),
+  plan("credits","credit500","500 Credits",{productId:"credit500",billingPeriods:["weakly","monthly","yearly"],basePlans:["weakly","monthly","yearly"],playEligible:true,price:{weakly:29.99,monthly:44.99,yearly:49.99},productType:"subs",recurring:true,features:["500 credits"],entitlements:["credit:500"],configurationNotes:["Google Play subscription ID is credit500. Existing base plans are weakly, monthly, and yearly. Google Play is authoritative for localized checkout prices."]}),
+  plan("credits","credit1000","1,000 Credits",{productId:"credit1000",billingPeriods:["weakly","monthly","yearly"],basePlans:["weakly","monthly","yearly"],playEligible:true,price:{weakly:49.99,monthly:79.99,yearly:99.99},productType:"subs",recurring:true,features:["1,000 credits"],entitlements:["credit:1000"],configurationNotes:["Google Play subscription ID is credit1000. Existing base plans are weakly, monthly, and yearly. Google Play is authoritative for localized checkout prices."]}),
   plan("credits","addon-credits-25","25 Credit Offer",{productId:"creditaddon25",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",price:{one_time:3.5},features:["25 additional credits","One-time purchase","No automatic renewal","Offer"],entitlements:["credit:25"],configurationNotes:["One-time consumable product ID: creditaddon25. No base plan or offer ID. Verified purchases add 25 permanent credits."]}),
   plan("credits","addon-credits-50","50 Credit Offer",{productId:"creditaddon50",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",price:{one_time:6},features:["50 additional credits","One-time purchase","No automatic renewal","Offer"],entitlements:["credit:50"],configurationNotes:["One-time consumable product ID: creditaddon50. No base plan or offer ID. Verified purchases add 50 permanent credits."]}),
   plan("credits","addon-credits-100","100 Credit Offer",{productId:"creditaddon100",productType:"inapp",recurring:false,billingPeriods:["one_time"],basePlans:[],playEligible:true,paymentChannel:"play",price:{one_time:11},features:["100 additional credits","One-time purchase","No automatic renewal","Offer"],entitlements:["credit:100"],configurationNotes:["One-time consumable product ID: creditaddon100. No base plan or offer ID. Verified purchases add 100 permanent credits."]}),
@@ -288,10 +290,13 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
     const eligiblePeriods = Array.isArray(plan.playEligiblePeriods) && plan.playEligiblePeriods.length
       ? new Set(plan.playEligiblePeriods.map(String))
       : null;
-    const pairs = basePlanIds.map((basePlanId, index) => ({
-      basePlanId,
-      billingPeriod: plan.productType === "subs" ? (billingPeriods[index] || basePlanId) : "one_time"
-    })).filter(pair => !eligiblePeriods || eligiblePeriods.has(pair.billingPeriod) || eligiblePeriods.has(String(pair.basePlanId || "")));
+    const pairs = basePlanIds.map((basePlanId, index) => {
+      const priceKey = plan.productType === "subs" ? (billingPeriods[index] || basePlanId) : "one_time";
+      const actualPeriod = plan.productType === "subs"
+        ? (plan.basePlanBillingPeriods?.[String(basePlanId)] || priceKey)
+        : "one_time";
+      return { basePlanId, billingPeriod: actualPeriod, priceKey };
+    }).filter(pair => !eligiblePeriods || eligiblePeriods.has(pair.billingPeriod) || eligiblePeriods.has(String(pair.basePlanId || "")));
     const entitlements = Array.isArray(plan.entitlements) ? plan.entitlements : [];
     const creditGrant = entitlements.reduce((total, value) => {
       const match = String(value).match(/^credit:(\d+)$/);
@@ -307,7 +312,7 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
         enabled: true,
         consumable: plan.productType === "inapp" && creditGrant > 0,
         billingPeriod: pair.billingPeriod,
-        priceUsd: plan.price?.[pair.billingPeriod] == null ? null : Number(plan.price[pair.billingPeriod]),
+        priceUsd: plan.price?.[pair.priceKey] == null ? null : Number(plan.price[pair.priceKey]),
         trialOfferId: plan.trialEligible ? (plan.offerId || null) : null,
         trialDays: plan.trialEligible ? Number(plan.trialDays || 0) : 0,
         creditGrant,
