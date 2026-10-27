@@ -7741,7 +7741,7 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
                 }
             }
             item {
-                val signedInAccount = FirebaseAuth.getInstance().currentUser != null
+                val signedInAccount = FirebaseAuth.getInstance().currentUser?.let { !it.isAnonymous } == true
                 OutlinedButton(
                     onClick = { if (signedInAccount) onSignOut() else onOpenSignIn() },
                     modifier = Modifier.fillMaxWidth()
