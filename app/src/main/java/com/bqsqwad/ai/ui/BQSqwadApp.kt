@@ -1099,6 +1099,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         shellScope.launch { drawerState.close() }
         plans = false
         settings = false
+        connectorsOpen = false
+        teamsOpen = false
+        fileBoxOpen = false
         accountProtection = false
         legalCenter = false
         history = false
