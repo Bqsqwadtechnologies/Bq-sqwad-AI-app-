@@ -5086,7 +5086,9 @@ export default {
           String(item.status || "").toUpperCase() === "ACTIVE" &&
           item.is_disabled !== true
         );
-        return json({ toolkit, connected: active.length > 0, status: active.length > 0 ? "connected" : "not-connected", connectedAccounts: active.length });
+        const account = active[0] || null;
+        const accountName = String(account?.display_name || account?.account?.name || account?.connected_account?.name || account?.name || account?.email || "").trim().slice(0, 100) || null;
+        return json({ toolkit, connected: active.length > 0, status: active.length > 0 ? "connected" : "not-connected", connectedAccounts: active.length, accountName });
       }
 
       if (url.pathname === "/connectors/tools" && request.method === "GET") {
