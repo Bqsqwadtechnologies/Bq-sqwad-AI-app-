@@ -1494,8 +1494,16 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   const mutation = /CREATE|UPDATE|DELETE|REMOVE|ADD_|EDIT|PUSH|MERGE|CLOSE|OPEN_ISSUE|COMMENT|PUBLISH|UPLOAD|WRITE|DISPATCH|STAR|FORK|TRANSFER|INVITE|REVOKE|SEND_|MOVE_|ARCHIVE|TRASH|SHARE|UNSHARE|COMPLETE|CANCEL|SUBMIT|POST_/;
   const permission = await firestoreGet("composioPermissions/" + uid + "__" + cleanToolkit).catch(() => null);
   const accessMode = permission && permission.uid === uid && permission.toolkit === cleanToolkit && permission.accessMode === "full_access" ? "full_access" : "read_only";
-  if (!cleanSlug.startsWith(prefix) || (accessMode !== "full_access" && (!readOnly.test(cleanSlug) || mutation.test(cleanSlug)))) {
-    return { ok: false, error: "connector_tool_not_allowed", accessMode };
+  if (!cleanSlug.startsWith(prefix)) {
+    return { ok: false, error: "connector_tool_not_allowed", toolkit: cleanToolkit, accessMode };
+  }
+  if (accessMode !== "full_access" && (!readOnly.test(cleanSlug) || mutation.test(cleanSlug))) {
+    return {
+      ok: false,
+      error: mutation.test(cleanSlug) ? "connector_write_requires_full_access" : "connector_tool_not_allowed",
+      toolkit: cleanToolkit,
+      accessMode
+    };
   }
   const saved = await firestoreGet("composioSessions/" + uid + "__" + cleanToolkit);
   if (!saved || saved.uid !== uid || saved.toolkit !== cleanToolkit || !saved.sessionId) {
