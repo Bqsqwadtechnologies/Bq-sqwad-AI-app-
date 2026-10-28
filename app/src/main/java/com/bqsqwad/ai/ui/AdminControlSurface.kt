@@ -86,6 +86,7 @@ fun AdminControlCenter() {
     var grantSaving by remember { mutableStateOf(false) }
     var adminCredits by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var adminIssueRows by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pricingAuditSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var diagnosticsSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var selfTestSnapshot by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var diagnosticsBusy by remember { mutableStateOf(false) }
@@ -122,6 +123,8 @@ fun AdminControlCenter() {
         runCatching { WorkspaceApiClient().adminDiagnostics() }
             .onSuccess { diagnosticsSnapshot = it }
             .onFailure { diagnosticsError = it.message ?: "Diagnostics could not be loaded." }
+        runCatching { WorkspaceApiClient().adminPricingAudit() }
+            .onSuccess { pricingAuditSnapshot = it }
     }
 
     val sections = listOf(
@@ -476,6 +479,39 @@ fun AdminControlCenter() {
             }
         }
 
+        pricingAuditSnapshot?.let { audit ->
+            val missing = audit.optJSONArray("missing")
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if ((missing?.length() ?: 0) > 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Live feature-price audit", fontWeight = FontWeight.Bold)
+                    Text(
+                        if ((missing?.length() ?: 0) > 0) "${missing?.length() ?: 0} feature price(s) are missing or invalid in the live admin store."
+                        else "All audited feature prices have a valid creditCost.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    if (missing != null) {
+                        for (i in 0 until minOf(missing.length(), 12)) {
+                            val item = missing.optJSONObject(i) ?: org.json.JSONObject()
+                            Text(
+                                item.optString("document", item.optString("feature", "Unknown feature")) + " • " + item.optString("reason", "needs review"),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                    Button(onClick = {
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().adminPricingAudit() }
+                                .onSuccess { pricingAuditSnapshot = it }
+                        }
+                    }) { Text("Refresh price audit") }
+                }
+            }
+        }
         if (adminIssueRows.isNotEmpty()) {
             Card(
                 Modifier.fillMaxWidth(),
