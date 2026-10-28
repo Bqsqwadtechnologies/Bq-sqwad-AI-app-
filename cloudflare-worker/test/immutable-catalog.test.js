@@ -13,6 +13,8 @@ test("Google Play credit subscription IDs and amounts remain immutable", () => {
     ["credit1000", "credit1000", ["credit:1000"]],
   ]);
   assert.deepEqual(rows.map(x => x.price.monthly), [11.99, 24.99, 44.99, 79.99]);
+  assert.deepEqual(rows.map(x => x.price.weekly), [8.49, 16.99, 29.99, 49.99]);
+  assert.ok(rows.every(x => x.billingPeriods.includes("weekly") && x.basePlans.includes("weakly")));
   assert.deepEqual(rows.map(x => x.basePlans), [
     ["weakly", "monthly"],
     ["weakly", "monthly"],
