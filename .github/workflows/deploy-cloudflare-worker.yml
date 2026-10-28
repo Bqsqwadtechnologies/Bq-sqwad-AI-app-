@@ -94,3 +94,19 @@ jobs:
         run: |
           BUILD_ID="${GITHUB_SHA:0:12}"
           npx --yes wrangler@4 deploy --config wrangler.jsonc --var "BQ_BUILD_ID:$BUILD_ID"
+
+      - name: Smoke-test deployed health endpoint
+        run: |
+          BUILD_ID="${GITHUB_SHA:0:12}"
+          HEALTH_URL="https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev/health"
+          for attempt in $(seq 1 12); do
+            BODY="$(curl --silent --show-error --fail "$HEALTH_URL" || true)"
+            if [ -n "$BODY" ] && echo "$BODY" | jq -e --arg build "$BUILD_ID" '.status == "ok" and .buildId == $build' >/dev/null; then
+              echo "Worker health is OK at build $BUILD_ID"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Deployed Worker health did not report expected build ID $BUILD_ID"
+          echo "Last health response: ${BODY:-<no response>}"
+          exit 1
