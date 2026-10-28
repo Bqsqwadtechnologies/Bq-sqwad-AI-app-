@@ -4469,7 +4469,8 @@ export default {
         const knownFeatures = [
           "image_generation", "image_edit", "chat_background_upload", "pdf", "video_generation",
           "music", "resume", "web_search", "deep_research", "business", "business_ai",
-          "companion", "companion_checkin", "device_commands", "learning"
+          "companion", "companion_checkin", "device_commands", "learning",
+          "organization_studio", "truth_guard"
         ];
         const rows = await firestoreQuery("adminAdvancedOptions", { limit: 500 });
         const configured = new Map((Array.isArray(rows) ? rows : []).map(row => [
