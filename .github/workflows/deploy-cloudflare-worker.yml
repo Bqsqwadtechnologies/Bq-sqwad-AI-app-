@@ -1,6 +1,10 @@
 name: Deploy Cloudflare Worker (manual)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare-worker/**"
   workflow_dispatch:
     inputs:
       confirm:
@@ -48,7 +52,7 @@ jobs:
   deploy:
     name: Validate and deploy Worker to production
     needs: test
-    if: ${{ inputs.confirm == 'DEPLOY' }}
+    if: ${{ github.event_name == 'push' || inputs.confirm == 'DEPLOY' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
