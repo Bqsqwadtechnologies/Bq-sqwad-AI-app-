@@ -11,19 +11,27 @@ service firebase.storage {
           || request.auth.token.role == 'super_admin');
     }
 
+    // Shared auth media: public reads, verified owner-admin writes.
     match /auth-background/{allPaths=**} {
-      // Public auth screens can stream the published sign-in/sign-up media.
       allow read: if true;
       allow write: if isAdmin();
     }
 
+    // Shared Main Chat background: the published object can be used on both clients.
     match /chat-background/{allPaths=**} {
-      // The shared Main Chat background is public to app clients; only admins may replace it.
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Owner-scoped user uploads used by chat attachments, pasted text and File Box.
+    // Admin-uploaded notification branding, consumed by website and Android.
+    match /branding/notification-logo/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+
+    // Owner-scoped uploads for chat attachments, pasted text and File Box.
     match /users/{uid}/uploads/{allPaths=**} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null
@@ -32,7 +40,7 @@ service firebase.storage {
         && request.resource.contentType.matches('(image/.*|audio/.*|video/.*|text/plain|application/pdf|application/json|application/zip|application/msword|application/vnd\\.openxmlformats-officedocument\\..*)');
     }
 
-    // Generated PDFs and other files. The owner alone can access the object.
+    // Generated PDFs and other generated files; owner-only direct access.
     match /users/{uid}/generated-files/{allPaths=**} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null
@@ -40,8 +48,7 @@ service firebase.storage {
         && request.resource.size <= 50 * 1024 * 1024;
     }
 
-    // Owner wallpapers and profile images are readable to signed-in users so
-    // collaborators can see avatars, but only the owner may write or delete.
+    // Profile images and wallpapers: signed-in reads, owner-only writes.
     match /avatars/{uid}/{allPaths=**} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null
