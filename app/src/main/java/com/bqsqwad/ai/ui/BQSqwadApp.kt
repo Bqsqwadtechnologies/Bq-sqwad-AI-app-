@@ -151,6 +151,8 @@ internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String
 
 private val bqTextScaleState = mutableFloatStateOf(1.0f)
 
+private const val PASTE_TO_FILE_LINE_THRESHOLD = 50
+
 @Composable
 fun BQSqwadApp(
     modifier: Modifier = Modifier,
@@ -2543,6 +2545,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    var pastedTextPreview by remember { mutableStateOf<String?>(null) }
+    var pastedTextPreviewName by remember { mutableStateOf("Pasted text") }
     var showAttachmentSourceDialog by remember { mutableStateOf(false) }
     LaunchedEffect(incomingFileBoxAttachment) {
         incomingFileBoxAttachment?.let { stored ->
@@ -3782,6 +3786,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 }
             }
             }
+            pastedTextPreview?.let { previewText ->
+                AlertDialog(
+                    onDismissRequest = { pastedTextPreview = null },
+                    title = { Text(pastedTextPreviewName) },
+                    text = {
+                        SelectionContainer {
+                            Text(previewText.take(8000), style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { pastedTextPreview = null }) { Text("Close") } }
+                )
+            }
             if (attachments.isNotEmpty()) {
                 LazyRow(
                     Modifier.fillMaxWidth(),
@@ -3796,9 +3812,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         } else {
                             InputChip(
                                 selected = true,
-                                onClick = remove,
-                                label = { Text(attachment.name, maxLines = 1) },
-                                trailingIcon = { Icon(Icons.Default.Close, "Remove attachment") }
+                                onClick = {
+                                    if (attachment.name.startsWith("pasted-text-") && attachment.text != null) {
+                                        pastedTextPreviewName = attachment.name
+                                        pastedTextPreview = attachment.text
+                                    } else remove()
+                                },
+                                label = {
+                                    val lineCount = attachment.text?.count { it == '\n' }?.plus(1)
+                                    Text(
+                                        if (attachment.name.startsWith("pasted-text-") && lineCount != null) "${attachment.name} · ${lineCount} lines" else attachment.name,
+                                        maxLines = 1
+                                    )
+                                },
+                                trailingIcon = { Icon(Icons.Default.Close, "Remove attachment", Modifier.clickable(onClick = remove)) }
                             )
                         }
                     }
@@ -3968,7 +3995,21 @@ val composerShape = RoundedCornerShape(26.dp)
                             value = message,
                             onValueChange = { value ->
                                 micError = null
-                                message = value
+                                val newLineCount = if (value.isBlank()) 0 else value.count { it == '\n' } + 1
+                                val oldLineCount = if (message.isBlank()) 0 else message.count { it == '\n' } + 1
+                                val looksLikePaste = newLineCount - oldLineCount >= 20 || value.length - message.length >= 1000
+                                if (newLineCount >= PASTE_TO_FILE_LINE_THRESHOLD && looksLikePaste) {
+                                    val bytes = value.toByteArray(Charsets.UTF_8)
+                                    attachments = attachments + PreparedChatAttachment(
+                                        name = "pasted-text-${System.currentTimeMillis()}.txt",
+                                        mimeType = "text/plain",
+                                        text = value,
+                                        fileBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                    )
+                                    message = ""
+                                } else {
+                                    message = value
+                                }
                             },
                             enabled = creditBalanceLoaded && !creditsExhausted,
                             placeholder = {
