@@ -1,0 +1,88 @@
+name: Wire BqChatHeader into MainChat
+on:
+  workflow_dispatch:
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Wire BqChatHeader into BQSqwadApp.kt
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt")
+          t = p.read_text(encoding="utf-8")
+          original = t
+
+          # 1) Import
+          if "import com.bqsqwad.ai.ui.chat.BqChatHeader" not in t:
+              anchor = "import com.bqsqwad.ai.ui."
+              # place after first package-level ui imports block if present, else after package
+              if "import com.bqsqwad.ai.ui.chat.BqChatHeader" not in t:
+                  # Insert near other com.bqsqwad.ai.ui imports
+                  needle = "import com.bqsqwad.ai.ui."
+                  idx = t.find(needle)
+                  if idx < 0:
+                      # after package line
+                      pl = t.find("\n")
+                      t = t[:pl+1] + "import com.bqsqwad.ai.ui.chat.BqChatHeader\n" + t[pl+1:]
+                  else:
+                      # find end of import block for this prefix - just insert after first ui import line
+                      end = t.find("\n", idx)
+                      t = t[:end+1] + "import com.bqsqwad.ai.ui.chat.BqChatHeader\n" + t[end+1:]
+
+          # 2) Add onNewChat parameter to MainChatScreen signature if missing
+          sig_old = "private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit,"
+          if "onNewChat: () -> Unit" not in t[t.find("private fun MainChatScreen"):t.find("private fun MainChatScreen")+800]:
+              t = t.replace(
+                  "private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit,",
+                  "private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: () -> Unit,",
+                  1,
+              )
+
+          # 3) Pass onNewChat at call site
+          if "onNewChat = {" not in t[t.find("MainChatScreen(") : t.find("MainChatScreen(") + 1200]:
+              t = t.replace(
+                  "MainChatScreen(\n                        modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),\n                        openHub = { shellScope.launch { drawerState.open() } },",
+                  "MainChatScreen(\n                        modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),\n                        openHub = { shellScope.launch { drawerState.open() } },\n                        onNewChat = {\n                            restoredChat = null\n                            chatSessionNonce += 1\n                        },",
+                  1,
+              )
+
+          # 4) Replace header Row with BqChatHeader
+          start_marker = "            Row(\n                Modifier.fillMaxWidth().height(36.dp),"
+          end_marker = "            Box(Modifier.weight(1f).fillMaxWidth()) {"
+          s = t.find(start_marker)
+          e = t.find(end_marker)
+          if s < 0 or e < 0 or e <= s:
+              raise SystemExit(f"header markers not found s={s} e={e}")
+
+          if "BqChatHeader(" in t[s:e]:
+              print("BqChatHeader already present in header region")
+          else:
+              replacement = '''            BqChatHeader(\n                title = messages.firstOrNull { !it.mine && it.text.isNotBlank() }?.text?.take(48),\n                generating = busy,\n                typing = busy,\n                drawerOpen = false,\n                onMenu = openHub,\n                onNewChat = onNewChat,\n                logo = { size -> BqLogo(size) }\n            )\n'''
+              t = t[:s] + replacement + t[e:]
+
+          if t == original:
+              print("No textual changes needed")
+          else:
+              p.write_text(t, encoding="utf-8")
+              print("Wired BqChatHeader; size", p.stat().st_size)
+
+          # Sanity: must contain both
+          text = p.read_text(encoding="utf-8")
+          assert "BqChatHeader(" in text, "BqChatHeader call missing"
+          assert "onNewChat" in text, "onNewChat missing"
+          print("sanity OK")
+          PY
+          git config user.name "Bqsqwadtechnologies"
+          git config user.email "bqsqwadai@gmail.com"
+          git add app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+          git status
+          git commit -m "ui: wire BqChatHeader into MainChatScreen on main" || echo "no change"
+          git push origin main
