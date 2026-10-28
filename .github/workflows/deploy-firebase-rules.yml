@@ -1,18 +1,17 @@
-name: Deploy Firebase security rules
+name: Deploy Firebase Storage rules (manual fallback)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "storage.rules"
-      - "firestore.rules"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: firebase-storage-rules-bqsqwadai
+  cancel-in-progress: false
+
 jobs:
-  deploy-rules:
+  deploy-storage-rules:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,7 +33,8 @@ jobs:
           test -n "$FIREBASE_SERVICE_ACCOUNT" || { echo "::error::Missing FIREBASE_SERVICE_ACCOUNT repository/environment secret"; exit 1; }
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
           node -e "const x=require(process.argv[1]); if(!x.project_id || !x.client_email || !x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-service-account.json"
+          test "$(node -p "require('$RUNNER_TEMP/firebase-service-account.json').project_id")" = "bqsqwadai" || { echo "::error::Service account must belong to Firebase project bqsqwadai"; exit 1; }
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
 
-      - name: Deploy Storage and Firestore rules
-        run: npx firebase-tools deploy --only storage,firestore:rules --project bqsqwadai --non-interactive
+      - name: Deploy Firebase Storage rules only
+        run: npx firebase-tools deploy --only storage --project bqsqwadai --non-interactive
