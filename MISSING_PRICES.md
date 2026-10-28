@@ -39,4 +39,4 @@ These are **verification candidates, not confirmed missing records**. The actual
 
 The Worker now defines admin-only `GET /admin/pricing/audit`. It reads live `adminAdvancedOptions` documents, checks known fixed-output features and any additional `capability_*` documents, and returns the missing/invalid `creditCost` entries. It also writes open `adminAlerts/missingPrice_<feature>` alerts. The endpoint requires a verified super-admin session.
 
-**Not yet verified:** no authenticated production call has been run from this repository session, so the actual live missing-price list is unknown. The admin dashboard surfaces in Android and website are not yet wired to this endpoint; do not treat this API alone as completing that UI requirement.
+**Not yet verified:** no authenticated production call has been run from this repository session, so the actual live missing-price list is unknown. The Android admin control surface and website Admin Alerts panel now include a live-audit refresh action that calls this endpoint, but the authenticated production response and exact live missing-price list still need verification.
