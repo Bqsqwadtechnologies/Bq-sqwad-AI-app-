@@ -969,20 +969,12 @@ internal fun friendlyGoogleAuthError(error: Throwable): String {
 
 @Composable
 private fun GoogleLogoMark(size: Dp) {
-    Canvas(Modifier.size(size)) {
-        val stroke = size.toPx() * 0.18f
-        val radius = (size.toPx() - stroke) / 2f
-        val center = androidx.compose.ui.geometry.Offset(size.toPx() / 2f, size.toPx() / 2f)
-        val arcSize = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f)
-        val style = Stroke(width = stroke, cap = StrokeCap.Butt)
-        val topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius)
-        // Multicolour Google G: leave a visible opening on the right instead of drawing an O.
-        drawArc(Color(0xFF4285F4), -50f, 80f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFF34A853), 40f, 90f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFFFBBC05), 130f, 90f, false, topLeft, arcSize, style = style)
-        drawArc(Color(0xFFEA4335), 220f, 80f, false, topLeft, arcSize, style = style)
-        drawLine(Color(0xFF4285F4), center, androidx.compose.ui.geometry.Offset(size.toPx() * 0.88f, center.y), stroke, StrokeCap.Butt)
-    }
+    Image(
+        painter = painterResource(R.drawable.ic_google_g),
+        contentDescription = "Google",
+        modifier = Modifier.size(size),
+        contentScale = ContentScale.Fit
+    )
 }
 
 
