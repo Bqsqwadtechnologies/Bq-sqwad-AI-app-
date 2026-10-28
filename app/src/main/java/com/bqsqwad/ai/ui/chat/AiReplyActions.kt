@@ -1,5 +1,8 @@
 package com.bqsqwad.ai.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -8,6 +11,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +28,51 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 private val ActionBlue = Color(0xFF1457FF)
+
+@Composable
+fun AiReplyActions(
+    finished: Boolean,
+    liked: Boolean?,
+    onCopy: () -> Unit,
+    onUp: () -> Unit,
+    onDown: () -> Unit,
+    onShare: () -> Unit,
+    onRephrase: () -> Unit,
+    onMore: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = finished, enter = fadeIn(tween(180))) {
+        Row(
+            modifier = modifier.padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            BqActionIcon(Icons.Outlined.ContentCopy, "Copy", onCopy)
+            BqActionIcon(if (liked == true) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Good answer", onUp, active = liked == true)
+            BqActionIcon(if (liked == false) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Bad answer", onDown, active = liked == false)
+            BqActionIcon(Icons.Outlined.Share, "Share", onShare)
+            BqActionIcon(Icons.Outlined.Refresh, "Rephrase", onRephrase)
+            BqActionIcon(Icons.Outlined.MoreHoriz, "More", onMore)
+        }
+    }
+}
+
+@Composable
+private fun BqActionIcon(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    active: Boolean = false
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(18.dp),
+            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
 data class ReplyAction(
     val id: String,
