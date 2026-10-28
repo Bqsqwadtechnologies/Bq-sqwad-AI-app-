@@ -715,7 +715,7 @@ async function seedAdminPricingDefaults() {
 
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
-  const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
+  const control = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
