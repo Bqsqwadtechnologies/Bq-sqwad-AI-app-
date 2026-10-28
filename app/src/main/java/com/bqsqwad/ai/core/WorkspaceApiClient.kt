@@ -97,7 +97,7 @@ class WorkspaceApiClient {
                 status == 403 && code.contains("consent") -> "consent_required"
                 status == 403 -> "permission_denied"
                 status == 402 || code in setOf("out_of_credits", "insufficient_credits") -> "out_of_credits"
-                status == 429 -> "rate_limited"
+                status == 429 && code != "provider_capacity" -> "rate_limited"
                 else -> code.ifBlank { "request_failed" }
             })
         }
@@ -198,8 +198,13 @@ class WorkspaceApiClient {
                     "Please review and accept the required BQ Sqwad AI terms to continue."
                 serverError == "route_not_migrated" ->
                     "This feature is not connected to the current server yet. Please contact support."
-                status >= 500 ->
-                    "BQ Sqwad AI is busy right now. Please try again in a minute."
+                serverError == "provider_capacity" ->
+                    "BQ Sqwad AI is handling a lot of requests. Please try again shortly."
+                serverError in setOf("model_price_missing", "feature_price_missing", "provider_key_missing", "provider_quota", "usage_unavailable", "internal_error", "token_pricing_not_configured", "price_not_configured", "provider_usage_unavailable") -> {
+                    val ref = body?.optString("ref")?.takeIf { it.matches(Regex("[A-Fa-f0-9]{6,8}")) }
+                    if (ref != null) "Something went wrong on our side. Reference ${ref.uppercase()}."
+                    else "Something went wrong on our side. Please try again later."
+                }
                 serverError == "admin_session_required" ->
                     "The admin unlock session has expired. Open Admin Security and unlock again."
                 status == 401 || serverError == "auth_required" || serverError == "sign_in_required" ->
