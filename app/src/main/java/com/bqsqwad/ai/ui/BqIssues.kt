@@ -28,8 +28,10 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     val causeText = throwable?.safeCauseText().orEmpty()
     val code = errorCode.orEmpty().lowercase(Locale.ROOT)
     val text = "$causeText $code ${throwable?.javaClass?.simpleName.orEmpty()} $context".lowercase(Locale.ROOT)
+    val serverRef = Regex("""(?i)["']?(?:ref|refCode)["']?\s*[:=]\s*["']?([A-F0-9]{6,8})""")
+        .find(causeText + " " + code)?.groupValues?.getOrNull(1)?.uppercase(Locale.ROOT)
     fun issue(kind: BqIssueKind, title: String, message: String, action: BqIssueAction, ref: Boolean = false) =
-        BqIssue(kind, title, message, action, if (ref) newBqRefCode() else null)
+        BqIssue(kind, title, message, action, if (ref) serverRef ?: newBqRefCode() else null)
     if (throwable is CancellationException || text.contains("cancellationexception")) return issue(BqIssueKind.CANCELLED, "", "", BqIssueAction.NONE)
     val causes = throwable?.let { generateSequence(it) { current -> current.cause }.take(8).toList() }.orEmpty()
     if (causes.any { it is UnknownHostException || it is ConnectException || it is SocketTimeoutException || it is NoRouteToHostException || it is IOException } ||
@@ -51,14 +53,19 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     if (text.contains("capability_disabled") || text.contains("capability_killed") || text.contains("image_generation_disabled") || text.contains("feature_disabled")) {
         return issue(BqIssueKind.FEATURE_OFF, "Feature unavailable", "This feature is currently turned off. Please try another feature.", BqIssueAction.NONE)
     }
-    if (httpStatus == 429 || text.contains("rate_limited") || text.contains("rate limit") || text.contains("sending requests too quickly") || text.contains("wait a moment and try again")) return issue(BqIssueKind.RATE_LIMITED, "Please wait", "You are sending requests too quickly. Wait a moment and try again.", BqIssueAction.RETRY)
+    if ((httpStatus == 429 && code != "provider_capacity") || code == "rate_limited" || text.contains("rate_limited") || text.contains("rate limit") || text.contains("sending requests too quickly") || text.contains("wait a moment and try again")) return issue(BqIssueKind.RATE_LIMITED, "Slow down a moment", "You're sending messages quickly. Try again in a few seconds.", BqIssueAction.RETRY)
     if (text.contains("file_too_large") || text.contains("payload_too_large") || text.contains("attachment_payload_too_large")) return issue(BqIssueKind.FILE_TOO_LARGE, "File too large", "This file or message is too large. Try a smaller file.", BqIssueAction.NONE)
     if (httpStatus == 403 || text.contains("permission_denied") || text.contains("camera_permission_missing") || text.contains("microphone_permission_missing") || text.contains("permission denied")) {
         return issue(BqIssueKind.PERMISSION_DENIED, "Permission needed", "Allow the required permission in Android settings, then try again.", BqIssueAction.OPEN_SETTINGS)
     }
-    if ((httpStatus != null && httpStatus >= 500) || text.contains("server_busy") || text.contains("provider outage") || text.contains("http 5") || text.contains("temporarily unavailable. the bq sqwad ai team is working") || text.contains("experiencing a temporary issue") || text.contains("team is working on it")) {
-        val ref = newBqRefCode()
-        return BqIssue(BqIssueKind.SERVER_BUSY, "Temporarily unavailable", "BQ Sqwad AI is busy right now. Please try again in a minute. Reference $ref.", BqIssueAction.RETRY, ref)
+    if (code == "provider_capacity") {
+        val ref = serverRef ?: newBqRefCode()
+        return BqIssue(BqIssueKind.SERVER_BUSY, "High demand", "BQ Sqwad AI is handling a lot of requests. Please try again shortly. Reference $ref.", BqIssueAction.RETRY, ref)
+    }
+    if (code in setOf("model_price_missing", "feature_price_missing", "provider_key_missing", "provider_quota", "usage_unavailable", "internal_error") ||
+        text.contains("token_pricing_not_configured") || text.contains("price_not_configured") || text.contains("provider_usage_unavailable")) {
+        val ref = serverRef ?: newBqRefCode()
+        return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong on our side", "We're fixing this. Reference $ref.", BqIssueAction.REPORT_PROBLEM, ref)
     }
     val ref = newBqRefCode()
     return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
