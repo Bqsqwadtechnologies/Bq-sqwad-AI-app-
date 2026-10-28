@@ -119,3 +119,13 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 ### Usage metering and search sources
 - Search responses persist `sources[]` with the assistant message and use numbered inline citations that map to the source list. Search operation price is the admin-configured `web_search`/deep-research capability setting, plus the actual token charge for any synthesized answer.
 - Rate-limit buckets are separated by route group; history, sync and connector polling must not consume the chat bucket. Provider retries and capacity errors are logged with safe user-facing codes.
+
+
+## Upload, generated media, error and pricing-audit contract (2026-10-28)
+
+- Shared Firebase Storage bucket: `bqsqwadai.firebasestorage.app`. Owner uploads use `users/{uid}/uploads/**` (25 MiB maximum; supported image/audio/video, plain text, PDF, JSON, ZIP and office-document MIME types). Generated files use `users/{uid}/generated-files/**` (50 MiB maximum). Profile images and wallpapers use `avatars/{uid}/**` (5 MiB maximum, image MIME type). Storage rules retain the final deny-all rule; writes must be authenticated and UID-scoped.
+- Generated media message records must retain a durable storage path and stable media metadata (type, display name, MIME type, dimensions when known, timestamp and generation/edit metadata). The path—not a transient local URI—is the cross-platform reference for history restoration.
+- Server-facing error codes are distinct: `rate_limited`, `provider_capacity`, `provider_key_missing`, `provider_quota`, `model_price_missing`, `feature_price_missing`, `usage_unavailable`, `insufficient_credits`, and `internal_error`. A generic HTTP 5xx is not by itself evidence of provider capacity. When a server reference exists, clients should preserve it rather than replace it with a locally generated reference.
+- The admin-only Worker endpoint `GET /admin/pricing/audit` reports missing or invalid `creditCost` values in live `adminAdvancedOptions/capability_*` configuration and writes `adminAlerts/missingPrice_<feature>` documents. Both admin UIs still need to display these results before this is considered complete.
+- Connector state is shared through the authenticated Worker connector session and permission endpoints. Permission mode values are `read_only` and `full_access`; an OAuth connection does not itself grant full access. Clients must refresh connection and permission state after returning from OAuth.
+- Rules deployment workflow: `.github/workflows/deploy-firebase-rules.yml`; requires GitHub secret `FIREBASE_SERVICE_ACCOUNT`. Repository presence of the workflow does not prove the secret is configured or that production rules have deployed.
