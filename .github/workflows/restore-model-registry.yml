@@ -1,0 +1,36 @@
+name: Restore model-registry-native.js
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore and patch validateAiModel
+        run: |
+          set -euo pipefail
+          GOOD=c6bd2907b5cdd5886eae5369b41b7c45a99bf0a2
+          git show "$GOOD:cloudflare-worker/src/model-registry-native.js" > cloudflare-worker/src/model-registry-native.js
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("cloudflare-worker/src/model-registry-native.js")
+          t = p.read_text()
+          old = '''  if (!response.ok) {\n    const reason = String(body?.error?.message || "provider_model_validation_failed");\n    throw Object.assign(new Error("provider_model_not_found_or_unavailable"), { httpStatus: 404, safeError: reason });\n  }\n  return { ok: true, providerModelName: String(body?.id || body?.name || modelId), validatedAt: new Date().toISOString() };\n}'''
+          new = '''  if (!response.ok) {\n    const reason = String(body?.error?.message || "provider_model_not_found_or_unavailable");\n    throw Object.assign(new Error(reason), {\n      httpStatus: 404,\n      safeError: "provider_model_not_found_or_unavailable"\n    });\n  }\n  return {\n    ok: true,\n    modelId,\n    providerModelName: String(body?.displayName || body?.id || body?.name || modelId),\n    validatedAt: new Date().toISOString()\n  };\n}'''
+          if old not in t:
+              raise SystemExit("pattern missing in restored file")
+          p.write_text(t.replace(old, new, 1))
+          print("patched", p.stat().st_size)
+          PY
+          node --check cloudflare-worker/src/model-registry-native.js
+          cd cloudflare-worker && node --test test/model-registry.test.mjs
+          git config user.name "Bqsqwadtechnologies"
+          git config user.email "bqsqwadai@gmail.com"
+          git add cloudflare-worker/src/model-registry-native.js
+          git commit -m "RESTORE model-registry-native.js + validateAiModel test fix" || echo nochange
+          git push origin main
