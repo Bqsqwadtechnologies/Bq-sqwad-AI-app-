@@ -2260,7 +2260,7 @@ export default {
     globalThis.__bqEnv = env;
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
-    if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
+    if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker", buildId:String(env?.BQ_BUILD_ID || "unknown")});
     try {
       // Default-price seeding is best-effort: a temporary Firestore outage or a
       // test/runtime without Firebase credentials must not turn every Worker
@@ -4461,6 +4461,40 @@ export default {
           });
           return { answer: z.text || "", providerId: z.providerId || null, modelId: z.modelId || null, workspaceId: w.workspaceId };
         })));
+      }
+
+      if (url.pathname === "/admin/pricing/audit" && request.method === "GET") {
+        const admin = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(admin, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const knownFeatures = [
+          "image_generation", "image_edit", "chat_background_upload", "pdf", "video_generation",
+          "music", "resume", "web_search", "deep_research", "business", "business_ai",
+          "companion", "companion_checkin", "device_commands", "learning"
+        ];
+        const rows = await firestoreQuery("adminAdvancedOptions", { limit: 500 });
+        const configured = new Map((Array.isArray(rows) ? rows : []).map(row => [
+          String(row.__name || "").split("/").pop().replace(/^capability_/, ""),
+          row
+        ]).filter(([name]) => String(name || "") !== ""));
+        const missing = [];
+        for (const feature of knownFeatures) {
+          const row = configured.get(feature) || await firestoreGet("adminAdvancedOptions/capability_" + feature).catch(() => null);
+          const cost = Number(row?.creditCost);
+          if (row?.creditCost == null || !Number.isFinite(cost) || cost < 0) {
+            missing.push({ feature, document: "adminAdvancedOptions/capability_" + feature, reason: row ? "invalid_creditCost" : "missing_document" });
+            await logMissingPrice(feature);
+          }
+        }
+        for (const [feature, row] of configured) {
+          if (!knownFeatures.includes(feature)) {
+            const cost = Number(row?.creditCost);
+            if (row?.creditCost == null || !Number.isFinite(cost) || cost < 0) {
+              missing.push({ feature, document: "adminAdvancedOptions/capability_" + feature, reason: "invalid_creditCost" });
+              await logMissingPrice(feature);
+            }
+          }
+        }
+        return json({ checkedAt: new Date().toISOString(), checkedBy: admin.uid, missing, missingCount: missing.length });
       }
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
