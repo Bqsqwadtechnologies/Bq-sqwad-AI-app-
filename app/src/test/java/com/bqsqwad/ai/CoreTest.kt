@@ -119,8 +119,15 @@ class CoreTest {
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.RATE_LIMITED, rateLimited.kind)
 
         val server = com.bqsqwad.ai.ui.issueFrom(httpStatus = 503)
-        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.SERVER_BUSY, server.kind)
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.UNKNOWN, server.kind)
         assertTrue(server.refCode?.matches(Regex("[A-F0-9]{8}")) == true)
+
+        val providerCapacity = com.bqsqwad.ai.ui.issueFrom(httpStatus = 429, errorCode = "provider_capacity")
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.SERVER_BUSY, providerCapacity.kind)
+
+        val missingPrice = com.bqsqwad.ai.ui.issueFrom(httpStatus = 503, errorCode = "model_price_missing")
+        assertEquals(com.bqsqwad.ai.ui.BqIssueKind.UNKNOWN, missingPrice.kind)
+        assertTrue(missingPrice.message.contains("on our side"))
 
         val unknown = com.bqsqwad.ai.ui.issueFrom(IllegalStateException("private provider details"))
         assertEquals(com.bqsqwad.ai.ui.BqIssueKind.UNKNOWN, unknown.kind)
