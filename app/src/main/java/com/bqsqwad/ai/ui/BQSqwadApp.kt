@@ -3343,6 +3343,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         )
     }
     var replyFeedback by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var thinkingStage by remember { mutableStateOf("Thinking") }
+    LaunchedEffect(busy) {
+        val stages = listOf("Thinking", "Understanding", "Interpreting", "Analyzing", "Drafting")
+        var stageIndex = 0
+        thinkingStage = stages.first()
+        while (busy) {
+            delay(1600)
+            stageIndex = (stageIndex + 1) % stages.size
+            thinkingStage = stages[stageIndex]
+        }
+    }
     val chatListState = rememberLazyListState()
     var followStream by remember { mutableStateOf(true) }
     val chatAtBottom by remember {
@@ -3687,15 +3698,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                 }
                 }
-                if (busy) item {
+                if (busy && (messages.lastOrNull()?.mine != false || messages.lastOrNull()?.text.isNullOrBlank())) item {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BqSqwadLoadingIndicator(Modifier.size(28.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("Thinking…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        BqSqwadLoadingIndicator(Modifier.size(24.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(thinkingStage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 error?.let { message ->
