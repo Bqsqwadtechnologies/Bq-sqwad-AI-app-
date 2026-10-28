@@ -1,5 +1,5 @@
 const DEFAULT_REALTIME_MODEL = "gpt-realtime";
-const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "live_camera", "live_voice"]);
+const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
@@ -679,6 +679,40 @@ export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = fa
   };
 }
 
+const ADMIN_SEED_DEFAULTS = { image_generation: 1.5, image_edit: 1.5, chat_background_upload: 2 };
+let adminPricingSeeded = false;
+
+async function logMissingPrice(name) {
+  const safeName = String(name || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 100);
+  await firestoreSet("adminAlerts/missingPrice_" + safeName, {
+    type: "missing_feature_price",
+    feature: safeName,
+    message: "No admin credit price is configured for this feature.",
+    detectedAt: new Date().toISOString(),
+    status: "open"
+  }, true).catch(() => {});
+}
+
+async function featurePrice(name) {
+  const doc = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
+  const value = Number(doc?.creditCost);
+  if (doc?.creditCost != null && Number.isFinite(value) && value >= 0) return value;
+  await logMissingPrice(name);
+  throw Object.assign(new Error("price_not_configured"), {
+    httpStatus: 503,
+    safeError: "feature_temporarily_unavailable"
+  });
+}
+
+async function seedAdminPricingDefaults() {
+  for (const [name, price] of Object.entries(ADMIN_SEED_DEFAULTS)) {
+    const path = "adminAdvancedOptions/capability_" + name;
+    if (!(await firestoreGet(path).catch(() => null))) {
+      await firestoreSet(path, { name, creditCost: price, seeded: true, updatedAt: new Date().toISOString() }, true);
+    }
+  }
+}
+
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name);
@@ -700,9 +734,7 @@ async function capability(uid, name) {
     enabled: value.enabled !== false,
     providerId: value.providerId || d.providerId,
     modelId: value.modelId || d.modelId,
-    creditCost: TOKEN_METERED.has(name)
-      ? 0
-      : Math.max(1, Number(value.creditCost == null ? (name === "deep_research" ? 3 : (name === "web_search" || name === "chat_background_upload" ? 2 : 1)) : value.creditCost)),
+    creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name),
     config: {
       ...(value.config || {}),
       fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
@@ -2104,6 +2136,8 @@ export default {
   async scheduled(controller, env) {
     configureFirebaseEnv(env);
     globalThis.__bqEnv = env;
+    await seedAdminPricingDefaults();
+    adminPricingSeeded = true;
     const now = Date.now();
     const pending = await firestoreQuery("userAccountStatus", {
       filters: [{ field: { fieldPath: "status" }, op: "EQUAL", value: { stringValue: "pending_deletion" } }],
@@ -2218,6 +2252,10 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
+      if (!adminPricingSeeded) {
+        await seedAdminPricingDefaults();
+        adminPricingSeeded = true;
+      }
       // The Worker is the sole active backend. Never proxy requests to retired Firebase Functions.
       // Every admin route except the identity/session bootstrap endpoints requires a fresh,
       // server-verified 30-minute step-up session.
