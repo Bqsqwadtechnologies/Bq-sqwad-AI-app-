@@ -23,5 +23,13 @@ The following features are referenced by current Worker or website generation pa
 - `adminAdvancedOptions/capability_file_generation_<format>` — non-PDF file generation, for each enabled format
 - `adminAdvancedOptions/capability_web_search` — search operation fee, in addition to token-billed answer synthesis
 - `adminAdvancedOptions/capability_deep_research` — research operation fee, in addition to token-billed answer synthesis
+- `adminAdvancedOptions/capability_business` — business assistant capability path; verify whether any fixed-output charge is intended
+- `adminAdvancedOptions/capability_business_ai` — business AI capability path; verify whether any fixed-output charge is intended
+- `adminAdvancedOptions/capability_companion` — companion capability path; verify whether any fixed-output charge is intended
+- `adminAdvancedOptions/capability_companion_checkin` — companion check-in capability path; verify whether any fixed-output charge is intended
+- `adminAdvancedOptions/capability_device_commands` — device-command capability path
+- `adminAdvancedOptions/capability_learning` — learning workspace capability path
+- `adminAdvancedOptions/capability_organization_studio` — organization studio gate/capability path
+- `adminAdvancedOptions/capability_truth_guard` — TruthGuard capability path
 
 These are **verification candidates, not confirmed missing records**. The actual missing list can only be finalized after querying the live admin store with authorized Firebase access. Do not fill any of these with guessed prices.
