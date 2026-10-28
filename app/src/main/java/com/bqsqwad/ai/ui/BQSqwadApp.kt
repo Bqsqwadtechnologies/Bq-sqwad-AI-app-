@@ -3,6 +3,7 @@ package com.bqsqwad.ai.ui
 
 import com.bqsqwad.ai.ui.chat.BqChatHeader
 import com.bqsqwad.ai.ui.chat.BqGeneratingImagePlaceholder
+import com.bqsqwad.ai.ui.chat.WorkspaceTeamScreen
 
 import android.Manifest
 import android.content.Context
@@ -1027,9 +1028,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var plansInitialSection by remember { mutableStateOf("all") }
     var settings by remember { mutableStateOf(false) }
     var connectorsOpen by remember { mutableStateOf(false) }
+    var teamsOpen by remember { mutableStateOf(false) }
     var helpOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = helpOpen) { helpOpen = false }
     BackHandler(enabled = connectorsOpen) { connectorsOpen = false; helpOpen = false }
+    BackHandler(enabled = teamsOpen) { teamsOpen = false }
     var accountProtection by remember { mutableStateOf(false) }
     var legalCenter by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
@@ -1462,6 +1465,33 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         NavigationDrawerItem(
                             modifier = Modifier.padding(horizontal = 10.dp),
                             shape = RoundedCornerShape(14.dp),
+                            label = { Text(if (firebaseUser == null) "Teams · 🔒 Sign in" else "Teams") },
+                            selected = teamsOpen,
+                            onClick = {
+                                shellScope.launch {
+                                    drawerState.close()
+                                    if (firebaseUser == null) {
+                                        signInRequired = true
+                                        signUpRequired = false
+                                    } else {
+                                        teamsOpen = true
+                                        connectorsOpen = false
+                                        settings = false
+                                        history = false
+                                        plans = false
+                                        workspace = null
+                                        featureHub = false
+                                        fileBoxOpen = false
+                                    }
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Groups, null) }
+                        )
+                    }
+                    item {
+                        NavigationDrawerItem(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
                             label = { Text("Settings") },
                             selected = settings,
                             onClick = { shellScope.launch { drawerState.close(); settings = true; connectorsOpen = false; helpOpen = false; history = false; plans = false; workspace = null; featureHub = false; fileBoxOpen = false } },
@@ -1518,6 +1548,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 if (!showMainChat) when {
             helpOpen -> HelpSupportScreen(onBack = { helpOpen = false })
             connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false; helpOpen = false })
+            teamsOpen -> WorkspaceTeamScreen(
+                baseUrl = ApiConfig.baseUrl,
+                authTokenProvider = { FirebaseAuth.getInstance().currentUser?.let { Tasks.await(it.getIdToken(false)).token } },
+                onBack = { teamsOpen = false }
+            )
             fileBoxOpen -> FileBoxPanel(
                  onDismiss = { fileBoxOpen = false },
                  onUseInChat = { attachment ->
