@@ -720,6 +720,7 @@ async function capability(uid, name) {
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
     image_generation: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
+    image_edit: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
     live_camera: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     live_voice: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     video_generation: { providerId: "openai", modelId: "sora-2", fallbackProviderIds: [] },
@@ -4239,10 +4240,6 @@ export default {
         await requireConsent(u.uid);
         let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
-        if (body.modelRegistryId) {
-          const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
-          control = { ...control, ...selected, config: control.config || {} };
-        }
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
         if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
         body.model = imageModel?.modelId || control.modelId;
@@ -4290,7 +4287,7 @@ export default {
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
-        let control = await capability(u.uid, "image_generation");
+        let control = await capability(u.uid, "image_edit");
         const body = await readBody(request);
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
         if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
