@@ -1,0 +1,71 @@
+name: Fix BQSqwadApp package import order
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Move BqChatHeader import after package
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt")
+          t = p.read_text(encoding="utf-8")
+          bad = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\nimport com.bqsqwad.ai.ui.chat.BqChatHeader\npackage com.bqsqwad.ai.ui\n"
+          good = "@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)\npackage com.bqsqwad.ai.ui\n\nimport com.bqsqwad.ai.ui.chat.BqChatHeader\n"
+          if bad in t:
+              t = t.replace(bad, good, 1)
+              p.write_text(t, encoding="utf-8")
+              print("fixed package/import order")
+          elif "package com.bqsqwad.ai.ui" in t.splitlines()[0:5]:
+              # ensure import exists after package
+              if "import com.bqsqwad.ai.ui.chat.BqChatHeader" not in t:
+                  t = t.replace(
+                      "package com.bqsqwad.ai.ui\n",
+                      "package com.bqsqwad.ai.ui\n\nimport com.bqsqwad.ai.ui.chat.BqChatHeader\n",
+                      1,
+                  )
+                  p.write_text(t, encoding="utf-8")
+                  print("added import after package")
+              else:
+                  print("already ordered correctly")
+          else:
+              # generic: strip early import and reinsert after package
+              lines = t.splitlines(True)
+              out = []
+              removed = False
+              for line in lines:
+                  if line.strip() == "import com.bqsqwad.ai.ui.chat.BqChatHeader" and not removed:
+                      removed = True
+                      continue
+                  out.append(line)
+              t2 = "".join(out)
+              if "import com.bqsqwad.ai.ui.chat.BqChatHeader" not in t2:
+                  t2 = t2.replace(
+                      "package com.bqsqwad.ai.ui\n",
+                      "package com.bqsqwad.ai.ui\n\nimport com.bqsqwad.ai.ui.chat.BqChatHeader\n",
+                      1,
+                  )
+              p.write_text(t2, encoding="utf-8")
+              print("generic reorder applied")
+          head = "".join(p.read_text(encoding="utf-8").splitlines(True)[:8])
+          print("HEAD:\n" + head)
+          assert "package com.bqsqwad.ai.ui" in head
+          assert head.index("package com.bqsqwad.ai.ui") < head.index("import com.bqsqwad.ai.ui.chat.BqChatHeader") or "import com.bqsqwad.ai.ui.chat.BqChatHeader" in p.read_text()
+          text = p.read_text(encoding="utf-8")
+          pkg_i = text.find("package com.bqsqwad.ai.ui")
+          imp_i = text.find("import com.bqsqwad.ai.ui.chat.BqChatHeader")
+          assert pkg_i >= 0 and imp_i > pkg_i, (pkg_i, imp_i)
+          print("order OK")
+          PY
+          git config user.name "Bqsqwadtechnologies"
+          git config user.email "bqsqwadai@gmail.com"
+          git add app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+          git commit -m "fix: package before imports in BQSqwadApp.kt (BqChatHeader wire)" || echo nochange
+          git push origin main
