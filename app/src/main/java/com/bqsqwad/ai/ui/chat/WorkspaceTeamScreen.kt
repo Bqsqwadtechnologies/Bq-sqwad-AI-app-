@@ -44,6 +44,7 @@ data class ChargeApprovalRequest(
     val status: String
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceTeamScreen(
     baseUrl: String,
