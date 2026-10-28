@@ -33,3 +33,10 @@ The following features are referenced by current Worker or website generation pa
 - `adminAdvancedOptions/capability_truth_guard` — TruthGuard capability path
 
 These are **verification candidates, not confirmed missing records**. The actual missing list can only be finalized after querying the live admin store with authorized Firebase access. Do not fill any of these with guessed prices.
+
+
+## Live audit endpoint
+
+The Worker now defines admin-only `GET /admin/pricing/audit`. It reads live `adminAdvancedOptions` documents, checks known fixed-output features and any additional `capability_*` documents, and returns the missing/invalid `creditCost` entries. It also writes open `adminAlerts/missingPrice_<feature>` alerts. The endpoint requires a verified super-admin session.
+
+**Not yet verified:** no authenticated production call has been run from this repository session, so the actual live missing-price list is unknown. The admin dashboard surfaces in Android and website are not yet wired to this endpoint; do not treat this API alone as completing that UI requirement.
