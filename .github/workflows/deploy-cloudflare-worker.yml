@@ -4,18 +4,26 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type DEPLOY to deploy the Worker to production"
+        description: "Choose DEPLOY only when you want to publish the Worker to production"
         required: true
-        type: string
+        type: choice
+        options:
+          - CANCEL
+          - DEPLOY
+        default: CANCEL
 
 permissions:
   contents: read
+
+concurrency:
+  group: bq-sqwad-cloudflare-production
+  cancel-in-progress: false
 
 jobs:
   test:
     name: Worker syntax and unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: cloudflare-worker
@@ -28,8 +36,9 @@ jobs:
         with:
           node-version: "22"
 
+      # This repository currently has no package-lock.json, so npm ci cannot work.
       - name: Install dependencies
-        run: npm ci || npm install --no-audit --no-fund
+        run: npm install --no-package-lock --no-audit --no-fund
 
       - name: Syntax check
         run: npm run check
@@ -38,11 +47,11 @@ jobs:
         run: npm test
 
   deploy:
-    name: Deploy Worker to production
+    name: Validate and deploy Worker to production
     needs: test
     if: ${{ inputs.confirm == 'DEPLOY' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: production
     defaults:
       run:
@@ -57,16 +66,28 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm ci || npm install --no-audit --no-fund
+        run: npm install --no-package-lock --no-audit --no-fund
 
-      - name: Record build id
-        run: echo "BQ_BUILD_ID=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
-
-      - name: Deploy with wrangler.jsonc
+      - name: Validate Cloudflare credentials
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
-          npx --yes wrangler@4 deploy --config wrangler.jsonc --var BQ_BUILD_ID:${{ env.BQ_BUILD_ID }}
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing repository/environment secret CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing repository/environment secret CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
+      - name: Validate Wrangler configuration and build
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BUILD_ID="${GITHUB_SHA:0:12}"
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.jsonc --var "BQ_BUILD_ID:$BUILD_ID"
+
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BUILD_ID="${GITHUB_SHA:0:12}"
+          npx --yes wrangler@4 deploy --config wrangler.jsonc --var "BQ_BUILD_ID:$BUILD_ID"
