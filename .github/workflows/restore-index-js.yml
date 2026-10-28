@@ -1,0 +1,46 @@
+name: Restore index.js (one-shot)
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore index.js from good commit
+        run: |
+          set -e
+          GOOD=d23a1fb75f7b51181d77c4674ad46d1dd48b925c
+          git show "$GOOD:cloudflare-worker/src/index.js" > cloudflare-worker/src/index.js
+          # Apply wiring on top of restored file
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("cloudflare-worker/src/index.js")
+          t = p.read_text()
+          if 'billing-hold.js' not in t:
+              anchor = 'import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";'
+              extra = '''\nimport { computeHold, computeSettlement } from \"./billing-hold.js\";\nimport { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from \"./team-workspace-native.js\";\nimport { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from \"./training-pipeline-native.js\";\n'''
+              if anchor in t:
+                  t = t.replace(anchor, anchor + extra, 1)
+          if '/native/team/members' not in t:
+              cat = 'if (url.pathname === "/native/catalog" && request.method === "GET") {'
+              routes = '''\n      if (url.pathname === "/native/team/members" && request.method === "GET") { const u = await verifyFirebaseUser(request); return json(await teamMembers(u)); }\n      if (url.pathname === "/native/team/invite" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamInvite(u, await readBody(request))); }\n      if (url.pathname === "/native/team/remove" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamRemove(u, await readBody(request))); }\n      if (url.pathname === "/native/team/request-charge-account" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamRequestChargeAccount(u, await readBody(request))); }\n      if (url.pathname === "/native/team/approve-charge" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamApproveCharge(u, await readBody(request))); }\n      if (url.pathname === "/native/team/accept-invite" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamAcceptInvite(u, await readBody(request))); }\n      if (url.pathname === "/admin/training-candidates" && request.method === "GET") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await listTrainingCandidates({ status: url.searchParams.get("status") || "pending", limit: Number(url.searchParams.get("limit") || 50) })); }\n      if (url.pathname === "/admin/training-candidates/build" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await buildTrainingCandidates({ limit: 50 })); }\n      if (url.pathname === "/admin/training-candidates/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await exportApprovedTrainingJsonl({ max: 500 })); }\n      if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }\n      '''
+              if cat in t:
+                  t = t.replace(cat, routes + cat, 1)
+          old = '''    if (Number(profile.suspended ? 1 : 0) === 1) throw new Error("Your account is suspended.");\n    if (balance.total < charge) throw new Error("Insufficient credits");'''
+          new = '''    if (Number(profile.suspended ? 1 : 0) === 1) throw new Error("Your account is suspended.");\n    if (options.allowFractional) { const h = computeHold({ balanceTotal: balance.total, estimate: charge }); if (!h.ok) throw new Error("Insufficient credits"); charge = h.hold; } else if (balance.total < charge) { throw new Error("Insufficient credits"); }'''
+          if old in t:
+              t = t.replace(old, new, 1)
+          p.write_text(t)
+          print("index.js restored and wired, size", p.stat().st_size)
+          PY
+          node --check cloudflare-worker/src/index.js
+          git config user.name "Bqsqwadtechnologies"
+          git config user.email "bqsqwadai@gmail.com"
+          git add cloudflare-worker/src/index.js
+          git commit -m "RESTORE and wire index.js: billing-hold, team routes, training routes" || echo "no change"
+          git push origin main
