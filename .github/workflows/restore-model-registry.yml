@@ -28,7 +28,7 @@ jobs:
           print("patched", p.stat().st_size)
           PY
           node --check cloudflare-worker/src/model-registry-native.js
-          cd cloudflare-worker && node --test test/model-registry.test.mjs
+          (cd cloudflare-worker && node --test test/model-registry.test.mjs)
           git config user.name "Bqsqwadtechnologies"
           git config user.email "bqsqwadai@gmail.com"
           git add cloudflare-worker/src/model-registry-native.js
