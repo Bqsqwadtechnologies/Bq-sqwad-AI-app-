@@ -2,6 +2,7 @@
 package com.bqsqwad.ai.ui
 
 import com.bqsqwad.ai.ui.chat.BqChatHeader
+import com.bqsqwad.ai.ui.chat.BqGeneratingImagePlaceholder
 
 import android.Manifest
 import android.content.Context
