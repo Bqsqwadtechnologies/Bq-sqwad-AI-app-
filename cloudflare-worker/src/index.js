@@ -681,6 +681,7 @@ export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = fa
 
 const ADMIN_SEED_DEFAULTS = { image_generation: 1.5, image_edit: 1.5, chat_background_upload: 2 };
 let adminPricingSeeded = false;
+let adminPricingSeedAttemptedAt = 0;
 
 async function logMissingPrice(name) {
   const safeName = String(name || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 100);
@@ -2261,9 +2262,18 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
     if (url.pathname === "/" || url.pathname === "/health") return json({service:"BQ Sqwad AI", status:"ok", backend:"cloudflare-worker"});
     try {
-      if (!adminPricingSeeded) {
-        await seedAdminPricingDefaults();
-        adminPricingSeeded = true;
+      // Default-price seeding is best-effort: a temporary Firestore outage or a
+      // test/runtime without Firebase credentials must not turn every Worker
+      // endpoint (including public routes and auth checks) into HTTP 500.
+      // Retry failed seeding at most once per minute; successful seeding runs once.
+      if (!adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt >= 60_000) {
+        adminPricingSeedAttemptedAt = Date.now();
+        try {
+          await seedAdminPricingDefaults();
+          adminPricingSeeded = true;
+        } catch (error) {
+          console.error("admin_pricing_seed_failed", error?.message || "unknown");
+        }
       }
       // The Worker is the sole active backend. Never proxy requests to retired Firebase Functions.
       // Every admin route except the identity/session bootstrap endpoints requires a fresh,
