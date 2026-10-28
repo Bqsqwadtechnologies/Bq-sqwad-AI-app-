@@ -1,4 +1,5 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+import com.bqsqwad.ai.ui.chat.BqChatHeader
 package com.bqsqwad.ai.ui
 
 import android.Manifest
@@ -1497,6 +1498,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     MainChatScreen(
                         modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),
                         openHub = { shellScope.launch { drawerState.open() } },
+                        onNewChat = {
+                            restoredChat = null
+                            chatSessionNonce += 1
+                        },
                         openFeatures = { featureHub = true },
                         openSettings = { settings = true },
                         openPlans = { plansInitialSection = "all"; plans = true },
@@ -2356,7 +2361,7 @@ private fun BqHeaderIconButton(
 }
 
 @Composable
-private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openFileBox: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean, incomingFileBoxAttachment: PreparedChatAttachment?, onIncomingFileBoxAttachmentConsumed: () -> Unit) {
+private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: () -> Unit, openFeatures: () -> Unit, openSettings: () -> Unit, openPlans: () -> Unit, openCredits: () -> Unit, openFileBox: () -> Unit, openHistory: () -> Unit, openPlugins: () -> Unit, onLearnMore: () -> Unit, onPrivacy: () -> Unit, restoredChat: Pair<String, List<HistoryMessage>>?, onRestoredChatConsumed: () -> Unit, sharedText: String?, onSharedTextConsumed: () -> Unit, onRegisterCancelActiveWork: ((() -> Unit)?) -> Unit, notificationsEnabled: Boolean, incomingFileBoxAttachment: PreparedChatAttachment?, onIncomingFileBoxAttachmentConsumed: () -> Unit) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
@@ -3372,238 +3377,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, openFeatures
             )
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
-            Row(
-                Modifier.fillMaxWidth().height(36.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                BqHeaderIconButton(
-                    icon = Icons.Default.Menu,
-                    contentDescription = "Open BQ Sqwad AI menu",
-                    onClick = openHub
-                )
-                BqLogo(30.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text("BQ Sqwad AI", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("The AI That Grows With You", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    val ageDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() - aiBirthTimestamp).coerceAtLeast(0L))
-                    val birthDateForChip = java.util.Calendar.getInstance().apply { timeInMillis = aiBirthTimestamp }
-                    val todayForChip = java.util.Calendar.getInstance()
-                    val isBirthdayTodayForChip = todayForChip.get(java.util.Calendar.YEAR) > birthDateForChip.get(java.util.Calendar.YEAR) &&
-                        todayForChip.get(java.util.Calendar.MONTH) == birthDateForChip.get(java.util.Calendar.MONTH) &&
-                        todayForChip.get(java.util.Calendar.DAY_OF_MONTH) == birthDateForChip.get(java.util.Calendar.DAY_OF_MONTH)
-                    val ageLabel = when {
-                        ageDays < 7 -> "$ageDays day${if (ageDays == 1L) "" else "s"} old"
-                        ageDays < 30 -> "${(ageDays / 7).coerceAtLeast(1)} week${if (ageDays / 7 == 1L) "" else "s"} old"
-                        ageDays < 365 -> "${(ageDays / 30).coerceAtLeast(1)} month${if (ageDays / 30 == 1L) "" else "s"} old"
-                        else -> "${(ageDays / 365).coerceAtLeast(1)} year${if (ageDays / 365 == 1L) "" else "s"} old"
-                    }
-                    if (isBirthdayTodayForChip) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            BirthdayConfetti(Modifier.weight(1f))
-                            Text("Happy AI Birthday!", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    TextButton(onClick = { birthdayCardOpen = true }, contentPadding = PaddingValues(0.dp)) {
-                        Text(
-                            "Born ${java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))} · $ageLabel",
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1
-                        )
-                    }
-                    if (birthdayCardOpen) {
-                        val nowAt = System.currentTimeMillis()
-                        fun anniversaryAt(timestamp: Long, field: Int, amount: Int): Long {
-                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-                            val originalDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
-                            cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
-                            cal.add(field, amount)
-                            cal.set(java.util.Calendar.DAY_OF_MONTH, minOf(originalDay, cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)))
-                            return cal.timeInMillis
-                        }
-                        val birthCal = java.util.Calendar.getInstance().apply { timeInMillis = aiBirthTimestamp }
-                        val nowCal = java.util.Calendar.getInstance().apply { timeInMillis = nowAt }
-                        val elapsedMonths = ((nowCal.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)) * 12 +
-                            nowCal.get(java.util.Calendar.MONTH) - birthCal.get(java.util.Calendar.MONTH)).coerceAtLeast(0)
-                        val elapsedYears = (nowCal.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)).coerceAtLeast(0)
-                        val oneDayAt = aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(1)
-                        val oneWeekAt = aiBirthTimestamp + java.util.concurrent.TimeUnit.DAYS.toMillis(7)
-                        val currentMonthAt = anniversaryAt(aiBirthTimestamp, java.util.Calendar.MONTH, elapsedMonths.coerceAtLeast(1))
-                        val currentYearAt = anniversaryAt(aiBirthTimestamp, java.util.Calendar.YEAR, elapsedYears.coerceAtLeast(1))
-                        val nextMonthAt = if (currentMonthAt > nowAt) currentMonthAt else anniversaryAt(aiBirthTimestamp, java.util.Calendar.MONTH, elapsedMonths + 1)
-                        val nextYearAt = if (currentYearAt > nowAt) currentYearAt else anniversaryAt(aiBirthTimestamp, java.util.Calendar.YEAR, elapsedYears + 1)
-                        val nextCandidates = buildList {
-                            if (oneDayAt > nowAt) add(oneDayAt to "1 day")
-                            if (oneWeekAt > nowAt) add(oneWeekAt to "1 week")
-                            add(nextMonthAt to "monthly")
-                            add(nextYearAt to if (elapsedYears == 0) "1 year" else "yearly")
-                        }
-                        val next = nextCandidates.minBy { it.first }
-                        val isBirthdayCelebrationToday = elapsedYears >= 1 &&
-                            nowCal.get(java.util.Calendar.MONTH) == birthCal.get(java.util.Calendar.MONTH) &&
-                            nowCal.get(java.util.Calendar.DAY_OF_MONTH) == birthCal.get(java.util.Calendar.DAY_OF_MONTH)
-                        val previousCandidates = buildList {
-                            add(aiBirthTimestamp)
-                            if (oneDayAt <= nowAt) add(oneDayAt)
-                            if (oneWeekAt <= nowAt) add(oneWeekAt)
-                            if (currentMonthAt <= nowAt) add(currentMonthAt)
-                            if (currentYearAt <= nowAt) add(currentYearAt)
-                        }
-                        val previousAt = previousCandidates.maxOrNull() ?: aiBirthTimestamp
-                        val progress = ((nowAt - previousAt).toFloat() / (next.first - previousAt).coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
-                        AlertDialog(
-                            onDismissRequest = { birthdayCardOpen = false },
-                            title = { Text("Your AI birthday") },
-                            text = {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    FloatingLogo(Modifier)
-                                    if (isBirthdayCelebrationToday) {
-                                        BirthdayConfetti()
-                                        Text("Happy AI Birthday!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                    }
-                                    Text("Born ${java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp))}")
-                                    Text("Your AI is $ageDays days old.")
-                                    CircularProgressIndicator(progress = progress)
-                                    Text("Next milestone: ${next.second} · ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(next.first))}")
-                                    Text("Monthly and yearly milestones repeat as your AI grows with you.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            confirmButton = { TextButton(onClick = { birthdayCardOpen = false }) { Text("Close") } }
-                        )
-                    }
-                }
-                // Keep the established image-generation animation untouched. For ordinary
-                // chat requests, show a compact circular progress indicator in the header.
-                if (busy && !statusText.contains("image", ignoreCase = true)) {
-                    BqSqwadLoadingIndicator(Modifier.size(22.dp))
-                }
-                Text(
-                    statusText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-                Box {
-                    var menuOpen by remember { mutableStateOf(false) }
-                    BqHeaderIconButton(
-                        icon = Icons.Default.MoreVert,
-                        contentDescription = "More chat options",
-                        onClick = { menuOpen = true }
-                    )
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (chatHistoryEnabled && !privateChat && messages.isNotEmpty()) {
-                            DropdownMenuItem(
-                                enabled = !savingChat && !busy,
-                                text = { Text(if (savingChat) "Saving conversation…" else "Save conversation now") },
-                                onClick = { menuOpen = false; saveConversationNow() }
-                            )
-                        }
-                        DropdownMenuItem(text = { Text("Chat History") }, onClick = { menuOpen = false; openHistory() })
-                        DropdownMenuItem(text = { Text("Plugins & AI Features") }, onClick = { menuOpen = false; openPlugins() })
-                        DropdownMenuItem(text = { Text("Plans & Billing") }, onClick = { menuOpen = false; openPlans() })
-                        DropdownMenuItem(text = { Text("Change background") }, onClick = { menuOpen = false; wallpaper = (wallpaper + 1) % 5; prefs.edit().putInt("wallpaper", wallpaper).apply() })
-                        DropdownMenuItem(text = { Text("Learn more") }, onClick = { menuOpen = false; onLearnMore() })
-                        DropdownMenuItem(text = { Text("Privacy") }, onClick = { menuOpen = false; onPrivacy() })
-                        DropdownMenuItem(text = { Text(if (privateChat) "Turn off Private Chat" else "Private Chat — not saved") }, onClick = { menuOpen = false; privateChat = !privateChat })
-                    }
-                }
-                BqHeaderIconButton(
-                    icon = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    onClick = openSettings
-                )
-            }
-            if (creditsExhausted) Text(dailyRenewalNotice, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            creditNotice?.let { notice ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (creditsExhausted) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        BqLogo(28.dp)
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(if (creditsExhausted) "Usage limit reached" else "Usage notice", fontWeight = FontWeight.Bold)
-                            Text(notice, style = MaterialTheme.typography.bodySmall)
-                        }
-                        TextButton(onClick = { if (creditsExhausted) openCredits() else openPlans() }) { Text(if (creditsExhausted) "Buy credits" else "View plans") }
-                        IconButton(onClick = {
-                            val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
-                            val creditPrefs = accountPreferences(context, "bq_ui")
-                            val cycleDate = creditPrefs.getString("credit_cycle_date_${userKey}", "").orEmpty()
-                            creditPrefs.edit().putBoolean("credit_notice_dismissed_${userKey}_${cycleDate}", true).apply()
-                            creditNoticeDismissed = true
-                            creditNotice = null
-                        }) { Icon(Icons.Default.Close, contentDescription = "Dismiss usage notice") }
-                    }
-                }
-            }
-            if (privateChat) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Row(Modifier.padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        BqLogo(20.dp)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Private Chat • not saved to History", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                    }
-                }
-            }
-            Surface(
-                modifier = Modifier.fillMaxWidth().height(28.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            "General",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    Spacer(Modifier.width(7.dp))
-                    Text(
-                        "Ready for your next request",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        creditBalanceLabel,
-                        color = if (creditsExhausted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
-            }
-            micError?.let { micMessage ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(micMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
-                    if (micMessage.contains("permission", ignoreCase = true)) {
-                        TextButton(onClick = {
-                            runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }
-                        }) { Text("Open settings") }
-                    }
-                }
-            }
+            BqChatHeader(
+                title = messages.firstOrNull { !it.mine && it.text.isNotBlank() }?.text?.take(48),
+                generating = busy,
+                typing = busy,
+                drawerOpen = false,
+                onMenu = openHub,
+                onNewChat = onNewChat,
+                logo = { size -> BqLogo(size) }
+            )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
                 LazyColumn(Modifier.fillMaxSize().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
