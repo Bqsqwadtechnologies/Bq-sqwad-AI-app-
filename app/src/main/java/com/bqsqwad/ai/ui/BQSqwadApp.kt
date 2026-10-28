@@ -3458,25 +3458,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start
                         ) {
                         if (!m.mine && m.text == "Generating image…") {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                                BqGeneratingIndicator()
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    BqSqwadLoadingIndicator(Modifier.size(24.dp))
-                                    Text(
-                                        "Creating your image…",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Text(
-                                    "This can take a moment. You can keep this chat open while it finishes.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            BqGeneratingImagePlaceholder(
+                                logo = { size -> BqLogo(size) },
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                aspect = 1f
+                            )
                         } else {
                             val isErrorMessage = !m.mine && (
                                 m.text.startsWith("Network error:", ignoreCase = true) ||
