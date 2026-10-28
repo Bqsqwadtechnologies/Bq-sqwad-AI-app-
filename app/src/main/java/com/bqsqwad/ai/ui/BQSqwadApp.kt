@@ -1550,7 +1550,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             connectorsOpen -> ConnectorsScreen(onBack = { connectorsOpen = false; helpOpen = false })
             teamsOpen -> WorkspaceTeamScreen(
                 baseUrl = ApiConfig.baseUrl,
-                authTokenProvider = { FirebaseAuth.getInstance().currentUser?.let { Tasks.await(it.getIdToken(false)).token } },
+                authTokenProvider = { withContext(Dispatchers.IO) { FirebaseAuth.getInstance().currentUser?.let { Tasks.await(it.getIdToken(false)).token } } },
                 onBack = { teamsOpen = false }
             )
             fileBoxOpen -> FileBoxPanel(
