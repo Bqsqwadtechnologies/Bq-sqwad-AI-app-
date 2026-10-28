@@ -2609,7 +2609,7 @@ export default {
         const existing = await firestoreGet(receiptPath);
         if (existing?.status === "charged" && String(existing.uid || "") === user.uid) {
           await saveBackgroundToProfile();
-          return json({ ok: true, alreadyCharged: true, creditsCharged: Math.max(0, Number(existing.creditsCharged ?? 2)), url: backgroundUrl || null });
+          return json({ ok: true, alreadyCharged: true, creditsCharged: Math.max(0, Number(existing.creditsCharged ?? 0)), url: backgroundUrl || null });
         }
         if (existing?.status === "pending") return json({ error: "charge_in_progress" }, 409);
         try {
@@ -2624,11 +2624,7 @@ export default {
         }
         let reservation = null;
         try {
-          const uploadPricing = await capability(user.uid, "chat_background_upload");
-          const configuredBackgroundCost = Number(uploadPricing.creditCost);
-          const backgroundCreditCost = Number.isFinite(configuredBackgroundCost) && configuredBackgroundCost > 0
-            ? configuredBackgroundCost
-            : 2;
+          const backgroundCreditCost = await featurePrice("chat_background_upload");
           reservation = await chargeCredits(user.uid, backgroundCreditCost, "chat_background_upload", user);
           await saveBackgroundToProfile();
           await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
@@ -4246,9 +4242,11 @@ export default {
           const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        body.model = "gpt-image-2.5-flare";
-        body.size = "1024x1024";
-        body.quality = "medium";
+        const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
+        if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
+        body.model = imageModel?.modelId || control.modelId;
+        body.size = body.size || imageModel?.size || control.config?.size;
+        body.quality = body.quality || imageModel?.quality || control.config?.quality;
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
         const account = await firestoreGet("users/" + u.uid);
         const createdAtRaw = account?.createdAt;
@@ -4266,7 +4264,7 @@ export default {
             }
           }
         }
-        body.creditCost = freeImage ? 0 : 2.5;
+        body.creditCost = freeImage ? 0 : await featurePrice("image_generation");
         try {
           const result = await generateImageNative(
             env, u, body,
@@ -4293,15 +4291,13 @@ export default {
         await requireConsent(u.uid);
         let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
-        if (body.modelRegistryId) {
-          const selected = await resolvePublishedModel(body.modelRegistryId, "image-generation");
-          control = { ...control, ...selected, config: control.config || {} };
-        }
-        body.model = "gpt-image-2.5-sunburst";
-        body.size = "1024x1024";
-        body.quality = "medium";
+        const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
+        if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
+        body.model = imageModel?.modelId || control.modelId;
+        body.size = body.size || imageModel?.size || control.config?.size;
+        body.quality = body.quality || imageModel?.quality || control.config?.quality;
         const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = 1.5;
+        body.creditCost = await featurePrice("image_edit");
         const result = await editImageNative(
           env, u, body,
           (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
