@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 
 test("chat and attachment capability defaults are token-metered without a one-credit floor", () => {
-  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "live_camera", "live_voice"\]\)/);
+  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"\]\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
   assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
 });
