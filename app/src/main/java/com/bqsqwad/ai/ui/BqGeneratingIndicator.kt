@@ -19,6 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -35,19 +37,10 @@ fun BqGeneratingIndicator(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
+            animation = tween(3000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "bqGeneratingAngle"
-    )
-    val pulse by transition.animateFloat(
-        initialValue = 0.88f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "bqGeneratingPulse"
     )
     Surface(
         modifier = modifier.fillMaxWidth().height(220.dp),
@@ -56,8 +49,8 @@ fun BqGeneratingIndicator(
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
         Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.rotate(angle).size((48 * pulse).dp)) {
-                BqLogo((48 * pulse).dp)
+            Box(Modifier.rotate(angle).shadow(8.dp, CircleShape).size(40.dp)) {
+                BqLogo(40.dp)
             }
         }
     }
