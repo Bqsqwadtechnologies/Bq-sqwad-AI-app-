@@ -89,3 +89,33 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - `creditLedger`, `aiUsageLedger`, `chatHistory`, `notificationTokens`, `fileBox`, `businessWorkspaces`, and `organizationWallets/organizationWalletLedger` are migration sources; treat them as read-only until reconciliation is confirmed.
 - Organization wallet reconciliation requires a read-only balance report first, followed by idempotent import with stable IDs and an audit entry. Never create or lose money.
 - No deployment, workflow execution, or live infrastructure mutation is part of source work.
+
+
+## Billing, chat durability, media and collaboration extensions
+
+### Admin-owned fixed feature prices
+- Fixed-output feature prices are read from `adminAdvancedOptions/capability_{feature}`; the canonical field is `creditCost`. Missing or invalid prices must create `adminAlerts/missingPrice_{feature}` and fail closed with a safe `feature_temporarily_unavailable` response (HTTP 503), never silently substitute a one-credit charge.
+- Seeded defaults, written only when the document is absent: `image_generation` = 1.5 credits, `image_edit` = 1.5 credits, `chat_background_upload` = 2 credits. These values are administrator-editable and must be read on each operation; a seed must never overwrite an existing administrator value.
+- Text chat, vision, attachments, Personal Intelligence and team chat are token-metered from actual provider usage. Reservations are estimates; final settlement uses uncached input, cached input, output tokens, published model pricing/weight, and the configured customer multiplier. Failed or interrupted calls reverse unused reservations.
+- Media message fields: `attachments[]` and `generatedMedia[]` entries retain stable IDs, media type, display name, MIME type, storage URL/path, dimensions where applicable, creation timestamp, and generation/edit metadata. URLs are owner-scoped cloud-storage objects and are restored from history.
+- Finished assistant messages may include `feedback` (`liked: true | false | null`), `sources[]` (`title`, `url`, `domain`, `favicon`, `snippet`), and `status` (`complete | interrupted`). These fields are persisted with the shared `chats/{chatId}` message snapshot and synchronized between Android and web.
+
+### Connector permissions
+- `composioPermissions/{uid}__{toolkit}`: `accessMode` is `read_only` or `full_access`; permissions are user- and toolkit-scoped and are enforced server-side.
+- `composioSessions/{uid}__{toolkit}` records connection/session state. Client payloads may set `conversationUsedConnectors: true` to retain connector context across follow-up turns, but never grant permissions.
+
+### Teams and projects
+- `teams/{teamId}`: `name`, `ownerUid`, `plan`, `creditPoolId`, `memberCount`, `createdAt`.
+- `teams/{teamId}/members/{uid}`: `role` (`owner | admin | member | viewer`), `displayName`, `photoUrl`, `status`, `joinedAt`, optional `spendLimit`.
+- `teams/{teamId}/projects/{projectId}`: `name`, `description`, `createdBy`, `createdAt`, `lastMessageAt`, `archived`.
+- `teams/{teamId}/projects/{projectId}/messages/{messageId}`: `authorUid` (or `ai`), `authorName`, `text`, `attachments[]`, `createdAt`, optional `tokenUsage`, `credits`, `sources[]`, and feedback/status fields.
+- `teams/{teamId}/usage/{yyyymm}_{uid}`: per-member `credits` and `tokens`; writes should be sharded or request-scoped under high concurrency. Team usage must debit the approved team pool/charge account, and each AI response is settled by actual token usage.
+
+### Upload validation and long-paste attachments
+- Shared upload settings must identify allowed MIME/extensions, maximum byte size and maximum image dimensions. The UI validates before upload and emits a friendly, non-technical requirement message with the measured file size/type/dimensions.
+- Pasted text at or above `PASTE_TO_FILE_LINE_THRESHOLD = 50` is persisted as a `.txt` attachment with a generated stable ID, filename, line count and preview metadata; it follows the same upload/storage ownership checks as other attachments.
+- Background updates persist the versioned storage URL in the shared profile/theme settings, and clients refresh profile state and invalidate image caches after a successful receipt.
+
+### Usage metering and search sources
+- Search responses persist `sources[]` with the assistant message and use numbered inline citations that map to the source list. Search operation price is the admin-configured `web_search`/deep-research capability setting, plus the actual token charge for any synthesized answer.
+- Rate-limit buckets are separated by route group; history, sync and connector polling must not consume the chat bucket. Provider retries and capacity errors are logged with safe user-facing codes.
