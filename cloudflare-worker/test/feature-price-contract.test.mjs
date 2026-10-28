@@ -24,3 +24,13 @@ test("image generation, image edit, and background upload read admin prices rath
   assert.doesNotMatch(source, /body\.creditCost = freeImage \? 0 : 2\.5/);
   assert.doesNotMatch(source, /body\.creditCost = 1\.5/);
 });
+
+test("a missing capability document reaches the price logger instead of escaping at the first read", () => {
+  assert.match(source, /const control = await firestoreGet\("adminAdvancedOptions\/capability_" \+ name\)\.catch\(\(\) => null\)/);
+});
+
+test("text capabilities are token-metered rather than charged as fixed feature prices", () => {
+  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"\]\)/);
+  assert.match(source, /creditCost: TOKEN_METERED\.has\(name\) \? 0 : await featurePrice\(name\)/);
+  assert.doesNotMatch(source, /Math\.max\(1,\s*Number\(value\.creditCost == null/);
+});
