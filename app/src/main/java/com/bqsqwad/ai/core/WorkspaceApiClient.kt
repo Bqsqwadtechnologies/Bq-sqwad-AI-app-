@@ -98,8 +98,7 @@ class WorkspaceApiClient {
                 status == 403 -> "permission_denied"
                 status == 402 || code in setOf("out_of_credits", "insufficient_credits") -> "out_of_credits"
                 status == 429 -> "rate_limited"
-                status >= 500 -> "server_busy"
-                else -> "request_failed"
+                else -> code.ifBlank { "request_failed" }
             })
         }
         runCatching { JSONObject(raw) }.getOrElse {
