@@ -28,25 +28,45 @@ const val GENERATING_IMAGE_SENTINEL = "Generating image\u2026"
 @Composable
 fun BqGeneratingImagePlaceholder(
     logo: @Composable (size: androidx.compose.ui.unit.Dp) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    aspect: Float = 1f
 ) {
-    val transition = rememberInfiniteTransition(label = "genSpin")
-    val angle by transition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart),
-        label = "angle"
+    val transition = rememberInfiniteTransition(label = "genOrbit")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart),
+        label = "orbitProgress"
     )
-    val pulse by transition.animateFloat(
-        initialValue = 0.85f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse"
+    val spin by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 720f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart),
+        label = "orbitSpin"
     )
-    Box(
-        modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center
+    BoxWithConstraints(
+        modifier.fillMaxWidth().aspectRatio(aspect.coerceIn(0.25f, 4f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
     ) {
-        Box(Modifier.rotate(angle)) { logo((40 * pulse).dp) }
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val logoPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
+        val perimeter = 2f * (w + h)
+        val d = progress * perimeter
+        val (rawX, rawY) = when {
+            d < w -> d to 0f
+            d < w + h -> w to (d - w)
+            d < 2f * w + h -> (w - (d - w - h)) to h
+            else -> 0f to (h - (d - 2f * w - h))
+        }
+        val x = rawX.coerceIn(logoPx / 2f, (w - logoPx / 2f).coerceAtLeast(logoPx / 2f))
+        val y = rawY.coerceIn(logoPx / 2f, (h - logoPx / 2f).coerceAtLeast(logoPx / 2f))
+        Box(
+            Modifier.offset { androidx.compose.ui.unit.IntOffset((x - logoPx / 2f).roundToInt(), (y - logoPx / 2f).roundToInt()) }
+                .size(22.dp).rotate(spin),
+            contentAlignment = Alignment.Center
+        ) { logo(22.dp) }
     }
 }
 
