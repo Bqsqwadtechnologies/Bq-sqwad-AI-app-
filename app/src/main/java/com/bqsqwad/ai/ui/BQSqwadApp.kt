@@ -3342,6 +3342,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             }
         )
     }
+    val chatListState = rememberLazyListState()
+    var followStream by remember { mutableStateOf(true) }
+    val chatAtBottom by remember {
+        derivedStateOf {
+            val lastVisible = chatListState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisible == null || lastVisible.index >= chatListState.layoutInfo.totalItemsCount - 1
+        }
+    }
+    LaunchedEffect(chatAtBottom, chatListState.isScrollInProgress) {
+        if (chatListState.isScrollInProgress && !chatAtBottom) followStream = false
+        if (chatAtBottom) followStream = true
+    }
+    LaunchedEffect(messages.size, messages.lastOrNull()?.text?.length, busy) {
+        if (followStream && messages.isNotEmpty()) {
+            chatListState.scrollToItem(messages.lastIndex)
+        }
+    }
     Box(modifier.fillMaxSize()) {
         WallpaperBackground(wallpaper)
         if (customBackgroundBitmap == null) {
@@ -3381,7 +3398,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
-                LazyColumn(Modifier.fillMaxSize().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyColumn(
+                    state = chatListState,
+                    modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                 if (messages.isEmpty()) {
                     item {
                         Box(
@@ -3690,6 +3711,24 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                 }
                 }
+            if (!followStream && !chatAtBottom) {
+                Surface(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp)
+                        .size(40.dp).clickable {
+                            scope.launch {
+                                if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.lastIndex)
+                                followStream = true
+                            }
+                        },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Scroll to latest", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
             }
             if (attachments.isNotEmpty()) {
                 LazyRow(
