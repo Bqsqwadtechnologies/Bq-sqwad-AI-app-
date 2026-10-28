@@ -2624,6 +2624,7 @@ export default {
         }
         let reservation = null;
         try {
+          await capability(user.uid, "chat_background_upload");
           const backgroundCreditCost = await featurePrice("chat_background_upload");
           reservation = await chargeCredits(user.uid, backgroundCreditCost, "chat_background_upload", user);
           await saveBackgroundToProfile();
