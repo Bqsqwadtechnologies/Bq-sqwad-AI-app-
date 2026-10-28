@@ -3342,6 +3342,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             }
         )
     }
+    var replyFeedback by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val chatListState = rememberLazyListState()
     var followStream by remember { mutableStateOf(true) }
     val chatAtBottom by remember {
@@ -3542,23 +3543,41 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 }
                             }
                         }
-                        if (!m.mine) Row(
+                        if (!m.mine && m.text.isNotBlank() && !(busy && messages.lastOrNull()?.id == m.id)) Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    shape = RoundedCornerShape(14.dp)
-                                )
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                .padding(horizontal = 2.dp, vertical = 0.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            IconButton(modifier = Modifier.size(28.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
+                            IconButton(modifier = Modifier.size(32.dp), onClick = { clipboard.setText(AnnotatedString(m.text)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy response", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
-                            IconButton(modifier = Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), onClick = { shareText(context, m.text) }) {
+                            IconButton(
+                                modifier = Modifier.size(32.dp),
+                                onClick = {
+                                    replyFeedback = replyFeedback + (m.id to "up")
+                                    scope.launch(Dispatchers.IO) {
+                                        runCatching { WorkspaceApiClient().reportMessage(m.text, messageId = m.id, sentiment = "positive") }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.ThumbUp, contentDescription = "Good answer", tint = if (replyFeedback[m.id] == "up") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(
+                                modifier = Modifier.size(32.dp),
+                                onClick = {
+                                    replyFeedback = replyFeedback + (m.id to "down")
+                                    scope.launch(Dispatchers.IO) {
+                                        runCatching { WorkspaceApiClient().reportMessage(m.text, messageId = m.id, sentiment = "negative") }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.ThumbDown, contentDescription = "Bad answer", tint = if (replyFeedback[m.id] == "down") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(modifier = Modifier.size(32.dp), onClick = { shareText(context, m.text) }) {
                                 Icon(Icons.Default.Share, contentDescription = "Share response", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             }
                             if (voiceRepliesEnabled) {
