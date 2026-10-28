@@ -27,5 +27,6 @@
 ## Verified from repository Actions and Cloudflare deployment metadata (2026-10-28)
 - Worker workflow run **#27** for commit `c1cfe4edaf24e445492df6a7bb09142592bb5d85` completed successfully; the syntax/unit-test job and production deploy job both passed.
 - Cloudflare's deployment list reports the latest `bq-sqwad-ai-app` deployment at `2026-10-28T17:30:08Z`, with 100% traffic assigned to the new version. Expected `BQ_BUILD_ID` from the workflow is `c1cfe4edaf24`.
-- The connected Cloudflare execution environment blocks direct requests to the Worker health URL, so the health response/build ID and authenticated live-chat billing smoke test could not be independently exercised here. Do not treat those two smoke tests as passed.
+- Worker workflow run **#28** for commit `04ec743ca06db292324759a4d39759a51b1a9923` passed the post-deploy health smoke test, which asserted `status=ok` and the expected build ID `04ec743ca06d`. Run #29 (test-only follow-up commit) is queued/running separately.
+- An authenticated live-chat billing smoke test was not executed because no test-account credential is configured/available to this session. Do not treat token-formula settlement as verified.
 - A Firebase rules workflow file is present, but no corresponding run was returned by the Actions run listing during this session. Therefore Storage rules deployment and the `FIREBASE_SERVICE_ACCOUNT` secret remain unverified.
