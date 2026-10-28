@@ -23,25 +23,32 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
-    // User-owned chat wallpapers are shared through the account profile so
-    // they survive sign-out, reinstall, and use on the website.
-    match /avatars/{uid}/wallpapers/{wallpaperName} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-      allow delete: if request.auth != null && request.auth.uid == uid;
-    }
-
-    // Generated images are stored under the authenticated owner's UID. Reads and
-    // deletes require that owner; uploads accept only PNGs within the bounded size.
-    match /users/{uid}/generated-images/{imageName} {
+    // Owner-scoped user uploads used by chat attachments, pasted text and File Box.
+    match /users/{uid}/uploads/{allPaths=**} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null
         && request.auth.uid == uid
-        && request.resource.size <= 20 * 1024 * 1024
-        && request.resource.contentType == 'image/png';
+        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType.matches('(image/.*|audio/.*|video/.*|text/plain|application/pdf|application/json|application/zip|application/msword|application/vnd\\.openxmlformats-officedocument\\..*)');
+    }
+
+    // Generated PDFs and other files. The owner alone can access the object.
+    match /users/{uid}/generated-files/{allPaths=**} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 50 * 1024 * 1024;
+    }
+
+    // Owner wallpapers and profile images are readable to signed-in users so
+    // collaborators can see avatars, but only the owner may write or delete.
+    match /avatars/{uid}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     match /{allPaths=**} {
