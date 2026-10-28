@@ -1518,11 +1518,11 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   return { ok: true, toolkit: cleanToolkit, tool: cleanSlug, data: result.data ?? null };
 }
 
-async function runConnectorAwareOpenAI(env, user, control, message, system, maxOutputTokens) {
+async function runConnectorAwareOpenAI(env, user, control, message, system, maxOutputTokens, conversationUsedConnectors = false) {
   if (String(control?.providerId || "").toLowerCase() !== "openai" || !env?.OPENAI_API_KEY) return null;
   const memoryProfile = await firestoreGet("users/" + user.uid).catch(() => null);
   const memoryEnabled = memoryProfile?.memoryEnabled === true;
-  const connectorIntent = isConnectorRelatedPrompt(message);
+  const connectorIntent = isConnectorRelatedPrompt(message) || conversationUsedConnectors === true;
   if (!connectorIntent && !memoryEnabled) return null;
   let sessions = [];
   if (connectorIntent) {
@@ -1763,7 +1763,7 @@ async function ai(request, user, body) {
       learningUsageCounterPath = await reserveMonthlyUsageCounter("learningStudioUsageCounters", user.uid, workspacePlan.dayKey, workspacePlan.planId, workspacePlan.dailyLimit, "learning_studio_daily_limit_reached");
     }
     const connectorAwareResult = capabilityName === "chat"
-      ? await runConnectorAwareOpenAI(globalThis.__bqEnv || {}, user, control, userMessage, system, tokenBilling ? tokenPricing.maxOutputTokens : undefined)
+      ? await runConnectorAwareOpenAI(globalThis.__bqEnv || {}, user, control, userMessage, system, tokenBilling ? tokenPricing.maxOutputTokens : undefined, body?.conversationUsedConnectors === true)
       : null;
     const result = connectorAwareResult || await runProvider(globalThis.__bqEnv, {
       primaryProviderId: control.providerId,
