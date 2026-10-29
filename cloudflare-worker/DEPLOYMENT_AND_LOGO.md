@@ -34,9 +34,9 @@ No workflow runs or deploys automatically on push to `main` any more.
 
 Upload the full notification logo image to this exact repository path:
 
-`app/src/main/res/drawable-nodpi/bq_notification_logo.png`
+`app/src/main/res/drawable-nodpi/bq_notification_logo.jpg`
 
-**Required filename:** `bq_notification_logo.png`
+**Required filename:** `bq_notification_logo.jpg`
 
 Use PNG format, transparent background if the logo has one, and keep the full BQ Sqwad AI logo centered with clear padding. Do not overwrite `bq_sqwad_ai_main_app_logo.jpg` or `bq_sqwad_logo`.
 
