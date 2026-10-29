@@ -403,21 +403,33 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
   const isMainChatMeteredFeature = ["chat", "text-chat"].includes(String(feature || "").toLowerCase());
+  // Website tokenPricingRules are the canonical customer-credit prices for
+  // both website and Android. Use their per-1,000-token credit rates directly;
+  // USD rates below remain private provider-cost accounting only.
+  const hasCustomerCreditRule = !!tokenRule &&
+    Number.isFinite(Number(tokenRule.inputCreditsPer1k)) && Number(tokenRule.inputCreditsPer1k) >= 0 &&
+    Number.isFinite(Number(tokenRule.outputCreditsPer1k)) && Number(tokenRule.outputCreditsPer1k) >= 0;
   const sharedCreditMetering = isMainChatMeteredFeature ? {
-    creditsPerInputToken: Number(sharedMetering.creditsPerInputToken ?? 0.00003),
-    creditsPerOutputToken: Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
-    creditsPerCachedInputToken: Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
-    minimumCredits: Number(sharedMetering.minimumCredits ?? 0.002),
+    creditsPerInputToken: hasCustomerCreditRule
+      ? Number(tokenRule.inputCreditsPer1k) / 1000
+      : Number(sharedMetering.creditsPerInputToken ?? 0.00003),
+    creditsPerOutputToken: hasCustomerCreditRule
+      ? Number(tokenRule.outputCreditsPer1k) / 1000
+      : Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
+    creditsPerCachedInputToken: hasCustomerCreditRule
+      ? Number(tokenRule.cachedInputCreditsPer1k ?? 0.003) / 1000
+      : Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
+    minimumCredits: hasCustomerCreditRule ? 0 : Number(sharedMetering.minimumCredits ?? 0.002),
     fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
-    precision: Number(sharedMetering.precision ?? 4),
-    conversionRate: Number(sharedMetering.conversionRate ?? 1)
+    precision: hasCustomerCreditRule ? 7 : Number(sharedMetering.precision ?? 4),
+    conversionRate: hasCustomerCreditRule ? 1 : Number(sharedMetering.conversionRate ?? 1)
   } : null;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, maxOutputTokens, maxRequestTokens, configured,
     sharedCreditMetering,
-    sharedModelMultiplier: sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1,
-    billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
+    sharedModelMultiplier: hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
+    billingMode: isMainChatMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };
 }
