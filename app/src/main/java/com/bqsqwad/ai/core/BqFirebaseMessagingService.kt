@@ -110,7 +110,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         }
         val decoded = BitmapFactory.decodeResource(
             resources,
-            R.drawable.bq_notification_logo_jpeg,
+            R.drawable.bq_notification_logo,
             BitmapFactory.Options().apply { inSampleSize = 2 }
         )
         if (decoded != null) {
