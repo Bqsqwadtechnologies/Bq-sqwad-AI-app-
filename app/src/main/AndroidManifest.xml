@@ -40,7 +40,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BQSqwadAI">
         <!-- Use the uploaded BQ Sqwad AI notification logo for FCM-rendered notifications. -->
-        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/bq_notification_white_logo" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/bq_notification_mark" />
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
         <service
             android:name=".core.BqFirebaseMessagingService"

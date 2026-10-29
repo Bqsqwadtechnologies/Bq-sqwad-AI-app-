@@ -85,7 +85,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         val uploadedLogo = loadUploadedNotificationLogo()
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(uploadedLogo?.let { createMonochromeNotificationIcon(it) }
-                ?: IconCompat.createWithResource(this, R.drawable.bq_notification_white_logo))
+                ?: IconCompat.createWithResource(this, R.drawable.bq_notification_mark))
             .setLargeIcon(uploadedLogo ?: BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(displayBody.take(500))
