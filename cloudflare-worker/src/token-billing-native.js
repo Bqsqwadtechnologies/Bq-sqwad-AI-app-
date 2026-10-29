@@ -322,7 +322,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         minimumCredits: 0.002,
         fallbackCredits: 0.05,
         conversionRate: 1,
-        precision: 4,
+        precision: 7,
         modelMultipliers: { luna: 1, terra: 3, sol: 8, gemini: 0.8 },
       };
   const modelIdLower = String(modelId || "").toLowerCase();
