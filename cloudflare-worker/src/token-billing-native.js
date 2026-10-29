@@ -380,7 +380,20 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // applied after the canonical markup and fee policy.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = feeRate;
-  const maxOutputTokens = Math.min(8192, Math.max(128, Number(embedded.maxOutputTokens ?? model.maxOutputTokens ?? config.maxOutputTokens ?? 2048)));
+  const requestedMaxInputTokens = Number(sharedAiConfig?.metering?.maxRequestTokens ?? 16_000);
+  const maxRequestTokens = Number.isFinite(requestedMaxInputTokens)
+    ? Math.min(16_000, Math.max(1_000, Math.round(requestedMaxInputTokens)))
+    : 16_000;
+  const requestedMaxOutputTokens = Number(
+    sharedAiConfig?.metering?.maxOutputTokens ??
+    embedded.maxOutputTokens ??
+    model.maxOutputTokens ??
+    config.maxOutputTokens ??
+    1_024
+  );
+  const maxOutputTokens = Number.isFinite(requestedMaxOutputTokens)
+    ? Math.min(2_048, Math.max(128, Math.round(requestedMaxOutputTokens)))
+    : 1_024;
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
@@ -401,7 +414,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   } : null;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
-    applyFeeToUsage, estimatedFeePercent, maxOutputTokens, configured,
+    applyFeeToUsage, estimatedFeePercent, maxOutputTokens, maxRequestTokens, configured,
     sharedCreditMetering,
     sharedModelMultiplier: sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1,
     billingMode: String(model.billingMode || control.billingMode || "fixed_credit"),
@@ -411,7 +424,14 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
 
 export function estimateTokenReservation({ message, system, pricing }) {
   const inputTokens = Math.max(1, Math.ceil((String(message || "").length + String(system || "").length) / 3.5));
-  const outputTokens = Math.max(128, Number(pricing.maxOutputTokens || 2048));
+  const maxRequestTokens = Math.min(16_000, Math.max(1_000, Number(pricing.maxRequestTokens || 16_000)));
+  if (inputTokens > maxRequestTokens) {
+    throw Object.assign(new Error("request_too_large"), {
+      httpStatus: 413,
+      safeError: "request_too_large"
+    });
+  }
+  const outputTokens = Math.min(2_048, Math.max(128, Number(pricing.maxOutputTokens || 1_024)));
   const estimated = calculateTokenCost({
     usage: { inputTokens, outputTokens, cachedInputTokens: 0 },
     pricing,
