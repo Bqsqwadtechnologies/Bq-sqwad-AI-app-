@@ -49,8 +49,14 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
+  const requestText = String(message || "Analyze the attached content.");
+  const systemText = String(system || "");
+  // Conservative preflight bound prevents accidentally sending huge chat history.
+  if (Math.ceil((requestText.length + systemText.length) / 3) > 16_000) {
+    throw new Error("Request is too large for the configured 16,000-token input limit. Shorten the prompt or conversation and try again.");
+  }
   const content = [
-    { type: "input_text", text: String(message || "Analyze the attached content.") },
+    { type: "input_text", text: requestText },
     ...imageInputs.map(image => ({
       type: "input_image",
       image_url: "data:" + String(image.mimeType || "image/jpeg") + ";base64," + String(image.imageBase64 || "")
@@ -65,9 +71,10 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? [{ role: "user", content }]
     : String(message || "");
   const body = { model: model || DEFAULT_MODELS.openai, input, stream };
-  if (Number.isInteger(Number(maxOutputTokens)) && Number(maxOutputTokens) >= 128) {
-    body.max_output_tokens = Math.min(8192, Number(maxOutputTokens));
-  }
+  const requestedOutputTokens = Number(maxOutputTokens);
+  body.max_output_tokens = Number.isInteger(requestedOutputTokens) && requestedOutputTokens >= 128
+    ? Math.min(1_024, requestedOutputTokens)
+    : 1_024;
   if (system) body.instructions = system;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -150,7 +157,8 @@ export async function callTavily(env, query, maxResults = 10, deepResearch = fal
 }
 
 export async function runProviderStream(env, route, input) {
-  const providers = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
+  // Never switch providers silently: fallback can change model costs and policy.
+  const providers = [route.primaryProviderId].filter(Boolean);
   let lastError;
   for (const providerId of providers) {
     try {
@@ -178,7 +186,8 @@ export async function runProviderStream(env, route, input) {
 }
 
 export async function runProvider(env, route, input) {
-  const providers = [route.primaryProviderId, ...(route.fallbackProviderIds || [])].filter(Boolean);
+  // Never switch providers silently: fallback can change model costs and policy.
+  const providers = [route.primaryProviderId].filter(Boolean);
   let lastError;
   for (const providerId of providers) {
     try {
