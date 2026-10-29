@@ -2,7 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getProviderSecret } from "./secret-store.js";
 
 const DEFAULT_MODELS = {
-  openai: "gpt-5.6-luna",
+  openai: "gpt-6-luna",
   gemini: "gemini-3.5-flash"
 };
 
