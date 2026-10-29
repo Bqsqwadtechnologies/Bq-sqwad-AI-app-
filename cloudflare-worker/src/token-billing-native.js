@@ -324,7 +324,15 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         conversionRate: 1,
         precision: 7,
         modelMultipliers: { luna: 1, terra: 3, sol: 8, gemini: 0.8 },
+        maxRequestTokens: 8_000,
+        maxOutputTokens: 512,
       };
+  const boundedLimit = (value, fallback, min, max) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
+  };
+  const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
+  const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
   const modelIdLower = String(modelId || "").toLowerCase();
   const modelMultipliers = sharedMetering.modelMultipliers && typeof sharedMetering.modelMultipliers === "object"
     ? Object.entries(sharedMetering.modelMultipliers)
@@ -420,7 +428,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     conversionRate: hasCustomerCreditRule ? 1 : Number(sharedMetering.conversionRate ?? 1)
   } : null;
   return {
-    ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
+    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, configured,
     maxRequestTokens, maxOutputTokens,
     sharedCreditMetering,
