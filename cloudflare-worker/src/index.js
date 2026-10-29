@@ -1568,7 +1568,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       const data = await response.json().catch(() => ({}));
       const tools = Array.isArray(data.tools) ? data.tools : Array.isArray(data.items) ? data.items : [];
       for (const item of tools) {
-        if (toolDefs.length >= 35) break;
+        if (toolDefs.length >= 12) break;
         const slug = String(item.slug || item.name || "").trim().toUpperCase();
         if (!/^[A-Z0-9_]{1,100}$/.test(slug)) continue;
         const prefix = toolkit === "one_drive" ? "ONE_DRIVE_" : toolkit === "outlook" ? "OUTLOOK_" : toolkit.toUpperCase() + "_";
@@ -1594,7 +1594,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
     }
     if (toolDefs.length >= 35) break;
   }
-  if (memoryEnabled && toolDefs.length < 35) {
+  if (memoryEnabled && toolDefs.length < 12) {
     toolDefs.push({
       type: "function",
       name: "remember_fact",
@@ -1657,13 +1657,13 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       if (!finalText.trim()) throw Object.assign(new Error("The AI service returned an empty response."), { httpStatus: 502, safeError: "provider_unavailable" });
       return { text: finalText, providerId: "openai", modelId: model, usage };
     }
-    if (round === 4) {
+    if (round === 2) {
       if (finalText.trim()) return { text: finalText, providerId: "openai", modelId: model, usage };
       throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
     }
     input = [];
     for (const [callIndex, call] of calls.entries()) {
-      if (callIndex >= 5) {
+      if (callIndex >= 3) {
         input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: false, error: "Too many tool calls in one round; continue with a smaller read-only request." }) });
         continue;
       }
@@ -1677,7 +1677,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       const result = binding.memory
         ? await saveSharedMemoryFact(user.uid, args.category, args.key, args.value, "assistant").catch(() => ({ ok: false, saved: false, error: "memory_save_failed" }))
         : await executeComposioTool(user.uid, binding.toolkit, binding.slug, args);
-      input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify(result).slice(0, 10000) });
+      input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify(result).slice(0, 4_000) });
     }
   }
   throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
