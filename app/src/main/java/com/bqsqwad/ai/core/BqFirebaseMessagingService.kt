@@ -85,7 +85,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         val uploadedLogo = loadUploadedNotificationLogo()
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(uploadedLogo?.let { createMonochromeNotificationIcon(it) }
-                ?: IconCompat.createWithResource(this, R.drawable.bq_notification_logo))
+                ?: IconCompat.createWithResource(this, R.drawable.bq_notification_white_logo))
             .setLargeIcon(uploadedLogo ?: BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
             .setContentTitle("BQ Sqwad AI")
             .setContentText(displayBody.take(500))
@@ -100,66 +100,24 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
-    // Prefer the owner's uploaded PNG from the Android repository so the logo is not
-    // frozen to whatever image happened to be compiled into an older APK. Keep a
-    // bounded in-memory cache and fall back to the bundled resource when offline.
-    private fun resolveUploadedNotificationLogoUrl(): String {
-        val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v7"
-        val connection = runCatching {
-            (URL("https://bqsqwadai.com/api/public/app-config?notificationLogo=1").openConnection() as HttpURLConnection)
-        }.getOrNull() ?: return fallback
-        return try {
-            connection.connectTimeout = 2500
-            connection.readTimeout = 3500
-            connection.instanceFollowRedirects = true
-            val raw = connection.inputStream.use { it.bufferedReader().readText() }.take(32_000)
-            val candidate = JSONObject(raw).optString("logoUrl", "")
-            if (candidate.startsWith("https://") &&
-                (candidate.contains("firebasestorage.googleapis.com/") ||
-                 candidate.contains("storage.googleapis.com/") ||
-                 candidate.startsWith("https://bqsqwadai.com/"))) candidate else fallback
-        } catch (_: Exception) {
-            fallback
-        } finally {
-            connection.disconnect()
-        }
-    }
-
+    // The launcher/notification artwork is intentionally bundled with the Android app.
+    // This keeps the notification icon aligned with the approved uploaded asset and
+    // prevents an unrelated website notification-logo setting from overriding it.
     private fun loadUploadedNotificationLogo(): Bitmap? {
         val now = System.currentTimeMillis()
         cachedUploadedNotificationLogo?.takeUnless { it.isRecycled }?.let {
             if (now - cachedUploadedNotificationLogoAt < 5 * 60 * 1000L) return it
         }
-        val connection = runCatching {
-            (URL(resolveUploadedNotificationLogoUrl()).openConnection() as HttpURLConnection)
-        }.getOrNull() ?: return null
-        return try {
-            connection.connectTimeout = 2500
-            connection.readTimeout = 3500
-            connection.instanceFollowRedirects = true
-            connection.setRequestProperty("Accept", "image/png,image/*")
-            val bytes = connection.inputStream.use { it.readBytes() }
-            if (bytes.isEmpty() || bytes.size > 5_000_000) {
-                null
-            } else {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                var sample = 1
-                while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
-                val decoded = BitmapFactory.decodeByteArray(
-                    bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }
-                )
-                if (decoded != null) {
-                    cachedUploadedNotificationLogo = decoded
-                    cachedUploadedNotificationLogoAt = now
-                }
-                decoded
-            }
-        } catch (_: Exception) {
-            null
-        } finally {
-            connection.disconnect()
+        val decoded = BitmapFactory.decodeResource(
+            resources,
+            R.drawable.bq_notification_white_logo,
+            BitmapFactory.Options().apply { inSampleSize = 2 }
+        )
+        if (decoded != null) {
+            cachedUploadedNotificationLogo = decoded
+            cachedUploadedNotificationLogoAt = now
         }
+        return decoded
     }
 
     /**
@@ -197,7 +155,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Use the uploaded notification-logo resource for both status-bar and expanded notification artwork.
-    private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
+    private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_white_logo
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
