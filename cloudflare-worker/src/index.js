@@ -1,4 +1,4 @@
-const DEFAULT_REALTIME_MODEL = "gpt-realtime";
+const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1-mini";
 const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
@@ -299,7 +299,7 @@ async function adminReadinessSelfTest(env, adminUser) {
       if (capabilityConfig?.enabled === false || capabilityConfig?.killSwitch === true) {
         return { status: "disabled", model: String(config?.modelId || capabilityConfig?.modelId || "") };
       }
-      const model = String(config?.modelId || capabilityConfig?.modelId || DEFAULT_REALTIME_MODEL).slice(0, 80);
+      const model = DEFAULT_REALTIME_MODEL;
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(uid || "admin-self-test")));
       const safetyIdentifier = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
       const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -357,9 +357,9 @@ async function adminReadinessSelfTest(env, adminUser) {
         : !supportedForFeature || !providerSecret
           ? { status: "unsupported_provider", reachable: false }
           : await probeProvider(provider);
-      const configuredModel = String(config?.modelId || (feature === "image" ? "gpt-image-2" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
-      const model = feature === "vision" && configuredModel.startsWith("gpt-realtime")
-        ? "gpt-4.1-mini"
+      const configuredModel = String(config?.modelId || (feature === "image" ? "gpt-image-1-mini" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
+      const model = provider === "openai"
+        ? (feature === "image" ? "gpt-image-1-mini" : "gpt-6-luna")
         : configuredModel;
       const modelProbe = ["chat", "image", "vision"].includes(feature) && !disabled && supportedForFeature && env?.[providerSecret]
         ? await probeConfiguredModel(provider, model)
@@ -593,7 +593,7 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     maxSessionMinutes: Math.trunc(number("maxSessionMinutes", 120, 1440)),
     modelId: String(source.modelId ?? previous.modelId ?? "").trim().slice(0, 100),
     defaultVoice: allowedVoices.includes(defaultVoice) ? defaultVoice : "marin",
-    transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "gpt-4o-mini-transcribe").trim().slice(0, 100)
+    transcriptionModel: String(source.transcriptionModel ?? previous.transcriptionModel ?? "whisper-1").trim().slice(0, 100)
   };
 }
 
@@ -720,11 +720,11 @@ async function capability(uid, name) {
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
-    image_generation: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
-    image_edit: { providerId: "openai", modelId: "gpt-image-2", fallbackProviderIds: [] },
+    image_generation: { providerId: "openai", modelId: "gpt-image-1-mini", fallbackProviderIds: [] },
+    image_edit: { providerId: "openai", modelId: "gpt-image-1-mini", fallbackProviderIds: [] },
     live_camera: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     live_voice: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
-    video_generation: { providerId: "openai", modelId: "sora-2", fallbackProviderIds: [] },
+    video_generation: { providerId: "openai", modelId: null, enabled: false, killSwitch: true, fallbackProviderIds: [] },
     device_commands: { providerId: "gemini", modelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [] },
     web_search: { providerId: "tavily", modelId: null, fallbackProviderIds: [] },
     deep_research: { providerId: "tavily", modelId: null, fallbackProviderIds: [] }
@@ -1736,7 +1736,7 @@ async function ai(request, user, body) {
   // the selected provider has no usable rates; preserve configured choices.
   if (tokenBilling && !tokenPricing.configured && capabilityName === "chat" &&
       String(control.providerId || "").toLowerCase() !== "openai") {
-    const fallbackModelId = String(DEFAULT_MODELS.openai || "gpt-4o-mini");
+    const fallbackModelId = String(DEFAULT_MODELS.openai || "gpt-6-luna");
     const fallbackControl = { ...control, providerId: "openai", modelId: fallbackModelId, tokenPricing: null };
     const fallbackPricing = await resolveTokenPricing("openai", fallbackModelId, pricingFeature, fallbackControl);
     if (fallbackPricing.configured) {
