@@ -42,7 +42,6 @@ function normalizeModel(raw, actorUid) {
   const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.1199);
   const customerMultiplier = Number(raw?.customerMultiplier ?? 1.8);
   const estimatedFeePercent = Number(raw?.estimatedFeePercent ?? 15);
-  const maxOutputTokens = Number(raw?.maxOutputTokens ?? 2048);
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
@@ -68,7 +67,6 @@ function normalizeModel(raw, actorUid) {
   if (!Number.isFinite(creditReferenceValueUsd) || creditReferenceValueUsd <= 0 || creditReferenceValueUsd > 1000) throw new Error("credit_reference_value_invalid");
   if (!Number.isFinite(customerMultiplier) || customerMultiplier < 1 || customerMultiplier > 1000) throw new Error("customer_multiplier_invalid");
   if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) throw new Error("estimated_fee_percent_invalid");
-  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 128 || maxOutputTokens > 8192) throw new Error("max_output_tokens_invalid");
   if (billingMode === "token" && !["text-chat", "device-commands"].includes(feature)) throw new Error("token_billing_only_supported_for_text_model_features");
   if (billingMode === "token" && raw?.active === true && inputPriceUsdPerMillion + outputPriceUsdPerMillion <= 0) throw new Error("token_pricing_required_for_active_token_billing");
   if (!["request", "image", "second", "minute"].includes(providerCostUnit)) throw new Error("provider_cost_unit_invalid");
@@ -91,7 +89,7 @@ function normalizeModel(raw, actorUid) {
     published: raw?.published === true,
     creditCost, priceUsd, creditsPerMinute,
     billingMode, providerCostUnit, providerCostTrackingEnabled, inputPriceUsdPerMillion, outputPriceUsdPerMillion,
-    cachedInputPriceUsdPerMillion, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent, maxOutputTokens,
+    cachedInputPriceUsdPerMillion, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent,
     validation: raw?.validation && raw.validation.ok === true ? { ok: true, providerModelName: String(raw.validation.providerModelName || modelId).slice(0, 160), validatedAt: String(raw.validation.validatedAt || new Date().toISOString()) } : null,
     updatedBy: actorUid, updatedAt: new Date()
   };
@@ -169,7 +167,6 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       creditReferenceValueUsd: Math.max(0.000001, Number(matching?.creditReferenceValueUsd ?? capability.creditReferenceValueUsd ?? 0.1199)),
       customerMultiplier: Math.max(1, Number(matching?.customerMultiplier ?? capability.customerMultiplier ?? 1.8)),
       estimatedFeePercent: Math.min(100, Math.max(0, Number(matching?.estimatedFeePercent ?? capability.estimatedFeePercent ?? 15))),
-      maxOutputTokens: Math.min(8192, Math.max(128, Number(matching?.maxOutputTokens ?? capability.maxOutputTokens ?? 2048))),
       updatedAt: now,
       updatedBy: "system-bootstrap"
     };
@@ -192,7 +189,6 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
         creditReferenceValueUsd: model.creditReferenceValueUsd,
         customerMultiplier: model.customerMultiplier,
         estimatedFeePercent: model.estimatedFeePercent,
-        maxOutputTokens: model.maxOutputTokens,
         selectedRegistryModelId: id,
         selectedRegistryModelName: model.name,
         updatedAt: now
@@ -355,7 +351,6 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion == null ? null : Math.max(0, Number(model.cachedInputPriceUsdPerMillion || 0)),
     creditReferenceValueUsd: Math.max(0.000001, Number(model.creditReferenceValueUsd || 0.1199)),
     customerMultiplier: Math.max(1, Number(model.customerMultiplier || 1.8)),
-    estimatedFeePercent: Math.min(100, Math.max(0, Number(model.estimatedFeePercent || 15))),
-    maxOutputTokens: Math.min(8192, Math.max(128, Number(model.maxOutputTokens || 2048)))
+    estimatedFeePercent: Math.min(100, Math.max(0, Number(model.estimatedFeePercent || 15)))
   };
 }
