@@ -47,6 +47,26 @@ test("native Main Chat follows website per-token metering instead of stale USD c
   assert.equal(result.customerCredits, 0.1392);
 });
 
+test("website credit prices do not require USD telemetry rates to calculate customer credits", () => {
+  const result = calculateTokenCost({
+    usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
+    pricing: {
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.00003,
+        creditsPerOutputToken: 0.00024,
+        creditsPerCachedInputToken: 0.000003,
+        minimumCredits: 0,
+        precision: 7,
+        conversionRate: 1,
+      },
+      sharedModelMultiplier: 1,
+    },
+    creditReferenceValueUsd: 0.1199,
+  });
+  assert.equal(result.customerCredits, 0.1392);
+  assert.equal(result.providerCostUsd, 0);
+});
+
 test("native Main Chat applies configured model weight to per-token credits", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, outputTokens: 500 },
