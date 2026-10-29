@@ -40,8 +40,10 @@ The supplied artwork is staged at `ICON_UPLOAD/bq-icon-white-background.png`. It
 
 The notification service uses the uploaded artwork for the expanded notification picture and derives a monochrome small icon from it for notifications it renders. The system default FCM status-bar icon remains `bq_notification_mark`, because Android requires a simple monochrome mask for that slot.
 
-## Provider-cost billing
+## Shared customer credit pricing
 
-All text-chat requests now use provider-usage billing when token rates are configured. The server computes measured input/output/cached-token provider cost, converts it using the configured credit reference value, then applies the configured markup/fee. If model/token pricing is missing, the Worker returns a configuration error rather than silently falling back to one fixed credit per chat message.
+The website admin dashboard is the source of truth for customer token prices in `tokenPricingRules/{id}`: credits per 1,000 uncached input, cached input, and output tokens. The Android app's Worker reads those same Firebase records and applies the saved credit rates directly. Provider USD rates remain internal spend telemetry only; they do not set or convert customer credit charges for token-metered features.
 
-Active, unexpired subscriptions for matching capability names are exempt from credit deductions where configured. The verified super administrator remains exempt. Other features continue using their configured billing mode and prices.
+Token-metered requests (chat, vision, attachments, Personal Intelligence, and team chat) fail closed when a matching active rule does not contain all three credit rates. The Worker does not silently fall back to global USD-derived prices or a fixed one-credit chat charge. Fixed-output feature prices continue to use the shared `adminAdvancedOptions/capability_<feature>.creditCost` records.
+
+Active, unexpired subscriptions for matching capability names are exempt from credit deductions where configured. The verified super administrator remains exempt. Provider usage and credit movement remain recorded for the admin usage audit.
