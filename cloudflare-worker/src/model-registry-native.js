@@ -13,7 +13,17 @@ const PROVIDERS = new Set(["openai", "gemini"]);
 
 const BLOCKED_OPENAI_MODELS = new Set(["gpt-6.1-terra","gpt-6.1-sol","gpt-6-sol","gpt-live-1","gpt-image-2.5-sunburst-2026-09-08","gpt-image-2.5-flare-2026-09-08","gpt-image-2.5-flare","gpt-image-2.5-sunburst","gpt-6-astra","gpt-live-transcribe","gpt-transcribe","gpt-5.6-luna","gpt-5.6-sol","gpt-5.6-terra","gpt-realtime-2.1","gpt-realtime-whisper","gpt-realtime-2","gpt-realtime-translate","chat-latest","gpt-5.5-pro-2026-04-23","gpt-5.5-pro","gpt-5.5-2026-04-23","gpt-5.5","gpt-image-2-2026-04-21","gpt-image-2","gpt-5.4-mini","gpt-5.4-mini-2026-03-17","gpt-5.4-nano","gpt-5.4-nano-2026-03-17","gpt-5.4","gpt-5.4-pro-2026-03-05","gpt-5.4-pro","gpt-5.4-2026-03-05","gpt-audio-1.5","gpt-realtime-1.5","gpt-5.3-codex","chatgpt-image-latest","gpt-audio-mini-2025-12-15","gpt-realtime-mini-2025-12-15","gpt-4o-mini-tts-2025-12-15","gpt-4o-mini-tts-2025-03-20","gpt-5.2-pro","gpt-5.2-pro-2025-12-11","gpt-5.2","gpt-5.2-2025-12-11","gpt-image-1.5","gpt-5.1","gpt-5.1-2025-11-13","gpt-5-search-api-2025-10-14","gpt-realtime-mini","gpt-5-search-api","gpt-audio-mini","gpt-5-pro","gpt-5-pro-2025-10-06","gpt-audio","gpt-realtime-2025-08-28","gpt-realtime","gpt-audio-2025-08-28","gpt-5-nano","gpt-5-nano-2025-08-07","gpt-5-mini","gpt-5-mini-2025-08-07","gpt-5","gpt-5-2025-08-07","gpt-4o-transcribe-diarize","gpt-4.1-mini","gpt-4.1-mini-2025-04-14","gpt-4.1","gpt-4.1-2025-04-14","o3","o3-2025-04-16","gpt-4o-mini-transcribe-2025-03-20","gpt-4o-transcribe","gpt-4o-2024-11-20","gpt-4o-2024-08-06","gpt-4o-mini","gpt-4o-mini-2024-07-18","gpt-4o","text-embedding-3-large","tts-1-hd-1106","tts-1-1106","tts-1-hd","gpt-3.5-turbo-instruct-0914","tts-1","text-embedding-ada-002"]);
 const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-1-mini","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
-function isBlockedOpenAiModel(modelId) { return BLOCKED_OPENAI_MODELS.has(String(modelId || "").trim().toLowerCase()); }
+const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
+  "text-chat": new Set(["gpt-6-luna"]),
+  "device-commands": new Set(["gpt-6-luna"]),
+  "image-generation": new Set(["gpt-image-1-mini"]),
+  "live-camera": new Set(["gpt-realtime-2.1-mini"]),
+  "live-voice": new Set(["gpt-realtime-2.1-mini"]),
+  "video-generation": new Set()
+};
+function isAllowedOpenAiModel(modelId, feature) {
+  return ALLOWED_OPENAI_MODELS_BY_FEATURE[String(feature || "").trim().toLowerCase()]?.has(String(modelId || "").trim().toLowerCase()) === true;
+}
 
 function normalizeModel(raw, actorUid) {
   const id = String(raw?.id || "").trim().toLowerCase();
@@ -37,6 +47,7 @@ function normalizeModel(raw, actorUid) {
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
+  if (providerId === "openai" && !isAllowedOpenAiModel(modelId, feature)) throw new Error("openai_model_not_allowed_by_project_policy");
   const requiredProvider = ["image-generation", "video-generation", "live-voice"].includes(feature) ? "openai" : null;
   if (requiredProvider && providerId !== requiredProvider) throw new Error("model_provider_incompatible_with_feature");
 
@@ -93,14 +104,13 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-1-mini", id: "current-image-generation", name: "GPT Image 1 Mini" },
     { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-camera", name: "GPT Realtime 2.1 Mini — Live Camera" },
     { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-voice", name: "GPT Realtime 2.1 Mini — Live Voice" },
-    { feature: "video-generation", capability: "video_generation", providerId: "openai", modelId: "sora-2", id: "current-video-generation", name: "Sora 2" },
     { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
   ];
   const existingRows = await firestoreQuery("aiModelRegistry", { limit: 200 });
   const now = new Date();
   for (const definition of definitions) {
     const featureRows = existingRows.filter(row => row.feature === definition.feature);
-    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true && !(row.providerId === "openai" && isBlockedOpenAiModel(row.modelId)))) continue;
+    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true && !(row.providerId === "openai" && !isAllowedOpenAiModel(row.modelId, row.feature)))) continue;
 
     const capability = await firestoreGet("adminAdvancedOptions/capability_" + definition.capability) || {};
     const voiceConfig = definition.feature === "live-voice"
@@ -127,7 +137,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       providerId = "gemini";
       if (!modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
     }
-    if (providerId === "openai" && isBlockedOpenAiModel(modelId)) {
+    if (providerId === "openai" && !isAllowedOpenAiModel(modelId, definition.feature)) {
       modelId = SAFE_OPENAI_MODEL_BY_FEATURE[definition.feature] || "gpt-6-luna";
     }
 
@@ -230,7 +240,7 @@ export async function listAiModels({ admin = false } = {}) {
     providerCheckedAt: x.providerCheckedAt || null,
     updatedAt: x.updatedAt || null
   }));
-  return { models: models.filter(x => admin || (x.active && x.published)).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
+  return { models: models.filter(x => (x.providerId !== "openai" || isAllowedOpenAiModel(x.modelId, x.feature)) && (admin || (x.active && x.published))).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
 }
 
 export async function validateAiModel(env, raw) {
@@ -247,6 +257,9 @@ export async function validateAiModel(env, raw) {
   };
   if (!FEATURE_CAPABILITIES[feature] || !allowedProviders[feature]?.has(providerId)) {
     throw Object.assign(new Error("provider_not_supported_for_feature"), { httpStatus: 400 });
+  }
+  if (providerId === "openai" && !isAllowedOpenAiModel(modelId, feature)) {
+    throw Object.assign(new Error("openai_model_not_allowed_by_project_policy"), { httpStatus: 403, safeError: "model_blocked_by_project_policy" });
   }
   const prefixRules = {
     "live-camera": /^(?:gpt-realtime|gpt-4o-realtime)/i,
@@ -320,7 +333,8 @@ export async function saveAiModel(env, raw, actorUid) {
 }
 
 export async function resolvePublishedModel(modelId, expectedFeature) {
-  const rows = await firestoreQuery("aiModelRegistry", { limit: 200 });
+  const rows = (await firestoreQuery("aiModelRegistry", { limit: 200 }))
+    .filter(x => x.providerId !== "openai" || isAllowedOpenAiModel(x.modelId, x.feature));
   let model = rows.find(x => String(x.id || String(x.__name || "").split("/").pop()) === String(modelId || ""));
   if (!model) model = rows.find(x => x.isDefault === true && x.active === true && x.published === true && (!expectedFeature || x.feature === expectedFeature));
   if (!model) model = rows.find(x => x.active === true && x.published === true && (!expectedFeature || x.feature === expectedFeature));
