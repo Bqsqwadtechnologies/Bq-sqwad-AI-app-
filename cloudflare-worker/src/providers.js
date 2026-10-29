@@ -82,7 +82,7 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   });
 }
 
-export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg", maxOutputTokens = null }) {
+export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg" }) {
   const modelId = model || DEFAULT_MODELS.gemini;
   const imageInputs = Array.isArray(images) && images.length
     ? images
