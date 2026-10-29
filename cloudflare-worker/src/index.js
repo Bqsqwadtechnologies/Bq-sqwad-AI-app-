@@ -1779,7 +1779,7 @@ async function ai(request, user, body) {
       primaryModelId: control.modelId,
       fallbackProviderIds: tokenBilling && String(control.providerId || "").toLowerCase() === "openai" ? ["gemini"] : (control.config?.fallbackProviderIds || control.fallbackProviderIds || []),
       fallbackModels: control.config?.fallbackModels || {}
-    }, { message: userMessage, system, maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined });
+    }, { message: userMessage, system });
     if (!result.text?.trim()) throw new Error("The AI service returned an empty response.");
 
     let creditsCharged = Number(reservation.amount || 0);
@@ -3616,7 +3616,7 @@ export default {
             primaryModelId: model,
             fallbackProviderIds: [],
             fallbackModels: {}
-          }, { message: "Reply with OK.", system: "For this diagnostic only, respond with OK.", maxOutputTokens: 16 });
+          }, { message: "Reply with OK.", system: "For this diagnostic only, respond with OK." });
           if (!String(result?.text || "").trim()) throw Object.assign(new Error("empty_provider_response"), { safeError: "provider_unavailable" });
           return json({ status: "PASS", step: "provider_request", model: String(result.modelId || model), checkedAt: new Date().toISOString() });
         } catch (error) {
