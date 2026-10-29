@@ -2922,7 +2922,7 @@ export const bqSqwadApi = onRequest(
           .map(x => ({
             capability: String(x.id).replace(/^capability_/, ""),
             primaryProviderId: x.providerId || "openai",
-            primaryModelId: x.modelId || "gpt-5.6-luna",
+            primaryModelId: x.modelId || "gpt-6-luna",
             fallbackProviderIds: x.config?.fallbackProviderIds || ["gemini"],
             enabled: x.enabled !== false && x.killSwitch !== true
           }));
@@ -2946,7 +2946,7 @@ export const bqSqwadApi = onRequest(
             routeMap.set(capability, {
               capability,
               primaryProviderId: "openai",
-              primaryModelId: "gpt-5.6-luna",
+              primaryModelId: "gpt-6-luna",
               fallbackProviderIds: ["gemini"],
               enabled: true,
               source: "default"
