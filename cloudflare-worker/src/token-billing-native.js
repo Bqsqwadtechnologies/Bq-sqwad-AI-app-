@@ -396,6 +396,14 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const hasCustomerCreditRule = !!tokenRule &&
     Number.isFinite(Number(tokenRule.inputCreditsPer1k)) && Number(tokenRule.inputCreditsPer1k) >= 0 &&
     Number.isFinite(Number(tokenRule.outputCreditsPer1k)) && Number(tokenRule.outputCreditsPer1k) >= 0;
+  const configuredMaxRequestTokens = Number(sharedMetering.maxRequestTokens ?? 16_000);
+  const configuredMaxOutputTokens = Number(sharedMetering.maxOutputTokens ?? 1_024);
+  const maxRequestTokens = Number.isFinite(configuredMaxRequestTokens)
+    ? Math.min(16_000, Math.max(1_000, Math.round(configuredMaxRequestTokens)))
+    : 16_000;
+  const maxOutputTokens = Number.isFinite(configuredMaxOutputTokens)
+    ? Math.min(4_096, Math.max(128, Math.round(configuredMaxOutputTokens)))
+    : 1_024;
   const sharedCreditMetering = isMainChatMeteredFeature ? {
     creditsPerInputToken: hasCustomerCreditRule
       ? Number(tokenRule.inputCreditsPer1k) / 1000
@@ -414,6 +422,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, configured,
+    maxRequestTokens, maxOutputTokens,
     sharedCreditMetering,
     sharedModelMultiplier: hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
     billingMode: isMainChatMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
