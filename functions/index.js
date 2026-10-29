@@ -2755,7 +2755,7 @@ export const bqSqwadApi = onRequest(
             reservation = null;
             return send(res, 403, { error: "live_voice_disabled" });
           }
-          const model = String(cfg.modelId || "gpt-realtime-2.1");
+          const model = cfg.modelId === "gpt-realtime-2.1-mini" ? cfg.modelId : "gpt-realtime-2.1-mini";
           const requestedVoice = String(body.voice || cfg.defaultVoice || "marin").trim().toLowerCase();
           const allowedVoices = new Set(["alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"]);
           const voice = allowedVoices.has(requestedVoice) ? requestedVoice : String(cfg.defaultVoice || "marin").trim().toLowerCase();
