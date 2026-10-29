@@ -113,9 +113,11 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     );
     let providerId = String(capability.providerId || definition.providerId).toLowerCase();
     if (definition.feature === "text-chat") {
-      if (!["openai", "gemini"].includes(providerId)) providerId = "openai";
-      if (!modelId) modelId = providerId === "gemini" ? (defaultModels.gemini || "gemini-2.5-flash") : (defaultModels.openai || "gpt-6-luna");
-      if (providerId === "gemini" && !modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
+      // Main chat must use the explicitly allowed GPT-6 Luna model. Ignore stale
+      // provider/model overrides here so a blocked or more expensive model can
+      // never be selected by legacy adminAdvancedOptions.
+      providerId = "openai";
+      modelId = "gpt-6-luna";
     }
     if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
     if (["live-camera", "live-voice"].includes(definition.feature) && !/^(?:gpt-realtime|gpt-4o-realtime)/i.test(modelId)) modelId = definition.modelId;
