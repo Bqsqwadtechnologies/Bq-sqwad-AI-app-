@@ -51,10 +51,7 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   const fileInputs = Array.isArray(files) ? files : [];
   const requestText = String(message || "Analyze the attached content.");
   const systemText = String(system || "");
-  // Conservative preflight bound prevents accidentally sending huge chat history.
-  if (Math.ceil((requestText.length + systemText.length) / 3) > 16_000) {
-    throw new Error("Request is too large for the configured 16,000-token input limit. Shorten the prompt or conversation and try again.");
-  }
+  // No application-level input-token ceiling: the selected provider enforces its native context window.
   const content = [
     { type: "input_text", text: requestText },
     ...imageInputs.map(image => ({
@@ -71,10 +68,7 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? [{ role: "user", content }]
     : String(message || "");
   const body = { model: model || DEFAULT_MODELS.openai, input, stream };
-  const requestedOutputTokens = Number(maxOutputTokens);
-  body.max_output_tokens = Number.isInteger(requestedOutputTokens) && requestedOutputTokens >= 128
-    ? Math.min(1_024, requestedOutputTokens)
-    : 1_024;
+  // Do not set max_output_tokens here. Let the selected model use its native output allowance.
   if (system) body.instructions = system;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -104,9 +98,7 @@ export async function callGemini(env, { model, message, system, images = [], fil
   });
   const request = { contents: [{ role: "user", parts }] };
   if (system) request.systemInstruction = { parts: [{ text: system }] };
-  if (Number.isInteger(Number(maxOutputTokens)) && Number(maxOutputTokens) >= 128) {
-    request.generationConfig = { maxOutputTokens: Math.min(8192, Number(maxOutputTokens)) };
-  }
+  // Do not set generationConfig.maxOutputTokens; the selected Gemini model enforces its native output allowance.
   const result = await jsonFetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
     {
