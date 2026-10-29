@@ -404,9 +404,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Website tokenPricingRules are the canonical customer-credit prices for
   // both website and Android. All three customer rates must be explicit.
   const hasCustomerCreditRule = !!tokenRule &&
-    Number.isFinite(Number(tokenRule.inputCreditsPer1k)) && Number(tokenRule.inputCreditsPer1k) >= 0 &&
-    Number.isFinite(Number(tokenRule.cachedInputCreditsPer1k)) && Number(tokenRule.cachedInputCreditsPer1k) >= 0 &&
-    Number.isFinite(Number(tokenRule.outputCreditsPer1k)) && Number(tokenRule.outputCreditsPer1k) >= 0;
+    typeof tokenRule.inputCreditsPer1k === "number" && Number.isFinite(tokenRule.inputCreditsPer1k) && tokenRule.inputCreditsPer1k >= 0 &&
+    typeof tokenRule.cachedInputCreditsPer1k === "number" && Number.isFinite(tokenRule.cachedInputCreditsPer1k) && tokenRule.cachedInputCreditsPer1k >= 0 &&
+    typeof tokenRule.outputCreditsPer1k === "number" && Number.isFinite(tokenRule.outputCreditsPer1k) && tokenRule.outputCreditsPer1k >= 0;
   if (isTokenMeteredFeature && !hasCustomerCreditRule) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
   }
