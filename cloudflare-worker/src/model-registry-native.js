@@ -85,7 +85,7 @@ function normalizeModel(raw, actorUid) {
 
 export async function ensureCurrentModelRegistry(defaultModels = {}) {
   const definitions = [
-    { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-5.6-luna", id: "current-text-chat", name: "GPT-5.6 Luna" },
+    { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-6-luna", id: "current-text-chat", name: "GPT-6 Luna" },
     { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2", id: "current-image-generation", name: "GPT Image 2" },
     { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-camera", name: "GPT Realtime 2.1 — Live Camera" },
     { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-voice", name: "GPT Realtime 2.1 — Live Voice" },
@@ -110,7 +110,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     let providerId = String(capability.providerId || definition.providerId).toLowerCase();
     if (definition.feature === "text-chat") {
       if (!["openai", "gemini"].includes(providerId)) providerId = "openai";
-      if (!modelId) modelId = providerId === "gemini" ? (defaultModels.gemini || "gemini-2.5-flash") : (defaultModels.openai || "gpt-5.6-luna");
+      if (!modelId) modelId = providerId === "gemini" ? (defaultModels.gemini || "gemini-2.5-flash") : (defaultModels.openai || "gpt-6-luna");
       if (providerId === "gemini" && !modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
     }
     if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
