@@ -110,7 +110,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         }
         val decoded = BitmapFactory.decodeResource(
             resources,
-            R.drawable.bq_notification_white_logo,
+            R.drawable.bq_notification_logo,
             BitmapFactory.Options().apply { inSampleSize = 2 }
         )
         if (decoded != null) {
@@ -155,7 +155,7 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Use the uploaded notification-logo resource for both status-bar and expanded notification artwork.
-    private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_white_logo
+    private fun notificationLogoResourceId(): Int = R.drawable.bq_notification_logo
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
