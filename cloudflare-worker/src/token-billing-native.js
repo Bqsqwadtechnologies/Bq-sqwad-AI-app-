@@ -388,7 +388,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // applied after the canonical markup and fee policy.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = feeRate;
-  // Input/output ceilings are not imposed by the app. Provider/model native limits apply.
+  // Input/output ceilings are enforced by the shared website-admin token budget.
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
@@ -404,14 +404,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const hasCustomerCreditRule = !!tokenRule &&
     Number.isFinite(Number(tokenRule.inputCreditsPer1k)) && Number(tokenRule.inputCreditsPer1k) >= 0 &&
     Number.isFinite(Number(tokenRule.outputCreditsPer1k)) && Number(tokenRule.outputCreditsPer1k) >= 0;
-  const configuredMaxRequestTokens = Number(sharedMetering.maxRequestTokens ?? 16_000);
-  const configuredMaxOutputTokens = Number(sharedMetering.maxOutputTokens ?? 1_024);
-  const maxRequestTokens = Number.isFinite(configuredMaxRequestTokens)
-    ? Math.min(16_000, Math.max(1_000, Math.round(configuredMaxRequestTokens)))
-    : 16_000;
-  const maxOutputTokens = Number.isFinite(configuredMaxOutputTokens)
-    ? Math.min(4_096, Math.max(128, Math.round(configuredMaxOutputTokens)))
-    : 1_024;
   const sharedCreditMetering = isMainChatMeteredFeature ? {
     creditsPerInputToken: hasCustomerCreditRule
       ? Number(tokenRule.inputCreditsPer1k) / 1000
