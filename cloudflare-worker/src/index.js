@@ -1614,7 +1614,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
   }
   if (!toolDefs.length) return null;
 
-  const model = String(control.modelId || DEFAULT_MODELS.openai);
+  const model = DEFAULT_MODELS.openai;
   let input = String(message || "");
   let previousResponseId = null;
   const usage = { input_tokens: 0, output_tokens: 0, input_tokens_details: { cached_tokens: 0 } };
@@ -2381,7 +2381,7 @@ export default {
               body: form
             });
           };
-          let model = String(pricing.transcriptionModel || "whisper-1").slice(0, 100);
+          let model = "whisper-1";
           let response = await transcribeWithModel(model);
           let raw = await response.text();
           let transcription = {};
