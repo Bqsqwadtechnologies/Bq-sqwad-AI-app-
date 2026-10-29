@@ -6,6 +6,18 @@ const DEFAULT_MODELS = {
   gemini: "gemini-3.5-flash"
 };
 
+// Bound text sent to the provider before a paid request starts. This is a
+// conservative character-based estimate (3 characters/token) and is not a
+// substitute for the provider's measured usage during settlement.
+const MAX_ESTIMATED_INPUT_TOKENS = 16_000;
+const MAX_OUTPUT_TOKENS = 1_024;
+function assertRequestBudget(message, system) {
+  const combined = String(message || "") + "\\n" + String(system || "");
+  if (Math.ceil(combined.length / 3) > MAX_ESTIMATED_INPUT_TOKENS) {
+    throw new Error("Request is too large for the configured 16,000-token input limit. Shorten the prompt or conversation and try again.");
+  }
+}
+
 async function jsonFetch(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -22,27 +34,30 @@ export async function getRoute(capability) {
     const data = doc.data() || {};
     const config = data.config || {};
     return {
-      primaryProviderId: data.providerId || "openai",
-      primaryModelId: data.modelId || DEFAULT_MODELS.openai,
-      fallbackProviderIds: Array.isArray(config.fallbackProviderIds)
+      primaryProviderId: capability === "chat" ? "openai" : (data.providerId || "openai"),
+      // Main chat is pinned to the explicitly allowed GPT-6 Luna model.
+      // Do not route chat to a different model/provider if Luna fails.
+      primaryModelId: capability === "chat" ? DEFAULT_MODELS.openai : (data.modelId || DEFAULT_MODELS.openai),
+      fallbackProviderIds: capability === "chat" ? [] : (Array.isArray(config.fallbackProviderIds)
         ? config.fallbackProviderIds
-        : ((data.providerId || "openai") === "openai" ? ["gemini"] : []),
+        : ((data.providerId || "openai") === "openai" ? ["gemini"] : [])),
       fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
       enabled: data.enabled !== false && data.killSwitch !== true
     };
   }
   const defaults = {
-    chat: { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"], enabled: true },
+    chat: { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: [], enabled: true },
     device_commands: { primaryProviderId: "gemini", primaryModelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [], enabled: true },
     web_search: { primaryProviderId: "tavily", primaryModelId: null, fallbackProviderIds: [], enabled: true }
   };
-  return defaults[capability] || { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"], enabled: true };
+  return defaults[capability] || { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: [], enabled: true };
 }
 
 export async function callOpenAI({ model, message, system }) {
+  assertRequestBudget(message, system);
   const apiKey = await getProviderSecret("openai");
   if (!apiKey) throw new Error("OpenAI provider is not configured");
-  const body = { model: model || DEFAULT_MODELS.openai, input: message };
+  const body = { model: model || DEFAULT_MODELS.openai, input: message, max_output_tokens: MAX_OUTPUT_TOKENS };
   if (system) body.instructions = system;
   const result = await jsonFetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -56,11 +71,13 @@ export async function callOpenAI({ model, message, system }) {
 
 
 export async function callOpenAIVision({ model, message, imageBase64, mimeType = "image/jpeg", system }) {
+  assertRequestBudget(message, system);
   const apiKey = await getProviderSecret("openai");
   if (!apiKey) throw new Error("OpenAI provider is not configured");
   if (!imageBase64) throw new Error("Camera frame is required");
   const body = {
     model: model || DEFAULT_MODELS.openai,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
     input: [{
       role: "user",
       content: [
@@ -82,9 +99,10 @@ export async function callOpenAIVision({ model, message, imageBase64, mimeType =
 
 
 export async function streamOpenAI({ model, message, system, onEvent }) {
+  assertRequestBudget(message, system);
   const apiKey = await getProviderSecret("openai");
   if (!apiKey) throw new Error("OpenAI provider is not configured");
-  const body = { model: model || DEFAULT_MODELS.openai, input: message, stream: true };
+  const body = { model: model || DEFAULT_MODELS.openai, input: message, stream: true, max_output_tokens: MAX_OUTPUT_TOKENS };
   if (system) body.instructions = system;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
