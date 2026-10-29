@@ -3,10 +3,10 @@ const DEFAULT_MODELS = {
   gemini: "gemini-2.5-flash"
 };
 const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna"]);
-const DEFAULT_MAX_REQUEST_TOKENS = 16_000;
-const DEFAULT_MAX_OUTPUT_TOKENS = 1_024;
+const DEFAULT_MAX_REQUEST_TOKENS = 8_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 512;
 const HARD_MAX_REQUEST_TOKENS = 16_000;
-const HARD_MAX_OUTPUT_TOKENS = 4_096;
+const HARD_MAX_OUTPUT_TOKENS = 1_024;
 
 function boundedInteger(value, fallback, min, max) {
   const number = Number(value);
