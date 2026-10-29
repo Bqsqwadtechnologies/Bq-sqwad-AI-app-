@@ -1625,7 +1625,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, maxO
       tools: toolDefs, tool_choice: "auto"
     };
     if (previousResponseId) requestBody.previous_response_id = previousResponseId;
-    if (Number.isInteger(Number(maxOutputTokens)) && Number(maxOutputTokens) >= 128) requestBody.max_output_tokens = Math.min(8192, Number(maxOutputTokens));
+    // Do not impose an application-level output-token cap; the provider enforces model limits.
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY), "Content-Type": "application/json" },
@@ -1878,13 +1878,19 @@ async function vision(request, user, body) {
   const system = requestedSystem ? BQ_APP_KNOWLEDGE + "\n\n" + requestedSystem : BQ_APP_KNOWLEDGE;
   const primaryProviderId = ["openai", "gemini"].includes(control.providerId) ? control.providerId : "openai";
   const configuredVisionModelRaw = String(control.config?.visionModelId || control.visionModelId || "").trim();
-  const configuredVisionModel = configuredVisionModelRaw.startsWith("gpt-realtime") ? "" : configuredVisionModelRaw;
+  const configuredVisionModel = primaryProviderId === "openai"
+    ? (configuredVisionModelRaw === "gpt-6-luna" ? configuredVisionModelRaw : "")
+    : configuredVisionModelRaw;
   const capabilityModel = String(control.modelId || "").trim();
-  const compatibleCapabilityModel = capabilityModel && !capabilityModel.startsWith("gpt-realtime");
-  const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-4.1-mini";
-  const primaryModelId = primaryProviderId === control.providerId
-    ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
-    : defaultVisionModel;
+  const compatibleCapabilityModel = primaryProviderId === "openai"
+    ? capabilityModel === "gpt-6-luna"
+    : Boolean(capabilityModel && !capabilityModel.startsWith("gpt-realtime"));
+  const defaultVisionModel = primaryProviderId === "gemini" ? DEFAULT_MODELS.gemini : "gpt-6-luna";
+  const primaryModelId = primaryProviderId === "openai"
+    ? "gpt-6-luna"
+    : primaryProviderId === control.providerId
+      ? (configuredVisionModel || (compatibleCapabilityModel ? capabilityModel : defaultVisionModel))
+      : defaultVisionModel;
   const fallbackProviderIds = (control.config?.fallbackProviderIds || [])
     .filter(providerId => ["openai", "gemini"].includes(providerId) && providerId !== primaryProviderId);
   const pricingFeature = capabilityName === "live_camera" ? "live-camera" : "chat";
@@ -1968,7 +1974,7 @@ async function stream(request, user, body) {
   // from an invalid price or leaving Main Chat unusable.
   if (tokenBilling && !tokenPricing.configured && capabilityName === "chat" &&
       String(control.providerId || "").toLowerCase() !== "openai") {
-    const fallbackModelId = String(DEFAULT_MODELS.openai || "gpt-4o-mini");
+    const fallbackModelId = String(DEFAULT_MODELS.openai || "gpt-6-luna");
     const fallbackControl = { ...control, providerId: "openai", modelId: fallbackModelId, tokenPricing: null };
     const fallbackPricing = await resolveTokenPricing("openai", fallbackModelId, pricingFeature, fallbackControl);
     if (fallbackPricing.configured) {
@@ -2375,7 +2381,7 @@ export default {
               body: form
             });
           };
-          let model = String(pricing.transcriptionModel || "gpt-4o-mini-transcribe").slice(0, 100);
+          let model = String(pricing.transcriptionModel || "whisper-1").slice(0, 100);
           let response = await transcribeWithModel(model);
           let raw = await response.text();
           let transcription = {};
@@ -3527,7 +3533,7 @@ export default {
         const defaultChatRule = (Array.isArray(tokenRules) ? tokenRules : []).find(rule =>
           String(rule.status || "inactive") === "active" &&
           String(rule.provider || "").toLowerCase() === "openai" &&
-          ["*", "gpt-4o-mini"].includes(String(rule.model || "*")) &&
+          ["*", "gpt-6-luna"].includes(String(rule.model || "*")) &&
           (!Array.isArray(rule.features) || rule.features.length === 0 || rule.features.includes("chat") || rule.features.includes("text-chat"))
         );
         const rawUsageBilling = await firestoreGet("config/usageBilling").catch(() => null);
@@ -3564,7 +3570,7 @@ export default {
             "tokenPricingRules": tokenRules.length ? "present" : "missing (OpenAI defaults in use)"
           },
           policy: billingConfig.usageBilling,
-          defaultChatModel: "gpt-4o-mini",
+          defaultChatModel: "gpt-6-luna",
           defaultChatRatesUsdPerToken: defaultChatRule ? {
             input: Number(defaultChatRule.inputUsdPerToken ?? Number(defaultChatRule.inputUsdPerMillion || 0) / 1000000),
             output: Number(defaultChatRule.outputUsdPerToken ?? Number(defaultChatRule.outputUsdPerMillion || 0) / 1000000),
@@ -3597,7 +3603,7 @@ export default {
       if (url.pathname === "/admin/billing/chat-self-test" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        const model = String(DEFAULT_MODELS.openai || "gpt-4o-mini");
+        const model = String(DEFAULT_MODELS.openai || "gpt-6-luna");
         try {
           const { resolveTokenPricing } = await import("./token-billing-native.js");
           const pricing = await resolveTokenPricing("openai", model, "chat", {});
@@ -3924,11 +3930,11 @@ export default {
            let raw = await response.text();
            let out = {};
            try { out = raw ? JSON.parse(raw) : {}; } catch {}
-           if (!response.ok && [400, 404, 422].includes(response.status) && model !== "gpt-realtime") {
+           if (!response.ok && [400, 404, 422].includes(response.status) && model !== "gpt-realtime-2.1-mini") {
              const rejectedModel = model;
              const providerCode = String(out?.error?.code || out?.error?.type || "model_rejected").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80);
              await notifyAdminOfIssue(env, url.pathname, 502, "realtime_model_rejected:" + rejectedModel + ":" + providerCode, out?.error?.message);
-             const fallbackModel = "gpt-realtime";
+             const fallbackModel = "gpt-realtime-2.1-mini";
              const fallbackResponse = await createRealtimeSecret(fallbackModel);
              const fallbackRaw = await fallbackResponse.text();
              let fallbackOut = {};
