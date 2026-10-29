@@ -30,17 +30,15 @@ Keep all existing Cloudflare secrets configured (`BQ_FIREBASE_SERVICE_ACCOUNT_JS
 
 No workflow runs or deploys automatically on push to `main` any more.
 
-## Notification logo upload location
+## Android launcher and notification artwork
 
-Upload the full notification logo image to this exact repository path:
+The supplied artwork is staged at `ICON_UPLOAD/bq-icon-white-background.png`. Its bytes are JPEG-encoded despite the source filename's `.png` suffix, so the Android drawable resources use the correct `.jpg` extension:
 
-`app/src/main/res/drawable-nodpi/bq_notification_logo.jpg`
+- Launcher icon resource: `app/src/main/res/drawable-nodpi/bq_launcher_logo.jpg` (manifest resource name `@drawable/bq_launcher_logo`).
+- Full notification artwork: `app/src/main/res/drawable-nodpi/bq_notification_logo.jpg` (resource name `R.drawable.bq_notification_logo`).
+- In-app branding remains `app/src/main/res/drawable-nodpi/bq_sqwad_logo.jpg` and is intentionally unchanged.
 
-**Required filename:** `bq_notification_logo.jpg`
-
-Use PNG format, transparent background if the logo has one, and keep the full BQ Sqwad AI logo centered with clear padding. Do not overwrite `bq_sqwad_ai_main_app_logo.jpg` or `bq_sqwad_logo`.
-
-Both push notifications and local reminder notifications now look for the optional resource name `bq_notification_logo` and automatically use it as the large notification icon. Until the PNG is uploaded and the app is rebuilt, they fall back to the bundled `bq_sqwad_logo`. Android's small status-bar icon remains `bq_notification_mark`, because Android requires that icon to be a simple monochrome mark; the uploaded full logo is used as the large notification icon.
+The notification service uses the uploaded artwork for the expanded notification picture and derives a monochrome small icon from it for notifications it renders. The system default FCM status-bar icon remains `bq_notification_mark`, because Android requires a simple monochrome mask for that slot.
 
 ## Provider-cost billing
 
