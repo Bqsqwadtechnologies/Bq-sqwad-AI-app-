@@ -2,6 +2,11 @@ const DEFAULT_MODELS = {
   openai: "gpt-6-luna",
   gemini: "gemini-2.5-flash"
 };
+const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna"]);
+function resolveAllowedOpenAITextModel(model) {
+  const requested = String(model || DEFAULT_MODELS.openai).trim();
+  return ALLOWED_OPENAI_TEXT_MODELS.has(requested) ? requested : DEFAULT_MODELS.openai;
+}
 
 function secret(env, name) {
   const value = env?.[name];
@@ -67,7 +72,8 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   const input = imageInputs.length || fileInputs.length
     ? [{ role: "user", content }]
     : String(message || "");
-  const body = { model: model || DEFAULT_MODELS.openai, input, stream };
+  const selectedModel = resolveAllowedOpenAITextModel(model);
+  const body = { model: selectedModel, input, stream };
   // Do not set max_output_tokens here. Let the selected model use its native output allowance.
   if (system) body.instructions = system;
   return fetch("https://api.openai.com/v1/responses", {
@@ -155,7 +161,7 @@ export async function runProviderStream(env, route, input) {
   for (const providerId of providers) {
     try {
       if (providerId === "openai") {
-        const model = route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.openai);
+        const model = resolveAllowedOpenAITextModel(route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.openai));
         const response = await callOpenAI(env, { ...input, model, stream: true });
         if (!response.ok || !response.body) {
           const raw = await response.text();
@@ -184,7 +190,8 @@ export async function runProvider(env, route, input) {
   for (const providerId of providers) {
     try {
       if (providerId === "openai") {
-        const response = await callOpenAI(env, { ...input, model: route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.openai) });
+        const model = resolveAllowedOpenAITextModel(route.primaryProviderId === providerId ? route.primaryModelId : (route.fallbackModels?.[providerId] || DEFAULT_MODELS.openai));
+        const response = await callOpenAI(env, { ...input, model });
         if (!response.ok) {
           const raw = await response.text();
           throw new Error("provider_http_" + response.status + ":" + raw.slice(0, 700));
@@ -193,7 +200,7 @@ export async function runProvider(env, route, input) {
         return {
           text: body.output_text || body.output?.flatMap(x => x.content || []).map(x => x.text || "").join("") || "",
           providerId: "openai",
-          modelId: input.model || route.primaryModelId || DEFAULT_MODELS.openai,
+          modelId: model,
           usage: body.usage || {}
         };
       }
