@@ -31,7 +31,7 @@ export const ADMIN_CONTROL_SECTIONS = [
 ];
 
 export const CORE_CAPABILITY_OPTIONS = [
-  ["capability_chat","Main Chat capability","capabilities","openai","gpt-5.6-luna",["gemini"]],
+  ["capability_chat","Main Chat capability","capabilities","openai","gpt-6-luna",["gemini"]],
   ["capability_device_commands","Device commands capability","device","gemini","gemini-3.5-flash",[]],
   ["capability_web_search","Web Search capability","capabilities","tavily",null,[]],
   ["capability_deep_research","Deep Research capability","capabilities","tavily",null,[]],
