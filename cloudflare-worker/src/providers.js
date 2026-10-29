@@ -3,6 +3,39 @@ const DEFAULT_MODELS = {
   gemini: "gemini-2.5-flash"
 };
 const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna"]);
+const DEFAULT_MAX_REQUEST_TOKENS = 16_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 1_024;
+const HARD_MAX_REQUEST_TOKENS = 16_000;
+const HARD_MAX_OUTPUT_TOKENS = 4_096;
+
+function boundedInteger(value, fallback, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
+}
+
+function capText(value, maxChars) {
+  const text = String(value ?? "");
+  if (text.length <= maxChars) return text;
+  const marker = "\n\n[Earlier text trimmed to BQ Sqwad AI's configured request budget.]\n\n";
+  const room = Math.max(0, maxChars - marker.length);
+  const start = Math.ceil(room * 0.65);
+  const end = room - start;
+  return text.slice(0, start) + marker + (end > 0 ? text.slice(-end) : "");
+}
+
+function requestBudgets(maxRequestTokens, maxOutputTokens) {
+  const inputTokens = boundedInteger(maxRequestTokens, DEFAULT_MAX_REQUEST_TOKENS, 1_000, HARD_MAX_REQUEST_TOKENS);
+  const outputTokens = boundedInteger(maxOutputTokens, DEFAULT_MAX_OUTPUT_TOKENS, 128, HARD_MAX_OUTPUT_TOKENS);
+  const inputChars = Math.min(56_000, Math.floor(inputTokens * 3.5));
+  const systemChars = Math.min(12_000, Math.floor(inputChars * 0.25));
+  return {
+    inputTokens,
+    outputTokens,
+    systemChars,
+    messageChars: Math.max(1_000, inputChars - systemChars)
+  };
+}
+
 function resolveAllowedOpenAITextModel(model) {
   const requested = String(model || DEFAULT_MODELS.openai).trim();
   return ALLOWED_OPENAI_TEXT_MODELS.has(requested) ? requested : DEFAULT_MODELS.openai;
@@ -49,13 +82,14 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false }) {
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false, maxRequestTokens, maxOutputTokens }) {
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
-  const requestText = String(message || "Analyze the attached content.");
-  // No application-level input-token ceiling: the selected provider enforces its native context window.
+  const budgets = requestBudgets(maxRequestTokens, maxOutputTokens);
+  const requestText = capText(String(message || "Analyze the attached content."), budgets.messageChars);
+  const systemText = capText(system, budgets.systemChars);
   const content = [
     { type: "input_text", text: requestText },
     ...imageInputs.map(image => ({
@@ -72,9 +106,8 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? [{ role: "user", content }]
     : String(message || "");
   const selectedModel = resolveAllowedOpenAITextModel(model);
-  const body = { model: selectedModel, input, stream };
-  // Do not set max_output_tokens here. Let the selected model use its native output allowance.
-  if (system) body.instructions = system;
+  const body = { model: selectedModel, input, stream, max_output_tokens: budgets.outputTokens };
+  if (systemText) body.instructions = systemText;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: "Bearer " + secret(env, "OPENAI_API_KEY"), "Content-Type": "application/json" },
@@ -82,13 +115,16 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
   });
 }
 
-export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg" }) {
+export async function callGemini(env, { model, message, system, images = [], files = [], imageBase64, mimeType = "image/jpeg", maxRequestTokens, maxOutputTokens }) {
   const modelId = model || DEFAULT_MODELS.gemini;
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
-  const parts = [{ text: String(message || (imageInputs.length || fileInputs.length ? "Analyze the attached content." : "")) }];
+  const budgets = requestBudgets(maxRequestTokens, maxOutputTokens);
+  const requestText = capText(String(message || (imageInputs.length || fileInputs.length ? "Analyze the attached content." : "")), budgets.messageChars);
+  const systemText = capText(system, budgets.systemChars);
+  const parts = [{ text: requestText }];
   imageInputs.forEach(image => {
     parts.push({ inlineData: {
       mimeType: String(image.mimeType || "image/jpeg"),
@@ -101,9 +137,8 @@ export async function callGemini(env, { model, message, system, images = [], fil
       data: String(file.fileBase64 || "")
     }});
   });
-  const request = { contents: [{ role: "user", parts }] };
-  if (system) request.systemInstruction = { parts: [{ text: system }] };
-  // Do not set generationConfig.maxOutputTokens; the selected Gemini model enforces its native output allowance.
+  const request = { contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: budgets.outputTokens } };
+  if (systemText) request.systemInstruction = { parts: [{ text: systemText }] };
   const result = await jsonFetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
     {
