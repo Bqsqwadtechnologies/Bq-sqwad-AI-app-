@@ -380,20 +380,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // applied after the canonical markup and fee policy.
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = feeRate;
-  const requestedMaxInputTokens = Number(sharedAiConfig?.metering?.maxRequestTokens ?? 16_000);
-  const maxRequestTokens = Number.isFinite(requestedMaxInputTokens)
-    ? Math.min(16_000, Math.max(1_000, Math.round(requestedMaxInputTokens)))
-    : 16_000;
-  const requestedMaxOutputTokens = Number(
-    sharedAiConfig?.metering?.maxOutputTokens ??
-    embedded.maxOutputTokens ??
-    model.maxOutputTokens ??
-    config.maxOutputTokens ??
-    1_024
-  );
-  const maxOutputTokens = Number.isFinite(requestedMaxOutputTokens)
-    ? Math.min(2_048, Math.max(128, Math.round(requestedMaxOutputTokens)))
-    : 1_024;
+  // Input/output ceilings are not imposed by the app. Provider/model native limits apply.
+  const maxRequestTokens = null;
+  const maxOutputTokens = null;
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
@@ -436,14 +425,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
 
 export function estimateTokenReservation({ message, system, pricing }) {
   const inputTokens = Math.max(1, Math.ceil((String(message || "").length + String(system || "").length) / 3.5));
-  const maxRequestTokens = Math.min(16_000, Math.max(1_000, Number(pricing.maxRequestTokens || 16_000)));
-  if (inputTokens > maxRequestTokens) {
-    throw Object.assign(new Error("request_too_large"), {
-      httpStatus: 413,
-      safeError: "request_too_large"
-    });
-  }
-  const outputTokens = Math.min(2_048, Math.max(128, Number(pricing.maxOutputTokens || 1_024)));
+  // Reservation output estimate only; this value is not sent as a provider output cap.
+  const outputTokens = Math.max(128, Number(pricing.maxOutputTokens || 1_024));
   const estimated = calculateTokenCost({
     usage: { inputTokens, outputTokens, cachedInputTokens: 0 },
     pricing,
