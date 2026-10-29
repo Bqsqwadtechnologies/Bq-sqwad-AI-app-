@@ -81,13 +81,18 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     : pricing?.cachedInputPriceUsdPerMillion == null
       ? inputRate
       : Number(pricing.cachedInputPriceUsdPerMillion);
-  if (![inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0)) {
+  const sharedMeter = pricing?.sharedCreditMetering;
+  const providerRatesConfigured = [inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0);
+  if (!providerRatesConfigured && !(sharedMeter && typeof sharedMeter === "object")) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-  const inputCostUsd = (uncachedInputTokens / 1_000_000) * inputRate;
-  const cachedInputCostUsd = (cachedInputTokens / 1_000_000) * cachedRate;
-  const outputCostUsd = (outputTokens / 1_000_000) * outputRate;
+  // Provider USD rates are optional internal telemetry when the admin has
+  // explicitly configured customer credit rates. They never block or set the
+  // customer charge in that case.
+  const inputCostUsd = providerRatesConfigured ? (uncachedInputTokens / 1_000_000) * inputRate : 0;
+  const cachedInputCostUsd = providerRatesConfigured ? (cachedInputTokens / 1_000_000) * cachedRate : 0;
+  const outputCostUsd = providerRatesConfigured ? (outputTokens / 1_000_000) * outputRate : 0;
   const providerCostUsd = inputCostUsd + cachedInputCostUsd + outputCostUsd;
   const creditValue = Number(creditReferenceValueUsd);
   if (!Number.isFinite(creditValue) || creditValue <= 0) {
@@ -101,7 +106,6 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   // Main Chat uses the website's canonical per-token credit meter when it is
   // available. Provider USD rates are retained for usage/profit reporting, but
   // must not override the website's configured credits-per-token policy.
-  const sharedMeter = pricing?.sharedCreditMetering;
   if (sharedMeter && typeof sharedMeter === "object") {
     const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
     const inputCreditRate = Number(sharedMeter.creditsPerInputToken);
