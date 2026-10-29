@@ -381,8 +381,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
   const estimatedFeePercent = feeRate;
   // Input/output ceilings are not imposed by the app. Provider/model native limits apply.
-  const maxRequestTokens = null;
-  const maxOutputTokens = null;
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
@@ -415,7 +413,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   } : null;
   return {
     ...rates, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
-    applyFeeToUsage, estimatedFeePercent, maxOutputTokens, maxRequestTokens, configured,
+    applyFeeToUsage, estimatedFeePercent, configured,
     sharedCreditMetering,
     sharedModelMultiplier: hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
     billingMode: isMainChatMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
