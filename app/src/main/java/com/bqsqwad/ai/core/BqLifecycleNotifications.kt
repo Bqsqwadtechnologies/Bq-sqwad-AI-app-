@@ -363,10 +363,10 @@ object BqLifecycleNotifications {
         }
     }
 
-    // The uploaded full-color BQ Sqwad AI logo is used in the notification shade.
-    // Android requires a separate monochrome mark for the status-bar small icon.
+    // Use the bundled approved white-background logo for notification artwork.
+    // The status-bar small icon remains the monochrome mark required by Android.
     private fun notificationLogoResourceId(context: Context): Int =
-        R.drawable.bq_notification_logo
+        R.drawable.bq_notification_white_logo
 
     private fun resolveUploadedNotificationLogoUrl(): String {
         val fallback = "https://bqsqwadai.com/bq-notification-logo.png?v=20261020-bq-notification-v7"
@@ -469,15 +469,14 @@ object BqLifecycleNotifications {
         // Resolve the uploaded logo off the main thread so scheduled reminders
         // and replies use the same brand asset as push notifications.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            val remote = loadWebsiteNotificationLogo()
-            val logo = remote ?: BitmapFactory.decodeResource(
+            val logo = BitmapFactory.decodeResource(
                 context.resources,
                 notificationLogoResourceId(context),
                 BitmapFactory.Options().apply { inSampleSize = 2 }
             )
             val largeLogo = logo?.copy(Bitmap.Config.ARGB_8888, false)
             val smallIcon = logo?.let { createMonochromeNotificationIcon(it) }
-                ?: IconCompat.createWithResource(context, R.drawable.bq_notification_logo)
+                ?: IconCompat.createWithResource(context, R.drawable.bq_notification_mark)
             val notification = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(smallIcon)
                 .setLargeIcon(largeLogo ?: BitmapFactory.decodeResource(context.resources, notificationLogoResourceId(context), BitmapFactory.Options().apply { inSampleSize = 4 }))
