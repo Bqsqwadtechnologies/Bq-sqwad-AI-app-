@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+const providerSource = await readFile(new URL("../src/providers.js", import.meta.url), "utf8");
+const tokenBillingSource = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 
 test("chat and attachment capability defaults are token-metered without a one-credit floor", () => {
   assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"\]\)/);
@@ -63,4 +65,19 @@ test("search fees require the explicit admin setting and cannot inherit the chat
   assert.match(block, /control\.config\?\.creditsPerSearch/);
   assert.match(block, /search_pricing_not_configured/);
   assert.doesNotMatch(block, /Math\.max\([^\n]*control\.creditCost/);
+});
+
+test("website-owned token budgets cap native and connector-aware chat spend", () => {
+  assert.match(source, /conversationUsedConnectors = false, maxRequestTokens = 8_000, maxOutputTokens = 512/);
+  assert.match(source, /for \(let round = 0; round < 3; round\+\+\)/);
+  assert.match(source, /max_output_tokens: outputTokenBudget/);
+  assert.match(source, /const outputTokenBudget = Math\.min\(1_024/);
+  assert.match(source, /toolDefs\.length >= 12/);
+  assert.match(source, /callIndex >= 3/);
+  assert.match(source, /tokenBilling \? tokenPricing\.maxRequestTokens : undefined/);
+  assert.match(source, /tokenBilling \? tokenPricing\.maxOutputTokens : undefined/);
+  assert.match(providerSource, /const DEFAULT_MAX_REQUEST_TOKENS = 8_000/);
+  assert.match(providerSource, /const DEFAULT_MAX_OUTPUT_TOKENS = 512/);
+  assert.match(providerSource, /const HARD_MAX_OUTPUT_TOKENS = 1_024/);
+  assert.match(tokenBillingSource, /maxRequestTokens, maxOutputTokens/);
 });
