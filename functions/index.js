@@ -2919,13 +2919,17 @@ export const bqSqwadApi = onRequest(
         );
         const configuredRoutes = config.options
           .filter(x => String(x.id).startsWith("capability_"))
-          .map(x => ({
-            capability: String(x.id).replace(/^capability_/, ""),
-            primaryProviderId: x.providerId || "openai",
-            primaryModelId: x.modelId || "gpt-6-luna",
-            fallbackProviderIds: x.config?.fallbackProviderIds || ["gemini"],
-            enabled: x.enabled !== false && x.killSwitch !== true
-          }));
+          .map(x => {
+            const capability = String(x.id).replace(/^capability_/, "");
+            const isMainChat = capability === "chat";
+            return {
+              capability,
+              primaryProviderId: isMainChat ? "openai" : (x.providerId || "openai"),
+              primaryModelId: isMainChat ? "gpt-6-luna" : (x.modelId || "gpt-6-luna"),
+              fallbackProviderIds: isMainChat ? [] : (x.config?.fallbackProviderIds || []),
+              enabled: x.enabled !== false && x.killSwitch !== true
+            };
+          });
         const routeMap = new Map(configuredRoutes.map(x => [x.capability, x]));
         [
           "chat",
@@ -2947,7 +2951,7 @@ export const bqSqwadApi = onRequest(
               capability,
               primaryProviderId: "openai",
               primaryModelId: "gpt-6-luna",
-              fallbackProviderIds: ["gemini"],
+              fallbackProviderIds: [],
               enabled: true,
               source: "default"
             });
