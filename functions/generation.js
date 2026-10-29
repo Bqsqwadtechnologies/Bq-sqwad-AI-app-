@@ -49,7 +49,7 @@ async function signedStorageUrl(buffer, contentType, storagePath, expiresMs = 7 
 
 export async function generateImage(uid, prompt, options = {}) {
   const route = await getRoute("image_generation");
-  const model = route.primaryModelId || "gpt-image-2";
+  const model = "gpt-image-1-mini";
   const body = {
     model,
     prompt: String(prompt || "").trim().slice(0, 12000),
@@ -71,32 +71,11 @@ export async function generateImage(uid, prompt, options = {}) {
   return { providerId: "openai", modelId: model, imageUrl: url, generationId: id };
 }
 
-export async function createVideo(uid, prompt, options = {}) {
-  const route = await getRoute("video_generation");
-  const model = route.primaryModelId || "sora-2";
-  const form = new FormData();
-  form.append("model", model);
-  form.append("prompt", String(prompt || "").trim().slice(0, 12000));
-  if (options.seconds) form.append("seconds", String(options.seconds));
-  if (options.size) form.append("size", String(options.size));
-  if (!String(prompt || "").trim()) throw new Error("video_prompt_required");
-  const result = await openAiJson("/videos", { method: "POST", body: form });
-  const ref = getFirestore().collection("videoGenerationJobs").doc();
-  await ref.set({
-    uid,
-    jobId: ref.id,
-    provider: "openai",
-    providerVideoId: String(result.id),
-    modelId: String(result.model || model),
-    status: String(result.status || "queued"),
-    progress: Number(result.progress || 0),
-    prompt: String(prompt).slice(0, 12000),
-    seconds: String(result.seconds || options.seconds || ""),
-    size: String(result.size || options.size || ""),
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp()
+export async function createVideo() {
+  throw Object.assign(new Error("video_generation_model_not_allowed_by_project_policy"), {
+    httpStatus: 503,
+    safeError: "feature_temporarily_unavailable"
   });
-  return { jobId: ref.id, providerVideoId: result.id, status: result.status, progress: Number(result.progress || 0), modelId: result.model || model };
 }
 
 export async function getVideoJob(uid, jobId) {
