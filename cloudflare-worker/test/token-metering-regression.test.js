@@ -12,6 +12,15 @@ test("chat and attachment capability defaults are token-metered without a one-cr
   assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
 });
 
+test("native token-metered features require the website's explicit three-rate credit rule", () => {
+  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.inputCreditsPer1k\)\)/);
+  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.cachedInputCreditsPer1k\)\)/);
+  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.outputCreditsPer1k\)\)/);
+  assert.match(tokenBillingSource, /if \(isTokenMeteredFeature && !hasCustomerCreditRule\)/);
+  assert.match(tokenBillingSource, /token_pricing_not_configured/);
+  assert.match(tokenBillingSource, /creditsPerCachedInputToken: Number\(tokenRule\.cachedInputCreditsPer1k\) \/ 1000/);
+});
+
 test("vision reserves an estimate, settles reported token usage, and reverses failed requests", () => {
   const start = source.indexOf("async function vision(request, user, body) {");
   const end = source.indexOf("\nasync function ", start + 10);
