@@ -1,5 +1,5 @@
 const DEFAULT_MODELS = {
-  openai: "gpt-5.6-luna",
+  openai: "gpt-6-luna",
   gemini: "gemini-2.5-flash"
 };
 
