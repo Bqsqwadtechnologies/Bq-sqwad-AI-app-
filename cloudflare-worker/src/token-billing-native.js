@@ -392,39 +392,38 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
-  const configured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 && rates.inputPriceUsdPerMillion <= 100 &&
+  const usdRatesConfigured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 && rates.inputPriceUsdPerMillion <= 100 &&
     Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 && rates.outputPriceUsdPerMillion <= 500 &&
-    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100 &&
-    Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
-    Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100;
-  const isMainChatMeteredFeature = ["chat", "text-chat"].includes(String(feature || "").toLowerCase());
+    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100;
+  const featureKey = String(feature || "").toLowerCase();
+  const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
-  // both website and Android. Use their per-1,000-token credit rates directly;
-  // USD rates below remain private provider-cost accounting only.
+  // both website and Android. All three customer rates must be explicit.
   const hasCustomerCreditRule = !!tokenRule &&
     Number.isFinite(Number(tokenRule.inputCreditsPer1k)) && Number(tokenRule.inputCreditsPer1k) >= 0 &&
+    Number.isFinite(Number(tokenRule.cachedInputCreditsPer1k)) && Number(tokenRule.cachedInputCreditsPer1k) >= 0 &&
     Number.isFinite(Number(tokenRule.outputCreditsPer1k)) && Number(tokenRule.outputCreditsPer1k) >= 0;
-  const sharedCreditMetering = isMainChatMeteredFeature ? {
-    creditsPerInputToken: hasCustomerCreditRule
-      ? Number(tokenRule.inputCreditsPer1k) / 1000
-      : Number(sharedMetering.creditsPerInputToken ?? 0.00003),
-    creditsPerOutputToken: hasCustomerCreditRule
-      ? Number(tokenRule.outputCreditsPer1k) / 1000
-      : Number(sharedMetering.creditsPerOutputToken ?? 0.00024),
-    creditsPerCachedInputToken: hasCustomerCreditRule
-      ? Number(tokenRule.cachedInputCreditsPer1k ?? 0.003) / 1000
-      : Number(sharedMetering.creditsPerCachedInputToken ?? 0.000003),
-    minimumCredits: hasCustomerCreditRule ? 0 : Number(sharedMetering.minimumCredits ?? 0.002),
-    fallbackCredits: Number(sharedMetering.fallbackCredits ?? 0.05),
-    precision: hasCustomerCreditRule ? 7 : Number(sharedMetering.precision ?? 4),
-    conversionRate: hasCustomerCreditRule ? 1 : Number(sharedMetering.conversionRate ?? 1)
+  if (isTokenMeteredFeature && !hasCustomerCreditRule) {
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
+  }
+  const configured = (usdRatesConfigured && Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
+    Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100) ||
+    (isTokenMeteredFeature && hasCustomerCreditRule);
+  const sharedCreditMetering = isTokenMeteredFeature ? {
+    creditsPerInputToken: Number(tokenRule.inputCreditsPer1k) / 1000,
+    creditsPerOutputToken: Number(tokenRule.outputCreditsPer1k) / 1000,
+    creditsPerCachedInputToken: Number(tokenRule.cachedInputCreditsPer1k) / 1000,
+    minimumCredits: Math.max(0, Number(tokenRule.minimumCredits ?? 0)),
+    fallbackCredits: 0,
+    precision: 7,
+    conversionRate: 1
   } : null;
   return {
     ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
     applyFeeToUsage, estimatedFeePercent, configured,
     sharedCreditMetering,
-    sharedModelMultiplier: hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
-    billingMode: isMainChatMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
+    sharedModelMultiplier: isTokenMeteredFeature && hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
+    billingMode: isTokenMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };
 }
