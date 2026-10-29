@@ -49,13 +49,12 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false, maxOutputTokens = null }) {
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false }) {
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
   const requestText = String(message || "Analyze the attached content.");
-  const systemText = String(system || "");
   // No application-level input-token ceiling: the selected provider enforces its native context window.
   const content = [
     { type: "input_text", text: requestText },
