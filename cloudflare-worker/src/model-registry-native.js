@@ -11,6 +11,10 @@ const FEATURE_CAPABILITIES = {
 
 const PROVIDERS = new Set(["openai", "gemini"]);
 
+const BLOCKED_OPENAI_MODELS = new Set(["gpt-6.1-terra","gpt-6.1-sol","gpt-6-sol","gpt-live-1","gpt-image-2.5-sunburst-2026-09-08","gpt-image-2.5-flare-2026-09-08","gpt-image-2.5-flare","gpt-image-2.5-sunburst","gpt-6-astra","gpt-live-transcribe","gpt-transcribe","gpt-5.6-luna","gpt-5.6-sol","gpt-5.6-terra","gpt-realtime-2.1","gpt-realtime-whisper","gpt-realtime-2","gpt-realtime-translate","chat-latest","gpt-5.5-pro-2026-04-23","gpt-5.5-pro","gpt-5.5-2026-04-23","gpt-5.5","gpt-image-2-2026-04-21","gpt-image-2","gpt-5.4-mini","gpt-5.4-mini-2026-03-17","gpt-5.4-nano","gpt-5.4-nano-2026-03-17","gpt-5.4","gpt-5.4-pro-2026-03-05","gpt-5.4-pro","gpt-5.4-2026-03-05","gpt-audio-1.5","gpt-realtime-1.5","gpt-5.3-codex","chatgpt-image-latest","gpt-audio-mini-2025-12-15","gpt-realtime-mini-2025-12-15","gpt-4o-mini-tts-2025-12-15","gpt-4o-mini-tts-2025-03-20","gpt-5.2-pro","gpt-5.2-pro-2025-12-11","gpt-5.2","gpt-5.2-2025-12-11","gpt-image-1.5","gpt-5.1","gpt-5.1-2025-11-13","gpt-5-search-api-2025-10-14","gpt-realtime-mini","gpt-5-search-api","gpt-audio-mini","gpt-5-pro","gpt-5-pro-2025-10-06","gpt-audio","gpt-realtime-2025-08-28","gpt-realtime","gpt-audio-2025-08-28","gpt-5-nano","gpt-5-nano-2025-08-07","gpt-5-mini","gpt-5-mini-2025-08-07","gpt-5","gpt-5-2025-08-07","gpt-4o-transcribe-diarize","gpt-4.1-mini","gpt-4.1-mini-2025-04-14","gpt-4.1","gpt-4.1-2025-04-14","o3","o3-2025-04-16","gpt-4o-mini-transcribe-2025-03-20","gpt-4o-transcribe","gpt-4o-2024-11-20","gpt-4o-2024-08-06","gpt-4o-mini","gpt-4o-mini-2024-07-18","gpt-4o","text-embedding-3-large","tts-1-hd-1106","tts-1-1106","tts-1-hd","gpt-3.5-turbo-instruct-0914","tts-1","text-embedding-ada-002"]);
+const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-1-mini","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
+function isBlockedOpenAiModel(modelId) { return BLOCKED_OPENAI_MODELS.has(String(modelId || "").trim().toLowerCase()); }
+
 function normalizeModel(raw, actorUid) {
   const id = String(raw?.id || "").trim().toLowerCase();
   const name = String(raw?.name || "").trim().slice(0, 100);
@@ -86,9 +90,9 @@ function normalizeModel(raw, actorUid) {
 export async function ensureCurrentModelRegistry(defaultModels = {}) {
   const definitions = [
     { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-6-luna", id: "current-text-chat", name: "GPT-6 Luna" },
-    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2", id: "current-image-generation", name: "GPT Image 2" },
-    { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-camera", name: "GPT Realtime 2.1 — Live Camera" },
-    { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1", id: "current-live-voice", name: "GPT Realtime 2.1 — Live Voice" },
+    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-1-mini", id: "current-image-generation", name: "GPT Image 1 Mini" },
+    { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-camera", name: "GPT Realtime 2.1 Mini — Live Camera" },
+    { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-voice", name: "GPT Realtime 2.1 Mini — Live Voice" },
     { feature: "video-generation", capability: "video_generation", providerId: "openai", modelId: "sora-2", id: "current-video-generation", name: "Sora 2" },
     { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
   ];
@@ -96,7 +100,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
   const now = new Date();
   for (const definition of definitions) {
     const featureRows = existingRows.filter(row => row.feature === definition.feature);
-    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true)) continue;
+    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true && !(row.providerId === "openai" && isBlockedOpenAiModel(row.modelId)))) continue;
 
     const capability = await firestoreGet("adminAdvancedOptions/capability_" + definition.capability) || {};
     const voiceConfig = definition.feature === "live-voice"
@@ -120,6 +124,9 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     if (definition.feature === "device-commands") {
       providerId = "gemini";
       if (!modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
+    }
+    if (providerId === "openai" && isBlockedOpenAiModel(modelId)) {
+      modelId = SAFE_OPENAI_MODEL_BY_FEATURE[definition.feature] || "gpt-6-luna";
     }
 
     const matching = featureRows.find(row => row.modelId === modelId && row.providerId === providerId);
