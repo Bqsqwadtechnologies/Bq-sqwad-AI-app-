@@ -1,4 +1,23 @@
 import { firestoreGet, firestoreCreate, uploadFirebaseStorageObject } from "./firebase.js";
+
+const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-1-mini"]);
+const ALLOWED_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
+const ALLOWED_IMAGE_QUALITIES = new Set(["low", "medium", "high", "auto"]);
+
+function resolveAllowedOpenAIImageModel(requested) {
+  const model = String(requested || "").trim();
+  return ALLOWED_OPENAI_IMAGE_MODELS.has(model) ? model : "gpt-image-1-mini";
+}
+
+function resolveImageSize(value) {
+  const size = String(value || "1024x1024").trim();
+  return ALLOWED_IMAGE_SIZES.has(size) ? size : "1024x1024";
+}
+
+function resolveImageQuality(value) {
+  const quality = String(value || "medium").trim().toLowerCase();
+  return ALLOWED_IMAGE_QUALITIES.has(quality) ? quality : "medium";
+}
 export function validateGeneratedImageBase64(encoded) {
   const value = String(encoded || "");
   if (!value || value.length > 28 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
@@ -34,14 +53,66 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
   }
   return uploaded.url;
 }
-async function openai(env,path,init={}){const r=await fetch("https://api.openai.com/v1"+path,{...init,signal:init.signal||AbortSignal.timeout(60000),headers:{Authorization:"Bearer "+String(env.OPENAI_API_KEY||""),...(init.headers||{})}});const raw=await r.text();let b={};try{b=raw?JSON.parse(raw):{}}catch{}if(!r.ok)throw new Error("OpenAI HTTP "+r.status+":"+raw.slice(0,700));return b}
-export async function generateImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){const prompt=String(b.prompt||b.message||"").trim().slice(0,12000);if(!prompt)throw new Error("image_prompt_required");const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_generation",user);try{const model="gpt-image-1-mini",z=await openai(env,"/images/generations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:"1024x1024",quality:"medium"})}),x=z.data?.[0];if(!x?.b64_json)throw new Error("image_generation_returned_no_image");validateGeneratedImageBase64(x.b64_json);const id=crypto.randomUUID();const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"generate");await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});await commit(user.uid,reservation.reservationId,"openai");return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount}}catch(e){await reverse(user.uid,reservation.reservationId);throw e}}
+async function openai(env,path,init={}) {
+  const r = await fetch("https://api.openai.com/v1" + path, {
+    ...init,
+    signal: init.signal || AbortSignal.timeout(60000),
+    headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY || ""), ...(init.headers || {}) }
+  });
+  const raw = await r.text();
+  let body = {};
+  try { body = raw ? JSON.parse(raw) : {}; } catch {}
+  if (!r.ok) {
+    const status = Number(r.status) || 502;
+    throw Object.assign(new Error("OpenAI HTTP " + status + ":" + String(body.error?.message || raw).slice(0, 700)), {
+      httpStatus: status === 429 ? 429 : 502,
+      safeError: "provider_unavailable",
+      providerStatus: status
+    });
+  }
+  return body;
+}
+export async function generateImageNative(env, user, b, charge, commit, reverse, trustedCreditCost = null) {
+  const prompt = String(b.prompt || b.message || "").trim().slice(0, 12_000);
+  if (!prompt) throw new Error("image_prompt_required");
+  const model = resolveAllowedOpenAIImageModel(b.model);
+  const size = resolveImageSize(b.size);
+  const quality = resolveImageQuality(b.quality);
+  const reservation = await charge(user.uid, Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+  try {
+    const response = await openai(env, "/images/generations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, prompt, size, quality })
+    });
+    const image = response.data?.[0];
+    if (!image?.b64_json) throw new Error("image_generation_returned_no_image");
+    validateGeneratedImageBase64(image.b64_json);
+    const id = crypto.randomUUID();
+    const imageUrl = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
+    await firestoreCreate("imageGenerationJobs/" + id, {
+      uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
+      prompt, size, quality, createdAt: new Date(), updatedAt: new Date(), ...(imageUrl ? { imageUrl } : {})
+    });
+    await commit(user.uid, reservation.reservationId, "openai");
+    return {
+      providerId: "openai", modelId: model, imageBase64: image.b64_json,
+      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: reservation.amount
+    };
+  } catch (error) {
+    await reverse(user.uid, reservation.reservationId);
+    throw error;
+  }
+}
 export async function editImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){
   const prompt=String(b.prompt||"").trim().slice(0,12000);
   const encoded=String(b.imageBase64||"").trim();
   const requestedMime=String(b.mimeType||"image/png").trim().toLowerCase();
   const mimeType=requestedMime==="image/jpg"?"image/jpeg":requestedMime;
   const extensions={"image/png":"png","image/jpeg":"jpg","image/webp":"webp"};
+  const model = resolveAllowedOpenAIImageModel(b.model);
+  const size = resolveImageSize(b.size);
+  const quality = resolveImageQuality(b.quality);
   if(!prompt)throw new Error("image_edit_prompt_required");
   if(!encoded)throw new Error("image_edit_input_required");
   if(!extensions[mimeType]) throw Object.assign(new Error("image_edit_type_unsupported"), { httpStatus: 415 });
@@ -53,10 +124,10 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     const bytes=new Uint8Array(binary.length);
     for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
     const form=new FormData();
-    form.append("model","gpt-image-1-mini");
+    form.append("model",model);
     form.append("prompt",prompt);
-    form.append("size","1024x1024");
-    form.append("quality","medium");
+    form.append("size",size);
+    form.append("quality",quality);
     form.append("image",new Blob([bytes],{type:mimeType}),"bq-sqwad-ai-image."+extensions[mimeType]);
     const z=await openai(env,"/images/edits",{method:"POST",body:form});
     const x=z.data?.[0];
@@ -64,9 +135,9 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     validateGeneratedImageBase64(x.b64_json);
     const id=crypto.randomUUID();
     const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:"gpt-image-1-mini",status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
     await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:"gpt-image-1-mini",imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
+    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
 export async function createVideoNative() {
