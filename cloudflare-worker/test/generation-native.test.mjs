@@ -76,6 +76,28 @@ test("image generation ignores client-supplied credit prices and delegates prici
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test("image generation uses the website-selected allowed model, size, and quality", async () => {
+  const originalFetch = globalThis.fetch;
+  let providerPayload = null;
+  let reversed = false;
+  globalThis.fetch = async (_url, init) => {
+    providerPayload = JSON.parse(init.body);
+    return new Response(JSON.stringify({ error: { message: "test-stop-before-provider" } }), { status: 400 });
+  };
+  try {
+    await assert.rejects(generateImageNative(
+      { OPENAI_API_KEY: "test" }, { uid: "user-test" },
+      { prompt: "A blue bird", model: "gpt-image-1-mini", size: "1024x1536", quality: "high" },
+      async () => ({ reservationId: "test-reservation", amount: 3 }),
+      async () => {}, async () => { reversed = true; }
+    ), /OpenAI HTTP 400/);
+    assert.deepEqual(providerPayload, {
+      model: "gpt-image-1-mini", prompt: "A blue bird", size: "1024x1536", quality: "high"
+    });
+    assert.equal(reversed, true);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("image editing ignores client-supplied credit prices and delegates pricing to the Worker", async () => {
   const originalFetch = globalThis.fetch;
   let chargeArgs = null;
