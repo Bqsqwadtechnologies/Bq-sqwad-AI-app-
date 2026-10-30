@@ -1,0 +1,102 @@
+name: Restore Worker index.js + Teams routes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore full index.js and wire handleTeamsSqwadRoutes
+        run: |
+          set -euo pipefail
+          GOOD_SHA="ec3d41827a28881769d14008c88fadb8cd079ff9"
+          TARGET="cloudflare-worker/src/index.js"
+          HANDLER="cloudflare-worker/src/teams-routes-handler.js"
+
+          if [ ! -f "$HANDLER" ]; then
+            echo "ERROR: $HANDLER missing on main"
+            exit 1
+          fi
+
+          echo "Restoring $TARGET from $GOOD_SHA ..."
+          git show "$GOOD_SHA:$TARGET" > "$TARGET"
+
+          python3 << 'PY'
+          from pathlib import Path
+
+          path = Path("cloudflare-worker/src/index.js")
+          text = path.read_text(encoding="utf-8")
+
+          import_line = 'import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";'
+          team_import = 'from "./team-workspace-native.js";'
+
+          if import_line not in text:
+              if team_import not in text:
+                  raise SystemExit("team-workspace-native import not found in restored index.js")
+              text = text.replace(
+                  team_import,
+                  team_import + "\n" + import_line,
+                  1,
+              )
+              print("Added handleTeamsSqwadRoutes import")
+          else:
+              print("Import already present")
+
+          marker = 'if (url.pathname === "/native/team/accept-invite"'
+          insert = (
+              "\n      {\n"
+              "        const teamsResp = await handleTeamsSqwadRoutes(url, request, env, { verifyFirebaseUser, json });\n"
+              "        if (teamsResp) return teamsResp;\n"
+              "      }"
+          )
+
+          if "handleTeamsSqwadRoutes(url, request, env" not in text:
+              idx = text.find(marker)
+              if idx < 0:
+                  raise SystemExit("accept-invite route marker not found")
+              end = text.find("\n", idx)
+              if end < 0:
+                  raise SystemExit("could not find end of accept-invite line")
+              text = text[: end + 1] + insert + text[end + 1 :]
+              print("Inserted Teams route handler call")
+          else:
+              print("Handler call already present")
+
+          path.write_text(text, encoding="utf-8")
+          print("index.js bytes:", path.stat().st_size)
+          PY
+
+          # Sanity checks
+          test -s "$TARGET"
+          grep -q "DEFAULT_REALTIME_MODEL" "$TARGET"
+          grep -q "handleTeamsSqwadRoutes" "$TARGET"
+          grep -q "/native/teams/" "$HANDLER"
+          BYTES=$(wc -c < "$TARGET")
+          if [ "$BYTES" -lt 100000 ]; then
+            echo "ERROR: restored index.js too small ($BYTES bytes)"
+            exit 1
+          fi
+          echo "OK: restored index.js is $BYTES bytes"
+
+      - name: Commit and push to main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cloudflare-worker/src/index.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit (already restored)"
+            exit 0
+          fi
+          git commit -m "fix: restore full Worker index.js and wire handleTeamsSqwadRoutes for /native/teams/*"
+          git push origin HEAD:main
