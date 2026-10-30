@@ -10,10 +10,10 @@ Match the website Teams product (`teams/{teamId}`, unique username, public/priva
 
 Contract: website `docs/APP_CONTRACT_TEAMS.md`.
 
-## Done on main
+## Done on main (this session)
 
 ### Worker
-- New module: `cloudflare-worker/src/teams-sqwad-native.js`
+- `cloudflare-worker/src/teams-sqwad-native.js`
   - create, search, list mine, get by username/id
   - join (public immediate / private pending), leave, list members, approve member
   - list projects, list/post messages
@@ -21,15 +21,19 @@ Contract: website `docs/APP_CONTRACT_TEAMS.md`.
   - seed White team helper
   - AI prompt includes member roster
 
+### Android UI
+- `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamsHubScreen.kt`
+  - Discover, recommended White, create, join
+- `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt`
+  - Members, projects, free member chat, Ask AI, team balance
+
 ### Legacy (unchanged)
-- Old owner-centric workspace remains at `/native/team/*` and `team-workspace-native.js`
-- New shared Teams use `/native/teams/*` (plural) to avoid collision
+- Old owner-centric workspace remains at `/native/team/*`
+- New shared Teams use `/native/teams/*` (plural)
 
-## Still required
+## Still required before you see it in the app
 
-1. **Wire routes in `cloudflare-worker/src/index.js`**
-
-Add import:
+1. **Wire routes in `cloudflare-worker/src/index.js`** (file is ~394 KB)
 
 ```js
 import {
@@ -39,32 +43,29 @@ import {
 } from "./teams-sqwad-native.js";
 ```
 
-Add handlers (after existing `/native/team/*` block):
+Handlers after existing `/native/team/*` block:
 
-```
-POST /native/teams/create
-POST /native/teams/search
-GET  /native/teams/mine
-POST /native/teams/get
-POST /native/teams/join
-POST /native/teams/leave
-POST /native/teams/members
-POST /native/teams/approve-member
-POST /native/teams/projects
-POST /native/teams/messages
-POST /native/teams/post-message
-POST /native/teams/ask-ai
-POST /native/teams/seed-white
-```
+| Method | Path |
+|--------|------|
+| POST | `/native/teams/create` |
+| POST | `/native/teams/search` |
+| GET | `/native/teams/mine` |
+| POST | `/native/teams/get` |
+| POST | `/native/teams/join` |
+| POST | `/native/teams/leave` |
+| POST | `/native/teams/members` |
+| POST | `/native/teams/approve-member` |
+| POST | `/native/teams/projects` |
+| POST | `/native/teams/messages` |
+| POST | `/native/teams/post-message` |
+| POST | `/native/teams/ask-ai` |
+| POST | `/native/teams/seed-white` |
 
-(A local patch of `index.js` was prepared; the file is ~394 KB so the route block must be applied carefully on main.)
+2. **Navigation** — add a "Teams" entry in the app drawer / main menu that opens `TeamsHubScreen`, and navigate to `TeamWorkspaceScreen(username)` when a team is opened.
 
-2. **Android UI**
-- Teams hub (discover, recommended White, create, join)
-- Team workspace `/t/{username}` equivalent (members, projects, chat, Ask AI, team balance)
-- Navigation entry in main menu / drawer
+3. **Deploy Worker** so the new endpoints are live.
 
-3. **Deploy Worker** after route wire-up so the app can call the new endpoints.
+4. **Build & install** a new APK / run from Android Studio.
 
 ## Rules (must stay true)
 
