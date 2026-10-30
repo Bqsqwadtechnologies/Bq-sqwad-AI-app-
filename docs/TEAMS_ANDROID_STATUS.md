@@ -4,72 +4,45 @@ Date: 2026-10-30
 Branch: **main** only  
 Repo: `Bqsqwadtechnologies/Bq-sqwad-AI-app-`
 
-## Goal
+## How to open Teams in the app
 
-Match the website Teams product (`teams/{teamId}`, unique username, public/private, projects, team credit pool, Ask AI only).
+**Top-left corner menu (dash icon) → Teams**
 
-Contract: website `docs/APP_CONTRACT_TEAMS.md`.
+That item already existed in `BQSqwadApp` (`teamsOpen`). It now hosts the shared Teams product:
 
-## Done on main (this session)
+1. `WorkspaceTeamScreen` (menu entry) → `TeamsHubScreen` (discover / White / create / join)
+2. Opening a team → `TeamWorkspaceScreen` (members, projects, free member chat, Ask AI on team credits)
 
-### Worker
-- `cloudflare-worker/src/teams-sqwad-native.js`
-  - create, search, list mine, get by username/id
-  - join (public immediate / private pending), leave, list members, approve member
-  - list projects, list/post messages
-  - **Ask AI** (debits `teamCreditPools` only; member chat free)
-  - seed White team helper
-  - AI prompt includes member roster
+## Done on main
 
-### Android UI
-- `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamsHubScreen.kt`
-  - Discover, recommended White, create, join
-- `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt`
-  - Members, projects, free member chat, Ask AI, team balance
+| Piece | Path |
+|--------|------|
+| Teams hub UI | `app/.../ui/teams/TeamsHubScreen.kt` |
+| Team workspace UI | `app/.../ui/teams/TeamWorkspaceScreen.kt` |
+| Menu entry wired | `app/.../ui/chat/WorkspaceTeamScreen.kt` (top-left menu) |
+| Worker Teams module | `cloudflare-worker/src/teams-sqwad-native.js` |
+| Route handler | `cloudflare-worker/src/teams-routes-handler.js` |
 
-### Legacy (unchanged)
-- Old owner-centric workspace remains at `/native/team/*`
-- New shared Teams use `/native/teams/*` (plural)
+## Still required before it works on a phone
 
-## Still required before you see it in the app
-
-1. **Wire routes in `cloudflare-worker/src/index.js`** (file is ~394 KB)
+1. **Restore full `cloudflare-worker/src/index.js`** (see `cloudflare-worker/RESTORE_INDEX.md`)  
+   Current bootstrap only serves Teams routes; other APIs 503 until restored. Wire:
 
 ```js
-import {
-  teamsCreate, teamsSearch, teamsListMine, teamsGet, teamsJoin, teamsLeave,
-  teamsListMembers, teamsApproveMember, teamsListProjects, teamsListMessages,
-  teamsPostMessage, teamsAskAi, teamsSeedWhite,
-} from "./teams-sqwad-native.js";
+import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
+// after /native/team/accept-invite:
+{
+  const teamsResp = await handleTeamsSqwadRoutes(url, request, env, { verifyFirebaseUser, json });
+  if (teamsResp) return teamsResp;
+}
 ```
 
-Handlers after existing `/native/team/*` block:
+2. **Deploy the Worker**
+3. **Build & install** a new APK (Android Studio / CI)
 
-| Method | Path |
-|--------|------|
-| POST | `/native/teams/create` |
-| POST | `/native/teams/search` |
-| GET | `/native/teams/mine` |
-| POST | `/native/teams/get` |
-| POST | `/native/teams/join` |
-| POST | `/native/teams/leave` |
-| POST | `/native/teams/members` |
-| POST | `/native/teams/approve-member` |
-| POST | `/native/teams/projects` |
-| POST | `/native/teams/messages` |
-| POST | `/native/teams/post-message` |
-| POST | `/native/teams/ask-ai` |
-| POST | `/native/teams/seed-white` |
-
-2. **Navigation** — add a "Teams" entry in the app drawer / main menu that opens `TeamsHubScreen`, and navigate to `TeamWorkspaceScreen(username)` when a team is opened.
-
-3. **Deploy Worker** so the new endpoints are live.
-
-4. **Build & install** a new APK / run from Android Studio.
-
-## Rules (must stay true)
+## Product rules
 
 - Member messages never call the model and never charge credits
-- Ask AI / @ai only uses **team** credits
+- Ask AI uses **team** credit pool only
 - Zero team balance → clear message; no silent personal debit
-- AI addresses members by name from the roster
+- AI prompt includes member roster (names)
