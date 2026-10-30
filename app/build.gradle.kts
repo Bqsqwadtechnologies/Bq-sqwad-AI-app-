@@ -71,6 +71,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.navigation:navigation-compose:2.9.8")
+    // Remote member avatars in the native Teams workspace.
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-auth")
