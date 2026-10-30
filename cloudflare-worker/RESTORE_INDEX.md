@@ -1,22 +1,21 @@
 # URGENT — Restore cloudflare-worker/src/index.js
 
 A temporary bootstrap replaced the full Worker entry while wiring Teams routes.
+**Deploying the current index.js will break chat, billing, and most native routes** until restored.
 
-## Restore in one command (GitHub UI or local git)
+## Fastest restore (GitHub web)
 
-```bash
-git fetch origin
-git checkout ec3d41827a28881769d14008c88fadb8cd079ff9 -- cloudflare-worker/src/index.js
-```
+1. Open: https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/blob/ec3d41827a28881769d14008c88fadb8cd079ff9/cloudflare-worker/src/index.js
+2. Click **Raw** → save the file
+3. Replace `cloudflare-worker/src/index.js` on `main` with that file
+4. Add after `team-workspace-native.js` import:
 
-Then add the Teams handler (2 lines):
-
-1. After the team-workspace-native import:
 ```js
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 ```
 
-2. After the `/native/team/accept-invite` route block:
+5. After the `/native/team/accept-invite` handler, add:
+
 ```js
 {
   const teamsResp = await handleTeamsSqwadRoutes(url, request, env, { verifyFirebaseUser, json });
@@ -24,14 +23,22 @@ import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 }
 ```
 
-Commit and deploy the Worker.
+6. Commit + deploy Worker
 
-## Good commits
+## CLI restore
 
-- Full index before breakage: `ec3d41827a28881769d14008c88fadb8cd079ff9` (blob `404d0cbfdc4dd5a2800eaa7a9872755e7d433e1f`)
-- Teams module: `teams-sqwad-native.js`
-- Teams route handler: `teams-routes-handler.js`
+```bash
+git checkout ec3d41827a28881769d14008c88fadb8cd079ff9 -- cloudflare-worker/src/index.js
+# then add the two snippets above
+git add cloudflare-worker/src/index.js
+git commit -m "fix: restore full Worker index.js + Teams routes"
+git push origin main
+```
 
-## Bootstrap currently on main
+## Already on main (safe)
 
-Only `/native/teams/*` and `/health` respond. All other native routes return 503 until restore.
+- `cloudflare-worker/src/teams-sqwad-native.js`
+- `cloudflare-worker/src/teams-routes-handler.js`
+- Android `TeamsHubScreen.kt` + `TeamWorkspaceScreen.kt`
+
+## Do not deploy Worker until index.js is restored
