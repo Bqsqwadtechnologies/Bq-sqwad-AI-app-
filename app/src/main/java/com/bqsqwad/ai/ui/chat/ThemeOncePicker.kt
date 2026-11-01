@@ -29,17 +29,23 @@ fun saveThemeChoice(context: Context, mode: String) {
         .putString("theme_mode", mode)
         .putBoolean("theme_chosen", true)
         .apply()
+    // Also write into the live theme prefs used by BQSqwadTheme
+    context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
+        .edit()
+        .putString("theme_mode", mode)
+        .apply()
 }
 
 @Composable
 fun ThemeOncePicker(onChosen: (mode: String) -> Unit) {
+    // White (System) is the recommended default
     var selected by remember { mutableStateOf("system") }
     val options = listOf(
-        Triple("system", "System", Icons.Default.PhoneAndroid),
+        Triple("system", "White (System) · Recommended", Icons.Default.PhoneAndroid),
         Triple("light", "Light", Icons.Default.LightMode),
         Triple("dark", "Dark", Icons.Default.DarkMode)
     )
-    Surface(Modifier.fillMaxSize()) {
+    Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -47,8 +53,7 @@ fun ThemeOncePicker(onChosen: (mode: String) -> Unit) {
         ) {
             Spacer(Modifier.height(32.dp))
             Text("Choose your look", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(
-                "You can change this later in Settings \u2192 Appearance.",
+            Text("You can change this later in Settings → Appearance.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
