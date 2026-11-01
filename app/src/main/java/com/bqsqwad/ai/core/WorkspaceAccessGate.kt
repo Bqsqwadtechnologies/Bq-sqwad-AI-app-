@@ -17,10 +17,7 @@ data class WorkspaceAccessSnapshot(
         val module = workspaceModule(workspace) ?: return true
         val plans = planModules[module].orEmpty()
         if (plans.isEmpty()) {
-            // Data Analyst is credit-metered unless the live catalog explicitly adds a plan.
             if (module == "data-analysis") return true
-            // A module with no commercial catalog entry is not treated as free.
-            // Existing website/legacy entitlements can still authorize it by module.
             return entitlementModules.contains(module)
         }
         val hasFreePlan = plans.any { it.endsWith(":free") }
@@ -34,6 +31,8 @@ data class WorkspaceAccessSnapshot(
     }
 
     companion object {
+        private val ACTIVE_STATES = setOf("active", "trialing", "grace", "on_hold", "paused")
+
         fun empty() = WorkspaceAccessSnapshot(false, false, emptySet(), emptySet(), emptyMap(), false)
 
         fun fromCatalog(catalog: JSONObject, entitlementsBody: JSONObject, admin: Boolean, testMode: Boolean): WorkspaceAccessSnapshot {
@@ -54,12 +53,13 @@ data class WorkspaceAccessSnapshot(
             val items = entitlementsBody.optJSONArray("items") ?: JSONArray()
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
-                val state = item.optString("state")
-                if (state !in setOf("active", "grace", "on_hold", "paused")) continue
+                val state = item.optString("state").ifBlank { item.optString("status") }
+                if (state !in ACTIVE_STATES) continue
                 item.optString("planId").takeIf { it.isNotBlank() }?.let(entitlementIds::add)
                 item.optString("module").takeIf { it.isNotBlank() }?.let(entitlementModules::add)
             }
-            return WorkspaceAccessSnapshot(admin, testMode, entitlementIds, entitlementModules, plans, true)
+            val adminPlanTest = entitlementsBody.optBoolean("adminPlanTest", testMode)
+            return WorkspaceAccessSnapshot(admin, adminPlanTest || testMode, entitlementIds, entitlementModules, plans, true)
         }
 
         private fun workspaceModule(workspace: Workspace): String? = when (workspace) {
