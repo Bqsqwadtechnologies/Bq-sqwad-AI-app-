@@ -46,8 +46,8 @@ fun LegalCenterScreen(initialTopic: Workspace? = null, onBack: () -> Unit) {
         LegalSection("What information is collected", "Account details, conversations, uploaded content, memory and feature-specific data are explained here.", textFragment(PRIVACY, "Information we collect")),
         LegalSection("How information is used", "See the purposes for account operation, AI processing, personalisation, security and service improvement.", textFragment(PRIVACY, "How we use your information")),
         LegalSection("Microphone, camera and device permissions", "See what happens when you start voice, camera or supported device features.", textFragment(PRIVACY, "Microphone, camera and device permissions")),
-        LegalSection("Firebase and cloud infrastructure", "See how authentication and cloud services are used.", textFragment(PRIVACY, "Firebase and cloud infrastructure")),
-        LegalSection("AI service providers", "See how relevant prompts and context may be processed by configured AI providers.", textFragment(PRIVACY, "AI service providers")),
+        LegalSection("Account and cloud storage", "See how account access, secure storage and notifications are handled.", textFragment(PRIVACY, "Account and cloud storage")),
+        LegalSection("AI request processing", "See how relevant prompts and context may be processed by external services for the feature you choose.", textFragment(PRIVACY, "How AI requests are processed")),
         LegalSection("Data retention", "See retention periods, deletion handling and backup rotation.", textFragment(PRIVACY, "Data retention")),
         LegalSection("Your rights and choices", "See access, correction, deletion, export, objection and consent choices.", textFragment(PRIVACY, "Your rights and choices")),
         LegalSection("Security", "See the security measures used to protect information.", textFragment(PRIVACY, "Security")),
@@ -147,7 +147,7 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.LEARNING -> "Learning Studio"
     Workspace.BUSINESS -> "Business AI"
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
-    Workspace.ADMIN -> "Admin Control Center"
+    Workspace.ADMIN -> "System controls"
     Workspace.VIDEO -> "Video Generation"
     Workspace.TRUTH_GUARD -> "TruthGuard AI"
     Workspace.FRONTIER_LAB -> "Frontier Lab"
@@ -156,16 +156,16 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
 
 private fun featurePrivacyDetail(w: Workspace): String = when (w) {
     Workspace.CHAT -> "Chat messages, attachments, response feedback and saved history are processed to provide the chat service."
-    Workspace.SEARCH -> "Search queries and returned source information are processed to provide web-search results; search-provider credentials remain server-side."
+    Workspace.SEARCH -> "Search queries and returned source information are processed to provide web-search results; service access details remain on our secure systems."
     Workspace.CAMERA -> "Camera and screen frames are processed only while the user starts the relevant capture feature; Android permission indicators and foreground-service controls apply."
     Workspace.VOICE -> "Live voice audio is processed while a voice session is active. Microphone permission is required and the live session can be stopped by the user."
     Workspace.PERSONAL -> "Personal workspace requests and optional memory are account-scoped. Memory controls determine whether saved personal context is used."
     Workspace.LIFE -> "Life Matters requests are processed to provide planning and practical assistance, with account-scoped feature data where applicable."
     Workspace.COMPANION -> "Companion conversations and optional memory/check-in data are feature-scoped and controlled through the account."
     Workspace.LEARNING -> "Learning requests and learning-related feature data are processed to provide tutoring, lessons and revision assistance."
-    Workspace.BUSINESS -> "Business workspace data is scoped to authorized business workspaces. Connected providers receive only the data required for an enabled integration."
+    Workspace.BUSINESS -> "Business workspace data is scoped to authorized business workspaces. Connected services receive only the data required for an enabled integration."
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio data is processed for the organization's configured tools and workflows, subject to workspace access controls."
-    Workspace.ADMIN -> "Administrative configuration is restricted by server-side authorization; provider secrets and security material are kept server-side."
+    Workspace.ADMIN -> "System configuration is restricted by access controls; service credentials and security material are kept on our secure systems."
     Workspace.VIDEO -> "Video-generation requests and generated media are processed for the requested render workflow; generated content and job metadata are account-scoped where applicable."
     Workspace.TRUTH_GUARD -> "TruthGuard requests, claims and source information are processed to provide evidence-aware fact checking and claim review."
     Workspace.FRONTIER_LAB -> "Frontier Lab requests and experiment data are processed for advanced AI experimentation and research workflows."
