@@ -57,11 +57,15 @@ export async function runWithFallback(env, route, input) {
     if (fCost > pCost && !route.allowCostlierFallback) throw error;
   }
 
-  const fbModel = route.fallbackModelId || DEFAULT_MODELS.gemini;
+  const fallbackProvider = route.fallbackProviderId || route.fallbackProviderIds?.[0] || "gemini";
+  const fbModel = route.fallbackModelId || route.fallbackModels?.[fallbackProvider] || DEFAULT_MODELS.gemini;
   try {
-    const result = await callGemini(env, { ...input, model: fbModel });
+    if (fallbackProvider !== "gemini") throw new Error("unsupported_fallback_provider:" + fallbackProvider);
+    // Streaming fallback is deliberately non-streaming: this branch is reached
+    // only before primary stream bytes have been returned to the client.
+    const result = await callGemini(env, { ...input, stream: false, model: fbModel });
     if (!result.text?.trim()) throw lastError || new Error("empty response from fallback");
-    return { ...result, route: "fallback" };
+    return { ...result, route: "fallback", streamed: false };
   } catch (error) {
     throw lastError || error;
   }
