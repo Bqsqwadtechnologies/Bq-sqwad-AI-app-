@@ -33,7 +33,8 @@ class NoInfrastructureNamesInUserCopyTest {
         "WorkspaceApiClient.kt",
         "LiveMediaForegroundService.kt",
         "BqLifecycleNotifications.kt",
-        "BusinessToolCatalog.kt"
+        "BusinessToolCatalog.kt",
+        "LegalCenterScreen.kt"
     )
 
     @Test
