@@ -3,6 +3,8 @@ name: Deploy Cloudflare Worker (manual)
 on:
   push:
     branches: [main]
+    paths:
+      - 'cloudflare-worker/**'
   workflow_dispatch:
     inputs:
       confirm:
