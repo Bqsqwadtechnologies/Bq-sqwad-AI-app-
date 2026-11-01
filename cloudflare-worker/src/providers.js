@@ -2,7 +2,9 @@ const DEFAULT_MODELS = {
   openai: "gpt-6-luna",
   gemini: "gemini-2.5-flash"
 };
-const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna"]);
+// BQ-7-Star (default) + BQ-Codron when the user explicitly selects it (Prompt G / I).
+// Never silently route everyday chat to Codron.
+const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna", "gpt-5.6-luna"]);
 const DEFAULT_MAX_REQUEST_TOKENS = 8_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 512;
 const HARD_MAX_REQUEST_TOKENS = 16_000;
