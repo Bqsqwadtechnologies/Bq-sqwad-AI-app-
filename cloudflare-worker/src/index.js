@@ -31,6 +31,7 @@ import { computeHold, computeSettlement } from "./billing-hold.js";
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
+import { writePresence } from "./presence-usage-native.js";
 
 
 // Composio project keys (ak_...) use x-api-key; user keys (uak_...) use
@@ -2357,6 +2358,16 @@ export default {
       const protectedPaths = new Set(["/ai", "/ai/stream", "/ai/vision", "/web-search", "/credits", "/entitlements", "/entitlement"]);
       if (protectedPaths.has(url.pathname) && !request.headers.get("Authorization")) {
         return json({ error: "auth_required" }, 401);
+      }
+
+      if (url.pathname === "/presence/ping" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 60);
+        const body = await readBody(request);
+        const platform = String(body.platform || "android").slice(0, 32);
+        const presence = await writePresence(globalThis.__bqEnv, (documentPath, data) =>
+          firestoreSet(documentPath, data, true), user.uid, platform);
+        return json({ ok: true, ...presence });
       }
 
       if (url.pathname === "/ai" && request.method === "POST") {
