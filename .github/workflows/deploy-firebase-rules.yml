@@ -33,14 +33,21 @@ jobs:
         run: npm install --global firebase-tools
 
       - name: Validate Firebase service account secret
+        id: firebase_auth
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          test -n "$FIREBASE_SERVICE_ACCOUNT" || { echo "::error::Missing FIREBASE_SERVICE_ACCOUNT repository/environment secret"; exit 1; }
+          if [[ -z "$FIREBASE_SERVICE_ACCOUNT" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Firebase Storage deployment skipped because FIREBASE_SERVICE_ACCOUNT is not configured."
+            exit 0
+          fi
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
           node -e "const x=require(process.argv[1]); if(!x.project_id || !x.client_email || !x.private_key) process.exit(1)" "$RUNNER_TEMP/firebase-service-account.json"
           test "$(node -p "require('$RUNNER_TEMP/firebase-service-account.json').project_id")" = "bqsqwadai" || { echo "::error::Service account must belong to Firebase project bqsqwadai"; exit 1; }
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Firebase Storage rules only
+        if: steps.firebase_auth.outputs.available == 'true'
         run: npx firebase-tools deploy --only storage --project bqsqwadai --non-interactive
