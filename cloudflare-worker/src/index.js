@@ -1685,6 +1685,22 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
   throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
 }
 
+function applyChatModelKey(control, body) {
+  const modelKey = String(body?.modelKey || "bq-7-star").trim().toLowerCase();
+  const model = modelKey === "bq-7-star"
+    ? { providerId: "openai", modelId: "gpt-6-luna" }
+    : modelKey === "bq-codron"
+      ? { providerId: "openai", modelId: "gpt-5.6-luna" }
+      : null;
+  if (!model) {
+    throw Object.assign(new Error("unsupported_chat_model"), {
+      httpStatus: 400,
+      safeError: "unsupported_chat_model"
+    });
+  }
+  return { ...control, ...model, config: control.config || {} };
+}
+
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
@@ -1730,6 +1746,8 @@ async function ai(request, user, body) {
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
+  } else if (capabilityName === "chat") {
+    control = applyChatModelKey(control, body);
   }
   // Use the website billing feature key for Main Chat. The Worker pricing resolver
   // also accepts the legacy "text-chat" alias for existing admin rules.
