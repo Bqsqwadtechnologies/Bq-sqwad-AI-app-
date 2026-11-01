@@ -9,7 +9,8 @@ import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
-import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { runWithFallback } from "./orchestrator-native.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
@@ -1685,6 +1686,37 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
   throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
 }
 
+async function buildProviderExecutionRoute(control, primaryPricing, pricingFeature, primaryProviderId = control.providerId, primaryModelId = control.modelId) {
+  const config = control?.config || {};
+  const configuredIds = Array.isArray(config.fallbackProviderIds)
+    ? config.fallbackProviderIds
+    : Array.isArray(control?.fallbackProviderIds) ? control.fallbackProviderIds : [];
+  const fallbackProviderId = configuredIds
+    .map(value => String(value || "").trim().toLowerCase())
+    .find(value => ["gemini"].includes(value) && value !== String(primaryProviderId || "").toLowerCase()) || null;
+  const fallbackModelId = fallbackProviderId
+    ? String(config.fallbackModels?.[fallbackProviderId] || DEFAULT_MODELS[fallbackProviderId] || "").trim()
+    : "";
+  let fallbackPricing = null;
+  if (fallbackProviderId && fallbackModelId && primaryPricing?.configured === true) {
+    fallbackPricing = await resolveTokenPricing(fallbackProviderId, fallbackModelId, pricingFeature, control).catch(() => null);
+  }
+  return {
+    primaryProviderId,
+    primaryModelId,
+    fallbackProviderId,
+    fallbackModelId,
+    fallbackProviderIds: fallbackProviderId ? [fallbackProviderId] : [],
+    fallbackModels: config.fallbackModels || {},
+    primaryPricing,
+    fallbackPricing,
+    // Never retry on an unpriced provider. Costlier fallback requires an
+    // explicit server-side administrator setting.
+    fallbackEnabled: Boolean(fallbackPricing?.configured === true),
+    allowCostlierFallback: config.allowCostlierFallback === true
+  };
+}
+
 function applyChatModelKey(control, body) {
   const modelKey = String(body?.modelKey || "bq-7-star").trim().toLowerCase();
   const model = modelKey === "bq-7-star"
@@ -1809,12 +1841,10 @@ async function ai(request, user, body) {
           tokenBilling ? tokenPricing.maxOutputTokens : 1_024
         )
       : null;
-    const result = connectorAwareResult || await runProvider(globalThis.__bqEnv, {
-      primaryProviderId: control.providerId,
-      primaryModelId: control.modelId,
-      fallbackProviderIds: tokenBilling && String(control.providerId || "").toLowerCase() === "openai" ? ["gemini"] : (control.config?.fallbackProviderIds || control.fallbackProviderIds || []),
-      fallbackModels: control.config?.fallbackModels || {}
-    }, {
+    const providerRoute = await buildProviderExecutionRoute(
+      control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
+    );
+    const result = connectorAwareResult || await runWithFallback(globalThis.__bqEnv, providerRoute, {
       message: userMessage, system,
       maxRequestTokens: tokenBilling ? tokenPricing.maxRequestTokens : undefined,
       maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined
@@ -1949,12 +1979,10 @@ async function vision(request, user, body) {
     markupApplied: true
   });
   try {
-    const result = await runProvider(globalThis.__bqEnv, {
-      primaryProviderId,
-      primaryModelId,
-      fallbackProviderIds,
-      fallbackModels: control.config?.fallbackModels || {}
-    }, {
+    const providerRoute = await buildProviderExecutionRoute(
+      control, tokenPricing, pricingFeature, primaryProviderId, primaryModelId
+    );
+    const result = await runWithFallback(globalThis.__bqEnv, providerRoute, {
       message, system, images, files,
       maxRequestTokens: tokenPricing.maxRequestTokens,
       maxOutputTokens: tokenPricing.maxOutputTokens
@@ -2035,11 +2063,12 @@ async function stream(request, user, body) {
     : (control.creditCost || 0);
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
   try {
-    const provider = await runProviderStream(globalThis.__bqEnv, {
-      primaryProviderId: control.providerId,
-      primaryModelId: control.modelId,
-      fallbackProviderIds: tokenBilling ? [] : (control.config?.fallbackProviderIds || []),
-      fallbackModels: control.config?.fallbackModels || {}
+    const providerRoute = await buildProviderExecutionRoute(
+      control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
+    );
+    const provider = await runWithFallback(globalThis.__bqEnv, {
+      ...providerRoute,
+      stream: true
     }, {
       message: userMessage, system,
       maxRequestTokens: tokenBilling ? tokenPricing.maxRequestTokens : undefined,
