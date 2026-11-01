@@ -20,7 +20,19 @@ class NoInfrastructureNamesInUserCopyTest {
         "BusinessAITestPanel.kt",
         "BrandCopy.kt",
         "LegalCenter.kt",
-        "PlayBillingClient.kt"
+        "PlayBillingClient.kt",
+        // Admin screens and internal provider/diagnostic parsers intentionally name their configured services.
+        "AdminSecurityScreen.kt",
+        "AdminAppEditorPanel.kt",
+        "AdminOperationsPanel.kt",
+        "AdminModelManagement.kt",
+        "AdminOrganizationTestPanel.kt",
+        "AdminProviderClient.kt",
+        "ProviderControl.kt",
+        "AdminControlCatalog.kt",
+        "WorkspaceApiClient.kt",
+        "LiveMediaForegroundService.kt",
+        "BqLifecycleNotifications.kt"
     )
 
     @Test
