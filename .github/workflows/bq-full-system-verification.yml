@@ -1,6 +1,8 @@
 name: BQ Full System Verification
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
