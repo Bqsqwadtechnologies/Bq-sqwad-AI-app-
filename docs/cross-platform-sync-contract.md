@@ -137,11 +137,12 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Active presence window is 90 seconds. Do not include message content, OTP, BVN, NIN, credentials, or connector secrets in presence documents.
 
 ## Business workspace navigation
-- Android Business workspace exposes Playbooks and Connect tools entries. Playbooks use the shared website native API; tool connection handoff opens `/business/studio`.
+- Android Business workspace exposes Playbooks and Connect tools entries. Playbooks use the shared website native API; tool connection handoff opens `/settings#connectors`, where the authenticated Composio OAuth flow is implemented.
 - Empty/missing tool ID lists intentionally resolve to the broad optional catalog. KYC/BVN/NIN remain opt-in and must not be required for workspace access.
 - Tool discovery/catalog visibility is not authorization: every connector execution must still verify the user's workspace entitlement and connection server-side.
 
 ## Implementation boundary (2026-11-01)
-- Existing Worker provider routing supports admin-configured fallback provider lists. The separate `orchestrator-native.js` helper is not currently wired into `index.js`.
+- Worker chat accepts `modelKey`: `bq-7-star` defaults to `openai/gpt-6-luna`; explicit `bq-codron` selects `openai/gpt-5.6-luna`. A published `modelRegistryId` takes precedence.
+- Gemini fallback is not yet active: the current provider helpers attempt only the primary provider; the separate `orchestrator-native.js` helper is not wired into `index.js`. Implement fallback eligibility, admin cost rules, and one-settlement behavior before enabling it.
 - `usageDaily` sharding helper exists; complete instrumentation of every feature settlement path is still outstanding.
 - Free-credit notification delivery, encrypted vault persistence/hash-chain integration, teams v2 pooled billing, organization parity, and full client notification inbox behavior require runtime verification before being called complete.
