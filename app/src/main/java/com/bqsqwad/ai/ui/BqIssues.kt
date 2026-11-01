@@ -65,7 +65,7 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
     if (code in setOf("model_price_missing", "feature_price_missing", "provider_key_missing", "provider_quota", "usage_unavailable", "internal_error") ||
         text.contains("token_pricing_not_configured") || text.contains("price_not_configured") || text.contains("provider_usage_unavailable")) {
         val ref = serverRef ?: newBqRefCode()
-        return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong on our side", "We're fixing this. Reference $ref.", BqIssueAction.REPORT_PROBLEM, ref)
+        return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong on our side", "Something went wrong on our side. We're fixing this. Reference $ref.", BqIssueAction.REPORT_PROBLEM, ref)
     }
     val ref = newBqRefCode()
     return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
