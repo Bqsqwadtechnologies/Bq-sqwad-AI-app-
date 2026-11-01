@@ -387,7 +387,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     tools = tools,
                     onConnect = { toolId ->
                         val target = ApiConfig.websiteBaseUrl.trimEnd('/') +
-                            "/business/studio?connect=" + Uri.encode(toolId)
+                            "/settings#connectors"
                         runCatching {
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                         }.onFailure {
