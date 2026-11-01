@@ -116,38 +116,32 @@ test("image editing ignores client-supplied credit prices and delegates pricing 
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("video generation ignores client-supplied credit prices and delegates pricing to the Worker", async () => {
-  const originalFetch = globalThis.fetch;
-  let chargeArgs = null;
-  let reversed = false;
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "test-stop-before-provider" } }), { status: 400 });
-  try {
-    await assert.rejects(createVideoNative(
+test("video generation remains disabled by project policy and never reserves credits", async () => {
+  let charged = false;
+  await assert.rejects(
+    createVideoNative(
       { OPENAI_API_KEY: "test" }, { uid: "user-test" },
-      { prompt: "A blue bird flying", creditCost: 0 },
-      async (...args) => { chargeArgs = args; return { reservationId: "test-reservation", amount: 3 }; },
-      async () => {}, async () => { reversed = true; }
-    ), /OpenAI HTTP 400/);
-    assert.equal(chargeArgs[1], 0);
-    assert.equal(chargeArgs[2], "video_generation");
-    assert.equal(reversed, true);
-  } finally { globalThis.fetch = originalFetch; }
+      { prompt: "A blue bird flying", creditCost: 999999 },
+      async () => { charged = true; throw new Error("must_not_charge"); },
+      async () => {}, async () => {}
+    ),
+    error => error.httpStatus === 503 && /video_generation_model_not_allowed_by_project_policy/.test(error.message)
+  );
+  assert.equal(charged, false);
 });
 
-
-test("video generation charges only the explicit server-resolved price", async () => {
-  const originalFetch = globalThis.fetch;
-  let chargedAmount = null;
-  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "test-stop-before-provider" } }), { status: 400 });
-  try {
-    await assert.rejects(createVideoNative(
+test("video generation cannot be enabled by a client-supplied price", async () => {
+  let charged = false;
+  await assert.rejects(
+    createVideoNative(
       { OPENAI_API_KEY: "test" }, { uid: "user-test" },
-      { prompt: "A blue bird flying", creditCost: 0 },
-      async (_uid, amount) => { chargedAmount = amount; return { reservationId: "test-reservation", amount }; },
+      { prompt: "A blue bird flying", creditCost: 4.5 },
+      async () => { charged = true; throw new Error("must_not_charge"); },
       async () => {}, async () => {}, 4.5
-    ), /OpenAI HTTP 400/);
-    assert.equal(chargedAmount, 4.5);
-  } finally { globalThis.fetch = originalFetch; }
+    ),
+    /video_generation_model_not_allowed_by_project_policy/
+  );
+  assert.equal(charged, false);
 });
 
 test("generation uses the explicit server-resolved price rather than request body creditCost", async () => {
