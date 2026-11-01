@@ -1232,7 +1232,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             kotlinx.coroutines.withTimeoutOrNull(8_000L) {
                 kotlinx.coroutines.coroutineScope {
                     val catalogTask = async(Dispatchers.IO) { api.nativeCatalog() }
-                    val entitlementsTask = async(Dispatchers.IO) { api.entitlements() }
+                    val entitlementsTask = async(Dispatchers.IO) { runCatching { EntitlementsClient().fetchEntitlements() }.getOrElse { api.entitlements() } }
                     val adminTask = async(Dispatchers.IO) { api.adminAccess().optBoolean("allowed") }
                     val catalog = catalogTask.await()
                     val entitlements = entitlementsTask.await()
@@ -2548,6 +2548,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+    var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
     var pastedTextPreview by remember { mutableStateOf<String?>(null) }
     var pastedTextPreviewName by remember { mutableStateOf("Pasted text") }
     var showAttachmentSourceDialog by remember { mutableStateOf(false) }
@@ -3197,7 +3198,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, onDelta = { delta ->
+                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { delta ->
                         scope.launch(Dispatchers.Main) {
                             rawStreamText += delta
                             val current = messages.getOrNull(aiIndex)
@@ -3960,6 +3961,11 @@ val composerShape = RoundedCornerShape(26.dp)
                                 .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
+                        ModelSelector(
+                            selectedKey = selectedModelKey,
+                            onSelect = { selectedModelKey = it.modelKey },
+                            onBuyCredits = { }
+                        )
                         Column(
                             modifier = Modifier.width(44.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -3985,13 +3991,16 @@ val composerShape = RoundedCornerShape(26.dp)
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            IconButton(onClick = { if (creditBalanceLoaded && !creditsExhausted) showAttachmentSourceDialog = true }, enabled = creditBalanceLoaded && !creditsExhausted) {
-                                Icon(
-                                    Icons.Default.AttachFile,
-                                    contentDescription = "Upload attachment",
-                                    tint = Color(0xFF1457FF)
-                                )
-                            }
+                            PlusAttachmentButton(
+                                enabled = creditBalanceLoaded && !creditsExhausted,
+                                onAction = { action ->
+                                    when (action) {
+                                        PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
+                                            showAttachmentSourceDialog = true
+                                        else -> Unit
+                                    }
+                                }
+                            )
                         }
 
                         OutlinedTextField(
