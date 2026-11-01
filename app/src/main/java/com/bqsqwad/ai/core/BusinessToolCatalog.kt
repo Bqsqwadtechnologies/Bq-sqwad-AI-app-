@@ -19,7 +19,7 @@ object BusinessToolCatalog {
         BusinessTool("hubspot", "HubSpot", "CRM", "Contacts, deals, and tickets."),
         BusinessTool("salesforce", "Salesforce", "CRM", "CRM records and cases."),
         BusinessTool("stripe", "Stripe", "Payments", "Payments, invoices, refunds."),
-        BusinessTool("paystack", "Paystack", "Payments", "Local payments and customers."),
+        BusinessTool("paystack", "Payments", "Payments", "Local payments and customers."),
         BusinessTool("shopify", "Shopify", "Payments", "Orders and store customers."),
         BusinessTool("google_drive", "Google Drive", "Files", "Files the business already stores."),
         BusinessTool("github", "GitHub", "Developer", "Repos, issues, and pull requests."),
