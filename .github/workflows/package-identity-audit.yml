@@ -3,6 +3,15 @@ name: Android Package Identity Audit
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'google-services.json'
   workflow_dispatch:
 
 permissions:
