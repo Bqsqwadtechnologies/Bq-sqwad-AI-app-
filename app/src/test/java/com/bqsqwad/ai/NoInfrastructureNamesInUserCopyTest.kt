@@ -32,7 +32,8 @@ class NoInfrastructureNamesInUserCopyTest {
         "AdminControlCatalog.kt",
         "WorkspaceApiClient.kt",
         "LiveMediaForegroundService.kt",
-        "BqLifecycleNotifications.kt"
+        "BqLifecycleNotifications.kt",
+        "BusinessToolCatalog.kt"
     )
 
     @Test
