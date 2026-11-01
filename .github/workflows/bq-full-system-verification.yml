@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${BQ_WEBSITE_REPO_TOKEN}" ]]; then
-            echo "::error::Missing repository secret BQ_WEBSITE_REPO_TOKEN. The website repository is private; the default GITHUB_TOKEN cannot check it out from this separate repository. Add a fine-grained token with read access to bqsqwadai/bqsqwadai-b3064406 as a repository Actions secret named BQ_WEBSITE_REPO_TOKEN."
+            echo "::error::Missing repository secret BQ_WEBSITE_REPO_TOKEN. The website repository is private; the default GITHUB_TOKEN cannot check it out from this separate repository. Add a fine-grained token with read access to Bqsqwadtechnologies/bqsqwadai-b3064406 as a repository Actions secret named BQ_WEBSITE_REPO_TOKEN."
             exit 1
           fi
 
@@ -46,9 +46,9 @@ jobs:
             -H "Authorization: Bearer ${BQ_WEBSITE_REPO_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/bqsqwadai/bqsqwadai-b3064406)"
+            https://api.github.com/repos/Bqsqwadtechnologies/bqsqwadai-b3064406)"
           if [[ "$status" != "200" ]]; then
-            echo "::error::BQ_WEBSITE_REPO_TOKEN cannot read bqsqwadai/bqsqwadai-b3064406 (GitHub API HTTP $status). Create a fine-grained token for the website repository with Contents: Read-only, approve it for the repository owner if required, then update this secret."
+            echo "::error::BQ_WEBSITE_REPO_TOKEN cannot read Bqsqwadtechnologies/bqsqwadai-b3064406 (GitHub API HTTP $status). Create a fine-grained token for the website repository with Contents: Read-only, approve it for the repository owner if required, then update this secret."
             rm -f "$response_file"
             exit 1
           fi
@@ -58,16 +58,57 @@ jobs:
       - name: Checkout website
         uses: actions/checkout@v7
         with:
-          repository: bqsqwadai/bqsqwadai-b3064406
+          repository: Bqsqwadtechnologies/bqsqwadai-b3064406
           ref: main
           path: website
           fetch-depth: 0
           token: ${{ secrets.BQ_WEBSITE_REPO_TOKEN }}
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Run Android unit tests and debug build
+        working-directory: android-app
+        run: gradle :app:testDebugUnitTest :app:assembleDebug
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+
+      - name: Verify live provider orchestrator wiring and Business Studio placeholder removal
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker="android-app/cloudflare-worker/src/index.js"
+          orchestrator="android-app/cloudflare-worker/src/orchestrator-native.js"
+          studio="website/src/routes/business/studio.tsx"
+          storage="website/src/components/business/BusinessStorageMeter.tsx"
+          expiry="website/src/components/business/BusinessExpiryBanner.tsx"
+          grep -Fq 'import { runWithFallback } from "./orchestrator-native.js";' "$worker"
+          grep -Fq 'runWithFallback(' "$worker"
+          grep -Fq 'fallbackEnabled: Boolean(fallbackPricing?.configured === true)' "$worker"
+          grep -Fq 'callGemini' "$orchestrator"
+          if grep -Eq '2_400_000_000|10_737_418_240|Date\.now\(\) \+ 12 \* 86400000' "$studio"; then
+            echo "::error::Invented Business Studio storage or expiry values are still present."
+            exit 1
+          fi
+          grep -Fq 'Live storage usage is unavailable' "$storage"
+          grep -Fq 'Plan expiry information is unavailable' "$expiry"
+          grep -Fq 'versionCode = 15' android-app/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.15"' android-app/app/build.gradle.kts
+          echo "Provider orchestrator is on the live AI paths; no fabricated Business Studio metrics remain; Android version is 15."
 
       - name: Verify Worker JavaScript syntax
         working-directory: android-app
@@ -140,6 +181,14 @@ jobs:
       - name: Install website dependencies
         working-directory: website
         run: npm install --no-audit --no-fund
+
+      - name: Run website test suite
+        working-directory: website
+        run: npm test
+
+      - name: Run website lint
+        working-directory: website
+        run: npm run lint
 
       - name: Run website billing regression tests
         working-directory: website
