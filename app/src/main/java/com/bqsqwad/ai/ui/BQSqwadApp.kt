@@ -20,19 +20,25 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.OnboardingProfile
 
 /**
- * Temporary host after a failed large-file API update emptied the previous
- * 8k-line BQSqwadApp.kt. Full source remains in git history at commit
- * 2accfc5b40c7f099bed7ff89b8b38ea6a8377297 (blob 18433eba511f4d06e7929e2b082b6fb5ed736ac6).
- *
- * This shell keeps the app compilable and wires Prompt G/H pieces already on main:
- * ModelSelector, PlusAttachmentButton, OnboardingSurveyScreen.
+ * Temporary host after a failed large-file API update. Full 8k-line source is in
+ * git history: commit 2accfc5b40c7f099bed7ff89b8b38ea6a8377297.
  */
 @Composable
-fun BQSqwadApp() {
+fun BQSqwadApp(
+    modifier: Modifier = Modifier,
+    sharedText: String? = null,
+    onSharedTextConsumed: () -> Unit = {},
+    openConnectorsNonce: Int = 0,
+) {
     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
     var showOnboarding by remember { mutableStateOf(false) }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    // Consume shared text so MainActivity state does not stick.
+    if (sharedText != null) {
+        onSharedTextConsumed()
+    }
+
+    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         if (showOnboarding) {
             OnboardingSurveyScreen(
                 onComplete = { _: OnboardingProfile -> showOnboarding = false },
@@ -47,7 +53,7 @@ fun BQSqwadApp() {
             ) {
                 Text("BQ Sqwad AI", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Main chat shell is recovering. Model selector and attachments are available below.",
+                    "Main UI is recovering from a large-file push limit. Model selector is live.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 ModelSelector(
@@ -55,11 +61,9 @@ fun BQSqwadApp() {
                     onSelect = { selectedModelKey = it.modelKey },
                     onBuyCredits = { }
                 )
-                PlusAttachmentButton(
-                    onAction = { }
-                )
+                PlusAttachmentButton(onAction = { })
                 Text(
-                    "Selected model key: $selectedModelKey",
+                    "Selected model: $selectedModelKey",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.fillMaxWidth()
                 )
