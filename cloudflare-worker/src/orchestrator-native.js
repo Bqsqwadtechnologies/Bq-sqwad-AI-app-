@@ -16,9 +16,20 @@ export function shouldFallback(error) {
 
 export function estimateCostUsd(pricing, inputTokens, outputTokens) {
   if (!pricing) return 0;
-  const inRate = Number(pricing.inputPer1kUsd || pricing.inputUsdPer1k || 0);
-  const outRate = Number(pricing.outputPer1kUsd || pricing.outputUsdPer1k || 0);
-  return (inputTokens / 1000) * inRate + (outputTokens / 1000) * outRate;
+  // resolveTokenPricing returns USD per token; legacy admin routes may return
+  // USD per 1K. Normalize both without ever substituting another provider's rate.
+  const inputPer1k = pricing.inputPer1kUsd != null
+    ? Number(pricing.inputPer1kUsd)
+    : pricing.inputUsdPer1k != null
+      ? Number(pricing.inputUsdPer1k)
+      : Number(pricing.inputPriceUsdPerToken || 0) * 1000;
+  const outputPer1k = pricing.outputPer1kUsd != null
+    ? Number(pricing.outputPer1kUsd)
+    : pricing.outputUsdPer1k != null
+      ? Number(pricing.outputUsdPer1k)
+      : Number(pricing.outputPriceUsdPerToken || 0) * 1000;
+  return (Math.max(0, inputTokens) / 1000) * Math.max(0, inputPer1k)
+    + (Math.max(0, outputTokens) / 1000) * Math.max(0, outputPer1k);
 }
 
 /**
