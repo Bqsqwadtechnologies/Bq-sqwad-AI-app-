@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'app/**'
+      - 'app/src/main/**'
+      - 'app/build.gradle.kts'
       - 'gradle/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
