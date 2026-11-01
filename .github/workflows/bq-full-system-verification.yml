@@ -36,6 +36,8 @@ jobs:
           if [[ -z "${BQ_WEBSITE_REPO_TOKEN}" ]]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
             echo "::warning::Website checks will be skipped because BQ_WEBSITE_REPO_TOKEN is not configured."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate website repository token permissions
