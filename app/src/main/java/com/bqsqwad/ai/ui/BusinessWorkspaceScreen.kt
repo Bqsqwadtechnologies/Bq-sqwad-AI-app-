@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.ApiConfig
+import com.bqsqwad.ai.core.BusinessToolCatalog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import org.json.JSONArray
@@ -24,6 +25,7 @@ import org.json.JSONObject
 
 @Composable
 fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
+    val context = LocalContext.current
     val api = remember { WorkspaceApiClient() }
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf("Overview") }
@@ -65,6 +67,8 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
     val tabs = buildList {
         add("Overview")
         add("Team")
+        add("Playbooks")
+        add("Connect tools")
         if ("analytics" in enabledGroups) add("Analytics")
         if ("assistant" in enabledGroups) {
             add("Plan Builder")
@@ -368,6 +372,29 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             }
             "Advanced AI" -> {
                 AdvancedAiPanel(api, data.optString("workspaceId"), { error = it })
+            }
+            "Playbooks" -> {
+                BusinessPlaybookScreen(
+                    workspaceId = data.optString("workspaceId").ifBlank { "default" }
+                )
+            }
+            "Connect tools" -> {
+                val toolIds = data.optJSONObject("planContext")?.optJSONArray("toolIds")?.let { array ->
+                    (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() }
+                }
+                val tools = BusinessToolCatalog.forPlan(toolIds).map { PlanToolUi(it.id, it.name, false) }
+                PlanToolsConnectScreen(
+                    tools = tools,
+                    onConnect = { toolId ->
+                        val target = ApiConfig.websiteBaseUrl.trimEnd('/') +
+                            "/business/studio?connect=" + Uri.encode(toolId)
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                        }.onFailure {
+                            error = "Could not open the secure Business Tool Studio."
+                        }
+                    }
+                )
             }
             "Integrations" -> {
                 BusinessIntegrationsPanel(api, data.optString("workspaceId"), { error = it })
