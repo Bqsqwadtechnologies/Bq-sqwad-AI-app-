@@ -42,11 +42,39 @@ class ChatApiClient(
         throw IllegalStateException("BQ Sqwad AI couldn't connect. Check your internet connection and try again.", e)
     }
 
+    /** Public model catalog projection — never includes provider IDs or prices. */
+    suspend fun getPublicModels(idToken: String? = null): JSONObject = withFriendlyNetworkErrors {
+        withContext(Dispatchers.IO) {
+            val token = idToken ?: runCatching { authToken() }.getOrNull()
+            // Prefer website public endpoint; fall back to Worker path if configured the same base.
+            val url = URL("${ApiConfig.websiteBaseUrl.trimEnd('/')}/api/public/models")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 12000
+                readTimeout = 15000
+                doInput = true
+                if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
+            }
+            try {
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (status !in 200..299) {
+                    throw IllegalStateException("Could not load models.")
+                }
+                JSONObject(raw.ifBlank { "{\"models\":[]}" })
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     suspend fun sendMessage(
         message: String,
         capability: String = "chat",
         system: String? = null,
-        modelRegistryId: String? = null
+        modelRegistryId: String? = null,
+        modelKey: String? = null
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
@@ -67,6 +95,7 @@ class ChatApiClient(
                     put("message", message)
                     if (!system.isNullOrBlank()) put("system", system)
                     if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
+                    if (!modelKey.isNullOrBlank()) put("modelKey", modelKey)
                 }.toString().toByteArray())
             }
             val status = connection.responseCode
@@ -86,6 +115,10 @@ class ChatApiClient(
                         "Please review and accept the required BQ Sqwad AI terms to continue."
                     status == 429 || serverError.contains("rate_limited") ->
                         "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                    serverError.contains("purchased_credits_required") ->
+                        "This model is available with purchased credits."
+                    serverError.contains("model_unavailable") ->
+                        "That model is not available right now."
                     else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                 }
                 throw IllegalStateException(friendly)
@@ -113,7 +146,8 @@ class ChatApiClient(
         capability: String = "chat",
         onDelta: (String) -> Unit,
         system: String? = null,
-        modelRegistryId: String? = null
+        modelRegistryId: String? = null,
+        modelKey: String? = null
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) {
         withContext(Dispatchers.IO) {
@@ -139,6 +173,7 @@ class ChatApiClient(
                         put("message", message)
                         if (!system.isNullOrBlank()) put("system", system)
                         if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
+                        if (!modelKey.isNullOrBlank()) put("modelKey", modelKey)
                     }.toString().toByteArray())
                 }
 
@@ -156,6 +191,8 @@ class ChatApiClient(
                         detail.contains("message_required") -> "Enter a message before sending."
                         detail.contains("capability_disabled") -> "This AI capability is currently unavailable."
                         status == 429 || detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
+                        detail.contains("purchased_credits_required") -> "This model is available with purchased credits."
+                        detail.contains("model_unavailable") -> "That model is not available right now."
                         else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                     }
                     throw IllegalStateException(friendly)
