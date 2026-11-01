@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.bqsqwad.ai.R
 
@@ -24,7 +23,7 @@ object BqConversationNotification {
         shortcutId: String? = conversationId
     ): android.app.Notification {
         val logo = runCatching {
-            BitmapFactory.decodeResource(context.resources, R.drawable.ic_launcher_foreground)
+            BitmapFactory.decodeResource(context.resources, R.drawable.bq_launcher_logo)
         }.getOrNull()
         val personBuilder = Person.Builder()
             .setName("BQ Sqwad AI")
@@ -38,8 +37,8 @@ object BqConversationNotification {
             .addMessage(body, System.currentTimeMillis(), me)
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_notification_bq)
-            .setColor(ContextCompat.getColor(context, R.color.bq_brand_blue))
+            .setSmallIcon(R.drawable.bq_notification_mark)
+            .setColor(0xFF246BCE.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(style)
