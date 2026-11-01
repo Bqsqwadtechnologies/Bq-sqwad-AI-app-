@@ -96,6 +96,8 @@ jobs:
           studio="website/src/routes/business/studio.tsx"
           storage="website/src/components/business/BusinessStorageMeter.tsx"
           expiry="website/src/components/business/BusinessExpiryBanner.tsx"
+          metrics="website/src/components/business/BusinessStudioMetrics.tsx"
+          workspace_functions="website/src/lib/business-workspace.functions.ts"
           grep -Fq 'import { runWithFallback } from "./orchestrator-native.js";' "$worker"
           grep -Fq 'runWithFallback(' "$worker"
           grep -Fq 'fallbackEnabled: Boolean(fallbackPricing?.configured === true)' "$worker"
@@ -106,6 +108,9 @@ jobs:
           fi
           grep -Fq 'Live storage usage is unavailable' "$storage"
           grep -Fq 'Plan expiry information is unavailable' "$expiry"
+          grep -Fq 'getBusinessStudioMetrics({ data: { idToken } })' "$metrics"
+          grep -Fq 'business.getAccess(user.uid)' "$workspace_functions"
+          grep -Fq 'vault.getBusinessStorage(user.uid)' "$workspace_functions"
           grep -Fq 'versionCode = 15' android-app/app/build.gradle.kts
           grep -Fq 'versionName = "1.0.15"' android-app/app/build.gradle.kts
           echo "Provider orchestrator is on the live AI paths; no fabricated Business Studio metrics remain; Android version is 15."
