@@ -1,6 +1,12 @@
 name: Deploy Firebase Storage rules (manual fallback)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'firebase.json'
+      - 'storage.rules'
+      - '.github/workflows/deploy-firebase-rules.yml'
   workflow_dispatch:
 
 permissions:
