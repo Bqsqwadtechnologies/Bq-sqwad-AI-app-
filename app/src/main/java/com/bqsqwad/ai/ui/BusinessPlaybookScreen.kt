@@ -104,7 +104,7 @@ fun BusinessPlaybookScreen(
             for (i in 0 until playbooks.length()) {
                 val p = playbooks.optJSONObject(i) ?: continue
                 val id = p.optString("id")
-                Card(Modifier = Modifier.fillMaxWidth()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(p.optString("title"), style = MaterialTheme.typography.titleMedium)
                         Text(p.optString("summary"), style = MaterialTheme.typography.bodySmall)
