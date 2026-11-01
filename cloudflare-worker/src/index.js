@@ -9,7 +9,7 @@ import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
-import { callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
+import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { runWithFallback } from "./orchestrator-native.js";
 import { getOrganizationCatalog, getOrganizationAccess, setOrganizationPlanStatus, setOrganizationEntitlement, getOrganizationTestSession, setOrganizationTestSession, getAdminOrganizationControl } from "./organization-plans-native.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask } from "./scheduler-native.js";
@@ -2066,11 +2066,8 @@ async function stream(request, user, body) {
     const providerRoute = await buildProviderExecutionRoute(
       control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
     );
-    const provider = await runWithFallback(globalThis.__bqEnv, {
-      ...providerRoute,
-      stream: true
-    }, {
-      message: userMessage, system,
+    const provider = await runWithFallback(globalThis.__bqEnv, providerRoute, {
+      message: userMessage, system, stream: true,
       maxRequestTokens: tokenBilling ? tokenPricing.maxRequestTokens : undefined,
       maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined
     });
