@@ -129,3 +129,19 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - The admin-only Worker endpoint `GET /admin/pricing/audit` reports missing or invalid `creditCost` values in live `adminAdvancedOptions/capability_*` configuration and writes `adminAlerts/missingPrice_<feature>` documents. Both admin UIs still need to display these results before this is considered complete.
 - Connector state is shared through the authenticated Worker connector session and permission endpoints. Permission mode values are `read_only` and `full_access`; an OAuth connection does not itself grant full access. Clients must refresh connection and permission state after returning from OAuth.
 - Rules deployment workflow: `.github/workflows/deploy-firebase-rules.yml`; requires GitHub secret `FIREBASE_SERVICE_ACCOUNT`. Repository presence of the workflow does not prove the secret is configured or that production rules have deployed.
+
+
+## Presence ping — current Worker route
+- Android and website clients may call authenticated `POST /presence/ping` with `{ platform }`.
+- Worker verifies Firebase ID token, rate-limits per user, and writes `presence/{uid}` with `platform`, `lastSeen`, `signedIn`, and `updatedAt`.
+- Active presence window is 90 seconds. Do not include message content, OTP, BVN, NIN, credentials, or connector secrets in presence documents.
+
+## Business workspace navigation
+- Android Business workspace exposes Playbooks and Connect tools entries. Playbooks use the shared website native API; tool connection handoff opens `/business/studio`.
+- Empty/missing tool ID lists intentionally resolve to the broad optional catalog. KYC/BVN/NIN remain opt-in and must not be required for workspace access.
+- Tool discovery/catalog visibility is not authorization: every connector execution must still verify the user's workspace entitlement and connection server-side.
+
+## Implementation boundary (2026-11-01)
+- Existing Worker provider routing supports admin-configured fallback provider lists. The separate `orchestrator-native.js` helper is not currently wired into `index.js`.
+- `usageDaily` sharding helper exists; complete instrumentation of every feature settlement path is still outstanding.
+- Free-credit notification delivery, encrypted vault persistence/hash-chain integration, teams v2 pooled billing, organization parity, and full client notification inbox behavior require runtime verification before being called complete.
