@@ -1699,7 +1699,7 @@ async function buildProviderExecutionRoute(control, primaryPricing, pricingFeatu
     : "";
   let fallbackPricing = null;
   if (fallbackProviderId && fallbackModelId && primaryPricing?.configured === true) {
-    fallbackPricing = await resolveTokenPricing(fallbackProviderId, fallbackModelId, pricingFeature, control).catch(() => null);
+    fallbackPricing = await resolveTokenPricing(fallbackProviderId, fallbackModelId, pricingFeature, { planId: control?.planId }).catch(() => null);
   }
   return {
     primaryProviderId,
