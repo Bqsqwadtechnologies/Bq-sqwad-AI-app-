@@ -8,15 +8,15 @@ test("OpenAI model validation verifies the provider model ID with the server-sid
   globalThis.fetch = async (url, init) => {
     calledUrl = String(url);
     calledHeaders = init.headers;
-    return new Response(JSON.stringify({ id: "gpt-test-model", owned_by: "openai" }), { status: 200 });
+    return new Response(JSON.stringify({ id: "gpt-6-luna", owned_by: "openai" }), { status: 200 });
   };
   const result = await validateAiModel(
     { OPENAI_API_KEY: "server-test-key" },
-    { providerId: "openai", modelId: "gpt-test-model", feature: "text-chat" }
+    { providerId: "openai", modelId: "gpt-6-luna", feature: "text-chat" }
   );
   assert.equal(result.ok, true);
-  assert.equal(result.modelId, "gpt-test-model");
-  assert.match(calledUrl, /\/v1\/models\/gpt-test-model$/);
+  assert.equal(result.modelId, "gpt-6-luna");
+  assert.match(calledUrl, /\/v1\/models\/gpt-6-luna$/);
   assert.equal(calledHeaders.Authorization, "Bearer server-test-key");
 });
 
@@ -64,7 +64,7 @@ test("model validation rejects model IDs that do not match a feature's API famil
   await assert.rejects(
     validateAiModel(
       { OPENAI_API_KEY: "test-key" },
-      { providerId: "openai", modelId: "gpt-test-model", feature: "image-generation" }
+      { providerId: "openai", modelId: "gpt-6-luna", feature: "image-generation" }
     ),
     /model_id_does_not_match_feature/
   );
@@ -93,7 +93,7 @@ test("provider model validation returns a bounded service error when the provide
   await assert.rejects(
     validateAiModel(
       { OPENAI_API_KEY: "server-test-key" },
-      { providerId: "openai", modelId: "gpt-test-model", feature: "text-chat" }
+      { providerId: "openai", modelId: "gpt-6-luna", feature: "text-chat" }
     ),
     error => error.httpStatus === 503 && /provider_model_validation_timeout/.test(error.message)
   );
