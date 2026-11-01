@@ -142,7 +142,7 @@ fun ModelSelector(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
-                    Column(Modifier = Modifier.weight(1f)) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(model.displayName, style = MaterialTheme.typography.titleSmall)
                             if (model.locked) Icon(Icons.Default.Lock, contentDescription = "Locked", tint = MaterialTheme.colorScheme.onSurfaceVariant)
