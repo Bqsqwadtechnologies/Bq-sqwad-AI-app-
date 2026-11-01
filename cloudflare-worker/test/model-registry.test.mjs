@@ -55,7 +55,7 @@ test("model validation rejects a provider incompatible with the feature before c
   assert.equal(called, false);
 });
 
-test("model validation rejects model IDs that do not match a feature's API family", async () => {
+test("model validation blocks OpenAI models outside the feature allowlist before provider access", async () => {
   let called = false;
   globalThis.fetch = async () => {
     called = true;
@@ -66,22 +66,25 @@ test("model validation rejects model IDs that do not match a feature's API famil
       { OPENAI_API_KEY: "test-key" },
       { providerId: "openai", modelId: "gpt-6-luna", feature: "image-generation" }
     ),
-    /model_id_does_not_match_feature/
+    /openai_model_not_allowed_by_project_policy/
   );
   assert.equal(called, false);
 });
 
 test("model validation rejects unknown provider model IDs", async () => {
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    error: { message: "The model does not exist or you do not have access to it." }
-  }), { status: 404 });
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response(JSON.stringify({ error: { message: "The model does not exist or you do not have access to it." } }), { status: 404 });
+  };
   await assert.rejects(
     validateAiModel(
       { OPENAI_API_KEY: "test-key" },
       { providerId: "openai", modelId: "gpt-missing-model", feature: "text-chat" }
     ),
-    /model does not exist/
+    /openai_model_not_allowed_by_project_policy/
   );
+  assert.equal(called, false);
 });
 
 test("provider model validation returns a bounded service error when the provider request times out", async () => {
