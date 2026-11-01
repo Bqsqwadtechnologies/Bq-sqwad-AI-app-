@@ -6,7 +6,7 @@ test("realtime client-secret request uses the GA audio.output.voice field", asyn
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
   assert.match(source, /session:\s*\{[\s\S]*?audio:\s*\{[\s\S]*?output:\s*\{[\s\S]*?\bvoice\b/);
   assert.doesNotMatch(source, /session:\s*\{\s*type:\s*"realtime"\s*,\s*model\s*,\s*voice:/);
-  assert.match(source, /const DEFAULT_REALTIME_MODEL = "gpt-realtime"/);
+  assert.match(source, /const DEFAULT_REALTIME_MODEL = "gpt-realtime-2\.1-mini"/);
 });
 
 
