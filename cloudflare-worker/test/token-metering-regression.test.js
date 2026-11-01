@@ -13,9 +13,9 @@ test("chat and attachment capability defaults are token-metered without a one-cr
 });
 
 test("native token-metered features require the website's explicit three-rate credit rule", () => {
-  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.inputCreditsPer1k\)\)/);
-  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.cachedInputCreditsPer1k\)\)/);
-  assert.match(tokenBillingSource, /Number\.isFinite\(Number\(tokenRule\.outputCreditsPer1k\)\)/);
+  assert.match(tokenBillingSource, /typeof tokenRule\.inputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.inputCreditsPer1k\)/);
+  assert.match(tokenBillingSource, /typeof tokenRule\.cachedInputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.cachedInputCreditsPer1k\)/);
+  assert.match(tokenBillingSource, /typeof tokenRule\.outputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.outputCreditsPer1k\)/);
   assert.match(tokenBillingSource, /if \(isTokenMeteredFeature && !hasCustomerCreditRule\)/);
   assert.match(tokenBillingSource, /token_pricing_not_configured/);
   assert.match(tokenBillingSource, /creditsPerCachedInputToken: Number\(tokenRule\.cachedInputCreditsPer1k\) \/ 1000/);
