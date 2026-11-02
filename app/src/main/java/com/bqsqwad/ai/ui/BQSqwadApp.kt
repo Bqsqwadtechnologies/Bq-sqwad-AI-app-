@@ -2687,6 +2687,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var renameDraft by remember { mutableStateOf("") }
     var chatTitleOverride by rememberSaveable { mutableStateOf<String?>(null) }
     var statusText by remember { mutableStateOf("Ready") }
+    var taskStartedAtMs by remember { mutableStateOf<Long?>(null) }
+    var taskPhaseLabel by remember { mutableStateOf("Working") }
+    var taskClockNowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(taskStartedAtMs) {
+        while (taskStartedAtMs != null) {
+            taskClockNowMs = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
     var pendingDownloadContent by remember { mutableStateOf("") }
     val downloadConversationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) {
@@ -3355,7 +3364,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(rawStreamText) else rawStreamText)
                         }
-                    })
+                    }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label -> scope.launch(Dispatchers.Main) { taskPhaseLabel = label } }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
                 }
                 var generatedPdfAttachment: ChatMessageAttachment? = null
                 var generatedPdfNotice = ""
@@ -3840,6 +3849,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 }
                             }
                         }
+                    }
+                }
+                if (taskStartedAtMs != null) {
+                    item {
+                        val elapsedSeconds = ((taskClockNowMs - (taskStartedAtMs ?: taskClockNowMs)).coerceAtLeast(0L) / 1000L)
+                        val elapsedLabel = String.format(java.util.Locale.ROOT, "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60)
+                        Text("$taskPhaseLabel · $elapsedLabel", modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 items(messages) { m ->
