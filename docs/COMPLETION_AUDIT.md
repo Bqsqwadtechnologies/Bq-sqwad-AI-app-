@@ -78,3 +78,9 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **DONE — source:** `composio-tools-native.js` is redundant and its placeholder execution path is not used; `src/index.js` already implements authenticated Composio sessions, permission checks and execution. The duplicate module is removed.
 - **NOT WIRED:** `business-tool-catalog.js` has no call site in the Worker request path; kept in place and not imported speculatively, as required by the prompt.
 - **NOT VERIFIED:** Worker `npm test` is pending; run not available from the repository's existing workflow configuration.
+
+## PDF Phase 5 — Live task timer events
+
+- **DONE — source implemented, build pending:** Worker `/ai/stream` emits `taskStarted`, real `phase` updates for streaming and usage settlement, and `taskEnded` on success, failure and request abort; abort cancels the upstream reader and reverses the reservation.
+- **DONE — source implemented, build pending:** Android `ChatApiClient` parses named SSE events; Main Chat stores the server `startedAt`, updates elapsed time once per second without resetting on recomposition, and displays `label · mm:ss`.
+- **NOT VERIFIED:** Android/Worker automated checks are pending in GitHub Actions.
