@@ -2634,7 +2634,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         val item = items?.optJSONObject(index) ?: return@any false
                         val features = item.optJSONArray("includedFeatures")
                         (0 until (features?.length() ?: 0)).any { featureIndex ->
-                            features?.optString(featureIndex)?.lowercase() in setOf("chat", "main_chat", "*")
+                            (features?.optString(featureIndex) ?: "").lowercase() in setOf("chat", "main_chat", "*")
                         }
                     }
                 }
@@ -2654,7 +2654,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         val features = document.get("includedFeatures") as? List<*>
                         state in listOf("active", "trialing", "grace") &&
                             (expiry == null || expiry > now) &&
-                            features.orEmpty().any { it?.toString()?.lowercase() in setOf("chat", "main_chat", "*") }
+                            features.orEmpty().any { (it?.toString() ?: "").lowercase() in setOf("chat", "main_chat", "*") }
                     }
                 }
             }
