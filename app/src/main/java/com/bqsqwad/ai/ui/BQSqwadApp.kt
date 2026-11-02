@@ -7646,6 +7646,10 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
             textScale = prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
             bqTextScaleState.floatValue = textScale
         }
+        runCatching { api.notificationPreferences() }.onSuccess { body ->
+            notifications = body.optBoolean("inAppEnabled", true) && body.optBoolean("pushEnabled", true)
+            prefs.edit().putBoolean("notifications_enabled", notifications).apply()
+        }
         // The website and Android both treat users/{uid}.memoryEnabled as
         // authoritative. Refresh this value from the shared memory endpoint.
         runCatching { api.memory() }.onSuccess { body ->
