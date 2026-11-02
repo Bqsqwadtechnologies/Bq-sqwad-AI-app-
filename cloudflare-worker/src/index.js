@@ -4837,7 +4837,7 @@ export default {
         const u = await verifyFirebaseUser(request);
         const workspace = await businessWorkspace(u.uid, { workspaceId: url.searchParams.get("workspaceId") || undefined });
         const [storage, entitlement, testSession] = await Promise.all([
-          firestoreGet("businessStorage/" + workspace.workspaceId).catch(() => null),
+          firestoreGet("businessStorage/" + u.uid).catch(() => null),
           firestoreGet("entitlements/" + u.uid).catch(() => null),
           firestoreGet("adminBusinessTestSessions/" + u.uid).catch(() => null),
         ]);
@@ -4853,7 +4853,7 @@ export default {
         const usagePct = totalBytes > 0 ? usedBytes / totalBytes * 100 : 0;
         return json({
           workspaceId: workspace.workspaceId,
-          expiresAt: testActive ? testSession.expiresAt : entitlement?.expiresAt || null,
+          expiresAt: testActive ? testSession.expiresAt : workspace.planContext?.expiresAt || entitlement?.expiresAt || null,
           serverNow: new Date().toISOString(),
           storage: { usedBytes, totalBytes, showAddonOffer: planActive && totalBytes > 0 && usagePct >= threshold, showRenewalOnly: !planActive },
         });
