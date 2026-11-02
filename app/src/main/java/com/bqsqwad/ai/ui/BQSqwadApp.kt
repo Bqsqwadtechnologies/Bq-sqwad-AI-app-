@@ -4059,7 +4059,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Icon(
                                     if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
                                     contentDescription = when {
-                                        dictationRecording -> "Stop recording and transcribe"
+                                        dictationRecording -> "Stop recording"
                                         isListening -> "Stop phone speech recognition"
                                         else -> "Start voice dictation"
                                     },
