@@ -20,6 +20,10 @@ test("vault append is server-only and redacts secrets", () => {
   assert.match(vault, /appendVaultMessage/);
   assert.match(vault, /assertServerOnlyVaultAccess/);
   assert.match(vault, /redactForVault/);
+  assert.match(vault, /AES-GCM/);
+  assert.match(vault, /ciphertext/);
+  assert.match(indexJs, /appendBusinessVaultEntry/);
+  assert.match(indexJs, /BUSINESS_VAULT_ENCRYPTION_KEY/);
 });
 
 test("index import or route for RTDN preferred when present", () => {
