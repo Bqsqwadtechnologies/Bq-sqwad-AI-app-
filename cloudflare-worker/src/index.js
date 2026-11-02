@@ -1757,15 +1757,14 @@ async function enforceChatModelEligibility(uid, body, control, user) {
   const modelKey = String(body?.modelKey || "bq-7-star").trim().toLowerCase();
   const modelId = String(control?.modelId || "").trim().toLowerCase();
   const catalogModel = await resolveModelCatalogEntry(modelKey);
-  if (!catalogModel || catalogModel.userSelectable !== true ||
-      String(catalogModel.providerModelId || "").trim().toLowerCase() !== modelId) {
+  if (!catalogModel || catalogModel.status !== "active" || catalogModel.userSelectable !== true ||
+      String(catalogModel.providerModelId || "").trim().toLowerCase() !== modelId ||
+      (modelKey === "bq-codron" && modelId !== "gpt-5.6-luna") ||
+      (modelKey === "bq-7-star" && modelId !== "gpt-6-luna")) {
     throw Object.assign(new Error("model_unavailable"), {
       httpStatus: 403,
       safeError: "model_unavailable"
     });
-  }
-  if (modelId.includes("gpt-5.6") && modelKey !== "bq-codron") {
-    throw Object.assign(new Error("model_unavailable"), { httpStatus: 403, safeError: "model_unavailable" });
   }
   if (isSuperAdmin(user, globalThis.__bqEnv)) return { purchasedOnly: false };
   const profile = await readCanonicalUserBalance(uid);
