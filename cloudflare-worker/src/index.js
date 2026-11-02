@@ -2534,6 +2534,72 @@ export default {
           firestoreSet(documentPath, data, true), user.uid, platform);
         return json({ ok: true, ...presence });
       }
+      if (url.pathname === "/secret-chats" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 60);
+        const chatId = String(url.searchParams.get("chatId") || "").trim();
+        const validateBlob = (value) => {
+          if (!value || typeof value !== "object") return null;
+          const fields = ["salt", "iv", "ciphertext"];
+          const out = {};
+          for (const field of fields) {
+            const item = value[field];
+            if (typeof item !== "string" || item.length < 8 || item.length > 900000 || !/^[A-Za-z0-9+/=]+$/.test(item)) return null;
+            out[field] = item;
+          }
+          return out;
+        };
+        if (chatId) {
+          if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId)) return json({ error: "invalid_secret_chat_id" }, 400);
+          const row = await firestoreGet("secretChats/" + user.uid + "_" + chatId);
+          if (!row || row.uid !== user.uid) return json({ error: "secret_chat_not_found" }, 404);
+          return json({ chat: { id: chatId, primary: validateBlob(row.primary), recovery: validateBlob(row.recovery), updatedAt: row.updatedAt || "" } });
+        }
+        const rows = await firestoreQuery("secretChats", {
+          filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+          limit: 100
+        });
+        return json({ chats: rows.map((row) => ({ id: String(row.chatId || ""), updatedAt: String(row.updatedAt || "") })).filter((row) => row.id) });
+      }
+      if (url.pathname === "/secret-chats" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 20);
+        const body = await readBody(request);
+        if (!body || ["messages", "plaintext", "text", "transcript", "title", "parts"].some((key) => Object.prototype.hasOwnProperty.call(body, key))) {
+          return json({ error: "secret_chats_accept_ciphertext_only" }, 400);
+        }
+        const chatId = String(body.chatId || "").trim();
+        const validateBlob = (value) => {
+          if (!value || typeof value !== "object") return null;
+          const out = {};
+          for (const field of ["salt", "iv", "ciphertext"]) {
+            const item = value[field];
+            if (typeof item !== "string" || item.length < 8 || item.length > 900000 || !/^[A-Za-z0-9+/=]+$/.test(item)) return null;
+            out[field] = item;
+          }
+          return out;
+        };
+        const primary = validateBlob(body.primary);
+        const recovery = validateBlob(body.recovery);
+        if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId) || !primary || !recovery) return json({ error: "invalid_secret_chat_ciphertext" }, 400);
+        const now = new Date().toISOString();
+        await firestoreSet("secretChats/" + user.uid + "_" + chatId, {
+          uid: user.uid, chatId, kind: "secret", label: "Secret chat",
+          primary, recovery, createdAt: now, updatedAt: now
+        }, false);
+        return json({ ok: true, chat: { id: chatId, updatedAt: now } });
+      }
+      if (url.pathname === "/secret-chats" && request.method === "DELETE") {
+        const user = await verifyFirebaseUser(request);
+        enforceRateLimit(user.uid, 20);
+        const chatId = String(url.searchParams.get("chatId") || "").trim();
+        if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId)) return json({ error: "invalid_secret_chat_id" }, 400);
+        const path = "secretChats/" + user.uid + "_" + chatId;
+        const existing = await firestoreGet(path);
+        if (!existing || existing.uid !== user.uid) return json({ error: "secret_chat_not_found" }, 404);
+        await firestoreDelete(path);
+        return json({ ok: true, deleted: true });
+      }
 
       if (url.pathname === "/ai" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
