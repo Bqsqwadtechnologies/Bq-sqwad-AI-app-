@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { shouldFallback, estimateCostUsd } from "../src/orchestrator-native.js";
 import { businessIngressAllowed, storageMeterView, redactForVault } from "../src/business-vault-native.js";
-import { toolsForPlan } from "../src/business-tool-catalog.js";
+import { toolsForPlanOrAll } from "../src/business-tool-catalog.js";
 import { isActivePresence } from "../src/presence-usage-native.js";
 
 test("fallback on 429 not on auth", () => {
@@ -36,7 +36,7 @@ test("vault redacts card-like numbers", () => {
 });
 
 test("plan tools are catalog-driven not forced KYC", () => {
-  const tools = toolsForPlan({ tools: [{ id: "gmail", name: "Gmail" }, { id: "slack", name: "Slack" }] });
+  const tools = toolsForPlanOrAll(["gmail", "slack"]);
   assert.equal(tools.length, 2);
   assert.ok(!tools.some((t) => /bvn|nin/i.test(t.id)));
 });
