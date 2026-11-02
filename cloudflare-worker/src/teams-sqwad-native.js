@@ -565,10 +565,60 @@ export async function teamsListMembers(user, body) {
       status: str(r.status, "active"),
       tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
       joinedAt: str(r.joinedAt),
+      spendLimitCredits: r.spendLimitCredits == null ? null : num(r.spendLimitCredits),
     }))
     .filter((m) => m.status === "active" || m.status === "pending")
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { members };
+}
+
+export async function teamsSetMemberSpendLimit(user, body) {
+  const teamId = str(body?.teamId);
+  const targetUid = str(body?.uid);
+  const { member: actor } = await requireActiveMember(user, teamId, "admin");
+  if (!targetUid) {
+    const err = new Error("A team member is required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const target = await getMember(teamId, targetUid);
+  if (!target || target.status !== "active") {
+    const err = new Error("Active team member not found.");
+    err.httpStatus = 404;
+    throw err;
+  }
+  if (target.role === "owner" && user.uid !== targetUid) {
+    const err = new Error("The team owner's spend limit cannot be changed by another member.");
+    err.httpStatus = 403;
+    throw err;
+  }
+  const rawLimit = body?.limitCredits;
+  const limitCredits = rawLimit === null || body?.clear === true ? null : Number(rawLimit);
+  if (limitCredits !== null && (!Number.isFinite(limitCredits) || limitCredits < 0 || limitCredits > 1000000000)) {
+    const err = new Error("Enter a valid monthly credit limit.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const ts = now();
+  await firestoreUpdateAtomic("teams/" + teamId + "/members/" + targetUid, (current) => {
+    if (!current || current.status !== "active") {
+      const err = new Error("Active team member not found.");
+      err.httpStatus = 404;
+      throw err;
+    }
+    if (current.role === "owner" && user.uid !== targetUid) {
+      const err = new Error("The team owner's spend limit cannot be changed by another member.");
+      err.httpStatus = 403;
+      throw err;
+    }
+    return {
+      ...current,
+      spendLimitCredits: limitCredits,
+      spendLimitUpdatedAt: ts,
+      spendLimitUpdatedBy: user.uid,
+    };
+  });
+  return { ok: true, uid: targetUid, spendLimitCredits: limitCredits, updatedBy: user.uid };
 }
 
 export async function teamsApproveMember(user, body) {
