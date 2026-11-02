@@ -46,3 +46,14 @@ test("Worker presence ping route is mounted on index.js", () => {
   assert.match(indexJs, /\/presence\/ping/);
   assert.match(indexJs, /writePresence/);
 });
+
+
+test("public join, approval and leave use compare-and-set membership transitions", () => {
+  assert.match(teamsSqwad, /async function firestoreUpdateAtomic\(/);
+  assert.match(teamsSqwad, /updateTime:\s*current\.__updateTime/);
+  assert.match(teamsSqwad, /const activated = await firestoreUpdateAtomic/);
+  assert.match(teamsSqwad, /const deactivated = await firestoreUpdateAtomic/);
+  assert.match(teamsSqwad, /status:\s*"left"/);
+  assert.match(teamsSqwad, /memberCount:\s*num\(current\.memberCount\)\s*\+\s*1/);
+  assert.match(teamsSqwad, /Math\.max\(0,\s*num\(current\.memberCount\)\s*-\s*1\)/);
+});
