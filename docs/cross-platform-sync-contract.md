@@ -171,3 +171,6 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Native Worker AI settlement now uses Firestore update-time compare-and-set to reserve `teams/{teamId}/usage/{YYYYMM}_{uid}` before debiting the shared team pool. If the pool debit fails, it rolls back the member usage reservation. A member cap blocks settlement and the uncharged provider result is not returned.
 - Website and native Worker now share the member cap document and monthly usage path. This is implemented in source but NOT tested for concurrent requests or verified live; do not treat it as release-verified.
 - Native Worker team AI settlement fails closed when a successful provider response lacks usage data or canonical token pricing: it does not return the generated response as a free answer. This behavior is source-only until Worker tests and live billing checks are run.
+
+## Android conversation export
+- Chat History can share conversation exports as TXT, JSON or CSV using the Android system share sheet. Export records contain message text, attachment names and generated-image links; original attachment binaries are not embedded and must be retained/downloaded separately where required.
