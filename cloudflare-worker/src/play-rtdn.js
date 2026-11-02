@@ -3,7 +3,7 @@ import { verifyPlayPurchase } from "./google-play.js";
 
 export async function reaggregateRootEntitlement(firestore, uid) {
   const plans = await firestore.query("entitlements/" + uid + "/plans", { limit: 50 }).catch(() => []);
-  const rank = { active: 3, trialing: 3, grace: 2, on_hold: 1, canceled: 0, expired: 0, revoked: 0 };
+  const rank = { active: 3, trialing: 3, grace: 2, expired: 0, cancelled: 0, canceled: 0, revoked: 0 };
   let best = null;
   for (const plan of plans || []) {
     const state = String(plan.state || plan.status || "").toLowerCase();
@@ -65,9 +65,9 @@ export async function handlePlayRtdn(env, firestore, body = {}) {
   if (revokeTypes.has(notificationType)) {
     await firestore.set("entitlements/" + uid + "/plans/" + planId, {
       planId,
-      state: notificationType === 5 ? "on_hold" : notificationType === 3 ? "canceled" : "expired",
+      state: notificationType === 5 ? "grace" : notificationType === 3 ? "cancelled" : "expired",
       active: false,
-      source: "google_play_rtdn",
+      source: "google_play",
       rtdnType: notificationType,
       updatedAt: new Date().toISOString()
     }, true);
