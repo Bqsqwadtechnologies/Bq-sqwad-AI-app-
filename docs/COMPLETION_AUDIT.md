@@ -56,9 +56,9 @@
 - 5.7 Business screens backed by live storage/expiry/entitlement data: NOT DONE.
 
 ### Phase 6 — Verification
-- 6.1 Android signed release APK/AAB workflow: IN PROGRESS at last check — see Actions run `41403530889`; no artifact or signature verification is claimed until the run completes.
-- 6.1 Android package identity audit: IN PROGRESS at last check — see Actions run `41403530960`.
-- 6.1 Full system verification: PENDING at last check — see Actions run `41403530983`.
+- 6.1 Android signed release APK/AAB workflow: IN PROGRESS at last check — see Actions run `41403917243`; no artifact or signature verification is claimed until the run completes.
+- 6.1 Android package identity audit: IN PROGRESS at last check — see Actions run `41403925117`. The previous run exposed one infrastructure-copy test failure; user-facing OAuth wording and the scanner's internal-key/URL exclusions were corrected before this rerun.
+- 6.1 Full system verification: PENDING at last check — see Actions run `41403925138`.
 - 6.1 Worker `npm ci && npm test` and local Gradle commands: NOT RUN locally; remote CI was still running and must be read back before marking green.
 - 6.2 Device/emulator QA (360dp/tablet composer, voice controls, teams, onboarding, theme, notifications, presence, secret chat): NOT DONE.
 
