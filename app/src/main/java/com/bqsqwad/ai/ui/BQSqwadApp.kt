@@ -1571,6 +1571,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                     .onSuccess {
                                         context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
                                             .edit().putString("theme_mode", profile.theme).apply()
+                                        context.getSharedPreferences("bq_device_prefs", Context.MODE_PRIVATE)
+                                            .edit().putBoolean("theme_chosen", true).apply()
                                         onboardingRequired = false
                                     }
                                     .onFailure { onboardingError = safeUserFacingIssue(it, "Your onboarding could not be saved. Please try again.") }
@@ -7651,7 +7653,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     val scope = rememberCoroutineScope()
     var showSupportMessageDialog by remember { mutableStateOf(false) }
 
-    var themeMode by remember(uid) { mutableStateOf(devicePrefs.getString("theme_mode", "system") ?: "system") }
+    var themeMode by remember(uid) { mutableStateOf(devicePrefs.getString("theme_mode", "light") ?: "light") }
     var accent by remember(uid) { mutableStateOf(devicePrefs.getString("accent_palette", "signature") ?: "signature") }
     var trainingConsent by remember(uid) { mutableStateOf(prefs.getBoolean("training_consent", false)) }
     var showSettingsPrivacyDirectory by remember { mutableStateOf(false) }
@@ -7830,6 +7832,8 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     fun saveTheme(value: String) {
         themeMode = value
         devicePrefs.edit().putString("theme_mode", value).apply()
+        context.getSharedPreferences("bq_device_prefs", Context.MODE_PRIVATE)
+            .edit().putBoolean("theme_chosen", true).apply()
         scope.launch {
             runCatching { SettingsSyncClient.save(JSONObject().put("theme_mode", value)) }
                 .onFailure { settingsNotice = "Theme saved on this device; website sync is temporarily unavailable." }
@@ -7930,7 +7934,7 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
         loadingAccount = false
     }
 
-    val modes = listOf("system", "light", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
+    val modes = listOf("light", "system", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
     val accents = listOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
 
     Scaffold(
