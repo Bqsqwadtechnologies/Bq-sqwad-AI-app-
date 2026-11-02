@@ -9,6 +9,7 @@ import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { handlePlayRtdn, reaggregateRootEntitlement } from "./play-rtdn.js";
+import { appendVaultMessage, redactForVault } from "./business-vault-native.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { runWithFallback } from "./orchestrator-native.js";
@@ -1771,6 +1772,26 @@ function applyChatModelKey(control, body) {
     });
   }
   return { ...control, ...model, config: control.config || {} };
+}
+
+async function appendBusinessVaultEntry(env, workspaceId, agentId, threadId, role, text) {
+  const encryptionKey = String(env?.BUSINESS_VAULT_ENCRYPTION_KEY || "");
+  if (!encryptionKey) throw Object.assign(new Error("business_vault_encryption_not_configured"), {
+    httpStatus: 503,
+    safeError: "business_vault_not_configured"
+  });
+  const segment = value => String(value || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "default";
+  return appendVaultMessage({
+    dbSet: firestoreSet,
+    dbGet: firestoreGet,
+    encryptionKey,
+    businessId: segment(workspaceId),
+    agentId: segment(agentId),
+    threadId: segment(threadId),
+    role,
+    text,
+    caller: "worker"
+  });
 }
 
 async function enforceChatModelEligibility(uid, body, control, user) {
@@ -4673,17 +4694,24 @@ export default {
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
         const k = await businessKnowledgeForWorkspace(u.uid, w.workspaceId, 50);
-        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
+        const threadId = String(b.threadId || b.conversationId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+        const agentId = String(b.agentId || "default").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+        const safeMessage = redactForVault(String(b.message || "").trim());
+        if (!safeMessage) throw new Error("business_message_required");
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "user", safeMessage);
+        const result = await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
           const z = await runProvider(env, {
             primaryProviderId: control.providerId,
             primaryModelId: control.modelId,
             fallbackProviderIds: control.config.fallbackProviderIds
           }, {
-            message: String(b.message || ""),
-            system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\nBusiness knowledge:\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\n")
+            message: safeMessage,
+            system: "You are the BQ Sqwad AI Business Assistant. Keep business workspace information isolated from personal workspace context. Use only supplied business knowledge and do not invent business facts.\\nBusiness knowledge:\\n" + k.map(x => x.content || x.text || "").filter(Boolean).join("\\n")
           });
           return { answer: z.text || "", providerId: z.providerId || null, modelId: z.modelId || null, workspaceId: w.workspaceId };
-        })));
+        }));
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "assistant", result.answer);
+        return json({ ...result, threadId });
       }
 
       if (url.pathname === "/admin/pricing/audit" && request.method === "GET") {
