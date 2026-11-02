@@ -8,8 +8,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.bqsqwad.ai.core.PresenceClient
 import com.bqsqwad.ai.ui.BQSqwadApp
 import com.bqsqwad.ai.ui.theme.BQSqwadTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
     private var sharedText by mutableStateOf<String?>(null)
@@ -18,6 +25,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         captureSharedText(intent)
+        startPresenceHeartbeat()
         setContent {
             BQSqwadTheme {
                 BQSqwadApp(
@@ -26,6 +34,19 @@ class MainActivity : FragmentActivity() {
                     onSharedTextConsumed = { sharedText = null },
                     openConnectorsNonce = openConnectorsNonce
                 )
+            }
+        }
+    }
+
+    /** POST /presence/ping while the activity is started and the user is signed in. */
+    private fun startPresenceHeartbeat() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val client = PresenceClient()
+                while (isActive) {
+                    runCatching { client.ping() }
+                    delay(30_000L)
+                }
             }
         }
     }
