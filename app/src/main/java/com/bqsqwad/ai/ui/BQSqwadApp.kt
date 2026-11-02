@@ -1585,6 +1585,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 !plans && !helpOpen && !accountProtection && featureInfo == null && featurePrivacy == null &&
                 !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
+                MonthlyFeedbackPrompt(eligible = firebaseUser?.isAnonymous == false)
                 key(firebaseUser?.uid, chatSessionNonce) {
                     MainChatScreen(
                         modifier = if (showMainChat) Modifier.fillMaxSize() else Modifier.size(0.dp),
