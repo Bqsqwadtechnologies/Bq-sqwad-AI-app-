@@ -16,7 +16,7 @@ import kotlin.math.sqrt
 class DictationRecorder(context: Context) {
     companion object {
         const val SAMPLE_RATE = 16_000
-        const val MAX_SECONDS = 120
+        const val MAX_SECONDS = 25
         private const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
         private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
         private const val MAX_PCM_BYTES = SAMPLE_RATE * 2 * MAX_SECONDS
