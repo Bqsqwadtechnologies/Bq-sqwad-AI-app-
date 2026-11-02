@@ -7455,6 +7455,16 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
     var companionMemory by remember(uid) { mutableStateOf(prefs.getBoolean("companion_memory", true)) }
     var truthGuardSources by remember(uid) { mutableStateOf(prefs.getBoolean("truthguard_sources", true)) }
     var notifications by remember(uid) { mutableStateOf(prefs.getBoolean("notifications_enabled", true)) }
+    var mutedNotificationKinds by remember(uid) { mutableStateOf<Set<String>>(emptySet()) }
+    val notificationKinds = remember {
+        listOf(
+            "chat" to "Chat", "image" to "Image", "video" to "Video",
+            "video-edit" to "Video edits", "file" to "Files", "training" to "Training",
+            "system" to "System", "team_invite" to "Team invites", "team_join" to "Team joins",
+            "team_message" to "Team messages", "task" to "Tasks", "sales" to "Sales",
+            "plan" to "Plans", "credits" to "Credits"
+        )
+    }
     var settingsNotice by remember { mutableStateOf<String?>(null) }
     var textScale by remember(uid) { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)) }
     var fileBoxRetentionDays by remember(uid) { mutableIntStateOf(prefs.getInt("file_box_retention_days", 30).let { if (it in listOf(7,14,30,90)) it else 30 }) }
@@ -7648,6 +7658,12 @@ private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenA
         }
         runCatching { api.notificationPreferences() }.onSuccess { body ->
             notifications = body.optBoolean("inAppEnabled", true) && body.optBoolean("pushEnabled", true)
+            val muted = body.optJSONArray("mutedKinds")
+            mutedNotificationKinds = buildSet {
+                if (muted != null) for (index in 0 until muted.length()) {
+                    muted.optString(index).takeIf { value -> value.isNotBlank() }?.let(::add)
+                }
+            }
             prefs.edit().putBoolean("notifications_enabled", notifications).apply()
         }
         // The website and Android both treat users/{uid}.memoryEnabled as
@@ -8089,11 +8105,37 @@ item { SettingsSectionTitle("Notifications", "Stay informed without losing contr
                         putBoolean("notifications_enabled", it)
                         onNotificationsChanged(it)
                         scope.launch {
-                            runCatching { WorkspaceApiClient().updateNotificationPreferences(it, it) }
-                                .onFailure { settingsNotice = "Notification preferences could not sync to your account. Check your connection and try again." }
+                            runCatching {
+                                WorkspaceApiClient().updateNotificationPreferences(
+                                    it, it, mutedNotificationKinds.toList()
+                                )
+                            }.onFailure {
+                                settingsNotice = "Notification preferences could not sync to your account. Check your connection and try again."
+                            }
                         }
                     }
                     notificationStatus?.let { Text(it, color = if (it.startsWith("Notification preferences could not")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                    Text("Mute individual categories on every signed-in device:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    notificationKinds.forEach { (kind, label) ->
+                        SettingsToggleCard(
+                            label,
+                            "Mute $label notifications for this account.",
+                            kind in mutedNotificationKinds
+                        ) { muted ->
+                            val previous = mutedNotificationKinds
+                            mutedNotificationKinds = if (muted) previous + kind else previous - kind
+                            scope.launch {
+                                runCatching {
+                                    WorkspaceApiClient().updateNotificationPreferences(
+                                        notifications, notifications, mutedNotificationKinds.toList()
+                                    )
+                                }.onFailure {
+                                    mutedNotificationKinds = previous
+                                    settingsNotice = "Could not save $label notification preference. Please try again."
+                                }
+                            }
+                        }
+                    }
                     Text("Notification permission is controlled by Android. Sound and vibration follow your device settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     settingsNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
