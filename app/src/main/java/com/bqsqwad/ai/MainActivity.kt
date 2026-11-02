@@ -24,6 +24,18 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // One-time: users without an explicit theme choice start in White,
+        // regardless of the device's system appearance.
+        run {
+            val device = getSharedPreferences("bq_device_prefs", MODE_PRIVATE)
+            if (!device.getBoolean("white_default_v1", false)) {
+                if (!device.getBoolean("theme_chosen", false)) {
+                    getSharedPreferences("bq_sqwad_ui", MODE_PRIVATE)
+                        .edit().putString("theme_mode", "light").apply()
+                }
+                device.edit().putBoolean("white_default_v1", true).apply()
+            }
+        }
         captureSharedText(intent)
         startPresenceHeartbeat()
         setContent {
