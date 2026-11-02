@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -146,7 +145,11 @@ fun MyTasksWorkspace() {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(task.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                                AssistChip(onClick = {}, label = { Text(task.status.replace('_', ' ')) })
+                                Text(
+                                    task.status.replace('_', ' '),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
                             }
                             if (task.description.isNotBlank()) {
                                 Text(task.description, style = MaterialTheme.typography.bodyMedium)
