@@ -7,7 +7,7 @@ data class OnboardingProfile(
     val purposes: List<String> = emptyList(),
     val role: String? = null,
     val roleOther: String? = null,
-    val theme: String = "system",
+    val theme: String = "light",
     val completedAt: String? = null,
     val version: Int = ONBOARDING_VERSION,
 )
