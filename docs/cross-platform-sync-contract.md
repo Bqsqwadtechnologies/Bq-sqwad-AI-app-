@@ -186,3 +186,11 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Website Main Chat, Team AI and Organization AI show client-side elapsed timers. Reconnect-safe server taskStarted/phase/taskEnded events are not yet implemented.
 - Website Admin now mounts Training Storage aggregate metrics and consented-candidate review/export. Android admin source remains retained until every admin capability has a verified website equivalent.
 - No build, tests, lint, authenticated integration QA, device/browser QA or deployment was run during this source continuation. The requester will run validation.
+
+## Phase 2–4 source continuation — 2026-11-02 (latest source state)
+- Business storage API contract correction: `GET /business/storage?workspaceId=...` verifies the Firebase user and resolves the requested workspace, but reads the current account-scoped storage record at `businessStorage/{uid}`. Plan expiry is taken from the resolved `workspace.planContext.expiresAt` (including an active admin test session) and the endpoint returns `serverNow`. Do not key the current quota record by workspace ID.
+- Worker super-admin `GET /admin/training-storage` pages aggregate metadata from `businessTrainingAssets`, adult-consented `userConsents`, active `consented_contributions`, and `agentTrainingCandidates`; it returns aggregate counts/bytes only and signals truncation at the 500-record-per-source cap. The website Admin Training Storage panel displays these metrics alongside candidate review controls.
+- Android main-chat overflow menu now includes branded TXT, JSON and CSV export through the Android share sheet. It does not create native PDF/Word files. The secret-chat dialog's own `FLAG_SECURE` protection remains authoritative; no redundant Private Chat flag should clear it.
+- Website team creation and discovery share logo URL and theme color metadata. Allowed theme values are `blue`, `indigo`, `violet`, and `cyan`; logo URLs are HTTPS-only. Android team logo/theme rendering is still outstanding.
+- Website BQ-Codron hint dismissal/seen state is persisted per conversation across browser sessions.
+- All items above are source-only. Do not infer production deployment, test success, or cross-client runtime parity from these commits.
