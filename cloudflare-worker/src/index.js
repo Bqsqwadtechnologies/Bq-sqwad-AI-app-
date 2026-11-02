@@ -964,7 +964,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   // pricing and keep a tiny reservation so they never fall through to a
   // legacy capability price (commonly 1 credit per chat).
   let charge = options.allowFractional
-    ? Math.max(0.00001, computeFixedCredits(amount))
+    ? Math.max(0.0000000001, Math.round(Number(amount) * 1e10) / 1e10)
     : computeFixedCredits(amount);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const currentProfile = await readCanonicalUserBalance(uid);
