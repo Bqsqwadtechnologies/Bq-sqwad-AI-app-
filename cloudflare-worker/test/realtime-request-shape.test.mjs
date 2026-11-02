@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 
 test("realtime client-secret request uses the GA audio.output.voice field", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
