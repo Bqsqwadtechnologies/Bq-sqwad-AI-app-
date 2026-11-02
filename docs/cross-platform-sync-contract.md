@@ -150,7 +150,7 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 
 
 ## Shared notifications and My Tasks
-- `notificationPreferences/{uid}` is shared across website and Android. Worker `GET/PUT /notifications/preferences` reads/writes account-level in-app and push toggles plus muted categories. Android Settings uses a combined master toggle for both delivery channels; website currently exposes the separate controls.
+- `notificationPreferences/{uid}` is shared across website and Android. Worker `GET/PUT /notifications/preferences` reads/writes account-level in-app and push toggles plus muted categories. Android Settings now exposes the master notification toggle and category-level mutes for the same categories as the website. The Android master toggle still controls in-app and push together; website exposes those delivery channels separately.
 - Worker `GET /tasks/my` returns only records assigned to the verified UID; `PATCH /tasks/my/status` checks assignment and restricts status to `open`, `in_progress`, `blocked`, or `done`. Android My Tasks is connected to these endpoints.
 
 ## Training privacy
