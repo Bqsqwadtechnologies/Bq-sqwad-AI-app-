@@ -80,20 +80,14 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        // Fetch the latest uploaded logo once per process and use it for both
-        // the expanded artwork and a system-compliant monochrome status icon.
-        val uploadedLogo = loadUploadedNotificationLogo()
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(uploadedLogo?.let { createMonochromeNotificationIcon(it) }
-                ?: IconCompat.createWithResource(this, R.drawable.bq_notification_mark))
-            .setLargeIcon(uploadedLogo ?: BitmapFactory.decodeResource(resources, notificationLogoResourceId(), BitmapFactory.Options().apply { inSampleSize = 4 }))
-            .setContentTitle("BQ Sqwad AI")
-            .setContentText(displayBody.take(500))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(displayBody.take(2000)))
-            .setAutoCancel(true)
-            .setContentIntent(pending)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
+        val notification = BqConversationNotification.build(
+            context = this,
+            channelId = channelId,
+            title = title,
+            preview = displayBody,
+            conversationId = message.data["conversationId"],
+            contentIntent = pending
+        )
         NotificationManagerCompat.from(this).notify(
             (System.currentTimeMillis() and 0x7fffffff).toInt(),
             notification
