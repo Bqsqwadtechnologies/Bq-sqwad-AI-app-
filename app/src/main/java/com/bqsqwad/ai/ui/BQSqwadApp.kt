@@ -2876,6 +2876,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             dictationLevel = 0f
             dictationRecorder = null
             micError = "Phone recording could not start. Please retry or choose Use phone speech."
+            dictationError = micError
         }
     }
 
@@ -2919,6 +2920,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationTranscribing = false
         dictationLevel = 0f
         dictationSeconds = 0
+        dictationError = null
+        dictationNeedsCredits = false
         val recorder = dictationRecorder
         dictationRecorder = null
         scope.launch(Dispatchers.IO) { runCatching { recorder?.cancel() } }
