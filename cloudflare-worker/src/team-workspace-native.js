@@ -22,11 +22,20 @@ async function writeMembershipIndex(ownerUid, member) {
   }, true);
 }
 
+async function queryTeamPages(collection, options = {}, maxRows = 1000) {
+  const rows = [];
+  for (let offset = 0; offset < maxRows; offset += 100) {
+    const page = await firestoreQuery(collection, { ...options, limit: 100, offset });
+    rows.push(...page);
+    if (page.length < 100) break;
+  }
+  return rows.slice(0, maxRows);
+}
+
 async function findMembershipTeams(uid) {
-  return firestoreQuery("teamMemberships", {
-    filters: [{ field: { fieldPath: "memberUid" }, op: "EQUAL", value: { stringValue: String(uid) } }],
-    limit: 500
-  }).catch(() => []);
+  return queryTeamPages("teamMemberships", {
+    filters: [{ field: { fieldPath: "memberUid" }, op: "EQUAL", value: { stringValue: String(uid) } }]
+  }, 1000).catch(() => []);
 }
 
 async function findUserByEmail(email) {
@@ -63,7 +72,7 @@ export async function teamMembers(user) {
   // Migrate the signed-in user's legacy memberships once, then use the indexed
   // query for subsequent reads instead of scanning the first 50 workspaces.
   if (!indexed.length) {
-    const legacy = await firestoreQuery("teamWorkspaces", { limit: 500 }).catch(() => []);
+    const legacy = await queryTeamPages("teamWorkspaces", {}, 500).catch(() => []);
     for (const row of legacy) {
       const member = row.members?.[user.uid];
       if (row.ownerUid === user.uid || member) {
