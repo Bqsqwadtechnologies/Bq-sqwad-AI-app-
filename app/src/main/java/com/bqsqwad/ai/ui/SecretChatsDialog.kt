@@ -12,6 +12,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.bqsqwad.ai.core.HistoryApiClient
 import com.bqsqwad.ai.core.SecretChatCrypto
 import com.bqsqwad.ai.core.WorkspaceApiClient
@@ -77,6 +80,20 @@ fun SecretChatsDialog(open: Boolean, chatId: String?, transcript: String, title:
             // Do not undo another active privacy mode (for example Private Chat).
             if (!wasAlreadySecure) activity?.window?.clearFlags(flag)
         }
+    }
+
+    DisposableEffect(openedText) {
+        val owner = context as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                openedText = null
+                selected = null
+                password = ""
+                recoveryMode = false
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
     }
 
     Dialog(onDismissRequest = { if (!busy) onClose() }) {
