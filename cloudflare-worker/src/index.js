@@ -4767,6 +4767,31 @@ export default {
       if (url.pathname === "/business/enterprise" && request.method === "GET") { const u=await verifyFirebaseUser(request),w=await businessWorkspace(u.uid,{workspaceId:url.searchParams.get("workspaceId")}); await requireBusinessFeature(u.uid,w.workspaceId,"enterprise"); return json(await enterpriseConfig(u.uid,w.workspaceId)); }
       if (url.pathname === "/business/enterprise" && request.method === "PATCH") { const u=await verifyFirebaseUser(request),b=await readBody(request),w=await businessWorkspace(u.uid,{workspaceId:b.workspaceId}); await requireBusinessRole(u.uid,w.workspaceId,"admin"); const access=await requireBusinessFeature(u.uid,w.workspaceId,"enterprise"); const config=b.config||b,whiteLabel=config.whiteLabel||{}; if(!["bizenterprise","businessenterprise"].includes(access.plan.id)&&(whiteLabel.enabled===true||String(whiteLabel.customDomain||"").trim()||String(whiteLabel.logoUrl||"").trim()))throw new Error("business_feature_locked:white_label"); return json(await enterpriseUpdate(u.uid,w.workspaceId,config)); }
       if (url.pathname === "/business/workspace" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await businessWorkspace(u.uid,{workspaceId:url.searchParams.get("workspaceId")})); }
+      if (url.pathname === "/business/storage" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        const workspace = await businessWorkspace(u.uid, { workspaceId: url.searchParams.get("workspaceId") || undefined });
+        const [storage, entitlement, testSession] = await Promise.all([
+          firestoreGet("businessStorage/" + u.uid).catch(() => null),
+          firestoreGet("entitlements/" + u.uid).catch(() => null),
+          firestoreGet("adminBusinessTestSessions/" + u.uid).catch(() => null),
+        ]);
+        const testExpiry = Date.parse(String(testSession?.expiresAt || ""));
+        const testActive = testSession?.enabled === true && Number.isFinite(testExpiry) && testExpiry > Date.now();
+        const planExpiry = Date.parse(String(entitlement?.expiresAt || ""));
+        const planActive = workspace.accessGranted === true || (["active", "trialing", "grace"].includes(String(entitlement?.state || entitlement?.status || "").toLowerCase()) && (!entitlement?.expiresAt || (Number.isFinite(planExpiry) && planExpiry > Date.now())));
+        const planQuotaBytes = Math.max(0, Number(storage?.planQuotaBytes || 0) || 0);
+        const addOnBytes = Math.max(0, Number(storage?.addOnBytes || 0) || 0);
+        const usedBytes = Math.max(0, Number(storage?.usedBytes || 0) || 0);
+        const totalBytes = planQuotaBytes + addOnBytes;
+        const threshold = Math.min(100, Math.max(1, Number(storage?.addonOfferThresholdPct || 90) || 90));
+        const usagePct = totalBytes > 0 ? usedBytes / totalBytes * 100 : 0;
+        return json({
+          workspaceId: workspace.workspaceId,
+          expiresAt: testActive ? testSession.expiresAt : entitlement?.expiresAt || null,
+          serverNow: new Date().toISOString(),
+          storage: { usedBytes, totalBytes, showAddonOffer: planActive && totalBytes > 0 && usagePct >= threshold, showRenewalOnly: !planActive },
+        });
+      }
       if (url.pathname === "/business/workspace" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await businessWorkspace(u.uid,b)); }
       if (url.pathname === "/business/members" && request.method === "POST") { const u=await verifyFirebaseUser(request); return json(await addBusinessMember(u.uid,await readBody(request))); }
       if (url.pathname === "/business/settings" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request); return json(await updateBusinessSettings(u.uid,String(b.workspaceId||""),b)); }
