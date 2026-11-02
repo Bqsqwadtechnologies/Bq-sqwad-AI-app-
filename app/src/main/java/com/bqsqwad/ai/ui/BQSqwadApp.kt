@@ -3948,7 +3948,6 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
-                                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
                                     TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech") }
                                     if (dictationNeedsCredits) {
                                         Button(onClick = { openCredits() }) { Text("Buy credits") }
