@@ -970,7 +970,15 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
     const profile = await readCanonicalUserBalance(uid);
     if (!profile) throw new Error("Account not found.");
     const balance = canonicalUserBalance(profile);
-    if (!balance || balance.total <= 0) throw new Error("Insufficient credits");
+    const spendable = options.purchasedOnly
+      ? (balance?.permanent || 0) + (balance?.subscription || 0)
+      : (balance?.total || 0);
+    if (!balance || spendable <= 0) {
+      throw Object.assign(new Error(options.purchasedOnly ? "purchased_credits_required" : "out_of_credits"), {
+        httpStatus: 402,
+        safeError: options.purchasedOnly ? "purchased_credits_required" : "out_of_credits"
+      });
+    }
     return { reservationId: null, amount: 0 };
   }
 
@@ -980,14 +988,24 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
     const balance = canonicalUserBalance(profile);
     if (!profile || !balance) throw new Error("Account not found.");
     if (Number(profile.suspended ? 1 : 0) === 1) throw new Error("Your account is suspended.");
-    if (options.allowFractional) { const h = computeHold({ balanceTotal: balance.total, estimate: charge }); if (!h.ok) throw new Error("Insufficient credits"); charge = h.hold; } else if (balance.total < charge) { throw new Error("Insufficient credits"); }
+    const spendableBalance = options.purchasedOnly
+      ? balance.permanent + balance.subscription
+      : balance.total;
+    if (options.allowFractional) {
+      const h = computeHold({ balanceTotal: spendableBalance, estimate: charge });
+      if (!h.ok) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+      charge = h.hold;
+    } else if (spendableBalance < charge) {
+      throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+    }
 
     // The website's users/{uid} document is the shared credit authority.
     // Reserve the exact bucket(s) here so website and app cannot both spend
-    // the same credits. The reservation is reversed if the AI call fails.
-    const fromDaily = Math.min(balance.daily, charge);
+    // the same credits. Purchased-only model requests never touch the daily
+    // allowance or retired trial bucket.
+    const fromDaily = options.purchasedOnly ? 0 : Math.min(balance.daily, charge);
     const afterDaily = charge - fromDaily;
-    const fromTrial = Math.min(balance.trial, afterDaily);
+    const fromTrial = options.purchasedOnly ? 0 : Math.min(balance.trial, afterDaily);
     const afterTrial = afterDaily - fromTrial;
     const fromSubscription = Math.min(balance.subscription, afterTrial);
     const fromPermanent = afterTrial - fromSubscription;
@@ -1733,6 +1751,29 @@ function applyChatModelKey(control, body) {
   return { ...control, ...model, config: control.config || {} };
 }
 
+async function enforceChatModelEligibility(uid, body, control, user) {
+  const modelKey = String(body?.modelKey || "bq-7-star").trim().toLowerCase();
+  const modelId = String(control?.modelId || "").trim().toLowerCase();
+  if (modelId.includes("gpt-5.6") && modelKey !== "bq-codron") {
+    throw Object.assign(new Error("model_unavailable"), { httpStatus: 403, safeError: "model_unavailable" });
+  }
+  if (modelKey !== "bq-codron") return { purchasedOnly: false };
+  if (modelId !== "gpt-5.6-luna") {
+    throw Object.assign(new Error("model_unavailable"), { httpStatus: 403, safeError: "model_unavailable" });
+  }
+  if (isSuperAdmin(user, globalThis.__bqEnv)) return { purchasedOnly: false };
+  const profile = await readCanonicalUserBalance(uid);
+  const balance = canonicalUserBalance(profile);
+  const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
+  if (purchasedBalance <= 0) {
+    throw Object.assign(new Error("purchased_credits_required"), {
+      httpStatus: 402,
+      safeError: "purchased_credits_required"
+    });
+  }
+  return { purchasedOnly: true };
+}
+
 async function ai(request, user, body) {
   enforceRateLimit(user.uid);
   await requireConsent(user.uid);
@@ -1781,6 +1822,9 @@ async function ai(request, user, body) {
   } else if (capabilityName === "chat") {
     control = applyChatModelKey(control, body);
   }
+  const chatEligibility = capabilityName === "chat"
+    ? await enforceChatModelEligibility(user.uid, body, control, user)
+    : { purchasedOnly: false };
   // Use the website billing feature key for Main Chat. The Worker pricing resolver
   // also accepts the legacy "text-chat" alias for existing admin rules.
   const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
@@ -1823,7 +1867,11 @@ async function ai(request, user, body) {
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
-  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
+    allowFractional: tokenBilling,
+    markupApplied: tokenBilling,
+    purchasedOnly: chatEligibility.purchasedOnly
+  });
   let lifeUsageCounterPath = null;
   let learningUsageCounterPath = null;
   try {
@@ -2030,7 +2078,12 @@ async function stream(request, user, body) {
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
+  } else if (capabilityName === "chat") {
+    control = applyChatModelKey(control, body);
   }
+  const chatEligibility = capabilityName === "chat"
+    ? await enforceChatModelEligibility(user.uid, body, control, user)
+    : { purchasedOnly: false };
   const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
   // Text chat defaults to measured provider-cost billing. Explicit admin settings
   // may opt out; missing model rates fail safely rather than silently charging 1 credit.
@@ -2061,7 +2114,11 @@ async function stream(request, user, body) {
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
     : (control.creditCost || 0);
-  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, { allowFractional: tokenBilling, markupApplied: tokenBilling });
+  const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
+    allowFractional: tokenBilling,
+    markupApplied: tokenBilling,
+    purchasedOnly: chatEligibility.purchasedOnly
+  });
   try {
     const providerRoute = await buildProviderExecutionRoute(
       control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
