@@ -3956,21 +3956,12 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                             }
                         }
-                        Row(
+                        Column(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.Bottom
+                                .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
-                        ModelSelector(
-                            selectedKey = selectedModelKey,
-                            onSelect = { selectedModelKey = it.modelKey },
-                            onBuyCredits = { }
-                        )
-                        Column(
-                            modifier = Modifier.width(44.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
                                     micError = null
@@ -3990,19 +3981,9 @@ val composerShape = RoundedCornerShape(26.dp)
                                         else -> "Start voice dictation"
                                     },
                                     tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            PlusAttachmentButton(
-                                enabled = true,
-                                onAction = { action ->
-                                    when (action) {
-                                        PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
-                                            showAttachmentSourceDialog = true
-                                        else -> Unit
-                                    }
-                                }
+                                ,
+                                modifier = Modifier.size(36.dp)
                             )
-                        }
 
                         OutlinedTextField(
                             value = message,
@@ -4038,7 +4019,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     if (state.isFocused) keyboardController?.show()
                                 },
                             minLines = 1,
-                            maxLines = 5,
+                            maxLines = 6,
                             textStyle = LocalTextStyle.current.copy(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium
@@ -4071,15 +4052,36 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                                 sendAuthenticatedMessage(text)
                             },
-                            modifier = Modifier.size(52.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 if (busy) Icons.Default.Stop else Icons.Default.Send,
                                 contentDescription = if (busy) "Stop generating" else "Send",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(25.dp)
+                                modifier = Modifier.size(21.dp)
                             )
                         }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp, bottom = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            PlusAttachmentButton(
+                                enabled = true,
+                                onAction = { action ->
+                                    when (action) {
+                                        PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
+                                            showAttachmentSourceDialog = true
+                                        else -> Unit
+                                    }
+                                }
+                            )
+                            ModelSelector(
+                                selectedKey = selectedModelKey,
+                                onSelect = { selectedModelKey = it.modelKey },
+                                onBuyCredits = { }
+                            )
                         }
                     }
                 }
