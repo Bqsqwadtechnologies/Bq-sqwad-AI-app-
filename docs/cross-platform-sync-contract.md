@@ -167,4 +167,6 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 ## Team monthly spend limits — 2026-11-02
 - Website owner/admin controls write `spendLimitCredits` on `teams/{teamId}/members/{uid}`; team usage rollups are `teams/{teamId}/usage/{YYYYMM}_{uid}`.
 - Website AI debit atomically reserves member monthly usage before debiting `teamCreditPools/{creditPoolId}`, and rolls back the usage reservation if the pool debit fails.
-- Android member spend-limit controls and Worker-side settlement enforcement are not yet at parity. Do not describe the cap as globally enforced until those paths are implemented and verified.
+- Android TeamWorkspace now exposes owner/admin monthly member cap controls through authenticated `POST /native/teams/member/spend-limit`; the Worker validates active membership, admin role, target membership and owner protection before writing the cap.
+- Native Worker AI settlement now uses Firestore update-time compare-and-set to reserve `teams/{teamId}/usage/{YYYYMM}_{uid}` before debiting the shared team pool. If the pool debit fails, it rolls back the member usage reservation. A member cap blocks settlement and the uncharged provider result is not returned.
+- Website and native Worker now share the member cap document and monthly usage path. This is implemented in source but NOT tested for concurrent requests or verified live; do not treat it as release-verified.
