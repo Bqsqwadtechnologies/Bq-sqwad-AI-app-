@@ -2650,7 +2650,7 @@ export default {
         for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i];
         if (mismatch !== 0) throw Object.assign(new Error("play_rtdn_unauthorized"), { httpStatus: 401, safeError: "unauthorized" });
         const body = await readBody(request);
-        const firestore = { get: firestoreGet, query: firestoreQuery, set: firestoreSet };
+        const firestore = { get: firestoreGet, query: firestoreQuery, set: firestoreSet, commit: firestoreCommit };
         return json(await handlePlayRtdn(env, firestore, body));
       }
 
