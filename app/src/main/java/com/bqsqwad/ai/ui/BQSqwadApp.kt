@@ -569,6 +569,7 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                         label = { Text("Email") },
                         singleLine = true
                     )
+                }
             },
             confirmButton = {
                 TextButton(
