@@ -8080,10 +8080,14 @@ item { SettingsSectionTitle("AI features", "Open any AI workspace from here inst
 item { SettingsSectionTitle("Notifications", "Stay informed without losing control") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsToggleCard("Notifications", "Receive supported plan, generation, business and security notifications.", notifications) {
+                    SettingsToggleCard("Notifications", "Receive supported plan, generation, business and security notifications across your signed-in devices.", notifications) {
                         notifications = it
                         putBoolean("notifications_enabled", it)
                         onNotificationsChanged(it)
+                        scope.launch {
+                            runCatching { WorkspaceApiClient().updateNotificationPreferences(it, it) }
+                                .onFailure { settingsNotice = "Notification preferences could not sync to your account. Check your connection and try again." }
+                        }
                     }
                     notificationStatus?.let { Text(it, color = if (it.startsWith("Notification preferences could not")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                     Text("Notification permission is controlled by Android. Sound and vibration follow your device settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
