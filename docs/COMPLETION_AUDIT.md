@@ -25,7 +25,7 @@
 - 2.1 Drawer opens Teams state before closing navigation: DONE but not verified — `BQSqwadApp.kt` line 1473.
 - 2.2 Android Teams cached first paint: DONE but not verified — `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamsHubScreen.kt` now initializes from a UID-keyed in-memory cache and refreshes in the background with a visible Retry action. Disk persistence, skeleton placeholders and a bounded network timeout remain NOT DONE.
 - 2.3 Android/Worker membership index and paged membership reads: NOT DONE — `cloudflare-worker/src/team-workspace-native.js` still scans `teamWorkspaces` with `limit: 50` at line 42.
-- 2.4 Seat limits sourced from plans/admin and support for 200+ members: NOT DONE — prior fixed query limits remain in `team-workspace-native.js` lines 42 and 66; end-to-end seat policy was not changed.
+- 2.4 Teams v2 capacity: DONE in source, NOT TESTED — `cloudflare-worker/src/teams-sqwad-native.js` now rejects public joins and approvals at 200 active members; plan/admin-derived seat configuration and a 200-member integration test remain NOT DONE.
 - 2.5 Create, join, request, approve, invite link, leave parity across app and website: NOT DONE — full route and shared-data verification was not completed.
 
 ### Phase 3 — Existing Android modules
@@ -41,14 +41,14 @@
 ### Phase 4 — Worker integration
 - 4.1 Import and route all listed unused Worker modules: NOT DONE.
 - 4.2 Orchestrator fallback, cost safeguards and idempotent settlement: NOT DONE — existing cross-platform contract records fallback as inactive.
-- 4.3 Encrypted vault writes, deny-client rules and permission test: NOT DONE.
+- 4.3 Vault: client access is explicitly denied in `firestore.rules` and `storage.rules` for `vault/**` and `vaultIndex/**`; DONE in rules source, NOT DEPLOYED or permission-tested. Worker encrypted vault writes, conversation-path integration, expiry ingress and secret-value redaction are NOT DONE.
 - 4.4 Plan expiry enforcement, countdown and storage add-on policy: NOT DONE.
 - 4.5 Server-side admin route enforcement and complete entitlements response: NOT DONE.
 - 4.1 Worker /play/verify now writes `entitlements/{uid}/plans/{planId}` with `source: google_play`, module, active/grace state, expiry and included entitlement codes; existing verified subscription-cycle migrations also backfill the canonical plan. `cloudflare-worker/src/google-play.js` — DONE and unit-tested in run `41406800730`.
 - 4.1 Play RTDN notification endpoint/verification and canonical revocation on refund, expiry, hold or revoke: NOT DONE. Legacy root entitlement is still updated from the latest purchase, not derived from the highest active canonical plan.
-- 4.1 Android now refreshes canonical entitlements on launch/workspace refresh and ON_RESUME, and listens to `entitlements/{uid}/plans` changes; `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt` and `EntitlementsClient.kt` — DONE but not verified by device tests. The Firestore owner-read rule was added in `firestore.rules`, but it is NOT DEPLOYED; the existing rules workflow deploys Storage rules only.
-- 4.6 Worker /ai and /stream call shared canUseModel before provider execution, reject inactive/mismatched models, require purchased/subscription credits for BQ-Codron, and disable provider substitution for BQ-Codron; cloudflare-worker/src/index.js and cloudflare-worker/src/ai-model-catalog-route.js — DONE but not verified by live request tests.
-- 4.6 Mixed-balance policy is explicit and tested: BQ-7-Star drains daily free → subscription → permanent; BQ-Codron drains subscription → permanent and never daily free. `cloudflare-worker/src/billing-hold.js` and `cloudflare-worker/test/billing-hold.test.js` — Worker syntax/unit-test job passed in run `41406554515` for commit `9f4bfa28`; the later no-fallback adjustment is pending a fresh run.
+- 4.1 Android canonical plans: HTTP entitlement fetch on Main Chat launch and Firestore `entitlements/{uid}/plans` snapshot listener added in `BQSqwadApp.kt`; DONE in source, NOT TESTED on device. ON_RESUME refresh is NOT DONE. Firestore owner-read rules are present but NOT DEPLOYED.
+- 4.6 Worker /ai and /stream call shared canUseModel before provider execution, reject inactive/mismatched models, require purchased/subscription credits for BQ-Codron, and disable provider substitution for BQ-Codron; `cloudflare-worker/src/index.js` — DONE in source; live request tests still pending.
+- 4.6 Mixed-balance policy: BQ-7-Star drains daily free → subscription → permanent; BQ-Codron drains subscription → permanent and never daily free. `cloudflare-worker/src/billing-hold.js` — prior tests passed; current `main` changes have NOT been re-tested.
 - 4.6 Worker public model catalog route is now mounted at GET /models/catalog and its availability projection includes daily free credit for BQ-7-Star while keeping that allowance out of BQ-Codron eligibility; cloudflare-worker/src/index.js and cloudflare-worker/src/ai-model-catalog-route.js — DONE but not verified.
 - 4.6 Full-repository model-default audit: NOT DONE — remaining provider/model routes and workspace agents have not yet been exhaustively checked.
 
@@ -73,3 +73,12 @@ Status note: This audit deliberately distinguishes source edits from runtime ver
 - Worker team membership reads now query `teamMemberships` by `memberUid` and fetch only the indexed workspaces; legacy membership records are indexed on first lookup. Invite, accept and remove maintain the index. `cloudflare-worker/src/team-workspace-native.js` — DONE in source, NOT TESTED; no workflow has been run for this continuation.
 - Workspace invitations now enforce a minimum supported seat ceiling of 200, with active and invited members counted. `cloudflare-worker/src/team-workspace-native.js` — DONE in source, NOT TESTED; existing workspace data and admin-configured seat policy have not been reconciled.
 - Migration caveat: Firestore's shared query helper caps each request at 100 rows. The current first-lookup compatibility pass is therefore not a complete paginated historical backfill; larger installations need a controlled migration before relying exclusively on the index.
+
+### Phase 0/1 continuation — implementation checkpoint (2026-11-02)
+- Canonical plan-covered usage now checks active/trialing/grace records under `entitlements/{uid}/plans` and honors exact `includedFeatures` before credit deduction; `cloudflare-worker/src/index.js` — DONE in source, NOT TESTED.
+- Firestore and Storage rules explicitly deny client read/write to `vault/**` and `vaultIndex/**`; `firestore.rules`, `storage.rules` — DONE in source, NOT DEPLOYED or permission-tested. This does not implement encrypted vault writes.
+- Android Main Chat now performs an initial HTTP entitlement read and listens to Firestore plan-document changes; `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt` — DONE in source, NOT TESTED. A separate ON_RESUME refresh remains NOT DONE.
+- Teams v2 `My teams` reads the existing per-user index using a valid Firestore parent/subcollection query; owners, public joins and approved members maintain the index; `cloudflare-worker/src/teams-sqwad-native.js` — DONE in source, NOT TESTED.
+- Teams v2 public join and pending-member approval enforce a 200 active-member ceiling; `cloudflare-worker/src/teams-sqwad-native.js` — DONE in source, NOT TESTED. Plan/admin-specific seat limits and concurrency-safe atomic capacity reservation remain NOT DONE.
+- Android dictation recorder hard cap changed to 25 seconds and the automatic external speech-recognition fallback was removed; `DictationRecorder.kt`, `BQSqwadApp.kt` — DONE in source, NOT TESTED. The explicit user-selected phone speech option remains separate.
+- Play RTDN verification/revocation, legacy root entitlement aggregation from the highest active canonical plan, authenticated Paystack backfill execution/counts, vault encryption/write integration, secret-value ingress filtering, and Firestore rules deployment remain NOT DONE.
