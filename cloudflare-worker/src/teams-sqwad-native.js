@@ -575,7 +575,7 @@ export async function teamsListMembers(user, body) {
 export async function teamsSetMemberSpendLimit(user, body) {
   const teamId = str(body?.teamId);
   const targetUid = str(body?.uid);
-  const { member: actor } = await requireActiveMember(user, teamId, "admin");
+  await requireActiveMember(user, teamId, "admin");
   if (!targetUid) {
     const err = new Error("A team member is required.");
     err.httpStatus = 400;
