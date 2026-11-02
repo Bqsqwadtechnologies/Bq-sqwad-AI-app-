@@ -64,18 +64,28 @@ export async function submitNativeMonthlyFeedback(user, body) {
   const assignedUid = clean(committed.receiverUid || receiverUid, 160);
   await verifiedReceiver(assignedUid);
   const notificationId = "monthly_feedback_" + id;
-  await firestoreSet("notifications/" + assignedUid + "/items/" + notificationId, {
-    id: notificationId,
-    type: "monthly_feedback",
-    title: "New monthly product feedback",
-    body: "A user submitted a " + committed.rating + "/5 rating for " + committed.category + ".",
-    read: false,
-    createdAt: committed.createdAt || now,
-    deepLink: "/admin"
-  }, false).catch(async error => {
-    // A deterministic notification may already exist after a successful first delivery.
-    if (!/ALREADY_EXISTS|already exists|409/i.test(String(error?.message || error))) throw error;
-  });
+  const notificationPath = "notifications/" + assignedUid + "/items/" + notificationId;
+  const existingNotification = await firestoreGet(notificationPath);
+  if (!existingNotification) {
+    try {
+      await firestoreCommit([{
+        path: notificationPath,
+        create: true,
+        data: {
+          id: notificationId,
+          type: "monthly_feedback",
+          title: "New monthly product feedback",
+          body: "A user submitted a " + committed.rating + "/5 rating for " + committed.category + ".",
+          read: false,
+          createdAt: committed.createdAt || now,
+          deepLink: "/admin"
+        }
+      }]);
+    } catch (error) {
+      // A concurrent delivery may have created the deterministic notification.
+      if (!await firestoreGet(notificationPath)) throw error;
+    }
+  }
   return { ok: true, period, alreadySubmitted: committed.createdAt !== now };
 }
 
