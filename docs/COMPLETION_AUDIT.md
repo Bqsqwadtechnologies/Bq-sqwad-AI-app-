@@ -84,3 +84,11 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **DONE — source implemented, build pending:** Worker `/ai/stream` emits `taskStarted`, real `phase` updates for streaming and usage settlement, and `taskEnded` on success, failure and request abort; abort cancels the upstream reader and reverses the reservation.
 - **DONE — source implemented, build pending:** Android `ChatApiClient` parses named SSE events; Main Chat stores the server `startedAt`, updates elapsed time once per second without resetting on recomposition, and displays `label · mm:ss`.
 - **NOT VERIFIED:** Android/Worker automated checks are pending in GitHub Actions.
+
+## PDF Phase 6 — Single-token pricing
+
+- **DONE — source implemented, build pending:** Website shared helpers `creditsPerToken`, `cachedInputCreditsPerToken`, and `outputCreditsPerToken` normalize canonical per-token customer rates and legacy per-1k Firestore records.
+- **DONE — source implemented, build pending:** Admin pricing writes canonical per-token fields; the server validates all three rates, preserves legacy input compatibility, and normalizes records. Website chat preflight and settlement consume the normalized values.
+- **DONE — source implemented, build pending:** Worker `token-billing-native.js` reads canonical per-token customer rates first and converts legacy per-1k fields only as fallback. Provider USD per-token/per-million values remain internal cost telemetry.
+- **DONE — test sources updated:** Both billing vector JSON files now express token prices per single token; vector and legacy-compatibility test cases were updated.
+- **NOT VERIFIED:** Website tests/build and Worker tests await CI access; no website build has run because the shared verification workflow's website token receives HTTP 403.
