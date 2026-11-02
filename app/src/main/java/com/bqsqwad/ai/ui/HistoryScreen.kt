@@ -30,6 +30,8 @@ fun HistoryScreen(
     var deletingItem by remember { mutableStateOf<HistoryItem?>(null) }
     var deletingId by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showSecretVault by remember { mutableStateOf(false) }
+    var secretSource by remember { mutableStateOf<Pair<HistoryItem, List<HistoryMessage>>?>(null) }
 
     fun refresh(limit: Int = historyLimit) {
         busy = true
@@ -48,7 +50,10 @@ fun HistoryScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Chat History") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
+                actions = {
+                    TextButton(onClick = { secretSource = null; showSecretVault = true }) { Text("Secret Chats") }
+                }
             )
         }
     ) { padding ->
@@ -156,8 +161,29 @@ fun HistoryScreen(
                 }) { Text("Continue in Chat") }
             },
             dismissButton = {
-                TextButton(onClick = { selected = null }) { Text("Close") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = {
+                        secretSource = selected
+                        selected = null
+                        showSecretVault = true
+                    }) { Text("Move to Secret Chat") }
+                    TextButton(onClick = { selected = null }) { Text("Close") }
+                }
             }
         )
     }
+
+    SecretChatVaultDialog(
+        open = showSecretVault,
+        createFrom = secretSource,
+        onCreateConsumed = {
+            secretSource = null
+            selected = null
+            refresh()
+        },
+        onDismiss = {
+            showSecretVault = false
+            secretSource = null
+        }
+    )
 }
