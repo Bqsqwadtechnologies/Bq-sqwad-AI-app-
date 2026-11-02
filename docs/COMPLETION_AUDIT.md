@@ -54,7 +54,7 @@ Worked only on real `main`. No duplicate trees.
 ### Phase 2 — Website-only administration
 - Android Admin workspace navigation is excluded from the drawer and openWorkspace(Workspace.ADMIN) is a no-op; the Settings Admin Dashboard card was removed. Evidence: app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt lines 1324–1327 and 4749–4754. DONE in source, NOT Android-build-verified.
 - Existing Android admin screen source files were retained because website equivalence has not been verified for every capability. No app admin screens were deleted.
-- Website admin parity inventory is recorded in the website audit. File Box retention and a dedicated Training Storage dashboard still need a verified website equivalent before deleting their Android source screens.
+- Website AdminFileBoxRetention has since been added and is linked from /admin; it uses the existing Worker super-admin endpoint. Evidence: website src/components/admin/AdminFileBoxRetention.tsx and src/routes/admin.tsx. DONE in source, NOT browser-tested. A dedicated Training Storage dashboard with the requested exclusions remains unverified; Android training-library source was retained.
 
 ### Phase 3 — Existing modules
 - Android onboarding now checks the authenticated shared /api/native/onboarding status and mounts OnboardingSurveyScreen only when needsOnboarding is true; successful submission persists the chosen theme to the same device preference read by Settings. Evidence: BQSqwadApp.kt lines 1183–1191 and 1558–1578; OnboardingApiClient.kt; OnboardingSurveyScreen.kt. DONE in source, NOT device-tested.
