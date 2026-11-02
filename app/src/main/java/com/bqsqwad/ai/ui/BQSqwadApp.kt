@@ -1095,6 +1095,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var appLayoutEnabled by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var consentRequired by remember { mutableStateOf(false) }
     var consentLoading by remember { mutableStateOf(false) }
+    var onboardingRequired by remember(firebaseUser?.uid) { mutableStateOf(false) }
+    var onboardingError by remember { mutableStateOf<String?>(null) }
+    var onboardingSaving by remember { mutableStateOf(false) }
 
     val entitlementLifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
     DisposableEffect(entitlementLifecycleOwner) {
@@ -1176,6 +1179,15 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             }
             delay(60_000L)
         }
+    }
+
+    LaunchedEffect(firebaseUser?.uid) {
+        onboardingRequired = false
+        onboardingError = null
+        if (firebaseUser == null || firebaseUser.isAnonymous) return@LaunchedEffect
+        runCatching { OnboardingApiClient().status() }
+            .onSuccess { onboardingRequired = it.optBoolean("needsOnboarding", false) }
+            .onFailure { onboardingError = "Onboarding status could not be checked. Your account remains available; please retry from Settings." }
     }
 
     LaunchedEffect(email) {
@@ -1310,8 +1322,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             workspace = null
             signInRequired = true
         } else if (selected == Workspace.ADMIN) {
-            // Never expose an admin-only destination as a user-facing plan/paywall option.
-            if (adminAuthorized) workspace = selected
+            // Administration is website-only; Android never opens an admin workspace.
+            workspace = null
         } else if (selected in setOf(
             Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
             Workspace.VIDEO, Workspace.PERSONAL
@@ -1541,6 +1553,30 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             } else {
                 ConsentGate(Modifier.fillMaxSize()) {
                     consentRequired = false
+                }
+            }
+        } else if (onboardingRequired && firebaseUser != null && !firebaseUser.isAnonymous) {
+            Column(Modifier.fillMaxSize()) {
+                onboardingError?.let { Text(it, modifier = Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.error) }
+                if (onboardingSaving) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { BqSqwadLoadingIndicator(Modifier.size(48.dp)) }
+                } else {
+                    OnboardingSurveyScreen(onComplete = { profile ->
+                        if (!onboardingSaving) {
+                            onboardingSaving = true
+                            onboardingError = null
+                            shellScope.launch {
+                                runCatching { OnboardingApiClient().submit(profile) }
+                                    .onSuccess {
+                                        val prefs = accountPreferences(context, "bq_sqwad_ui")
+                                        prefs.edit().putString("theme_mode", profile.theme).apply()
+                                        onboardingRequired = false
+                                    }
+                                    .onFailure { onboardingError = safeUserFacingIssue(it, "Your onboarding could not be saved. Please try again.") }
+                                onboardingSaving = false
+                            }
+                        }
+                    })
                 }
             }
         } else {
@@ -4690,7 +4726,7 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
     }
 
 private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>, adminAuthorized: Boolean): List<Workspace> {
-    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && (it != Workspace.ADMIN || adminAuthorized) }
+    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ADMIN }
     val byName = all.associateBy { it.name }
     val configured = order.mapNotNull { id -> byName[id] }.filter { enabled[it.name] != false }
     val remaining = all.filter { it.name !in order && enabled[it.name] != false }
@@ -7769,11 +7805,6 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
             item {
                 FeatureCard("Contact support", "Send a question, complaint or feedback directly to the BQ Sqwad AI team.") {
                     showSupportMessageDialog = true
-                }
-            }
-            if (adminAuthorized && (settingsCategory == "All settings" || settingsCategory == "Account")) {
-                item {
-                    FeatureCard("Admin Dashboard", "Manage BQ Sqwad AI app configuration, announcements, media and feature settings.", onOpenAdminDashboard)
                 }
             }
             item {
