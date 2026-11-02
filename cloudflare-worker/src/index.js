@@ -2551,7 +2551,8 @@ export default {
             return fetch("https://api.openai.com/v1/audio/transcriptions", {
               method: "POST",
               headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY) },
-              body: form
+              body: form,
+              signal: AbortSignal.timeout(25_000)
             });
           };
           const configuredModel = String(configDocument.config?.transcriptionModel || configDocument.transcriptionModel || "whisper-1").trim();
