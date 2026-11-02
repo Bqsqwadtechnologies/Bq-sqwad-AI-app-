@@ -293,7 +293,7 @@ export async function teamsListMine(user) {
   // For scale, website maintains userTeams/{uid}/items/{teamId}.
   const index = await firestoreQuery("items", {
     parent: "userTeams/" + user.uid,
-    limit: 200,
+    limit: 1000,
   }).catch(() => []);
 
   if (index.length) {
@@ -382,15 +382,6 @@ export async function teamsJoin(user, body) {
   const displayName = user.name || user.email || "Member";
   const photoUrl = user.picture || "";
   const email = (user.email || "").toLowerCase();
-  const memberRows = await firestoreQuery("teams/" + teamId + "/members", { limit: 200 }).catch(() => []);
-  const activeSeats = memberRows.filter(row => String(row.status || "active") === "active").length;
-  if (!existing && activeSeats >= 200) {
-    const err = new Error("This team has reached its 200-member limit.");
-    err.httpStatus = 409;
-    err.safeError = "team_seat_limit_reached";
-    throw err;
-  }
-
   if (team.visibility === "public") {
     await firestoreSet(
       "teams/" + teamId + "/members/" + user.uid,
@@ -462,7 +453,7 @@ export async function teamsListMembers(user, body) {
   const teamId = str(body?.teamId);
   await requireActiveMember(user, teamId, "viewer");
   const rows = await firestoreQuery("teams/" + teamId + "/members", {
-    limit: 200,
+    limit: 1000,
   }).catch(() => []);
   const members = rows
     .map((r) => ({
@@ -492,14 +483,6 @@ export async function teamsApproveMember(user, body) {
     throw err;
   }
   const team = await getTeam(teamId);
-  const memberRows = await firestoreQuery("teams/" + teamId + "/members", { limit: 200 }).catch(() => []);
-  const activeSeats = memberRows.filter(row => String(row.status || "active") === "active").length;
-  if (activeSeats >= 200) {
-    const err = new Error("This team has reached its 200-member limit.");
-    err.httpStatus = 409;
-    err.safeError = "team_seat_limit_reached";
-    throw err;
-  }
   const ts = now();
   await firestoreSet(
     "teams/" + teamId + "/members/" + targetUid,
@@ -576,7 +559,7 @@ export async function teamsListMessages(user, body) {
 }
 
 /** Member message only — no AI, no credits. */
-export async function teamsPostMessage(user, body) {
+export async function teamsPostMessage(user, body, billing = {}) {
   const teamId = str(body?.teamId);
   const projectId = str(body?.projectId);
   const text = str(body?.text).slice(0, 20000);
@@ -585,7 +568,18 @@ export async function teamsPostMessage(user, body) {
     err.httpStatus = 400;
     throw err;
   }
-  const { member } = await requireActiveMember(user, teamId, "member");
+  const { team, member } = await requireActiveMember(user, teamId, "member");
+  const price = Math.max(0, Number(team.memberMessagePriceCredits || 0));
+  let reservation = null;
+  if (price > 0) {
+    if (typeof billing.reserve !== "function" || typeof billing.commit !== "function") {
+      const err = new Error("Team message billing is temporarily unavailable.");
+      err.httpStatus = 503;
+      err.safeError = "team_message_billing_unavailable";
+      throw err;
+    }
+    reservation = await billing.reserve(user, price);
+  }
   const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
   const ts = now();
   const record = {
@@ -594,21 +588,50 @@ export async function teamsPostMessage(user, body) {
     text,
     attachments: Array.isArray(body?.attachments) ? body.attachments : [],
     createdAt: ts,
+    memberMessagePriceCredits: price,
+    creditsCharged: Number(reservation?.amount || 0),
   };
-  await firestoreSet(
-    "teams/" + teamId + "/projects/" + projectId + "/messages/" + id,
-    record,
-    false,
-  );
-  await firestoreSet(
-    "teams/" + teamId + "/projects/" + projectId,
-    { lastMessageAt: ts },
-    true,
-  );
+  try {
+    await firestoreSet(
+      "teams/" + teamId + "/projects/" + projectId + "/messages/" + id,
+      record,
+      false,
+    );
+    await firestoreSet(
+      "teams/" + teamId + "/projects/" + projectId,
+      { lastMessageAt: ts },
+      true,
+    );
+    if (reservation?.reservationId) await billing.commit(user.uid, reservation.reservationId);
+  } catch (error) {
+    if (reservation?.reservationId && typeof billing.reverse === "function") {
+      await billing.reverse(user.uid, reservation.reservationId).catch(() => {});
+    }
+    throw error;
+  }
   return {
     kind: "member",
     message: { id, teamId, projectId, ...record },
+    creditsCharged: Number(reservation?.amount || 0),
   };
+}
+
+export async function teamsUpdateSettings(user, body) {
+  const teamId = str(body?.teamId);
+  const { team } = await requireActiveMember(user, teamId, "admin");
+  const rawPrice = Number(body?.memberMessagePriceCredits);
+  if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice > 1000000) {
+    const err = new Error("Enter a valid member-message price of zero or more credits.");
+    err.httpStatus = 400;
+    err.safeError = "team_message_price_invalid";
+    throw err;
+  }
+  const price = Math.round(rawPrice * 100000) / 100000;
+  await firestoreSet("teams/" + teamId, {
+    memberMessagePriceCredits: price,
+    updatedAt: now(),
+  }, true);
+  return { ok: true, teamId, memberMessagePriceCredits: price };
 }
 
 /**
