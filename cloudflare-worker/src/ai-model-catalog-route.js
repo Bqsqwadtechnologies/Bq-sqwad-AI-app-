@@ -4,6 +4,7 @@
  */
 import { SEED_MODELS, toPublicProjection } from "./ai-model-catalog.ts";
 import { firestoreGet, firestoreQuery, firestoreSet } from "./firebase.js";
+import { currentDailyFreeCredits, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 
 async function listCatalogEntries() {
   let rows = [];
@@ -53,11 +54,17 @@ export async function handleModelsCatalog(request, env, uid) {
     try {
       const user = await firestoreGet("users/" + uid);
       if (user) {
-        balance = Number(user.credits ?? user.balance ?? 0) || 0;
-        hasPurchasedCredits =
-          Number(user.purchasedCredits ?? 0) > 0 ||
-          Boolean(user.hasPaidPlan) ||
-          Boolean(user.subscriptionActive);
+        const permanent = Math.max(0, Number(user.credits ?? user.balance ?? 0) || 0);
+        const expiry = user.subExpiresAt ? Date.parse(String(user.subExpiresAt)) : NaN;
+        const subscription = Number.isFinite(expiry) && expiry > Date.now()
+          ? Math.max(0, Number(user.subCredits ?? 0) || 0)
+          : 0;
+        const timeZone = String(user.dailyFreeCreditsTimeZone || env?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
+        const daily = Math.max(0, Number(currentDailyFreeCredits(user, new Date(), timeZone)) || 0);
+        balance = permanent + subscription + daily;
+        // Daily free allowance is spendable only by BQ-7-Star, never a
+        // qualification for BQ-Codron. Paid subscription credits count.
+        hasPurchasedCredits = permanent + subscription > 0;
       }
     } catch {}
   }
