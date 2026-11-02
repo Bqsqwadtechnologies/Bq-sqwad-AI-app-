@@ -2526,7 +2526,7 @@ export default {
           throw Object.assign(new Error("invalid_dictation_wav"), { httpStatus: 400, safeError: "invalid_dictation_audio" });
         }
         const headerDuration = Number(request.headers.get("X-BQ-Audio-Duration-Seconds") || 0);
-        const durationSeconds = Math.min(120, Math.max(1, Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : Math.ceil((audioBytes.byteLength - 44) / 32000)));
+        const durationSeconds = Math.min(25, Math.max(1, Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : Math.ceil((audioBytes.byteLength - 44) / 32000)));
         const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
         const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
         // Bill transcription proportionally to the actual recorded duration;
