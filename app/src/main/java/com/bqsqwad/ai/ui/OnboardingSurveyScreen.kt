@@ -46,7 +46,7 @@ fun OnboardingSurveyScreen(
     var purposes by remember { mutableStateOf(setOf<String>()) }
     var role by remember { mutableStateOf<String?>(null) }
     var roleOther by remember { mutableStateOf("") }
-    var theme by remember { mutableStateOf("system") }
+    var theme by remember { mutableStateOf("light") }
 
     val progress = (step + 1) / 5f
 
