@@ -64,7 +64,7 @@ fun MyTasksWorkspace() {
                     title = title,
                     description = row.optString("description"),
                     status = row.optString("status", "open"),
-                    dueAt = row.optString("dueAt"),
+                    dueAt = if (row.isNull("dueAt")) "" else row.optString("dueAt"),
                 )
             )
         }
