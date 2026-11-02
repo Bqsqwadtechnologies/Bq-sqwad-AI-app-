@@ -13,7 +13,9 @@ const PII_PATTERNS = [
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
   /\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}\b/g,
   /\b(?:sk|pk|api)[_-][A-Za-z0-9]{16,}\b/gi,
-  /\b\d{13,19}\b/g
+  /\b\d{11}\b/g,
+  /\b\d{13,19}\b/g,
+  /\b(?:bvn|nin|national id|passport|account number|otp|one[- ]time password)\s*[:#-]?\s*[A-Z0-9-]{4,24}\b/gi
 ];
 
 export function sanitizeText(text) {
@@ -36,7 +38,12 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
   const consentRows = await firestoreQuery("userConsents", { limit: 200 }).catch(() => []);
   const consentedUids = new Set(
     consentRows
-      .filter(r => r.trainingConsent === true && String(r.version || "") === ACTIVE_CONSENT_VERSION)
+      .filter(r =>
+        r.trainingConsent === true &&
+        r.trainingAgeGatePassed === true &&
+        r.trainingAdultGatePassed === true &&
+        String(r.version || "") === ACTIVE_CONSENT_VERSION
+      )
       .map(r => String(r.uid || String(r.__name || "").split("/").pop() || ""))
       .filter(Boolean)
   );
@@ -46,7 +53,13 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
     if (created >= limit) break;
     const uid = String(chat.uid || chat.ownerUid || "");
     if (!uid || !consentedUids.has(uid)) continue;
-    if (chat.privateChat === true || chat.private === true) continue;
+    if (
+      chat.privateChat === true || chat.private === true ||
+      chat.secretChat === true || chat.isSecret === true ||
+      chat.secret === true || chat.encrypted === true
+    ) continue;
+    const workspace = String(chat.workspace || chat.workspaceId || chat.feature || chat.type || "").toLowerCase();
+    if (workspace.includes("business") || workspace.includes("organization") || workspace.includes("team")) continue;
     const messages = Array.isArray(chat.messages) ? chat.messages : [];
     if (messages.some(m => m.imageUrl || m.imageBase64 || (m.attachments && m.attachments.length))) continue;
     const cleaned = messages
