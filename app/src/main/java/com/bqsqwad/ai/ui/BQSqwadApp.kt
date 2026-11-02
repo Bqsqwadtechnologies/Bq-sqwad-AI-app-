@@ -1184,7 +1184,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     LaunchedEffect(firebaseUser?.uid) {
         onboardingRequired = false
         onboardingError = null
-        if (firebaseUser == null || firebaseUser.isAnonymous) return@LaunchedEffect
+        val currentFirebaseUser = firebaseUser
+        if (currentFirebaseUser == null || currentFirebaseUser.isAnonymous) return@LaunchedEffect
         runCatching { OnboardingApiClient().status() }
             .onSuccess { onboardingRequired = it.optBoolean("needsOnboarding", false) }
             .onFailure { onboardingError = "Onboarding status could not be checked. Your account remains available; please retry from Settings." }
