@@ -20,7 +20,7 @@ sealed class DictationState {
     ) : DictationState()
     data class Transcribing(val sessionId: Int) : DictationState()
     data class ReadyToSend(val sessionId: Int, val transcript: String) : DictationState()
-    data class Failed(val sessionId: Int, val message: String, val needsCredits: Boolean = false) : DictationState()
+    data class Failed(val sessionId: Int, val message: String, val requiresCredits: Boolean = false) : DictationState()
 
     val isRecording: Boolean get() = this is Recording
     val isTranscribing: Boolean get() = this is Transcribing
@@ -45,7 +45,7 @@ sealed class DictationState {
         get() = (this as? Failed)?.message
 
     val needsCredits: Boolean
-        get() = (this as? Failed)?.needsCredits == true
+        get() = (this as? Failed)?.requiresCredits == true
 
     val recordingSeconds: Int
         get() = (this as? Recording)?.seconds ?: 0
