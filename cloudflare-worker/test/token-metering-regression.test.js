@@ -12,13 +12,14 @@ test("chat and attachment capability defaults are token-metered without a one-cr
   assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
 });
 
-test("native token-metered features require the website's explicit three-rate credit rule", () => {
-  assert.match(tokenBillingSource, /typeof tokenRule\.inputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.inputCreditsPer1k\)/);
-  assert.match(tokenBillingSource, /typeof tokenRule\.cachedInputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.cachedInputCreditsPer1k\)/);
-  assert.match(tokenBillingSource, /typeof tokenRule\.outputCreditsPer1k === "number" && Number\.isFinite\(tokenRule\.outputCreditsPer1k\)/);
+test("native token-metered features use canonical per-token customer credit rates", () => {
+  assert.match(tokenBillingSource, /customerCreditsPerToken\(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k"\)/);
+  assert.match(tokenBillingSource, /customerCreditsPerToken\(tokenRule, "cachedInputCreditsPerToken", "cachedInputCreditsPer1k"\)/);
+  assert.match(tokenBillingSource, /customerCreditsPerToken\(tokenRule, "outputCreditsPerToken", "outputCreditsPer1k"\)/);
   assert.match(tokenBillingSource, /if \(isTokenMeteredFeature && !hasCustomerCreditRule\)/);
   assert.match(tokenBillingSource, /token_pricing_not_configured/);
-  assert.match(tokenBillingSource, /creditsPerCachedInputToken: Number\(tokenRule\.cachedInputCreditsPer1k\) \/ 1000/);
+  assert.match(tokenBillingSource, /creditsPerCachedInputToken: customerCachedCreditsPerToken/);
+  assert.match(tokenBillingSource, /const direct = rule\?\.\[tokenField\]/);
 });
 
 test("vision reserves an estimate, settles reported token usage, and reverses failed requests", () => {
