@@ -24,6 +24,28 @@ export function sanitizeText(text) {
   return out.replace(/\s{2,}/g, " ").trim();
 }
 
+export function hasAdultTrainingConsent(consent) {
+  return consent?.trainingConsent === true &&
+    consent?.trainingAgeGatePassed === true &&
+    consent?.trainingAdultGatePassed === true;
+}
+
+export function isTrainingChatEligible(chat) {
+  if (!chat || typeof chat !== "object") return false;
+  if (
+    chat.privateChat === true || chat.private === true ||
+    chat.secretChat === true || chat.isSecret === true ||
+    chat.secret === true || chat.encrypted === true ||
+    chat.isMinor === true
+  ) return false;
+  const workspace = String(chat.workspace || chat.workspaceId || chat.feature || chat.type || "").toLowerCase();
+  return !workspace.includes("business") &&
+    !workspace.includes("organization") &&
+    !workspace.includes("team") &&
+    workspace !== "secret" &&
+    workspace !== "private";
+}
+
 async function hashRef(uid) {
   const data = new TextEncoder().encode("bq-train:" + String(uid || ""));
   const digest = await crypto.subtle.digest("SHA-256", data);
@@ -38,12 +60,7 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
   const consentRows = await firestoreQuery("userConsents", { limit: 200 }).catch(() => []);
   const consentedUids = new Set(
     consentRows
-      .filter(r =>
-        r.trainingConsent === true &&
-        r.trainingAgeGatePassed === true &&
-        r.trainingAdultGatePassed === true &&
-        String(r.version || "") === ACTIVE_CONSENT_VERSION
-      )
+      .filter(r => hasAdultTrainingConsent(r) && String(r.version || "") === ACTIVE_CONSENT_VERSION)
       .map(r => String(r.uid || String(r.__name || "").split("/").pop() || ""))
       .filter(Boolean)
   );
@@ -53,13 +70,7 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
     if (created >= limit) break;
     const uid = String(chat.uid || chat.ownerUid || "");
     if (!uid || !consentedUids.has(uid)) continue;
-    if (
-      chat.privateChat === true || chat.private === true ||
-      chat.secretChat === true || chat.isSecret === true ||
-      chat.secret === true || chat.encrypted === true
-    ) continue;
-    const workspace = String(chat.workspace || chat.workspaceId || chat.feature || chat.type || "").toLowerCase();
-    if (workspace.includes("business") || workspace.includes("organization") || workspace.includes("team")) continue;
+    if (!isTrainingChatEligible(chat)) continue;
     const messages = Array.isArray(chat.messages) ? chat.messages : [];
     if (messages.some(m => m.imageUrl || m.imageBase64 || (m.attachments && m.attachments.length))) continue;
     const cleaned = messages
