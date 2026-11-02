@@ -191,3 +191,12 @@ Worked only on real `main`. No duplicate trees.
 - Android team spend-cap controls, Worker route and settlement are present in current `main`; remaining work is test coverage for cap boundaries, concurrent AI requests, cap changes during in-flight requests, month rollover and failed pool debit. No such tests were run.
 - Team member lists are capped at 500 in the website service and support pagination/limits in the Worker. The requested 500-member scale is not load-tested; do not claim capacity under production concurrency until the owner runs the load test.
 - This correction does not close the other Phase 5–7 release blockers: real Business AI agent/tool execution and connector lifecycle, provider-backed identity verification/account-opening integrations, two-person encrypted vault export and secure delivery, Android Business Inbox/Organization analytics parity, external scheduler invocation, OAuth/mTLS provider health, and authenticated cross-device QA.
+
+
+## Business Inbox native paging continuation — 2026-11-02 (source only)
+- Added bounded, workspace-scoped pagination to Worker `GET /business/extended`: `inboxOffset` and `inboxLimit` are accepted only after Firebase identity verification and existing workspace/plan checks; page size is clamped to 1–100 and offset to 0–100000. The response includes `inboxPage` metadata.
+- Android Business Workspace now loads the first 30 Inbox records for the resolved workspace and provides a Load more action that appends the next page. Existing Business Inbox records remain available in the native workspace.
+- Added `cloudflare-worker/test/business-inbox-pagination-contract.test.js` and documented the API contract.
+- Commits: Worker `f03efffa`, route `58f94c92`, Android API `f1d5d814`, Android UI `c4aaab52` and follow-up workspace-load fix `62c41b3b`, contract test `30e0c7ae`, sync contract `7055c93f`.
+- This is pagination plumbing, not a complete staff-triage feature: assignment/claim controls, status transition UX, reply composer and real inbound channel delivery still require separate implementation and authenticated QA.
+- No build, test, lint, Gradle compilation, Worker check, device QA, browser QA or deployment was run. The requester will run validation.
