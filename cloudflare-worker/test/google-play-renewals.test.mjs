@@ -81,6 +81,11 @@ test("Google Play subscription renewals grant credits once per verified billing 
     assert.equal(recovered.ok, true);
     assert.equal(recovered.alreadyProcessed, true);
     assert.equal((await firestore.get("users/test-user")).subCredits, 100);
+    const firstCanonical = await firestore.get("entitlements/test-user/plans/credit100");
+    assert.equal(firstCanonical?.planId, "credit100");
+    assert.equal(firstCanonical?.source, "google_play");
+    assert.equal(firstCanonical?.state, "active");
+    assert.equal(firstCanonical?.expiresAt, expiryTime);
     assert.equal([...documents.keys()].filter(key => key.startsWith("creditLedger/")).length, 1);
 
     const repeat = await verifyPlayPurchase(env, firestore, input);
@@ -96,6 +101,9 @@ test("Google Play subscription renewals grant credits once per verified billing 
     assert.equal(renewal.ok, true);
     assert.equal(renewal.alreadyProcessed, false);
     assert.equal((await firestore.get("users/test-user")).subCredits, 200);
+    const renewedCanonical = await firestore.get("entitlements/test-user/plans/credit100");
+    assert.equal(renewedCanonical?.expiresAt, expiryTime);
+    assert.equal(renewedCanonical?.source, "google_play");
 
     const repeatedRenewal = await verifyPlayPurchase(env, firestore, input);
     assert.equal(repeatedRenewal.ok, true);
