@@ -10,10 +10,11 @@ test("realtime client-secret request uses the GA audio.output.voice field", asyn
 });
 
 
-test("admin realtime model selector includes documented current realtime models", async () => {
-  const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/AdminLivePricingScreen.kt", import.meta.url), "utf8");
-  assert.match(source, /gpt-realtime-2\.1/);
-  assert.match(source, /gpt-realtime/);
+test("Android admin realtime pricing screen is removed because admin lives on the website", async () => {
+  await assert.rejects(
+    access(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/AdminLivePricingScreen.kt", import.meta.url)),
+    { code: "ENOENT" },
+  );
 });
 
 test("realtime public errors use safe codes rather than provider diagnostics", async () => {
