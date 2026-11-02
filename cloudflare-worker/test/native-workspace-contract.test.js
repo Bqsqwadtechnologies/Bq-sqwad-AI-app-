@@ -36,3 +36,11 @@ test("notification category mutes are shared between Worker and Android settings
   assert.match(androidSettings, /updateNotificationPreferences\(\s*notifications, notifications, mutedNotificationKinds\.toList\(\)/);
   assert.match(androidSettings, /"team_message" to "Team messages"/);
 });
+
+test("Android history exposes TXT JSON and CSV conversation exports", () => {
+  const historyScreen = readFileSync(join(root, "../app/src/main/java/com/bqsqwad/ai/ui/HistoryScreen.kt"), "utf8");
+  assert.match(historyScreen, /shareExport\("txt"\)/);
+  assert.match(historyScreen, /shareExport\("json"\)/);
+  assert.match(historyScreen, /shareExport\("csv"\)/);
+  assert.match(historyScreen, /Intent\.createChooser/);
+});
