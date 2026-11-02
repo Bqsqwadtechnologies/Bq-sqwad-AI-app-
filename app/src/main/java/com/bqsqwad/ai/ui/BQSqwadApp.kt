@@ -1568,8 +1568,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             shellScope.launch {
                                 runCatching { OnboardingApiClient().submit(profile) }
                                     .onSuccess {
-                                        val prefs = accountPreferences(context, "bq_sqwad_ui")
-                                        prefs.edit().putString("theme_mode", profile.theme).apply()
+                                        context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
+                                            .edit().putString("theme_mode", profile.theme).apply()
                                         onboardingRequired = false
                                     }
                                     .onFailure { onboardingError = safeUserFacingIssue(it, "Your onboarding could not be saved. Please try again.") }
