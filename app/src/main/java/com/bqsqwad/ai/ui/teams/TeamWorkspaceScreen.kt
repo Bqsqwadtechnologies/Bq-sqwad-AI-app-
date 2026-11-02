@@ -67,6 +67,9 @@ fun TeamWorkspaceScreen(
     var balance by remember { mutableStateOf(0.0) }
     var isActive by remember { mutableStateOf(false) }
     var memberStatus by remember { mutableStateOf<String?>(null) }
+    var memberRole by remember { mutableStateOf("member") }
+    var memberMessagePrice by remember { mutableStateOf("0") }
+    var showMessagePriceDialog by remember { mutableStateOf(false) }
     var members by remember { mutableStateOf<List<TeamMemberRow>>(emptyList()) }
     var projects by remember { mutableStateOf<List<TeamProjectRow>>(emptyList()) }
     var projectId by remember { mutableStateOf<String?>(null) }
@@ -109,6 +112,8 @@ fun TeamWorkspaceScreen(
                 balance = res.optDouble("balance", 0.0)
                 val member = res.optJSONObject("member")
                 memberStatus = member?.optString("status")
+                memberRole = member?.optString("role", "member") ?: "member"
+                memberMessagePrice = team.optDouble("memberMessagePriceCredits", 0.0).toString()
                 isActive = memberStatus == "active"
 
                 if (isActive) {
@@ -221,6 +226,12 @@ fun TeamWorkspaceScreen(
                         enabled = !busy && teamId != null,
                     ) { Text("Join") }
                 } else {
+                    if (memberRole == "owner" || memberRole == "admin") {
+                        OutlinedButton(
+                            onClick = { showMessagePriceDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Message price") }
+                    }
                     Text("Members", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         items(members.filter { it.status == "active" }) { m ->
@@ -285,7 +296,7 @@ fun TeamWorkspaceScreen(
                         if (messages.isEmpty()) {
                             item {
                                 Text(
-                                    "Chat with your team. Use Ask AI or type @ai when you want a reply. Member messages never use credits.",
+                                    "Chat with your team. Use Ask AI or type @ai when you want a reply. Member messages use the configured sender price.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -419,7 +430,7 @@ fun TeamWorkspaceScreen(
                             }
                         }
                         Text(
-                            "Send is free. Ask AI uses team credits only.",
+                            "Send deducts the configured price from your personal balance. Ask AI uses the team credit pool.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -429,6 +440,45 @@ fun TeamWorkspaceScreen(
         }
     }
 }
+
+    if (showMessagePriceDialog) {
+        AlertDialog(
+            onDismissRequest = { showMessagePriceDialog = false },
+            title = { Text("Member message price") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Set the credit price for each member-to-member message. The sender pays from their personal balance; Ask AI remains charged to the team pool.")
+                    OutlinedTextField(
+                        value = memberMessagePrice,
+                        onValueChange = { memberMessagePrice = it.filter { ch -> ch.isDigit() || ch == '.' }.take(12) },
+                        label = { Text("Credits per message") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val tid = teamId ?: return@TextButton
+                    val price = memberMessagePrice.toDoubleOrNull()
+                    if (price == null || price < 0.0) {
+                        error = "Enter a valid price of zero or more credits."
+                    } else {
+                        scope.launch {
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val saved = apiPost(baseUrl, token, "/native/teams/settings",
+                                    JSONObject().put("teamId", tid).put("memberMessagePriceCredits", price))
+                                memberMessagePrice = saved.optDouble("memberMessagePriceCredits", price).toString()
+                                showMessagePriceDialog = false
+                                error = null
+                            } catch (e: Exception) { error = e.message }
+                        }
+                    }
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showMessagePriceDialog = false }) { Text("Cancel") } },
+        )
+    }
 
 private fun parseMessages(arr: org.json.JSONArray?): List<TeamMessage> {
     if (arr == null) return emptyList()
