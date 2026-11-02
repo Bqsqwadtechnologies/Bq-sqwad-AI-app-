@@ -4083,6 +4083,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 onBuyCredits = { }
                             )
                         }
+                        }
                     }
                 }
             }
