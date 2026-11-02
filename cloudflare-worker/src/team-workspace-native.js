@@ -9,6 +9,26 @@
 
 import { firestoreGet, firestoreSet, firestoreCreate, firestoreQuery } from "./firebase.js";
 
+const membershipIndexPath = (ownerUid, memberUid) => "teamMemberships/" + String(memberUid) + "_" + String(ownerUid);
+
+async function writeMembershipIndex(ownerUid, member) {
+  const uid = String(member?.uid || "");
+  if (!ownerUid || !uid) return;
+  await firestoreSet(membershipIndexPath(ownerUid, uid), {
+    ownerUid: String(ownerUid), memberUid: uid,
+    status: String(member.status || "active"),
+    role: String(member.role || "member"),
+    updatedAt: new Date().toISOString()
+  }, true);
+}
+
+async function findMembershipTeams(uid) {
+  return firestoreQuery("teamMemberships", {
+    filters: [{ field: { fieldPath: "memberUid" }, op: "EQUAL", value: { stringValue: String(uid) } }],
+    limit: 500
+  }).catch(() => []);
+}
+
 async function findUserByEmail(email) {
   const normalized = String(email || "").trim().toLowerCase();
   if (!normalized || !normalized.includes("@")) return null;
@@ -39,9 +59,26 @@ async function notifyUser(uid, title, body, kind = "team") {
 
 export async function teamMembers(user) {
   const team = await getTeamDoc(user.uid);
-  const asMember = await firestoreQuery("teamWorkspaces", { limit: 50 }).catch(() => []);
-  const relevant = asMember.filter(t => t.ownerUid === user.uid || (t.members && t.members[user.uid]));
-  const primary = relevant.find(t => t.ownerUid === user.uid) || team;
+  let indexed = await findMembershipTeams(user.uid);
+  // Migrate the signed-in user's legacy memberships once, then use the indexed
+  // query for subsequent reads instead of scanning the first 50 workspaces.
+  if (!indexed.length) {
+    const legacy = await firestoreQuery("teamWorkspaces", { limit: 500 }).catch(() => []);
+    for (const row of legacy) {
+      const member = row.members?.[user.uid];
+      if (row.ownerUid === user.uid || member) {
+        await writeMembershipIndex(String(row.ownerUid || row.id || ""), {
+          uid: user.uid, status: member?.status || "active", role: member?.role || (row.ownerUid === user.uid ? "admin" : "member")
+        });
+      }
+    }
+    indexed = await findMembershipTeams(user.uid);
+  }
+  const ownerIds = indexed
+    .filter(row => ["active", "invited"].includes(String(row.status || "active")))
+    .map(row => String(row.ownerUid || ""));
+  const relevant = await Promise.all(ownerIds.map(ownerUid => firestoreGet("teamWorkspaces/" + ownerUid)));
+  const primary = relevant.filter(Boolean).find(row => row.ownerUid === user.uid) || team;
   const memberMap = primary.members || {};
   if (!memberMap[primary.ownerUid || user.uid]) {
     memberMap[primary.ownerUid || user.uid] = {
@@ -93,6 +130,11 @@ export async function teamInvite(user, body) {
   const targetUid = String(target.uid || String(target.__name || "").split("/").pop() || "");
   if (!targetUid) throw Object.assign(new Error("Account not found"), { httpStatus: 404 });
   if (targetUid === user.uid) throw Object.assign(new Error("You are already on this team"), { httpStatus: 400 });
+  const seatLimit = Math.max(200, Number(team.seatLimit || 200));
+  const occupiedSeats = Object.values(team.members || {}).filter(member => ["active", "invited"].includes(String(member.status || "active"))).length;
+  if (!team.members?.[targetUid] && occupiedSeats >= seatLimit) {
+    throw Object.assign(new Error("This workspace has reached its member limit."), { httpStatus: 409, safeError: "team_seat_limit_reached" });
+  }
   team.members = team.members || {};
   team.members[targetUid] = {
     uid: targetUid, email,
@@ -102,6 +144,7 @@ export async function teamInvite(user, body) {
   };
   team.updatedAt = new Date().toISOString();
   await firestoreSet("teamWorkspaces/" + user.uid, { ...team, ownerUid: user.uid }, true);
+  await writeMembershipIndex(user.uid, team.members[targetUid]);
   await notifyUser(targetUid, "Team invite",
     (user.email || "A BQ Sqwad AI user") + " invited you to their workspace as " + role + ". Open Settings → Team.", "team_invite");
   await firestoreCreate("emailOutbox/" + crypto.randomUUID(), {
@@ -122,6 +165,9 @@ export async function teamRemove(user, body) {
     throw Object.assign(new Error("Cannot remove the workspace owner"), { httpStatus: 400 });
   }
   if (team.members) delete team.members[targetUid];
+  await firestoreSet(membershipIndexPath(user.uid, targetUid), {
+    ownerUid: user.uid, memberUid: targetUid, status: "removed", updatedAt: new Date().toISOString()
+  }, true);
   if (team.chargeAccountUid === targetUid) team.chargeAccountUid = user.uid;
   if (team.chargeApprovedBy) delete team.chargeApprovedBy[targetUid];
   team.updatedAt = new Date().toISOString();
@@ -193,6 +239,7 @@ export async function teamAcceptInvite(user, body) {
   team.members[user.uid] = { ...member, status: "active", acceptedAt: new Date().toISOString() };
   team.updatedAt = new Date().toISOString();
   await firestoreSet("teamWorkspaces/" + ownerUid, team, true);
+  await writeMembershipIndex(ownerUid, team.members[user.uid]);
   await notifyUser(ownerUid, "Invite accepted", (user.email || "A user") + " joined your workspace.", "team");
   return { ok: true };
 }
