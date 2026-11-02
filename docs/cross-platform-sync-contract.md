@@ -157,3 +157,14 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Training candidates require explicit consent and a server-owned adult-only gate. Parental consent alone cannot qualify a minor.
 - Business, organization, team, private/secret conversations and any media/attachment-bearing chat are excluded; identifiers are redacted before candidate review.
 - Training remains a prepare/review/export workflow only. It does not fine-tune or deploy a model.
+
+
+## Shared team memory — 2026-11-02
+- Canonical records live at `teams/{teamId}/memory/{memoryId}` in the shared Firebase project.
+- Website server functions and native Worker routes expose list/add/update/delete. Reads require an active team membership; writes require an active owner/admin membership. Android TeamWorkspace uses the native Worker routes and does not keep a separate local memory store.
+- Team memory is visible to active team members and must not be mixed into personal memory or another team's context.
+
+## Team monthly spend limits — 2026-11-02
+- Website owner/admin controls write `spendLimitCredits` on `teams/{teamId}/members/{uid}`; team usage rollups are `teams/{teamId}/usage/{YYYYMM}_{uid}`.
+- Website AI debit atomically reserves member monthly usage before debiting `teamCreditPools/{creditPoolId}`, and rolls back the usage reservation if the pool debit fails.
+- Android member spend-limit controls and Worker-side settlement enforcement are not yet at parity. Do not describe the cap as globally enforced until those paths are implemented and verified.
