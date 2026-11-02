@@ -2572,6 +2572,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var dictationStartedAt by remember { mutableLongStateOf(0L) }
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
     var dictationReadyAudio by remember { mutableStateOf<ByteArray?>(null) }
+    var dictationTranscriptReady by remember { mutableStateOf(false) }
     var dictationTranscriptionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var dictationSessionId by remember { mutableIntStateOf(0) }
     var speechBaseMessage by remember { mutableStateOf("") }
@@ -2908,6 +2909,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationError = null
         dictationNeedsCredits = false
         dictationReadyAudio = null
+        dictationTranscriptReady = false
         speechBaseMessage = message
         try {
             val recorder = DictationRecorder(context)
@@ -2963,6 +2965,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 message = listOf(speechBaseMessage.trim(), transcript.trim())
                     .filter { it.isNotBlank() }.joinToString(" ")
                 dictationReadyAudio = null
+                dictationTranscriptReady = true
                 micError = null
                 dictationError = null
                 dictationNeedsCredits = false
@@ -2992,6 +2995,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationError = null
         dictationNeedsCredits = false
         dictationReadyAudio = null
+        dictationTranscriptReady = false
         val recorder = dictationRecorder
         dictationRecorder = null
         scope.launch(Dispatchers.IO) { runCatching { recorder?.cancel() } }
@@ -4014,6 +4018,26 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Button(onClick = { transcribeDictation() }, enabled = !dictationTranscribing) {
                                     Text("Transcribe")
                                 }
+                            }
+                        } else if (dictationTranscriptReady) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("Dictation ready", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
+                                TextButton(onClick = {
+                                    message = speechBaseMessage
+                                    dictationTranscriptReady = false
+                                }) { Text("Cancel") }
+                                Button(
+                                    onClick = {
+                                        val transcriptMessage = message.trim()
+                                        dictationTranscriptReady = false
+                                        if (transcriptMessage.isNotBlank()) sendAuthenticatedMessage(transcriptMessage)
+                                    },
+                                    enabled = message.isNotBlank() && !busy
+                                ) { Text("Send") }
                             }
                         } else if (dictationTranscribing) {
                             Row(
