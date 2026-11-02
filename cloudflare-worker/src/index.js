@@ -4837,7 +4837,7 @@ export default {
         const u = await verifyFirebaseUser(request);
         const workspace = await businessWorkspace(u.uid, { workspaceId: url.searchParams.get("workspaceId") || undefined });
         const [storage, entitlement, testSession] = await Promise.all([
-          firestoreGet("businessStorage/" + u.uid).catch(() => null),
+          firestoreGet("businessStorage/" + workspace.workspaceId).catch(() => null),
           firestoreGet("entitlements/" + u.uid).catch(() => null),
           firestoreGet("adminBusinessTestSessions/" + u.uid).catch(() => null),
         ]);
