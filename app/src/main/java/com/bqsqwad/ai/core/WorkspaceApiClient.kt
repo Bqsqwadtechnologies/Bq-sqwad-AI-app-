@@ -825,8 +825,13 @@ class WorkspaceApiClient {
             if (timezone != null) put("timezone", timezone.take(80))
         })
 
-    suspend fun businessExtended(workspaceId:String?=null): JSONObject =
-        request("/business/extended" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
+    suspend fun businessExtended(workspaceId:String?=null, inboxOffset:Int=0, inboxLimit:Int=30): JSONObject {
+        val params = mutableListOf<String>()
+        workspaceId?.let { params += "workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") }
+        params += "inboxOffset=" + inboxOffset.coerceIn(0, 100000)
+        params += "inboxLimit=" + inboxLimit.coerceIn(1, 100)
+        return request("/business/extended?" + params.joinToString("&"), "GET")
+    }
 
     suspend fun createBusinessExtended(type:String, payload:JSONObject): JSONObject =
         request("/business/extended", payload=JSONObject(payload.toString()).put("type", type))
