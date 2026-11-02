@@ -132,3 +132,10 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **NOT VERIFIED:** The first post-deletion rebuild exposed three remaining `AdminControlCenter` references; those references and the Android admin workspace entry points are now removed. A fresh build/test run is pending.
 
 - **Latest verification status:** The admin-workspace removal exposed a malformed sign-in dialog scope in `BQSqwadApp.kt`; the missing `Column` closure has been restored. Existing GitHub Actions run `41497742615` is currently queued/running the fresh Android unit-test and debug-build check. Do not mark Android verified until this run completes successfully.
+
+## Phase 8 — Android admin ownership and release verification
+
+- **DONE:** Removed the 18 Android admin UI screen files and removed the remaining Admin workspace enum, navigation, settings callback, dashboard renderer, polling and cached-admin affordances from the Android app. Android retains only non-UI configuration clients needed by normal app operation.
+- **DONE — debug build and unit tests passed:** GitHub Actions run `41500248632`, step `Run Android unit tests and debug build`, passed for commit `dada5fd6890ace181c574dc3eb28b0ea004fce85`.
+- **DONE — signed release outputs verified:** Existing signed release workflow run `41500248746` completed successfully for the same Android source commit. Both APK and AAB build steps, signature verification and artifact uploads passed.
+- **NOTE:** Later commits in this phase changed only website code and Worker test files; no Android source changed after the verified Android commit.
