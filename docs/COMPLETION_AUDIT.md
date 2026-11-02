@@ -67,3 +67,8 @@ Worked only on real `main`. No duplicate trees.
 - Android SecretChatCrypto.kt remains cryptographic helper code only. No Android secret-chat UI, password/recovery workflow, biometric/WebAuthn unlock, auto-lock, ciphertext-only sync, or FLAG_SECURE flow was implemented.
 - Cross-platform rolling chat summaries, coding hint, live work timer, and app-side canonical memory editing/retrieval remain NOT DONE / NOT VERIFIED.
 - No Android unit tests or Gradle build were run in this continuation; the GitHub file-editing session has no checked-out Gradle workspace/Android SDK. No production deployment or device QA is claimed.
+
+
+## Unified verification run request — 2026-11-02
+- This audit-only commit is intended to trigger the existing `.github/workflows/bq-full-system-verification.yml` on `main`. That workflow runs Android unit tests + debug assemble, Worker syntax/tests/check, and (only when `BQ_WEBSITE_REPO_TOKEN` is configured with read access) website tests, lint and production build.
+- Results are pending until the associated GitHub Actions run is inspected. A skipped website stage, missing credentials, failed step, or successful build must be recorded from the actual run; this note does not claim a pass.
