@@ -2676,6 +2676,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var selectedImageModelId by rememberSaveable { mutableStateOf("") }
 
     var privateChat by rememberSaveable { mutableStateOf(false) }
+    var showChatActions by remember { mutableStateOf(false) }
+    var renameDialogOpen by remember { mutableStateOf(false) }
+    var renameDraft by remember { mutableStateOf("") }
+    var chatTitleOverride by rememberSaveable { mutableStateOf<String?>(null) }
     // Protect the Android window while the ephemeral Private Chat session is active.
     DisposableEffect(privateChat) {
         val activity = context as? android.app.Activity
@@ -3583,14 +3587,104 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }
         Column(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 3.dp)) {
             BqChatHeader(
-                title = messages.firstOrNull { !it.mine && it.text.isNotBlank() }?.text?.take(48),
+                title = chatTitleOverride ?: messages.firstOrNull { !it.mine && it.text.isNotBlank() }?.text?.take(48),
                 generating = busy,
                 typing = busy,
                 drawerOpen = false,
                 onMenu = openHub,
                 onNewChat = onNewChat,
+                onMore = { showChatActions = true },
                 logo = { size -> BqLogo(size) }
             )
+            DropdownMenu(expanded = showChatActions, onDismissRequest = { showChatActions = false }) {
+                DropdownMenuItem(
+                    text = { Text("Share conversation") },
+                    onClick = {
+                        showChatActions = false
+                        val transcript = messages.joinToString("\n\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text }
+                        if (transcript.isNotBlank()) {
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, chatTitleOverride ?: "BQ Sqwad AI conversation")
+                                putExtra(Intent.EXTRA_TEXT, transcript)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Share conversation"))
+                        } else statusText = "There is no conversation to share."
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Rename conversation") },
+                    enabled = historyId != null,
+                    onClick = {
+                        showChatActions = false
+                        renameDraft = chatTitleOverride ?: messages.firstOrNull { it.mine }?.text?.take(72).orEmpty()
+                        renameDialogOpen = true
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Clear conversation") },
+                    enabled = messages.isNotEmpty(),
+                    onClick = {
+                        showChatActions = false
+                        scope.launch {
+                            runCatching { historyId?.let { HistoryApiClient().delete(it) } }
+                                .onSuccess {
+                                    historyId = null
+                                    messages.clear()
+                                    privateMessageIds.clear()
+                                    chatTitleOverride = null
+                                    statusText = "Conversation cleared."
+                                }
+                                .onFailure { statusText = "Could not clear the saved conversation: " + (it.message ?: "Please try again.") }
+                        }
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete conversation") },
+                    enabled = messages.isNotEmpty() || historyId != null,
+                    onClick = {
+                        showChatActions = false
+                        scope.launch {
+                            runCatching { historyId?.let { HistoryApiClient().delete(it) } }
+                                .onSuccess {
+                                    historyId = null
+                                    messages.clear()
+                                    privateMessageIds.clear()
+                                    chatTitleOverride = null
+                                    statusText = "Conversation deleted."
+                                    onNewChat()
+                                }
+                                .onFailure { statusText = "Could not delete the saved conversation: " + (it.message ?: "Please try again.") }
+                        }
+                    }
+                )
+            }
+            if (renameDialogOpen) {
+                AlertDialog(
+                    onDismissRequest = { renameDialogOpen = false },
+                    title = { Text("Rename conversation") },
+                    text = {
+                        OutlinedTextField(
+                            value = renameDraft,
+                            onValueChange = { renameDraft = it.take(120) },
+                            singleLine = true,
+                            label = { Text("Conversation name") }
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val id = historyId
+                            val nextTitle = renameDraft.trim()
+                            if (id != null && nextTitle.isNotBlank()) scope.launch {
+                                runCatching { HistoryApiClient().rename(id, nextTitle) }
+                                    .onSuccess { chatTitleOverride = nextTitle; statusText = "Conversation renamed."; renameDialogOpen = false }
+                                    .onFailure { statusText = "Could not rename conversation: " + (it.message ?: "Please try again.") }
+                            }
+                        }, enabled = historyId != null && renameDraft.trim().isNotBlank()) { Text("Save") }
+                    },
+                    dismissButton = { TextButton(onClick = { renameDialogOpen = false }) { Text("Cancel") } }
+                )
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
                 LazyColumn(
