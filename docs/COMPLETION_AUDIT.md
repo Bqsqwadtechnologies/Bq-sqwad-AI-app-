@@ -44,7 +44,8 @@
 - 4.3 Encrypted vault writes, deny-client rules and permission test: NOT DONE.
 - 4.4 Plan expiry enforcement, countdown and storage add-on policy: NOT DONE.
 - 4.5 Server-side admin route enforcement and complete entitlements response: NOT DONE.
-- 4.6 Worker /ai and /stream now call shared canUseModel before provider execution, reject inactive/mismatched models, require purchased/subscription credits for BQ-Codron, and reserve BQ-Codron usage from purchased buckets only (daily free allowance excluded); cloudflare-worker/src/index.js and cloudflare-worker/src/ai-model-catalog-route.js — DONE but not verified by live request tests.
+- 4.6 Worker /ai and /stream call shared canUseModel before provider execution, reject inactive/mismatched models, require purchased/subscription credits for BQ-Codron, and disable provider substitution for BQ-Codron; cloudflare-worker/src/index.js and cloudflare-worker/src/ai-model-catalog-route.js — DONE but not verified by live request tests.
+- 4.6 Mixed-balance policy is explicit and tested: BQ-7-Star drains daily free → subscription → permanent; BQ-Codron drains subscription → permanent and never daily free. `cloudflare-worker/src/billing-hold.js` and `cloudflare-worker/test/billing-hold.test.js` — Worker syntax/unit-test job passed in run `41406554515` for commit `9f4bfa28`; the later no-fallback adjustment is pending a fresh run.
 - 4.6 Worker public model catalog route is now mounted at GET /models/catalog and its availability projection includes daily free credit for BQ-7-Star while keeping that allowance out of BQ-Codron eligibility; cloudflare-worker/src/index.js and cloudflare-worker/src/ai-model-catalog-route.js — DONE but not verified.
 - 4.6 Full-repository model-default audit: NOT DONE — remaining provider/model routes and workspace agents have not yet been exhaustively checked.
 
