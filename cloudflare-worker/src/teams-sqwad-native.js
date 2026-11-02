@@ -547,6 +547,82 @@ export async function teamsApproveMember(user, body) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Shared team memory                                                          */
+/* -------------------------------------------------------------------------- */
+
+export async function teamsListMemory(user, body) {
+  const teamId = str(body?.teamId);
+  await requireActiveMember(user, teamId, "viewer");
+  const rows = await firestoreQuery("teams/" + teamId + "/memory", { limit: 200 }).catch(() => []);
+  const memories = rows.map((row) => ({
+    id: str(row.id || String(row.__name || "").split("/").pop()),
+    title: str(row.title),
+    text: str(row.text),
+    createdBy: str(row.createdBy),
+    createdAt: str(row.createdAt),
+    updatedAt: row.updatedAt ? str(row.updatedAt) : null,
+  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { memories };
+}
+
+export async function teamsAddMemory(user, body) {
+  const teamId = str(body?.teamId);
+  await requireActiveMember(user, teamId, "admin");
+  const title = str(body?.title).trim().slice(0, 120);
+  const text = str(body?.text).trim().slice(0, 10000);
+  if (!title || !text) {
+    const err = new Error("Memory title and content are required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
+  const record = { title, text, createdBy: user.uid, createdAt: now(), updatedAt: now(), updatedBy: user.uid };
+  await firestoreSet("teams/" + teamId + "/memory/" + id, record, false);
+  return { memory: { id, ...record } };
+}
+
+export async function teamsUpdateMemory(user, body) {
+  const teamId = str(body?.teamId);
+  const memoryId = str(body?.memoryId);
+  await requireActiveMember(user, teamId, "admin");
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(memoryId)) {
+    const err = new Error("Invalid memory reference.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const path = "teams/" + teamId + "/memory/" + memoryId;
+  const current = await firestoreGet(path);
+  if (!current) {
+    const err = new Error("Team memory not found.");
+    err.httpStatus = 404;
+    throw err;
+  }
+  const title = str(body?.title).trim().slice(0, 120);
+  const text = str(body?.text).trim().slice(0, 10000);
+  if (!title || !text) {
+    const err = new Error("Memory title and content are required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const record = { ...current, title, text, updatedAt: now(), updatedBy: user.uid };
+  await firestoreSet(path, record, true);
+  return { memory: { id: memoryId, ...record } };
+}
+
+export async function teamsDeleteMemory(user, body) {
+  const teamId = str(body?.teamId);
+  const memoryId = str(body?.memoryId);
+  await requireActiveMember(user, teamId, "admin");
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(memoryId)) {
+    const err = new Error("Invalid memory reference.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  await firestoreDelete("teams/" + teamId + "/memory/" + memoryId);
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Projects + messages                                                         */
 /* -------------------------------------------------------------------------- */
 
