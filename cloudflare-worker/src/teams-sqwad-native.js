@@ -347,7 +347,7 @@ export async function teamsListMine(user) {
   return { teams };
 }
 
-export async function teamsGet(user, body) {
+export async function teamsGet(user, body, billing = {}) {
   let team = null;
   if (body?.teamId) team = await getTeam(str(body.teamId));
   else if (body?.username) team = await getTeamByUsername(str(body.username));
@@ -358,7 +358,8 @@ export async function teamsGet(user, body) {
   }
   const member = await getMember(team.id, user.uid);
   const balance = await getPoolBalance(team.creditPoolId);
-  return { team, member, balance };
+  const memberMessagePriceCredits = typeof billing.price === "function" ? await billing.price() : 0;
+  return { team: { ...team, memberMessagePriceCredits }, member, balance };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -570,7 +571,7 @@ export async function teamsPostMessage(user, body, billing = {}) {
     throw err;
   }
   const { team, member } = await requireActiveMember(user, teamId, "member");
-  const price = Math.max(0, Number(team.memberMessagePriceCredits || 0));
+  const price = typeof billing.price === "function" ? Math.max(0, Number(await billing.price()) || 0) : 0;
   let reservation = null;
   if (price > 0) {
     if (typeof billing.reserve !== "function" || typeof billing.commit !== "function") {
@@ -617,23 +618,6 @@ export async function teamsPostMessage(user, body, billing = {}) {
   };
 }
 
-export async function teamsUpdateSettings(user, body) {
-  const teamId = str(body?.teamId);
-  const { team } = await requireActiveMember(user, teamId, "admin");
-  const rawPrice = Number(body?.memberMessagePriceCredits);
-  if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice > 1000000) {
-    const err = new Error("Enter a valid member-message price of zero or more credits.");
-    err.httpStatus = 400;
-    err.safeError = "team_message_price_invalid";
-    throw err;
-  }
-  const price = Math.round(rawPrice * 100000) / 100000;
-  await firestoreSet("teams/" + teamId, {
-    memberMessagePriceCredits: price,
-    updatedAt: now(),
-  }, true);
-  return { ok: true, teamId, memberMessagePriceCredits: price };
-}
 
 /**
  * Explicit AI turn. Only call when user presses Ask AI or message invokes AI.
