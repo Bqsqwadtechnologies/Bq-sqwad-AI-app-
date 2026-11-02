@@ -1,28 +1,45 @@
 # COMPLETION_AUDIT
 
-## URGENT — restore BQSqwadApp.kt again
-Commit `53e3830` accidentally replaced the shell with a path string. Restore, then apply the Phase 1 dictation patch:
+## Your computer batch (required for Phase 1 shell)
+This session cannot push `BQSqwadApp.kt` (~516 KB). Apply the dictation mapping locally:
 
 ```bash
-git fetch origin
-git checkout 13a727a7088fb57b73bccead16318cd85ba718d7 -- app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
-git apply docs/phase1-dictation-state.patch
-# if git apply fails, use: patch -p1 < docs/phase1-dictation-state.patch
+git fetch origin && git checkout main && git pull
+# Ensure shell is the real file (not a stub)
+wc -c app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt   # expect ~516000
+
+# Full patch is regenerated in the agent workspace; if docs/phase1-dictation-state.patch
+# is incomplete on GitHub, re-download from the agent or re-run the DictationState migration.
+git apply docs/phase1-dictation-state.patch || patch -p1 < docs/phase1-dictation-state.patch
 git add app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
 git commit -m "feat(android): Phase 1 map BQSqwadApp dictation onto DictationState"
 git push origin main
 ```
 
-Good restore commit: `13a727a7088fb57b73bccead16318cd85ba718d7` (same body as `1f30f9a` / blob `0adc560c`).
+## Phase 0 — DONE in source (not live-verified)
+- 0.2 model eligibility + purchased-only Codron
+- 0.3 vault encrypt / client deny / plan expiry / secret redact
+- 0.4 gpt-6-luna default; Codron only gpt-5.6-luna
 
-## Phase 0.2–0.4 — DONE in source (not verified)
+## Phase 1 — nearly complete
+- Composer idle typing — DONE (`CreditComposerGate`)
+- Instant Teams — DONE (`TeamsHubScreen` + Worker create/join)
+- DictationState helpers — DONE (`e253572`)
+- Theme once default **System** (white surfaces when device is light) — DONE (`Theme.kt` default `system`; `ThemeOncePicker` recommends System) — commit `080a360`
+- BQSqwadApp DictationState wiring — **operator apply** (see batch above)
 
-## Phase 1 — composer / voice / Teams
+## Phase 2 — coverage / add-on
+- Partial: usageDaily helpers exist; full settlement instrumentation incomplete
+- Status: NOT fully complete
 
-### Composer idle / typing — DONE (`CreditComposerGate`)
-### Instant Teams — DONE in source (`TeamsHubScreen` + Worker create/join)
-### DictationState helpers — DONE (`e253572`)
-### BQSqwadApp DictationState mapping — READY as `docs/phase1-dictation-state.patch` (apply after restore; this session cannot push the ~516 KB file)
+## Phase 3–5 — prior main work remains
+- Teams CAS membership, My Tasks, notification prefs, Business inbox paging, vault module — previously on main
+- Live QA / Gradle / Worker test suite — NOT RUN this session
 
-## Prior long-form audit
-- Full history at `635e28f32ccd98beb6c63826c2249b2312019e7d` and parents.
+## Phase 7 — verification
+- Builds, unit tests, device QA, production deploy — NOT RUN / NOT CLAIMED
+
+## Theme (your request)
+- Default mode is **system** (follows the phone).
+- In light system mode the app uses white / near-white surfaces (`Theme.kt` light palette).
+- Once-picker labels: System (recommended), Light (always white), Dark.
