@@ -47,6 +47,13 @@ async function listCatalogEntries() {
   })).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+export async function resolveModelCatalogEntry(modelKey) {
+  const key = String(modelKey || "").trim().toLowerCase();
+  if (!key) return null;
+  const entries = await listCatalogEntries();
+  return entries.find((entry) => String(entry.modelKey).toLowerCase() === key) || null;
+}
+
 export async function handleModelsCatalog(request, env, uid) {
   let balance = 0;
   let hasPurchasedCredits = false;
