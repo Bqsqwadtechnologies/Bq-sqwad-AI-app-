@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const native = readFileSync(join(root, "src/teams-sqwad-native.js"), "utf8");
 const routes = readFileSync(join(root, "src/teams-routes-handler.js"), "utf8");
-const android = readFileSync(join(root, "../../app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt"), "utf8");
+const android = readFileSync(join(root, "../app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt"), "utf8");
 
 test("shared team memory reads require membership and writes require admin", () => {
   assert.match(native, /teamsListMemory\(user, body\)[\s\S]*?requireActiveMember\(user, teamId, "viewer"\)/);
