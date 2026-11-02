@@ -945,6 +945,13 @@ class WorkspaceApiClient {
             put("message", message.take(4000)); if (contact != null) put("contact", contact.take(320))
         })
 
+    suspend fun monthlyFeedbackState(): JSONObject = request("/monthly-feedback", "GET")
+    suspend fun submitMonthlyFeedback(rating: Int, category: String, comment: String): JSONObject =
+        request("/monthly-feedback", payload = JSONObject().put("rating", rating).put("category", category).put("comment", comment))
+    suspend fun adminMonthlyFeedback(): JSONObject = request("/admin/monthly-feedback", "GET")
+    suspend fun saveAdminMonthlyFeedback(enabled: Boolean, receiverUid: String, title: String, message: String): JSONObject =
+        request("/admin/monthly-feedback", payload = JSONObject().put("enabled", enabled).put("receiverUid", receiverUid).put("campaignTitle", title).put("campaignMessage", message))
+
     suspend fun reportMessage(message:String, category:String="response", messageId:String?=null, sentiment:String?=null, reason:String?=null, comment:String?=null):JSONObject = request("/feedback",payload=JSONObject().apply {
         put("message", message)
         put("category", category)
