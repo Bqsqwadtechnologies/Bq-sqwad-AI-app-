@@ -8,6 +8,7 @@ import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
+import { handlePlayRtdn } from "./play-rtdn.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { runWithFallback } from "./orchestrator-native.js";
@@ -2635,6 +2636,23 @@ export default {
       if (url.pathname === "/models/catalog" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         return handleModelsCatalog(request, env, user.uid);
+      }
+
+      if (url.pathname === "/play/rtdn" && request.method === "POST") {
+        const configuredSecret = String(env.PLAY_RTDN_SHARED_SECRET || "");
+        const suppliedSecret = String(request.headers.get("x-bq-play-rtdn-secret") || "");
+        if (!configuredSecret || suppliedSecret.length !== configuredSecret.length ||
+            !crypto.subtle.timingSafeEqual) {
+          throw Object.assign(new Error("play_rtdn_unauthorized"), { httpStatus: 401, safeError: "unauthorized" });
+        }
+        const a = new TextEncoder().encode(configuredSecret);
+        const b = new TextEncoder().encode(suppliedSecret);
+        let mismatch = 0;
+        for (let i = 0; i < a.length; i++) mismatch |= a[i] ^ b[i];
+        if (mismatch !== 0) throw Object.assign(new Error("play_rtdn_unauthorized"), { httpStatus: 401, safeError: "unauthorized" });
+        const body = await readBody(request);
+        const firestore = { get: firestoreGet, query: firestoreQuery, set: firestoreSet };
+        return json(await handlePlayRtdn(env, firestore, body));
       }
 
       if (url.pathname === "/play/verify" && request.method === "POST") {
