@@ -912,6 +912,21 @@ async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
 
+async function isCanonicalPlanCovered(uid, capabilityName) {
+  const capability = String(capabilityName || "").trim().toLowerCase().replace(/-/g, "_");
+  if (!capability) return false;
+  const plans = await firestoreQuery("plans", { parent: "entitlements/" + uid, limit: 100 }).catch(() => []);
+  const now = Date.now();
+  return plans.some(plan => {
+    const state = String(plan.state || "").toLowerCase();
+    const expiry = plan.expiresAt ? Date.parse(String(plan.expiresAt)) : NaN;
+    if (!["active", "trialing", "grace"].includes(state) || (Number.isFinite(expiry) && expiry <= now)) return false;
+    const included = (Array.isArray(plan.includedFeatures) ? plan.includedFeatures : [])
+      .map(value => String(value || "").trim().toLowerCase().replace(/-/g, "_"));
+    return included.includes("*") || included.includes(capability);
+  });
+}
+
 function isSubscriptionCoveredCapability(profile, capabilityName) {
   const expiresAt = Date.parse(String(profile?.subExpiresAt || ""));
   const planId = String(profile?.subscriptionPlan || "").trim().toLowerCase();
@@ -956,7 +971,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (Number(currentProfile.suspended || 0) === 1) throw new Error("Your account is suspended.");
   const planWorkspaceCapabilities = new Set(["business_ai","truth_guard","learning_studio","companion","companion_checkin","life_matters","frontier_lab"]);
   if (planWorkspaceCapabilities.has(String(capabilityName || "").trim().toLowerCase())) return { reservationId: null, amount: 0, planCovered: true };
-  if (isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
+  if (await isCanonicalPlanCovered(uid, capabilityName) || isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
     return { reservationId: null, amount: 0, planCovered: true };
   }
   // No trial-credit pool exists. Grant only the single daily free credit.
