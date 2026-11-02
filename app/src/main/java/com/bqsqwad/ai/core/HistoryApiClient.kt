@@ -145,4 +145,10 @@ class HistoryApiClient {
         request("/api/native/chats?chatId=" + URLEncoder.encode(id, "UTF-8"), "DELETE")
         return true
     }
+
+    suspend fun rename(id: String, title: String): Boolean {
+        require(title.isNotBlank() && title.length <= 120) { "Conversation title must be between 1 and 120 characters." }
+        request("/api/native/chats", "PATCH", JSONObject().put("chatId", id).put("title", title.trim()))
+        return true
+    }
 }
