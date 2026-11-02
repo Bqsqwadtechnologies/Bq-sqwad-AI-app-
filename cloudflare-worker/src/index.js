@@ -3541,6 +3541,48 @@ export default {
       }
 
 
+      if (url.pathname === "/tasks/my" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        const rows = await firestoreQuery("adminTasks", {
+          filters: [{
+            field: { fieldPath: "assignees" },
+            op: "ARRAY_CONTAINS",
+            value: { stringValue: user.uid },
+          }],
+          orderBy: { field: "updatedAt", direction: "DESCENDING" },
+          limit: 100,
+        }).catch(() => []);
+        const tasks = rows
+          .filter(row => Array.isArray(row.assignees) && row.assignees.includes(user.uid))
+          .map(row => ({
+            id: String(row.id || String(row.__name || "").split("/").pop()),
+            type: String(row.type || "general"),
+            title: String(row.title || "").slice(0, 160),
+            description: String(row.description || "").slice(0, 4000),
+            status: ["open","in_progress","blocked","done"].includes(String(row.status)) ? String(row.status) : "open",
+            dueAt: row.dueAt ? String(row.dueAt) : null,
+            updatedAt: String(row.updatedAt || ""),
+          }))
+          .filter(row => row.id && row.title);
+        return json({ tasks });
+      }
+      if (url.pathname === "/tasks/my/status" && request.method === "PATCH") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const taskId = String(body.taskId || "").trim();
+        const status = String(body.status || "");
+        if (!/^[A-Za-z0-9_-]{1,160}$/.test(taskId)) return json({ error: "invalid_task_id" }, 400);
+        if (!["open","in_progress","blocked","done"].includes(status)) return json({ error: "invalid_task_status" }, 400);
+        const path = "adminTasks/" + taskId;
+        const task = await firestoreGet(path);
+        if (!task) return json({ error: "task_not_found" }, 404);
+        if (!Array.isArray(task.assignees) || !task.assignees.includes(user.uid)) {
+          return json({ error: "task_not_assigned_to_user" }, 403);
+        }
+        await firestoreSet(path, { status, updatedAt: new Date().toISOString() }, true);
+        return json({ ok: true, taskId, status });
+      }
+
       if (url.pathname === "/notifications/preferences" && (request.method === "GET" || request.method === "PUT")) {
         const user = await verifyFirebaseUser(request);
         const path = "notificationPreferences/" + user.uid;
