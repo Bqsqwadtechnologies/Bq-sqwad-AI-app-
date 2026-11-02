@@ -33,6 +33,7 @@ import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamAppr
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
+import { handleModelsCatalog } from "./ai-model-catalog-route.js";
 
 
 // Composio project keys (ak_...) use x-api-key; user keys (uak_...) use
@@ -2591,6 +2592,11 @@ export default {
       if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }
       if (url.pathname === "/native/catalog" && request.method === "GET") {
         return json(await nativeCatalog());
+      }
+
+      if (url.pathname === "/models/catalog" && request.method === "GET") {
+        const user = await verifyFirebaseUser(request);
+        return handleModelsCatalog(request, env, user.uid);
       }
 
       if (url.pathname === "/play/verify" && request.method === "POST") {
