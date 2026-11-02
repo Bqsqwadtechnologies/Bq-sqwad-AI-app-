@@ -2586,7 +2586,7 @@ export default {
         await firestoreSet("secretChats/" + user.uid + "_" + chatId, {
           uid: user.uid, chatId, kind: "secret", label: "Secret chat",
           primary, recovery, createdAt: now, updatedAt: now
-        }, false);
+        }, true);
         return json({ ok: true, chat: { id: chatId, updatedAt: now } });
       }
       if (url.pathname === "/secret-chats" && request.method === "DELETE") {
