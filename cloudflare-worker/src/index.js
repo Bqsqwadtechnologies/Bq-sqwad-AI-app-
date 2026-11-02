@@ -1838,6 +1838,10 @@ async function ai(request, user, body) {
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
     : { purchasedOnly: false };
+  if (capabilityName === "chat" && String(body.modelKey || "bq-7-star").trim().toLowerCase() === "bq-codron") {
+    // BQ-Codron is a fixed model choice: never substitute Gemini or another route.
+    control = { ...control, config: { ...(control.config || {}), fallbackProviderIds: [], fallbackModels: {} } };
+  }
   // Use the website billing feature key for Main Chat. The Worker pricing resolver
   // also accepts the legacy "text-chat" alias for existing admin rules.
   const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
