@@ -5017,6 +5017,22 @@ export default {
       
       if (url.pathname === "/admin/web-search-pricing" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")||{}); }
       if (url.pathname === "/admin/web-search-pricing" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("adminAdvancedOptions/web_search_pricing",{enabled:b.enabled!==false,config:b.config&&typeof b.config==="object"?b.config:{},updatedBy:u.uid,updatedAt:new Date()},true);return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")); }
+      if (url.pathname === "/admin/training-storage" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        const [assets, consents, contributions] = await Promise.all([
+          firestoreQuery("businessTrainingAssets", { orderBy:{field:"createdAt",direction:"DESCENDING"}, limit:500 }).catch(() => []),
+          firestoreQuery("userConsents", { filters:[{field:{fieldPath:"trainingConsent"},op:"EQUAL",value:{booleanValue:true}}], limit:500 }).catch(() => []),
+          firestoreQuery("consented_contributions", { limit:500 }).catch(() => [])
+        ]);
+        const uploaded = assets.filter(item => item.status === "uploaded");
+        const pending = assets.filter(item => item.status === "upload_pending");
+        const typeCounts = {};
+        for (const item of assets) { const type = String(item.type || "other").slice(0, 32); typeCounts[type] = (typeCounts[type] || 0) + 1; }
+        const totalBytes = assets.reduce((sum, item) => sum + Math.max(0, Number(item.size || 0) || 0), 0);
+        const workspaceIds = new Set(assets.map(item => String(item.workspaceId || "")).filter(Boolean));
+        return json({ assetCount:assets.length, uploadedCount:uploaded.length, pendingCount:pending.length, totalBytes, workspaceCount:workspaceIds.size, consentedUsers:consents.length, contributionRecords:contributions.filter(item => item.status !== "withdrawn" && item.contentDeleted !== true).length, typeCounts, truncated:assets.length >= 500, updatedAt:new Date().toISOString() });
+      }
       if (url.pathname === "/admin/training-library" && request.method === "GET") {
         const u = await verifyFirebaseUser(request);
         if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 });
