@@ -3618,6 +3618,80 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                 )
                 DropdownMenuItem(
+                    text = { Text("Export conversation as TXT") },
+                    enabled = messages.isNotEmpty(),
+                    onClick = {
+                        showChatActions = false
+                        val transcript = buildString {
+                            appendLine("BQ SQWAD TECHNOLOGIES")
+                            appendLine("BQ Sqwad AI")
+                            appendLine(chatTitleOverride ?: "Conversation")
+                            appendLine()
+                            messages.forEach { appendLine((if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text); if (it.attachmentNames.isNotEmpty()) appendLine("Attachments: " + it.attachmentNames.joinToString(", ")); appendLine() }
+                        }
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "BQ Sqwad AI conversation")
+                            putExtra(Intent.EXTRA_TEXT, transcript)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Export TXT"))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Export conversation as JSON") },
+                    enabled = messages.isNotEmpty(),
+                    onClick = {
+                        showChatActions = false
+                        val rows = JSONArray().apply {
+                            messages.forEach { message ->
+                                put(JSONObject()
+                                    .put("role", if (message.mine) "user" else "assistant")
+                                    .put("text", message.text)
+                                    .put("attachments", JSONArray(message.attachmentNames))
+                                    .put("imageUrl", message.imageUrl ?: JSONObject.NULL))
+                            }
+                        }
+                        val export = JSONObject()
+                            .put("brand", "BQ SQWAD TECHNOLOGIES")
+                            .put("product", "BQ Sqwad AI")
+                            .put("title", chatTitleOverride ?: "Conversation")
+                            .put("exportedAt", System.currentTimeMillis())
+                            .put("messages", rows)
+                            .toString(2)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_SUBJECT, "BQ Sqwad AI conversation")
+                            putExtra(Intent.EXTRA_TEXT, export)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Export JSON"))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Export conversation as CSV") },
+                    enabled = messages.isNotEmpty(),
+                    onClick = {
+                        showChatActions = false
+                        fun csv(value: String) = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
+                        val export = buildString {
+                            appendLine("role,text,attachments,image_url")
+                            messages.forEach { message ->
+                                appendLine(listOf(
+                                    if (message.mine) "user" else "assistant",
+                                    csv(message.text),
+                                    csv(message.attachmentNames.joinToString(" | ")),
+                                    csv(message.imageUrl.orEmpty())
+                                ).joinToString(","))
+                            }
+                        }
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/csv"
+                            putExtra(Intent.EXTRA_SUBJECT, "BQ Sqwad AI conversation")
+                            putExtra(Intent.EXTRA_TEXT, export)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Export CSV"))
+                    }
+                )
+                DropdownMenuItem(
                     text = { Text("Rename conversation") },
                     enabled = historyId != null,
                     onClick = {
