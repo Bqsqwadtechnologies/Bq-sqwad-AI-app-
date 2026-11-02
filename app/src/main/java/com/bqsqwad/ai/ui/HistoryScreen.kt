@@ -207,13 +207,15 @@ fun HistoryScreen(
                 }
             },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { shareExport("txt") }) { Text("TXT") }
-                    TextButton(onClick = { shareExport("json") }) { Text("JSON") }
-                    TextButton(onClick = { shareExport("csv") }) { Text("CSV") }
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        TextButton(onClick = { shareExport("txt") }) { Text("TXT") }
+                        TextButton(onClick = { shareExport("json") }) { Text("JSON") }
+                        TextButton(onClick = { shareExport("csv") }) { Text("CSV") }
+                    }
                     TextButton(onClick = {
-                    onContinue(item, messages)
-                    selected = null
+                        onContinue(item, messages)
+                        selected = null
                     }) { Text("Continue in Chat") }
                 }
             },
