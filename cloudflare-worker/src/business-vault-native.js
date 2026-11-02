@@ -100,8 +100,9 @@ export async function appendVaultMessage({
   }
   const redacted = redactForVault(text);
   const indexPath = "vaultIndex/" + businessId + "/" + agentId + "/" + threadId;
-  const index = (await dbGet(indexPath)) || { page: 1, prevHash: "", messageCount: 0 };
-  const page = Number(index.page || 1);
+  const index = (await dbGet(indexPath)) || { page: 1, pageBytes: 0, prevHash: "", messageCount: 0 };
+  let page = Number(index.page || 1);
+  let pageBytes = Number(index.pageBytes || 0);
   const payload = JSON.stringify({
     ts: new Date().toISOString(),
     role: String(role || "assistant"),
@@ -115,6 +116,10 @@ export async function appendVaultMessage({
     new TextEncoder().encode(payload),
   );
   const ciphertext = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+  if (pageBytes + ciphertext.length > 700_000) {
+    page += 1;
+    pageBytes = 0;
+  }
   const hash = await appendHashChain(index.prevHash, ciphertext);
   const path = vaultPagePath(businessId, agentId, threadId, page);
   const existing = (await dbGet(path)) || { records: [] };
@@ -126,12 +131,13 @@ export async function appendVaultMessage({
   });
   await dbSet(path, { records, updatedAt: new Date().toISOString() }, true);
   const messageCount = Number(index.messageCount || 0) + 1;
-  const nextPage = records.length >= 200 ? page + 1 : page;
+  pageBytes += ciphertext.length;
   await dbSet(indexPath, {
-    page: nextPage,
+    page,
+    pageBytes,
     prevHash: hash,
     messageCount,
     updatedAt: new Date().toISOString(),
   }, true);
-  return { path, hash, messageCount, page: nextPage };
+  return { path, hash, messageCount, page };
 }
