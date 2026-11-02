@@ -467,6 +467,9 @@ class WorkspaceApiClient {
         request("/notifications/preferences", payload=JSONObject()
             .put("inAppEnabled", inAppEnabled)
             .put("pushEnabled", pushEnabled))
+    suspend fun myTasks():JSONObject = request("/tasks/my", "GET")
+    suspend fun updateMyTaskStatus(taskId:String, status:String):JSONObject =
+        request("/tasks/my/status", "PATCH", JSONObject().put("taskId", taskId).put("status", status))
     suspend fun adminIssues():JSONObject = request("/admin/issues","GET")
     suspend fun adminPricingAudit():JSONObject = request("/admin/pricing/audit","GET")
     suspend fun adminDiagnostics():JSONObject = request("/admin/diagnostics","GET")
