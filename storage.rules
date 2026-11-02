@@ -31,6 +31,14 @@ service firebase.storage {
         && request.resource.contentType.matches('image/(png|jpeg|webp)');
     }
 
+    // Business AI vault objects are never directly accessible by client SDKs.
+    match /vault/{allPaths=**} {
+      allow read, write: if false;
+    }
+    match /vaultIndex/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     // Owner-scoped uploads for chat attachments, pasted text and File Box.
     match /users/{uid}/uploads/{allPaths=**} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
