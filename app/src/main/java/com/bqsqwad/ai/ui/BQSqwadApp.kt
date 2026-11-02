@@ -1665,7 +1665,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     )
                 }
             }
-                }
                 dailyFeatureAnnouncement?.takeIf { foregroundPushBanner.isNullOrBlank() }?.let { announcement ->
                     Surface(
                         modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
