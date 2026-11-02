@@ -69,3 +69,7 @@
 - 6.2 Device/emulator QA (360dp/tablet composer, voice controls, teams, onboarding, theme, notifications, presence, secret chat): NOT DONE.
 
 Status note: This audit deliberately distinguishes source edits from runtime verification. No production Worker deployment, Play Store publication, or device QA is claimed.
+### Continuation checkpoint — team membership indexing (2026-11-02)
+- Worker team membership reads now query `teamMemberships` by `memberUid` and fetch only the indexed workspaces; legacy membership records are indexed on first lookup. Invite, accept and remove maintain the index. `cloudflare-worker/src/team-workspace-native.js` — DONE in source, NOT TESTED; no workflow has been run for this continuation.
+- Workspace invitations now enforce a minimum supported seat ceiling of 200, with active and invited members counted. `cloudflare-worker/src/team-workspace-native.js` — DONE in source, NOT TESTED; existing workspace data and admin-configured seat policy have not been reconciled.
+- Migration caveat: the first-lookup compatibility pass is capped at 500 legacy workspace documents; it is not a complete paginated historical backfill. Large installations need a controlled backfill before relying exclusively on the index.
