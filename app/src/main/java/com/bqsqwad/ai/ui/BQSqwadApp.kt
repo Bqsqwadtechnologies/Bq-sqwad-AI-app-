@@ -2682,6 +2682,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var renameDraft by remember { mutableStateOf("") }
     var chatTitleOverride by rememberSaveable { mutableStateOf<String?>(null) }
     var statusText by remember { mutableStateOf("Ready") }
+    var pendingDownloadContent by remember { mutableStateOf("") }
+    val downloadConversationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(pendingDownloadContent.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not open the selected download location.")
+            }.onSuccess { statusText = "Conversation downloaded." }
+                .onFailure { statusText = "Could not download conversation: " + (it.message ?: "Please try again.") }
+        }
+    }
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
     var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
@@ -3593,6 +3603,22 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 DropdownMenuItem(
                     text = { Text("Secret chats") },
                     onClick = { showChatActions = false; showSecretChats = true }
+                )
+                DropdownMenuItem(
+                    text = { Text("Download conversation") },
+                    enabled = messages.any { !it.privateSession && it.text.isNotBlank() },
+                    onClick = {
+                        showChatActions = false
+                        val transcript = messages.filterNot { it.privateSession }.joinToString("\n\n") {
+                            (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text
+                        }
+                        pendingDownloadContent = "BQ SQWAD TECHNOLOGIES\\nBQ Sqwad AI\\n" +
+                            (chatTitleOverride ?: "Conversation") + "\\n" +
+                            java.time.Instant.now().toString() + "\\n\\n" + transcript
+                        downloadConversationLauncher.launch(
+                            (chatTitleOverride ?: "BQ-Sqwad-AI-conversation").replace(Regex("[^A-Za-z0-9_-]"), "-").take(60) + ".txt"
+                        )
+                    }
                 )
                 DropdownMenuItem(
                     text = { Text("Share conversation") },
