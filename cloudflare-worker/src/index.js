@@ -2641,8 +2641,7 @@ export default {
       if (url.pathname === "/play/rtdn" && request.method === "POST") {
         const configuredSecret = String(env.PLAY_RTDN_SHARED_SECRET || "");
         const suppliedSecret = String(request.headers.get("x-bq-play-rtdn-secret") || "");
-        if (!configuredSecret || suppliedSecret.length !== configuredSecret.length ||
-            !crypto.subtle.timingSafeEqual) {
+        if (!configuredSecret || suppliedSecret.length !== configuredSecret.length) {
           throw Object.assign(new Error("play_rtdn_unauthorized"), { httpStatus: 401, safeError: "unauthorized" });
         }
         const a = new TextEncoder().encode(configuredSecret);
