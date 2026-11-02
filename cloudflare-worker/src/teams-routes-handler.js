@@ -21,6 +21,10 @@ import {
   teamsPostMessage,
   teamsAskAi,
   teamsSeedWhite,
+  teamsListMemory,
+  teamsAddMemory,
+  teamsUpdateMemory,
+  teamsDeleteMemory,
 } from "./teams-sqwad-native.js";
 
 export async function handleTeamsSqwadRoutes(url, request, env, deps) {
@@ -84,6 +88,22 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
     if (path === "/native/teams/seed-white" && method === "POST") {
       const u = await verifyFirebaseUser(request);
       return json(await teamsSeedWhite(u));
+    }
+    if (path === "/native/teams/memory" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsListMemory(u, await body()));
+    }
+    if (path === "/native/teams/memory/add" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsAddMemory(u, await body()));
+    }
+    if (path === "/native/teams/memory/update" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsUpdateMemory(u, await body()));
+    }
+    if (path === "/native/teams/memory/delete" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsDeleteMemory(u, await body()));
     }
   } catch (e) {
     const status = e.httpStatus || 500;
