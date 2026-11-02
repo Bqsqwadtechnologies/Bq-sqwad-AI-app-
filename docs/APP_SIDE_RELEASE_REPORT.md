@@ -31,3 +31,9 @@
 - Teams v2 team-credit-pool parity, admin theme hydration/no-flash, live work timer/phase events, notifications inbox/MessagingStyle, organization AI parity, Contact Sales grants, encrypted vault writes/hash-chain integration, inbox staff pagination, export pipeline, storage meter real data, and training redaction/exclusion coverage remain unverified or incomplete.
 - Website Business Studio currently contains placeholder storage/expiry display values; production values must come from server APIs before release.
 - Full CI and production secret/configuration checks remain unverified.
+
+
+## Teams membership concurrency update — 2026-11-02
+- Worker Teams join/approve/leave now use Firestore update-time compare-and-set transitions. Concurrent duplicate transitions do not each change the denormalized member count; leaving marks the membership as `left` and removes the user's active membership index. Source: `cloudflare-worker/src/teams-sqwad-native.js`, commit `ddcbf3205f67703a4e6e26b00f421399543b0c01`.
+- Static contract coverage was added in `cloudflare-worker/test/team-membership-contract.test.js`, commit `7bd97080fa1b9fbc87b2a27089aa96d39b365640`. Tests were not executed.
+- The server has no hard-coded 200-seat ceiling, but 500-member load, pagination, migration/index correctness and website↔Android round-trip still require testing.
