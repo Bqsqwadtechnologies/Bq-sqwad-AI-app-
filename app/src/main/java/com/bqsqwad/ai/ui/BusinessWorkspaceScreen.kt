@@ -50,7 +50,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             loading = false
         }
     }
-    LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended() }.onSuccess { extended = it } } }
+    LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended(data.optString("workspaceId").takeIf { it.isNotBlank() }) }.onSuccess { extended = it } } }
 
     if (!loading && data.length() > 0 && !data.optBoolean("accessGranted", false)) {
         Column(
@@ -373,6 +373,37 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     }
                 }
                 Records(extended.optJSONArray("inbox") ?: JSONArray(), "Inbox")
+                val inboxPage = extended.optJSONObject("inboxPage") ?: JSONObject()
+                if (inboxPage.optBoolean("hasMore", false)) {
+                    OutlinedButton(
+                        onClick = {
+                            if (!saving) {
+                                saving = true
+                                scope.launch {
+                                    val currentItems = extended.optJSONArray("inbox") ?: JSONArray()
+                                    runCatching {
+                                        api.businessExtended(
+                                            data.optString("workspaceId"),
+                                            inboxOffset = currentItems.length(),
+                                            inboxLimit = inboxPage.optInt("limit", 30).coerceIn(1, 100)
+                                        )
+                                    }.onSuccess { nextPage ->
+                                        val merged = JSONArray()
+                                        for (i in 0 until currentItems.length()) merged.put(currentItems.optJSONObject(i))
+                                        val additions = nextPage.optJSONArray("inbox") ?: JSONArray()
+                                        for (i in 0 until additions.length()) merged.put(additions.optJSONObject(i))
+                                        extended = JSONObject(extended.toString())
+                                            .put("inbox", merged)
+                                            .put("inboxPage", nextPage.optJSONObject("inboxPage") ?: JSONObject())
+                                    }.onFailure { error = safeUserFacingIssue(it, "More inbox messages could not be loaded.") }
+                                    saving = false
+                                }
+                            }
+                        },
+                        enabled = !saving,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (saving) "Loading…" else "Load more inbox messages") }
+                }
             }
             "Automation" -> {
                 RecordCreateForm("Automation", listOf("name")) { values ->
