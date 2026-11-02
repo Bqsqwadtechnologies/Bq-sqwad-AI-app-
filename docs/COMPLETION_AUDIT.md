@@ -83,3 +83,10 @@ Worked only on real `main`. No duplicate trees.
 - Website conversation menu is substantially complete for the required action list; Android menu parity is still open.
 - Secret chat lifecycle, rolling memory, live timer, coding hint, full generated-file coverage beyond images, Training Storage admin, and end-to-end builds/QA remain open on both platforms.
 - Do not mark Phases 2–4 complete until acceptance criteria and verification steps are satisfied.
+
+
+## Additional Phase 6 source hardening — 2026-11-02
+- Website Teams membership transitions now use atomic status changes and atomic team member-count increments for public joins and private approvals. Commit in website repository: `b3978d8ca88739f96598003d21a3d67011fe632e`.
+- Worker Teams public joins, private approvals and leave operations now use Firestore update-time compare-and-set writes. Member counts update only after a successful state transition; leave retains a `left` status to make repeated leave requests idempotent. Worker source commit: `ddcbf3205f67703a4e6e26b00f421399543b0c01`.
+- Added a static Worker contract assertion for the compare-and-set transition paths in `cloudflare-worker/test/team-membership-contract.test.js`, commit `7bd97080fa1b9fbc87b2a27089aa96d39b365640`.
+- No Worker tests/check, website tests/build, Android tests/build, or authenticated 500-member concurrency/load test was run. This does not close the cross-client Teams parity or release QA items.
