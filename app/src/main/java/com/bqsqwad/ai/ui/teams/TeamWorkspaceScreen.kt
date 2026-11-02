@@ -41,6 +41,7 @@ data class TeamMemberRow(
     val role: String,
     val photoUrl: String?,
     val status: String,
+    val spendLimitCredits: Double? = null,
 )
 
 data class TeamProjectRow(
@@ -82,6 +83,8 @@ fun TeamWorkspaceScreen(
     var memoryText by remember { mutableStateOf("") }
     var editingMemoryId by remember { mutableStateOf<String?>(null) }
     var deletingMemory by remember { mutableStateOf<TeamMemoryRow?>(null) }
+    var spendLimitTarget by remember { mutableStateOf<TeamMemberRow?>(null) }
+    var spendLimitText by remember { mutableStateOf("") }
     var projects by remember { mutableStateOf<List<TeamProjectRow>>(emptyList()) }
     var projectId by remember { mutableStateOf<String?>(null) }
     var messages by remember { mutableStateOf<List<TeamMessage>>(emptyList()) }
@@ -265,6 +268,22 @@ fun TeamWorkspaceScreen(
                                 Column {
                                     Text(m.displayName, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                                     Text(m.role, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (memberRole == "owner" || memberRole == "admin") {
+                                        TextButton(
+                                            onClick = {
+                                                spendLimitTarget = m
+                                                spendLimitText = m.spendLimitCredits?.toString().orEmpty()
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                                        ) {
+                                            Text(
+                                                m.spendLimitCredits?.let { "Monthly cap: $it" } ?: "No monthly cap",
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    } else if (m.spendLimitCredits != null) {
+                                        Text("Monthly cap: ${m.spendLimitCredits}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
                         }
@@ -481,6 +500,53 @@ fun TeamWorkspaceScreen(
         }
     }
 
+    spendLimitTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { spendLimitTarget = null },
+            title = { Text("Monthly AI spending limit") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Set a monthly cap for ${target.displayName}. Leave blank for no cap. The cap applies to team AI usage charged to the shared team wallet.")
+                    OutlinedTextField(
+                        value = spendLimitText,
+                        onValueChange = { spendLimitText = it.filter { ch -> ch.isDigit() || ch == '.' }.take(14) },
+                        label = { Text("Credits per month") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && (spendLimitText.isBlank() || spendLimitText.toDoubleOrNull()?.let { it >= 0.0 && it.isFinite() } == true),
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val body = JSONObject()
+                                    .put("teamId", teamId)
+                                    .put("uid", target.uid)
+                                    .put("limitCredits", spendLimitText.toDoubleOrNull() ?: JSONObject.NULL)
+                                apiPost(baseUrl, token, "/native/teams/member/spend-limit", body)
+                                val result = apiPost(baseUrl, token, "/native/teams/members", JSONObject().put("teamId", teamId))
+                                members = parseMembers(result.optJSONArray("members"))
+                                spendLimitTarget = null
+                                error = null
+                            } catch (e: Exception) {
+                                error = e.message
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { spendLimitTarget = null }) { Text("Cancel") }
+            },
+        )
+    }
+
     if (showMemoryDialog) {
         AlertDialog(
             onDismissRequest = { showMemoryDialog = false },
@@ -582,6 +648,7 @@ private fun parseMembers(arr: org.json.JSONArray?): List<TeamMemberRow> {
                     role = o.optString("role", "member"),
                     photoUrl = o.optString("photoUrl").ifBlank { null },
                     status = o.optString("status", "active"),
+                    spendLimitCredits = if (o.isNull("spendLimitCredits")) null else o.optDouble("spendLimitCredits"),
                 )
             )
         }
