@@ -9,6 +9,7 @@ export function redactForVault(text) {
   let t = String(text || "");
   t = t.replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, "[card]");
   t = t.replace(/\b\d{11}\b/g, "[id]");
+  t = t.replace(/\b(otp|bvn|nin|pin)\b\s*(?:is|:|=)?\s*[A-Za-z0-9-]{3,24}/gi, "$1: [redacted]");
   if (SECRET_PATTERN.test(t)) {
     t = t.replace(/\b\d{3,8}\b/g, "[redacted]");
   }
