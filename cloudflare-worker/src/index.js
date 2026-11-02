@@ -4641,9 +4641,12 @@ export default {
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
-        const brief = String(b.brief || b.message || "").trim().slice(0, 12000);
+        const brief = redactForVault(String(b.brief || b.message || "").trim()).slice(0, 12000);
         if (!brief) throw new Error("business_plan_brief_required");
-        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
+        const threadId = String(b.threadId || b.conversationId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+        const agentId = "plan-builder";
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "user", brief);
+        const result = await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
           const z = await runProvider(env, {
             primaryProviderId: control.providerId,
             primaryModelId: control.modelId,
@@ -4653,7 +4656,9 @@ export default {
             system: "You are the BQ Sqwad AI Business Plan Builder. Use only supplied business information. Do not invent market facts, guarantees, licenses, tax or legal status. Return executive summary, objectives, target customers, value proposition, operations, marketing, sales, technology/AI plan, risks, KPIs and 30/60/90-day actions."
           });
           return { ok: true, workspaceId: w.workspaceId, answer: z.text, providerId: z.providerId, modelId: z.modelId };
-        })));
+        }));
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "assistant", result.answer);
+        return json({ ...result, threadId });
       }
       if (url.pathname === "/business/advanced-ai" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -4662,7 +4667,13 @@ export default {
         const b = await readBody(request);
         const w = await businessWorkspace(u.uid, { workspaceId: b.workspaceId });
         await requireBusinessPlan(u.uid, w.workspaceId);
-        return json(await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, { ...b, workspaceId: w.workspaceId }))));
+        const safePayload = JSON.parse(redactForVault(JSON.stringify({ ...b, workspaceId: w.workspaceId })));
+        const threadId = String(b.threadId || b.conversationId || crypto.randomUUID()).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+        const agentId = String(b.agentId || "advanced-ai").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "user", JSON.stringify(safePayload));
+        const result = await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async () => advancedAiNative(env, u.uid, safePayload)));
+        await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "assistant", JSON.stringify(result));
+        return json({ ...result, threadId });
       }
       if (url.pathname === "/business/advanced-ai/jobs" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json({jobs:await advancedJobs(u.uid,String(url.searchParams.get("workspaceId")||""))}); }
       if (url.pathname === "/business/integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request),w=await businessWorkspace(u.uid,{workspaceId:url.searchParams.get("workspaceId")}); await requireBusinessFeature(u.uid,w.workspaceId,"integrations"); return json(await integrationConfig(u.uid,w.workspaceId)); }
