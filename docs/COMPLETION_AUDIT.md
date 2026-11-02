@@ -36,3 +36,15 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 
 ## Theme
 - Default `system` (white surfaces when device is light). ThemeOncePicker recommends System.
+
+
+## PDF Exact-Code Fix Prompt — Phase 1 Android white theme
+
+- **DONE — not build-verified:** `ui/theme/Theme.kt` defaults to `light`; unknown/empty theme values resolve to White; explicit `system` and `ocean` retain system-dark behavior; status and navigation bars follow the active palette.
+- **DONE — not build-verified:** `res/values/styles.xml` uses a light launch parent and white window/status/navigation backgrounds to prevent the dark launch flash.
+- **DONE — not build-verified:** `MainActivity.onCreate` performs the one-time `white_default_v1` migration before Compose starts, respecting `bq_device_prefs.theme_chosen`.
+- **DONE — not build-verified:** `BQSqwadApp.kt` uses Light as the settings default, marks explicit settings/onboarding theme choices, and places `light` first in the Appearance modes while retaining System and Dark.
+- **DONE — not build-verified:** `OnboardingContract.kt` and `OnboardingSurveyScreen.kt` default to `light`.
+- **DONE — reference scan only:** removed `ui/chat/ThemeOncePicker.kt`; repository code search found its helper/function names only in that file.
+- **NOT RUN:** Android Gradle build, unit tests, emulator first-launch/status-bar checks. Owner to run these locally.
+- **NOT CHANGED:** optional Phase 1.7 `bubbleAi` color adjustment; no visual evidence was available to justify changing call sites.
