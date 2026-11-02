@@ -304,7 +304,8 @@ class WorkspaceApiClient {
                 code == "out_of_credits" || code == "insufficient_credits" || status == 402 -> "Your current usage allowance is unavailable for dictation. Review plans and billing to continue."
                 code == "consent_required" -> "Please review and accept the required BQ Sqwad AI terms to use dictation."
                 code == "dictation_disabled" -> "Dictation is temporarily unavailable. Try again later."
-                status >= 500 -> "Transcription is temporarily unavailable. Check your internet connection and retry."
+                code == "transcription_timeout" -> "The transcription server timed out after 25 seconds. Check your connection and retry."
+                status >= 500 -> "The transcription service could not complete the request. Check your connection and retry."
                 status == 401 -> "Please sign in again to transcribe your recording."
                 else -> "The recording could not be transcribed. Try again."
             })
