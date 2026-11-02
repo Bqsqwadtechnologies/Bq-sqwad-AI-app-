@@ -2464,7 +2464,12 @@ export default {
               body: form
             });
           };
-          let model = "whisper-1";
+          const configuredModel = String(configDocument.config?.transcriptionModel || configDocument.transcriptionModel || "whisper-1").trim();
+          const modelAllowlist = new Set(["whisper-1", "gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
+          if (!modelAllowlist.has(configuredModel)) {
+            throw Object.assign(new Error("transcription_model_invalid"), { httpStatus: 400, safeError: "transcription_model_invalid" });
+          }
+          let model = configuredModel;
           let response = await transcribeWithModel(model);
           let raw = await response.text();
           let transcription = {};
