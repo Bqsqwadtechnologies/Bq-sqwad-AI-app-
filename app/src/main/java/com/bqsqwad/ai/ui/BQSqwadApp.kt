@@ -1085,6 +1085,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var accessLoading by remember { mutableStateOf(true) }
     var accessLoadFailed by remember { mutableStateOf(false) }
     var accessRetryNonce by remember { mutableIntStateOf(0) }
+    var entitlementRefreshNonce by remember { mutableIntStateOf(0) }
     var accessRetryWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var paywallWorkspace by remember { mutableStateOf<Workspace?>(null) }
     var signInRequired by remember { mutableStateOf(false) }
@@ -1093,6 +1094,31 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var appLayoutEnabled by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var consentRequired by remember { mutableStateOf(false) }
     var consentLoading by remember { mutableStateOf(false) }
+
+    val entitlementLifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
+    DisposableEffect(entitlementLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) entitlementRefreshNonce++
+        }
+        entitlementLifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { entitlementLifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
+
+    DisposableEffect(firebaseUser?.uid) {
+        val uid = firebaseUser?.uid
+        if (uid.isNullOrBlank()) {
+            onDispose { }
+        } else {
+            val listener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("entitlements")
+                .document(uid)
+                .collection("plans")
+                .addSnapshotListener { snapshot, error ->
+                    if (error == null && snapshot != null) entitlementRefreshNonce++
+                }
+            onDispose { listener.remove() }
+        }
+    }
 
     fun resetShellAfterSignOut() {
         workspace = null
@@ -1204,7 +1230,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         }
     }
 
-    LaunchedEffect(email, workspace, accessRetryNonce) {
+    LaunchedEffect(email, workspace, accessRetryNonce, entitlementRefreshNonce) {
         // Refresh when returning from a workspace so an administrator's test-mode
         // change is reflected without requiring an app restart.
         if (email.isBlank()) {
