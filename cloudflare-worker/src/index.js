@@ -8,7 +8,7 @@ import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
-import { handlePlayRtdn } from "./play-rtdn.js";
+import { handlePlayRtdn, reaggregateRootEntitlement } from "./play-rtdn.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { runWithFallback } from "./orchestrator-native.js";
@@ -2657,15 +2657,17 @@ export default {
       if (url.pathname === "/play/verify" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
-        const firestore = { get: firestoreGet, commit: firestoreCommit };
-        return json(await verifyPlayPurchase(env, firestore, {
+        const firestore = { get: firestoreGet, commit: firestoreCommit, query: firestoreQuery, set: firestoreSet };
+        const verified = await verifyPlayPurchase(env, firestore, {
           uid: user.uid,
           productId: String(body.productId || ""),
           purchaseToken: String(body.purchaseToken || ""),
           obfuscatedAccountId: String(body.obfuscatedAccountId || ""),
           requestedBasePlanId: String(body.basePlanId || ""),
           requestedOfferId: String(body.offerId || "")
-        }));
+        });
+        await reaggregateRootEntitlement(firestore, user.uid);
+        return json(verified);
       }
 
       if (url.pathname === "/credits" && request.method === "GET") {
