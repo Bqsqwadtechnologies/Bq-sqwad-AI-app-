@@ -3981,9 +3981,10 @@ val composerShape = RoundedCornerShape(26.dp)
                                         else -> "Start voice dictation"
                                     },
                                     tint = MaterialTheme.colorScheme.primary
-                                ,
-                                modifier = Modifier.size(36.dp)
-                            )
+                                )
+                            },
+                            modifier = Modifier.size(36.dp)
+                        )
 
                         OutlinedTextField(
                             value = message,
