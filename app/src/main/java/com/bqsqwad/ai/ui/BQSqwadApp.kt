@@ -2677,6 +2677,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
 
     var privateChat by rememberSaveable { mutableStateOf(false) }
     var showChatActions by remember { mutableStateOf(false) }
+    var showSecretChats by remember { mutableStateOf(false) }
     var renameDialogOpen by remember { mutableStateOf(false) }
     var renameDraft by remember { mutableStateOf("") }
     var chatTitleOverride by rememberSaveable { mutableStateOf<String?>(null) }
@@ -3598,6 +3599,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             )
             DropdownMenu(expanded = showChatActions, onDismissRequest = { showChatActions = false }) {
                 DropdownMenuItem(
+                    text = { Text("Secret chats") },
+                    onClick = { showChatActions = false; showSecretChats = true }
+                )
+                DropdownMenuItem(
                     text = { Text("Share conversation") },
                     onClick = {
                         showChatActions = false
@@ -3659,6 +3664,20 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                 )
             }
+            SecretChatsDialog(
+                open = showSecretChats,
+                chatId = historyId,
+                transcript = messages.filterNot { it.privateSession }.joinToString("\\n\\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text },
+                title = chatTitleOverride ?: messages.firstOrNull { it.mine }?.text?.take(72).orEmpty().ifBlank { "Secret chat" },
+                onClose = { showSecretChats = false },
+                onMoved = {
+                    historyId = null
+                    messages.clear()
+                    privateMessageIds.clear()
+                    chatTitleOverride = null
+                    onNewChat()
+                }
+            )
             if (renameDialogOpen) {
                 AlertDialog(
                     onDismissRequest = { renameDialogOpen = false },
