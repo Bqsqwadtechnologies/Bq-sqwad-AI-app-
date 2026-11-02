@@ -12,7 +12,7 @@
 ## Prompt L / Prompt M completion audit — 2026-11-02
 
 ### Phase 1 — Android + Worker (Prompt L)
-- 1.1 Composer two-row layout, compact 80dp container, tablet/360dp QA: NOT DONE — `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt` still has the legacy single-row composer near lines 3960–4050.
+- 1.1 Composer two-row layout: DONE but not verified — `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt` now places mic/text/send on row one and attachments/model selector on row two; text supports six lines. Exact 80dp sizing, rounded container fit and 360dp/tablet QA remain unverified.
 - 1.2 No silent phone-recognizer fallback: DONE but not verified — server failure no longer invokes `startSpeechRecognition`; explicit `Use phone speech` action is shown in the error controls (`BQSqwadApp.kt` lines 2878–2895, 3960–3985).
 - 1.2 25-second timeout and Cancel during transcription: DONE but not verified — `withTimeout(25_000L)`, session checks, remembered stop callback, and job cancellation (`BQSqwadApp.kt` lines 2872–2930).
 - 1.2 Recording bar with exact Cancel / Transcribe / Send and send-after-transcription: NOT DONE — the Android composer has not yet been rebuilt into the requested voice-only bar.
@@ -23,7 +23,7 @@
 
 ### Phase 2 — Teams (Prompt L)
 - 2.1 Drawer opens Teams state before closing navigation: DONE but not verified — `BQSqwadApp.kt` line 1473.
-- 2.2 Android cached first paint, skeleton, timeout and retry: NOT DONE — `TeamsHubScreen.kt` still performs its initial network load after composition.
+- 2.2 Android Teams cached first paint: DONE but not verified — `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamsHubScreen.kt` now initializes from a UID-keyed in-memory cache and refreshes in the background with a visible Retry action. Disk persistence, skeleton placeholders and a bounded network timeout remain NOT DONE.
 - 2.3 Android/Worker membership index and paged membership reads: NOT DONE — `cloudflare-worker/src/team-workspace-native.js` still scans `teamWorkspaces` with `limit: 50` at line 42.
 - 2.4 Seat limits sourced from plans/admin and support for 200+ members: NOT DONE — prior fixed query limits remain in `team-workspace-native.js` lines 42 and 66; end-to-end seat policy was not changed.
 - 2.5 Create, join, request, approve, invite link, leave parity across app and website: NOT DONE — full route and shared-data verification was not completed.
@@ -56,9 +56,9 @@
 - 5.7 Business screens backed by live storage/expiry/entitlement data: NOT DONE.
 
 ### Phase 6 — Verification
-- 6.1 Android signed release APK/AAB workflow: DONE and verified — run `41403917243`; both APK and AAB build steps, signature verification and artifact uploads succeeded. Artifacts `13122686772` (APK) and `13121864476` (AAB), expiring 2026-11-09.
-- 6.1 Android package identity audit: DONE and verified — run `41403925117`; Gradle unit tests and generated APK application ID check passed.
-- 6.1 Full system verification: DONE for executed checks — run `41404084371` succeeded. Website archive download, website tests, lint, billing regression and website build were skipped; the overall success does not verify those website checks.
+- 6.1 Android signed release APK/AAB workflow: DONE and verified for prior source commit `c2364468` — run `41403917243`; both APK and AAB build steps, signature verification and artifact uploads succeeded. These artifacts do not include the later two-row composer or Teams cache changes. Latest build for current `main` commit `2eee4d01` is queued as run `41405126088`.
+- 6.1 Android package identity audit: DONE and verified for prior source commit `611c9f4d` — run `41403925117`; Gradle unit tests and generated APK application ID check passed. Latest audit for current `main` commit `2eee4d01` is queued as run `41405126094`.
+- 6.1 Full system verification: DONE for executed checks — run `41404084371` succeeded. Website archive download, website tests, lint, billing regression and website build were skipped; the overall success does not verify those website checks. Latest run for current `main` commit `2eee4d01` is queued as `41405126102`.
 - 6.1 Worker automated tests, Worker syntax/package checks, Android unit tests and Android debug build: DONE and verified remotely in run `41404084371`. Local shell commands were not run because no local repository checkout/runtime was used.
 - 6.2 Device/emulator QA (360dp/tablet composer, voice controls, teams, onboarding, theme, notifications, presence, secret chat): NOT DONE.
 
