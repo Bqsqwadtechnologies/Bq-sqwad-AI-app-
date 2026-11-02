@@ -72,7 +72,15 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
     if (!uid || !consentedUids.has(uid)) continue;
     if (!isTrainingChatEligible(chat)) continue;
     const messages = Array.isArray(chat.messages) ? chat.messages : [];
-    if (messages.some(m => m.imageUrl || m.imageBase64 || (m.attachments && m.attachments.length))) continue;
+    const chatHasMedia = Boolean(chat.attachments || chat.files || chat.imageUrl || chat.fileUrl);
+    const messageHasMedia = messages.some(m =>
+      m && (
+        m.imageUrl || m.imageBase64 || m.fileUrl || m.audioUrl || m.videoUrl ||
+        m.documentUrl || m.file || m.attachment ||
+        (Array.isArray(m.attachments) && m.attachments.length > 0)
+      )
+    );
+    if (chatHasMedia || messageHasMedia) continue;
     const cleaned = messages
       .filter(m => m && m.text && m.text !== "Generating image\u2026")
       .map(m => ({
