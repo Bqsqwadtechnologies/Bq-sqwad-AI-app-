@@ -2571,6 +2571,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var dictationSeconds by remember { mutableIntStateOf(0) }
     var dictationStartedAt by remember { mutableLongStateOf(0L) }
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
+    var dictationReadyAudio by remember { mutableStateOf<ByteArray?>(null) }
     var dictationTranscriptionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var dictationSessionId by remember { mutableIntStateOf(0) }
     var speechBaseMessage by remember { mutableStateOf("") }
@@ -2906,6 +2907,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         micError = null
         dictationError = null
         dictationNeedsCredits = false
+        dictationReadyAudio = null
         speechBaseMessage = message
         try {
             val recorder = DictationRecorder(context)
@@ -2929,28 +2931,49 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     fun stopDictation() {
         if (!dictationRecording) return
         dictationRecording = false
-        dictationTranscribing = true
         dictationLevel = 0f
         val recorder = dictationRecorder
         dictationRecorder = null
-        val duration = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(1, 25)
+        scope.launch {
+            try {
+                val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
+                if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
+                dictationReadyAudio = wav
+                dictationError = null
+            } catch (failure: Throwable) {
+                dictationReadyAudio = null
+                dictationError = safeUserFacingIssue(failure, "The recording could not be prepared. Please retry.")
+            }
+        }
+    }
+
+    fun transcribeDictation() {
+        val wav = dictationReadyAudio ?: return
+        dictationTranscribing = true
+        dictationError = null
+        val duration = dictationSeconds.coerceIn(1, 25)
         val session = ++dictationSessionId
         dictationTranscriptionJob?.cancel()
         dictationTranscriptionJob = scope.launch {
             try {
-                val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
-                if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
-                val transcript = withTimeout(25_000L) { WorkspaceApiClient().transcribeAudioWav(wav, duration) }
+                val transcript = withTimeout(25_000L) {
+                    WorkspaceApiClient().transcribeAudioWav(wav, duration)
+                }
                 if (session != dictationSessionId) return@launch
-                message = listOf(speechBaseMessage.trim(), transcript.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                message = listOf(speechBaseMessage.trim(), transcript.trim())
+                    .filter { it.isNotBlank() }.joinToString(" ")
+                dictationReadyAudio = null
                 micError = null
                 dictationError = null
                 dictationNeedsCredits = false
             } catch (failure: Throwable) {
                 if (session != dictationSessionId) return@launch
                 val reason = failure.message.orEmpty()
-                dictationError = if (failure is TimeoutCancellationException) "Transcription took too long (25 seconds). Retry or discard the recording." else safeUserFacingIssue(failure, "Transcription could not be completed. Please retry.")
-                dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
+                dictationError = if (failure is TimeoutCancellationException)
+                    "Transcription took too long (25 seconds). Retry or discard the recording."
+                else safeUserFacingIssue(failure, "Transcription could not be completed. Please retry.")
+                dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) ||
+                    reason.contains("credit balance", ignoreCase = true)
             } finally {
                 if (session == dictationSessionId) dictationTranscribing = false
             }
@@ -2968,6 +2991,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationSeconds = 0
         dictationError = null
         dictationNeedsCredits = false
+        dictationReadyAudio = null
         val recorder = dictationRecorder
         dictationRecorder = null
         scope.launch(Dispatchers.IO) { runCatching { recorder?.cancel() } }
@@ -3977,6 +4001,18 @@ val composerShape = RoundedCornerShape(26.dp)
                                     }, modifier = Modifier.size(40.dp)) {
                                         Icon(Icons.Default.Close, contentDescription = "Cancel dictation", tint = MaterialTheme.colorScheme.primary)
                                     }
+                                }
+                            }
+                        } else if (dictationReadyAudio != null) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("Recording ready", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
+                                TextButton(onClick = { cancelDictation() }) { Text("Cancel") }
+                                Button(onClick = { transcribeDictation() }, enabled = !dictationTranscribing) {
+                                    Text("Transcribe")
                                 }
                             }
                         } else if (dictationTranscribing) {
