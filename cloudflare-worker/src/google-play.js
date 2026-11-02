@@ -128,6 +128,31 @@ function subscriptionPeriodFromBasePlan(basePlanId) {
   return "monthly";
 }
 
+function canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState) {
+  if (mapping.productType !== "subs" || mapping.organizationWalletTopup === true) return null;
+  const expiresAt = lineItem?.expiryTime ? new Date(lineItem.expiryTime) : null;
+  if (!expiresAt || !Number.isFinite(expiresAt.getTime())) return null;
+  const startsAt = verified?.startTime ? new Date(verified.startTime) : new Date();
+  const state = String(subscriptionState || "").includes("IN_GRACE_PERIOD") ? "grace" : "active";
+  const planId = String(mapping.planId || "");
+  if (!planId) return null;
+  return {
+    path: "entitlements/" + uid + "/plans/" + planId,
+    data: {
+      planId,
+      module: String(mapping.module || mapping.product || "general"),
+      state,
+      source: "google_play",
+      startsAt: startsAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      includedFeatures: Array.isArray(mapping.entitlements) ? mapping.entitlements.map(String) : [],
+      ...(mapping.orgId ? { orgId: String(mapping.orgId) } : {}),
+      ...(Number.isFinite(Number(mapping.limits?.seats)) ? { seats: Number(mapping.limits.seats) } : {}),
+      updatedAt: new Date().toISOString(),
+    }
+  };
+}
+
 export async function verifyPlayPurchase(env, firestore, input) {
   const { uid, productId, purchaseToken, obfuscatedAccountId, requestedBasePlanId, requestedOfferId } = input;
   if (!uid || !productId || !purchaseToken) throw new Error("play_purchase_fields_required");
@@ -214,6 +239,8 @@ export async function verifyPlayPurchase(env, firestore, input) {
   const eventPath = "playPurchaseEvents/" + cycleId;
   const existingEvent = await firestore.get(eventPath);
   if (existingEvent) {
+    const canonical = canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState);
+    if (canonical) await firestore.commit([canonical]);
     await finalizePurchaseSideEffects(env, firestore, cycleId, existingEvent);
     return { ok: true, alreadyProcessed: true, state: existingEvent.state || "verified" };
   }
@@ -377,13 +404,16 @@ export async function verifyPlayPurchase(env, firestore, input) {
     productId, planId: String(mapping.planId || ""), basePlanId: verifiedBasePlanId || null, createdAt: new Date()
   };
   const event = {
-    uid, purchaseId, productId, productType: mapping.productType, purchaseToken,
+    uid, purchaseId, productId, planId: String(mapping.planId || ""), module: String(mapping.module || mapping.product || "general"),
+    productType: mapping.productType, purchaseToken,
     cycleId, cycleReference, expiryTime: lineItem.expiryTime || null,
     state: mapping.productType === "subs" ? subscriptionState : "PURCHASED",
     consumable: mapping.consumable === true, verified: true, acknowledged: false,
     receiptPath, paymentPath, receipt, payment, createdAt: new Date()
   };
   writes.push({ path: eventPath, data: event, create: true });
+  const canonicalEntitlementWrite = canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState);
+  if (canonicalEntitlementWrite) writes.push(canonicalEntitlementWrite);
   await firestore.commit(writes);
   await finalizePurchaseSideEffects(env, firestore, cycleId, event);
   return { ok: true, alreadyProcessed: false, state: "verified" };
