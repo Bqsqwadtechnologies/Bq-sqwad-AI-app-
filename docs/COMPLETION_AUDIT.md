@@ -58,10 +58,10 @@
 - 5.7 Business screens backed by live storage/expiry/entitlement data: NOT DONE.
 
 ### Phase 6 — Verification
-- 6.1 Android signed release APK/AAB workflow: DONE and verified for prior source commit `c2364468` — run `41403917243`; both APK and AAB build steps, signature verification and artifact uploads succeeded. These artifacts do not include the later two-row composer or Teams cache changes. Latest build for current `main` commit `2eee4d01` is queued as run `41405126088`.
-- 6.1 Android package identity audit: DONE and verified for prior source commit `611c9f4d` — run `41403925117`; Gradle unit tests and generated APK application ID check passed. Latest audit for current `main` commit `2eee4d01` is queued as run `41405126094`.
-- 6.1 Full system verification: DONE for executed checks — run `41404084371` succeeded. Website archive download, website tests, lint, billing regression and website build were skipped; the overall success does not verify those website checks. Latest run for current `main` commit `2eee4d01` is queued as `41405126102`.
-- 6.1 Worker automated tests, Worker syntax/package checks, Android unit tests and Android debug build: DONE and verified remotely in run `41404084371`. Local shell commands were not run because no local repository checkout/runtime was used.
+- 6.1 Android signed release APK/AAB workflow: DONE and verified for Android source commit `e2075473` — run `41405450536`; `assembleRelease` and `bundleRelease` succeeded, APK v2 signature verification passed, AAB JAR signature verification passed, and both artifacts were uploaded. APK artifact SHA-256: `635954c49addcde72b92af5b69fa3a019cd3ee0100df8d779ab18fe4cb168c6f`; AAB artifact SHA-256: `9d5f1beefa745042e0227f4e9dc311a90ffed6a52c186c66fa6b7d3ed3694776`. These binaries predate the latest Worker-only model eligibility changes; Android Kotlin source has not changed since `e2075473`.
+- 6.1 Android package identity audit: DONE and verified for Android source commit `e2075473` — run `41405450413`; Gradle unit tests and generated APK application ID check passed.
+- 6.1 Full system verification: run `41405450555` succeeded for commit `e2075473`; it does not verify later Worker-only changes or website build/tests. Latest full-system verification for current main is pending/in progress (runs `41406245431` and `41406444015`).
+- 6.1 Worker syntax and unit tests: DONE and verified for latest Worker model-gate source commit `a1e98437` — run `41406245430`; production deployment job was SKIPPED. Latest full-system verification is still running. Local shell commands were not run because no local repository checkout/runtime was used.
 - 6.2 Device/emulator QA (360dp/tablet composer, voice controls, teams, onboarding, theme, notifications, presence, secret chat): NOT DONE.
 
 Status note: This audit deliberately distinguishes source edits from runtime verification. No production Worker deployment, Play Store publication, or device QA is claimed.
