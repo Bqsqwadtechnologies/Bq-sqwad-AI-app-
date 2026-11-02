@@ -3531,6 +3531,34 @@ export default {
       }
 
 
+      if (url.pathname === "/notifications/preferences" && (request.method === "GET" || request.method === "PUT")) {
+        const user = await verifyFirebaseUser(request);
+        const path = "notificationPreferences/" + user.uid;
+        const allowedKinds = new Set(["chat","image","video","video-edit","file","training","system","team_invite","team_join","team_message","task","sales","plan","credits"]);
+        if (request.method === "GET") {
+          const saved = await firestoreGet(path) || {};
+          const mutedKinds = Array.isArray(saved.mutedKinds) ? saved.mutedKinds.filter(kind => allowedKinds.has(String(kind))) : [];
+          return json({
+            inAppEnabled: saved.inAppEnabled !== false,
+            pushEnabled: saved.pushEnabled !== false,
+            mutedKinds,
+          });
+        }
+        const body = await readBody(request);
+        const previous = await firestoreGet(path) || {};
+        const mutedKinds = Array.isArray(body.mutedKinds)
+          ? [...new Set(body.mutedKinds.map(String).filter(kind => allowedKinds.has(kind)))].slice(0, allowedKinds.size)
+          : (Array.isArray(previous.mutedKinds) ? previous.mutedKinds.filter(kind => allowedKinds.has(String(kind))) : []);
+        const next = {
+          inAppEnabled: body.inAppEnabled === undefined ? previous.inAppEnabled !== false : body.inAppEnabled === true,
+          pushEnabled: body.pushEnabled === undefined ? previous.pushEnabled !== false : body.pushEnabled === true,
+          mutedKinds,
+          updatedAt: new Date().toISOString(),
+        };
+        await firestoreSet(path, next, true);
+        return json({ ok: true, ...next });
+      }
+
       if (url.pathname === "/notifications/token" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         const body = await readBody(request);
