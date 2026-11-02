@@ -1238,8 +1238,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 WorkspaceAccessSnapshot.fromCatalog(
                     JSONObject(cachedCatalog),
                     JSONObject(cachedEntitlements),
-                    accessPrefs.getBoolean("admin", false),
-                    accessPrefs.getBoolean("test_mode", false)
+                    false,
+                    false
                 )
             }.getOrDefault(workspaceAccess)
         }
