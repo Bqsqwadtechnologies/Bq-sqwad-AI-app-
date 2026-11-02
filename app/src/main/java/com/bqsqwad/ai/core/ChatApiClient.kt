@@ -150,7 +150,10 @@ class ChatApiClient(
         onDelta: (String) -> Unit,
         system: String? = null,
         modelRegistryId: String? = null,
-        modelKey: String? = null
+        modelKey: String? = null,
+        onTaskStarted: (Long) -> Unit = {},
+        onPhase: (String) -> Unit = {},
+        onTaskEnded: () -> Unit = {}
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) {
         withContext(Dispatchers.IO) {
