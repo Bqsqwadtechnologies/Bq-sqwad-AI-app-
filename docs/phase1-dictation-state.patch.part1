@@ -1,0 +1,89 @@
+--- a/app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
++++ b/app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+@@ -2600,19 +2600,22 @@
+     var feedbackReason by remember { mutableStateOf("inaccurate") }
+     var feedbackComment by remember { mutableStateOf("") }
+     var micError by remember { mutableStateOf<String?>(null) }
+-    var dictationError by remember { mutableStateOf<String?>(null) }
+-    var dictationNeedsCredits by remember { mutableStateOf(false) }
+-    var dictationRecording by remember { mutableStateOf(false) }
+-    var dictationTranscribing by remember { mutableStateOf(false) }
+-    var dictationLevel by remember { mutableFloatStateOf(0f) }
++    // Phase 1: single DictationState drives voice-mode UI (not independent booleans).
++    var dictationState by remember { mutableStateOf<DictationState>(DictationState.Idle) }
++    val dictationRecording = dictationState.isRecording
++    val dictationTranscribing = dictationState.isTranscribing
++    val dictationSeconds = dictationState.recordingSeconds
++    val dictationLevel = dictationState.recordingLevel
++    val dictationSessionId = dictationState.sessionIdOrZero
++    val dictationError = dictationState.errorMessage
++    val dictationNeedsCredits = dictationState.needsCredits
++    val dictationTranscriptReady = dictationState.isReadyToSend
+     val dictationWaveform = remember { mutableStateListOf<Float>().apply { repeat(24) { add(0f) } } }
+-    var dictationSeconds by remember { mutableIntStateOf(0) }
+-    var dictationStartedAt by remember { mutableLongStateOf(0L) }
+     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
+     var dictationReadyAudio by remember { mutableStateOf<ByteArray?>(null) }
+-    var dictationTranscriptReady by remember { mutableStateOf(false) }
+     var dictationTranscriptionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+-    var dictationSessionId by remember { mutableIntStateOf(0) }
++    var dictationNextSessionId by remember { mutableIntStateOf(1) }
++    var speechLevel by remember { mutableFloatStateOf(0f) }
+     var speechBaseMessage by remember { mutableStateOf("") }
+     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
+@@ -2863,7 +2866,7 @@
+     LaunchedEffect(dictationRecording, isListening) {
+         if (dictationRecording || isListening) {
+             while (dictationRecording || isListening) {
+-                val raw = dictationLevel.coerceIn(0f, 1f)
++                val raw = (if (dictationRecording) dictationLevel else speechLevel).coerceIn(0f, 1f)
+                 val db = if (raw > 0.00001f) 20f * kotlin.math.log10(raw) else -100f
+                 val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
+                 if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
+@@ -2901,14 +2904,12 @@
+     }
+     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+         isListening = false
+-        dictationLevel = 0f
++        speechLevel = 0f
+         if (result.resultCode == android.app.Activity.RESULT_OK) {
+             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+             if (spoken.isNotBlank()) {
+                 message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                 micError = null
+-                dictationError = null
+-                dictationNeedsCredits = false
+             } else {
+                 micError = "No speech was detected. Try again."
+             }
+@@ -2923,11 +2924,11 @@
+         val recognizer = speechRecognizer
+         if (recognizer != null) {
+             recognizer.setRecognitionListener(object : RecognitionListener {
+-                override fun onReadyForSpeech(params: Bundle?) { isListening = true; dictationLevel = 0f; micError = null }
++                override fun onReadyForSpeech(params: Bundle?) { isListening = true; speechLevel = 0f; micError = null }
+                 override fun onBeginningOfSpeech() { isListening = true }
+-                override fun onRmsChanged(rmsdB: Float) { dictationLevel = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f) }
++                override fun onRmsChanged(rmsdB: Float) { speechLevel = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f) }
+                 override fun onBufferReceived(buffer: ByteArray?) = Unit
+-                override fun onEndOfSpeech() { isListening = false; dictationLevel = 0f }
++                override fun onEndOfSpeech() { isListening = false; speechLevel = 0f }
+                 override fun onError(errorCode: Int) {
+                     isListening = false
+                     micError = when (errorCode) {
+@@ -2939,13 +2940,11 @@
+                 }
+                 override fun onResults(results: Bundle?) {
+                     isListening = false
+-                    dictationLevel = 0f
++                    speechLevel = 0f
+                     val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                     if (spoken.isNotBlank()) {
+                         message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                         micError = null
+-                        dictationError = null
+-                        dictationNeedsCredits = false
+                     } else {
+                         micError = "No speech was detected. Try again."
+                     }
