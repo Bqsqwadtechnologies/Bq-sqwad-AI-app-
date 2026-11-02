@@ -218,3 +218,8 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Android initially loads 30 inbox records and requests additional pages on demand, merging records without replacing the existing list.
 - The API uses Firestore offset paging, not a cursor snapshot. Very large inboxes may incur increasing read/latency costs; a future cursor-based query should be considered after index and runtime verification.
 - Source implementation only. The contract test has been added but not run; Android build, Worker tests/check and authenticated staff workflow QA remain the user's validation steps.
+
+
+## Token pricing unit contract
+
+Customer token prices are canonical **credits per one token**: `inputCreditsPerToken`, `cachedInputCreditsPerToken`, and `outputCreditsPerToken`. Admin writes and the shared settlement calculation use these per-token values. Existing Firestore documents containing `inputCreditsPer1k`, `cachedInputCreditsPer1k`, or `outputCreditsPer1k` remain readable through the shared conversion helpers and are normalized to per-token values; legacy mirrors remain only for compatibility. Provider USD telemetry (`*UsdPerToken`, `*UsdPerMillion`, or USD-per-1k fields) is a separate internal cost measure and must never be confused with customer credit prices.
