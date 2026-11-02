@@ -185,6 +185,11 @@ export async function teamsCreate(user, body) {
     },
     false,
   );
+  await firestoreSet(
+    "userTeams/" + user.uid + "/items/" + teamId,
+    { teamId, joinedAt: ts, status: "active", role: "owner" },
+    false,
+  );
 
   await firestoreSet(
     "teamCreditPools/" + teamId,
@@ -376,6 +381,14 @@ export async function teamsJoin(user, body) {
   const displayName = user.name || user.email || "Member";
   const photoUrl = user.picture || "";
   const email = (user.email || "").toLowerCase();
+  const memberRows = await firestoreQuery("teams/" + teamId + "/members", { limit: 200 }).catch(() => []);
+  const activeSeats = memberRows.filter(row => String(row.status || "active") === "active").length;
+  if (!existing && activeSeats >= 200) {
+    const err = new Error("This team has reached its 200-member limit.");
+    err.httpStatus = 409;
+    err.safeError = "team_seat_limit_reached";
+    throw err;
+  }
 
   if (team.visibility === "public") {
     await firestoreSet(
@@ -478,6 +491,14 @@ export async function teamsApproveMember(user, body) {
     throw err;
   }
   const team = await getTeam(teamId);
+  const memberRows = await firestoreQuery("teams/" + teamId + "/members", { limit: 200 }).catch(() => []);
+  const activeSeats = memberRows.filter(row => String(row.status || "active") === "active").length;
+  if (activeSeats >= 200) {
+    const err = new Error("This team has reached its 200-member limit.");
+    err.httpStatus = 409;
+    err.safeError = "team_seat_limit_reached";
+    throw err;
+  }
   const ts = now();
   await firestoreSet(
     "teams/" + teamId + "/members/" + targetUid,
