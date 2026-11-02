@@ -2204,12 +2204,26 @@ async function stream(request, user, body) {
         const taskId = crypto.randomUUID();
         const startedAt = Date.now();
         const emitTaskEvent = (event, data) => controller.enqueue(encoder.encode(sseFrame(event, data)));
+        let taskEndedSent = false;
+        let activeReader = null;
+        const endTask = (status) => {
+          if (taskEndedSent) return;
+          taskEndedSent = true;
+          try { emitTaskEvent("taskEnded", { taskId, status, endedAt: Date.now() }); } catch { /* client may already be disconnected */ }
+        };
+        const onClientAbort = () => {
+          endTask("failed");
+          if (activeReader) void activeReader.cancel().catch(() => {});
+          void reverseCredits(user.uid, reservation.reservationId);
+        };
+        request.signal.addEventListener("abort", onClientAbort, { once: true });
         emitTaskEvent("taskStarted", { taskId, startedAt });
         emitTaskEvent("phase", { taskId, label: "Streaming response", at: Date.now() });
         let usageRaw = provider.usage || {};
         try {
           if (provider.streamed) {
-            const reader = provider.response.body.getReader();
+            activeReader = provider.response.body.getReader();
+            const reader = activeReader;
             const decoder = new TextDecoder();
             let buffer = "";
             let completed = false;
@@ -2276,13 +2290,15 @@ async function stream(request, user, body) {
             type: "completed", providerId: provider.providerId, modelId: provider.modelId,
             creditsCharged, ...(tokenUsage ? { tokenUsage } : {})
           });
-          emitTaskEvent("taskEnded", { taskId, status: "completed", endedAt: Date.now() });
+          endTask("completed");
+          request.signal.removeEventListener("abort", onClientAbort);
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
           await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed");
-          emitTaskEvent("taskEnded", { taskId, status: "failed", endedAt: Date.now() });
+          endTask("failed");
+          request.signal.removeEventListener("abort", onClientAbort);
           emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
