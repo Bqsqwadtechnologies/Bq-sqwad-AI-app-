@@ -110,6 +110,7 @@ import com.bqsqwad.ai.core.*
 import com.bqsqwad.ai.domain.Workspace
 import io.github.thibaultbee.streampack.compose.SourcePreview
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.messaging.FirebaseMessaging
@@ -2575,6 +2576,31 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
+    var livePlanCount by remember { mutableIntStateOf(0) }
+    val signedInUid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    LaunchedEffect(signedInUid) {
+        if (signedInUid.isNotBlank()) {
+            runCatching { EntitlementsClient().fetchEntitlements() }
+                .onSuccess { payload -> livePlanCount = payload.optJSONArray("items")?.length() ?: 0 }
+        } else livePlanCount = 0
+    }
+    DisposableEffect(signedInUid) {
+        if (signedInUid.isBlank()) return@DisposableEffect onDispose { }
+        val registration = FirebaseFirestore.getInstance()
+            .collection("entitlements").document(signedInUid).collection("plans")
+            .addSnapshotListener { snapshot, error ->
+                if (error == null && snapshot != null) {
+                    val now = System.currentTimeMillis()
+                    livePlanCount = snapshot.documents.count { document ->
+                        val state = document.getString("state").orEmpty()
+                        val expiry = document.getTimestamp("expiresAt")?.toDate()?.time
+                            ?: document.getString("expiresAt")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+                        state in listOf("active", "trialing", "grace") && (expiry == null || expiry > now)
+                    }
+                }
+            }
+        onDispose { registration.remove() }
+    }
     var pastedTextPreview by remember { mutableStateOf<String?>(null) }
     var pastedTextPreviewName by remember { mutableStateOf("Pasted text") }
     var showAttachmentSourceDialog by remember { mutableStateOf(false) }
@@ -4102,6 +4128,13 @@ val composerShape = RoundedCornerShape(26.dp)
                                 onSelect = { selectedModelKey = it.modelKey },
                                 onBuyCredits = { }
                             )
+                            if (livePlanCount > 0) {
+                                Text(
+                                    "Included in your plan",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                         }
                     }
