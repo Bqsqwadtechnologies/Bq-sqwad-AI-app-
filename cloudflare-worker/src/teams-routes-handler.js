@@ -15,6 +15,7 @@ import {
   teamsJoin,
   teamsLeave,
   teamsListMembers,
+  teamsSetMemberSpendLimit,
   teamsApproveMember,
   teamsListProjects,
   teamsListMessages,
@@ -64,6 +65,10 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
     if (path === "/native/teams/members" && method === "POST") {
       const u = await verifyFirebaseUser(request);
       return json(await teamsListMembers(u, await body()));
+    }
+    if (path === "/native/teams/member/spend-limit" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsSetMemberSpendLimit(u, await body()));
     }
     if (path === "/native/teams/approve-member" && method === "POST") {
       const u = await verifyFirebaseUser(request);
