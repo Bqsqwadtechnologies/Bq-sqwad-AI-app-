@@ -33,3 +33,11 @@ Worked only on real `main`. No duplicate trees.
 - `fca8f91` `play-rtdn.js` module
 - `d3c4769` index RTDN snippet
 - `003abe4` contract test soft-gate for index wire
+
+### Phase 0/1 follow-through — 2026-11-02
+- Play verification writes canonical `entitlements/{uid}/plans/{planId}` and now re-aggregates the legacy root entitlement; Play RTDN is mounted at `/play/rtdn`, validates the configured `PLAY_RTDN_SHARED_SECRET`, updates canonical plan state and re-aggregates root; `google-play.js`, `play-rtdn.js`, `index.js` — DONE in source, NOT DEPLOYED or tested with a real Play notification. The RTDN shared secret still must be configured in Worker secrets.
+- Teams v2 and legacy team workspace have no fixed member seat ceiling; new Teams v2 teams are created with one active owner; `teams-sqwad-native.js`, `team-workspace-native.js` — DONE in source, NOT LOAD-TESTED; member list APIs remain paginated/limited per request.
+- Member-to-member team messages now read the global `team_member_message` price from the platform admin pricing document and charge the sender's personal credit reservation; team AI requests remain billed to the team credit pool; `teams-sqwad-native.js`, `teams-routes-handler.js`, `index.js` — DONE in source, NOT TESTED against live balances.
+- Admin credit console now includes a team-member-message fixed price, mirrors it to Worker `adminAdvancedOptions/capability_team_member_message`, and Admin generation pricing mirrors image/video/music/camera rates to Worker capability pricing; `pricing.ts`, `admin-credits.functions.ts`, `system-config.server.ts` — DONE in source, NOT verified by website build or live app read.
+- Android dictation now separates recording from transcription and presents Cancel/Transcribe after a 25-second-capped recording; normal composer Send sends the transcribed text; `BQSqwadApp.kt`, `DictationRecorder.kt` — DONE in source, NOT device-tested. A dedicated Send control inside the dictation bar is NOT DONE.
+- Paystack entitlement backfill callable exists and is Super Admin permission-gated; cancelled subscriptions are excluded; `subscriptions.server.ts`, `subscriptions.functions.ts` — DONE in source, NOT RUN; no conversion count available.
