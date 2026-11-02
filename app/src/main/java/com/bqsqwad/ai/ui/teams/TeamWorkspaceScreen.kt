@@ -48,6 +48,12 @@ data class TeamProjectRow(
     val name: String,
 )
 
+data class TeamMemoryRow(
+    val id: String,
+    val title: String,
+    val text: String,
+)
+
 /**
  * Team workspace — same rules as website:
  * - Member messages: admin-configured price, charged to the sender's personal balance
@@ -70,6 +76,12 @@ fun TeamWorkspaceScreen(
     var memberRole by remember { mutableStateOf("member") }
     var memberMessagePrice by remember { mutableStateOf("0") }
     var members by remember { mutableStateOf<List<TeamMemberRow>>(emptyList()) }
+    var memories by remember { mutableStateOf<List<TeamMemoryRow>>(emptyList()) }
+    var showMemoryDialog by remember { mutableStateOf(false) }
+    var memoryTitle by remember { mutableStateOf("") }
+    var memoryText by remember { mutableStateOf("") }
+    var editingMemoryId by remember { mutableStateOf<String?>(null) }
+    var deletingMemory by remember { mutableStateOf<TeamMemoryRow?>(null) }
     var projects by remember { mutableStateOf<List<TeamProjectRow>>(emptyList()) }
     var projectId by remember { mutableStateOf<String?>(null) }
     var messages by remember { mutableStateOf<List<TeamMessage>>(emptyList()) }
@@ -119,6 +131,8 @@ fun TeamWorkspaceScreen(
                     val tid = teamId!!
                     val mems = apiPost(baseUrl, token, "/native/teams/members", JSONObject().put("teamId", tid))
                     members = parseMembers(mems.optJSONArray("members"))
+                    val memoryResponse = apiPost(baseUrl, token, "/native/teams/memory", JSONObject().put("teamId", tid))
+                    memories = parseMemories(memoryResponse.optJSONArray("memories"))
                     val projs = apiPost(baseUrl, token, "/native/teams/projects", JSONObject().put("teamId", tid))
                     projects = parseProjects(projs.optJSONArray("projects"))
                     val first = projects.firstOrNull()?.id
@@ -255,6 +269,35 @@ fun TeamWorkspaceScreen(
                             }
                         }
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Shared memory", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        if (memberRole == "owner" || memberRole == "admin") {
+                            TextButton(onClick = {
+                                editingMemoryId = null
+                                memoryTitle = ""
+                                memoryText = ""
+                                showMemoryDialog = true
+                            }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("Add", style = MaterialTheme.typography.labelSmall) }
+                        }
+                    }
+                    memories.take(4).forEach { memory ->
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).padding(vertical = 2.dp)) {
+                            Text(memory.title, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                            Text(memory.text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
+                            if (memberRole == "owner" || memberRole == "admin") {
+                                Row {
+                                    TextButton(onClick = {
+                                        editingMemoryId = memory.id
+                                        memoryTitle = memory.title
+                                        memoryText = memory.text
+                                        showMemoryDialog = true
+                                    }, contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)) { Text("Edit", style = MaterialTheme.typography.labelSmall) }
+                                    TextButton(onClick = { deletingMemory = memory }, contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)) { Text("Delete", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
+                                }
+                            }
+                        }
+                    }
+                    if (memories.isEmpty()) Text("No shared memory yet.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Projects", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     projects.forEach { p ->
                         TextButton(
@@ -437,8 +480,76 @@ fun TeamWorkspaceScreen(
             }
         }
     }
+
+    if (showMemoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showMemoryDialog = false },
+            title = { Text(if (editingMemoryId == null) "Add shared team memory" else "Edit shared team memory") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = memoryTitle, onValueChange = { memoryTitle = it }, label = { Text("Title") }, singleLine = true)
+                    OutlinedTextField(value = memoryText, onValueChange = { memoryText = it }, label = { Text("Information") }, minLines = 3)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && memoryTitle.isNotBlank() && memoryText.isNotBlank(),
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            try {
+                                val token = authTokenProvider() ?: error("Sign in required")
+                                val body = JSONObject().put("teamId", teamId).put("title", memoryTitle.trim()).put("text", memoryText.trim())
+                                val path = if (editingMemoryId == null) "/native/teams/memory/add" else "/native/teams/memory/update"
+                                if (editingMemoryId != null) body.put("memoryId", editingMemoryId)
+                                apiPost(baseUrl, token, path, body)
+                                val result = apiPost(baseUrl, token, "/native/teams/memory", JSONObject().put("teamId", teamId))
+                                memories = parseMemories(result.optJSONArray("memories"))
+                                showMemoryDialog = false
+                                error = null
+                            } catch (e: Exception) { error = e.message }
+                            finally { busy = false }
+                        }
+                    },
+                ) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showMemoryDialog = false }) { Text("Cancel") } },
+        )
+    }
+    deletingMemory?.let { memory ->
+        AlertDialog(
+            onDismissRequest = { deletingMemory = null },
+            title = { Text("Delete shared memory?") },
+            text = { Text("“${memory.title}” will be removed from this team.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        busy = true
+                        try {
+                            val token = authTokenProvider() ?: error("Sign in required")
+                            apiPost(baseUrl, token, "/native/teams/memory/delete", JSONObject().put("teamId", teamId).put("memoryId", memory.id))
+                            memories = memories.filterNot { it.id == memory.id }
+                            deletingMemory = null
+                        } catch (e: Exception) { error = e.message }
+                        finally { busy = false }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deletingMemory = null }) { Text("Cancel") } },
+        )
+    }
 }
 
+
+private fun parseMemories(arr: org.json.JSONArray?): List<TeamMemoryRow> {
+    if (arr == null) return emptyList()
+    return buildList {
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            add(TeamMemoryRow(o.optString("id"), o.optString("title"), o.optString("text")))
+        }
+    }
+}
 
 private fun parseMessages(arr: org.json.JSONArray?): List<TeamMessage> {
     if (arr == null) return emptyList()
