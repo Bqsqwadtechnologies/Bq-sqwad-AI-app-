@@ -3943,10 +3943,10 @@ export default {
         // Training remains disabled unless Firebase custom attributes or a server-owned
         // verification record establishes an adult/parental gate.
         const ageRecord = await firestoreGet("userAgeVerification/" + user.uid);
-        const parentalRecord = await firestoreGet("parentalConsent/" + user.uid);
+        // Training contributions are adult-only. Parental consent never makes a
+        // minor eligible for model training.
         const ageGatePassed = user.customAttributes?.ageVerifiedAdult === true ||
-          (ageRecord?.verified === true && ageRecord?.isAdult === true) ||
-          parentalRecord?.verified === true;
+          (ageRecord?.verified === true && ageRecord?.isAdult === true);
         const trainingConsent = body.trainingConsent === true && ageGatePassed;
         const policyVersion = String(body.policyVersion || "2026-09").slice(0,40);
         const previous = await firestoreGet("userConsents/" + user.uid);
@@ -3955,6 +3955,7 @@ export default {
           uid:user.uid, requiredAccepted:true, policyVersion,
           requiredConsentAt:previous?.requiredAccepted === true ? (previous.requiredConsentAt || now) : now,
           trainingConsent, trainingAgeGatePassed:ageGatePassed,
+          trainingAdultGatePassed:ageGatePassed,
           trainingConsentAt:trainingConsent ? now : (previous?.trainingConsentAt || null),
           trainingConsentWithdrawnAt:previous?.trainingConsent === true && !trainingConsent ? now : (previous?.trainingConsentWithdrawnAt || null),
           updatedAt:now
@@ -3978,7 +3979,9 @@ export default {
         const body = await readBody(request);
         if (body.privateMode === true) return json({ accepted: false, reason: "private_mode" });
         const consent = await firestoreGet("userConsents/" + user.uid);
-        if (consent?.trainingConsent !== true || consent?.trainingAgeGatePassed !== true) {
+        if (consent?.trainingConsent !== true ||
+            consent?.trainingAgeGatePassed !== true ||
+            consent?.trainingAdultGatePassed !== true) {
           return json({ accepted: false, reason: "training_consent_off_or_age_gate_missing" });
         }
         const prompt = String(body.prompt || "").trim().slice(0, 4000);
@@ -4011,15 +4014,16 @@ export default {
         const body = await readBody(request);
         const trainingConsent = body.trainingConsent === true;
         const ageRecord = await firestoreGet("userAgeVerification/" + user.uid);
-        const parentalRecord = await firestoreGet("parentalConsent/" + user.uid);
+        // Training contributions are adult-only. Parental consent never makes a
+        // minor eligible for model training.
         const ageGatePassed = user.customAttributes?.ageVerifiedAdult === true ||
-          (ageRecord?.verified === true && ageRecord?.isAdult === true) ||
-          parentalRecord?.verified === true;
+          (ageRecord?.verified === true && ageRecord?.isAdult === true);
         if (trainingConsent && !ageGatePassed) return json({ok:false,trainingConsent:false,reason:"age_gate_required"},400);
         const previous = await firestoreGet("userConsents/" + user.uid);
         const now = new Date();
         await firestoreSet("userConsents/" + user.uid, {
           uid:user.uid,trainingConsent,trainingAgeGatePassed:trainingConsent && ageGatePassed,
+          trainingAdultGatePassed:trainingConsent && ageGatePassed,
           trainingConsentAt:trainingConsent ? now : (previous?.trainingConsentAt || null),
           trainingConsentWithdrawnAt:previous?.trainingConsent === true && !trainingConsent ? now : (previous?.trainingConsentWithdrawnAt || null),
           updatedAt:now
