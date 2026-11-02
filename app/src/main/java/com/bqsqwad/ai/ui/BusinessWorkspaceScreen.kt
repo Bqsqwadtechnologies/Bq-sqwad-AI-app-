@@ -42,6 +42,9 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             runCatching { api.businessWorkspace() }
                 .onSuccess { result ->
                     data = result
+                    runCatching { api.businessExtended(result.optString("workspaceId").takeIf { it.isNotBlank() }) }
+                        .onSuccess { extended = it }
+                        .onFailure { error = safeUserFacingIssue(it, "Business inbox could not be loaded.") }
                     runCatching { api.businessStorage(result.optString("workspaceId").takeIf { it.isNotBlank() }) }
                         .onSuccess { storageData = it }
                         .onFailure { storageData = JSONObject() }
@@ -50,7 +53,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
             loading = false
         }
     }
-    LaunchedEffect(Unit) { load(); scope.launch { runCatching { api.businessExtended(data.optString("workspaceId").takeIf { it.isNotBlank() }) }.onSuccess { extended = it } } }
+    LaunchedEffect(Unit) { load() }
 
     if (!loading && data.length() > 0 && !data.optBoolean("accessGranted", false)) {
         Column(
