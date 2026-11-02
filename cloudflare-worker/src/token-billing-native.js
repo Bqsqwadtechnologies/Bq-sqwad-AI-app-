@@ -259,6 +259,13 @@ async function loadCanonicalUsageBilling() {
   return canonicalUsageBillingCache;
 }
 
+function customerCreditsPerToken(rule, tokenField, legacyField) {
+  const direct = rule?.[tokenField];
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  const legacy = rule?.[legacyField];
+  return typeof legacy === "number" && Number.isFinite(legacy) ? legacy / 1000 : Number.NaN;
+}
+
 export async function resolveTokenPricing(providerId, modelId, feature, control = {}) {
   const embedded = control.tokenPricing && typeof control.tokenPricing === "object" ? control.tokenPricing : {};
   let model = null;
@@ -403,10 +410,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
   // both website and Android. All three customer rates must be explicit.
+  const customerInputCreditsPerToken = customerCreditsPerToken(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k");
+  const customerCachedCreditsPerToken = customerCreditsPerToken(tokenRule, "cachedInputCreditsPerToken", "cachedInputCreditsPer1k");
+  const customerOutputCreditsPerToken = customerCreditsPerToken(tokenRule, "outputCreditsPerToken", "outputCreditsPer1k");
   const hasCustomerCreditRule = !!tokenRule &&
-    typeof tokenRule.inputCreditsPer1k === "number" && Number.isFinite(tokenRule.inputCreditsPer1k) && tokenRule.inputCreditsPer1k >= 0 &&
-    typeof tokenRule.cachedInputCreditsPer1k === "number" && Number.isFinite(tokenRule.cachedInputCreditsPer1k) && tokenRule.cachedInputCreditsPer1k >= 0 &&
-    typeof tokenRule.outputCreditsPer1k === "number" && Number.isFinite(tokenRule.outputCreditsPer1k) && tokenRule.outputCreditsPer1k >= 0;
+    [customerInputCreditsPerToken, customerCachedCreditsPerToken, customerOutputCreditsPerToken].every(rate => Number.isFinite(rate) && rate >= 0);
   if (isTokenMeteredFeature && !hasCustomerCreditRule) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
   }
@@ -414,9 +422,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100) ||
     (isTokenMeteredFeature && hasCustomerCreditRule);
   const sharedCreditMetering = isTokenMeteredFeature ? {
-    creditsPerInputToken: Number(tokenRule.inputCreditsPer1k) / 1000,
-    creditsPerOutputToken: Number(tokenRule.outputCreditsPer1k) / 1000,
-    creditsPerCachedInputToken: Number(tokenRule.cachedInputCreditsPer1k) / 1000,
+    creditsPerInputToken: customerInputCreditsPerToken,
+    creditsPerOutputToken: customerOutputCreditsPerToken,
+    creditsPerCachedInputToken: customerCachedCreditsPerToken,
     minimumCredits: Math.max(0, Number(tokenRule.minimumCredits ?? 0)),
     fallbackCredits: 0,
     precision: 7,
