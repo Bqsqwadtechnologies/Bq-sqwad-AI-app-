@@ -48,3 +48,10 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **DONE — reference scan only:** removed `ui/chat/ThemeOncePicker.kt`; repository code search found its helper/function names only in that file.
 - **NOT RUN:** Android Gradle build, unit tests, emulator first-launch/status-bar checks. Owner to run these locally.
 - **NOT CHANGED:** optional Phase 1.7 `bubbleAi` color adjustment; no visual evidence was available to justify changing call sites.
+
+
+## Verification update — Android Phase 1
+
+- GitHub Actions run [41492274141](https://github.com/Bqsqwadtechnologies/Bq-sqwad-AI-app-/actions/runs/41492274141) executed `:app:testDebugUnitTest :app:assembleDebug` against commit `fd94b737b3e666f72bb780dd43c0be6576b57267`.
+- **FAILED at Kotlin compilation**; this is not a passing build. Compiler output includes: `DictationState.kt:23` needsCredits hides supertype member; `BQSqwadApp.kt:3651,3671,3672,3702` unresolved `ChatMessage.attachmentNames` (and dependent `put`); `BQSqwadApp.kt:4754,4772,4790,4808` missing exhaustive `TASKS` branches; `MyTasksWorkspace.kt:10` inaccessible RowColumnParentData.weight.
+- These failures prevent claiming Phase 1 build verification. The workflow stopped before the remaining checks.
