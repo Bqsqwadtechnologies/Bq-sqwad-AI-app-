@@ -1,3 +1,7 @@
+function sseFrame(event, data) {
+  return "event: " + event + "\\ndata: " + JSON.stringify(data) + "\\n\\n";
+}
+
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1-mini";
 const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"]);
 
@@ -2197,6 +2201,11 @@ async function stream(request, user, body) {
     const output = new ReadableStream({
       async start(controller) {
         const emit = (value) => controller.enqueue(encoder.encode("data: " + JSON.stringify(value) + "\n\n"));
+        const taskId = crypto.randomUUID();
+        const startedAt = Date.now();
+        const emitTaskEvent = (event, data) => controller.enqueue(encoder.encode(sseFrame(event, data)));
+        emitTaskEvent("taskStarted", { taskId, startedAt });
+        emitTaskEvent("phase", { taskId, label: "Streaming response", at: Date.now() });
         let usageRaw = provider.usage || {};
         try {
           if (provider.streamed) {
@@ -2228,6 +2237,7 @@ async function stream(request, user, body) {
           } else {
             emit({ type: "delta", text: provider.text });
           }
+          emitTaskEvent("phase", { taskId, label: "Settling provider usage", at: Date.now() });
           let creditsCharged = Number(reservation.amount || 0);
           let tokenUsage = null;
           if (tokenBilling) {
@@ -2266,11 +2276,13 @@ async function stream(request, user, body) {
             type: "completed", providerId: provider.providerId, modelId: provider.modelId,
             creditsCharged, ...(tokenUsage ? { tokenUsage } : {})
           });
+          emitTaskEvent("taskEnded", { taskId, status: "completed", endedAt: Date.now() });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
           await reverseCredits(user.uid, reservation.reservationId);
           await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed");
+          emitTaskEvent("taskEnded", { taskId, status: "failed", endedAt: Date.now() });
           emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
