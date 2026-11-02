@@ -2086,7 +2086,9 @@ private data class ChatMessage(
     val imageUrl: String? = null,
     val sources: List<SearchSource> = emptyList(),
     val privateSession: Boolean = false
-)
+) {
+    val attachmentNames: List<String> get() = attachments.map { it.name }
+}
 
 private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<ChatMessage>, String>(
     save = { messages ->
@@ -4765,6 +4767,7 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "A dedicated companion workspace with personality, memory and check-in controls governed by the account and feature configuration."
     Workspace.LEARNING -> "Learning Studio provides subject tutoring, lessons, homework help, revision and exam-preparation workflows."
     Workspace.BUSINESS -> "Business AI connects the business workspace, assistants, knowledge, contacts, leads, pipelines, inbox, automation, channels, advanced AI and enterprise configuration."
+    Workspace.TASKS -> "Review tasks assigned to your account, update their status and track due dates."
     Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio provides professional organization intelligence, production coordination and your connected organization tools."
     Workspace.ADMIN -> "Admin Control Center manages service settings, billing, security and testing. Sensitive configuration is protected."
 }
@@ -4783,6 +4786,7 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "Companion requests use the companion workspace and its configured account features, including available memory and check-in controls."
     Workspace.LEARNING -> "Learning requests are routed to the learning capability and use the server catalog and configuration for availability and limits."
     Workspace.BUSINESS -> "Manage records, automation, social accounts, integrations and organization settings in Business Studio."
+    Workspace.TASKS -> "Tasks are loaded for the signed-in account; status changes are saved through the workspace API."
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio helps you work with the services you have connected and authorized."
     Workspace.ADMIN -> "Admin actions require administrator permission. Sensitive credentials and security information are protected."
 }
@@ -4801,6 +4805,7 @@ private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "Memory and personalization are account-controlled; optional capabilities use only the permissions needed for that capability."
     Workspace.LEARNING -> "Ordinary learning requests do not require special device permissions."
     Workspace.BUSINESS -> "Connected channels and integrations use account authorization and provider permissions configured for that integration."
+    Workspace.TASKS -> "Tasks are account-scoped and require sign-in; no additional device permissions are needed."
     Workspace.ORGANIZATION_STUDIO -> "Connected production or organization tools request only the permissions required for the selected operation."
     Workspace.ADMIN -> "Administrative operations require administrator permission. Sensitive settings are protected."
 }
@@ -4819,6 +4824,7 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "AI Companion"
     Workspace.LEARNING -> "Learning Studio"
     Workspace.BUSINESS -> "Business AI"
+    Workspace.TASKS -> "My Tasks"
     Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio"
     Workspace.ADMIN -> "Admin Control Center"
 }
