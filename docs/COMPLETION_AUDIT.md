@@ -122,3 +122,13 @@ Worked only on real `main`. No duplicate trees.
 - Website shared team memory and monthly member spend-cap controls are implemented in the website repository; Android currently has memory parity but not member spend-cap controls or a verified Worker-side spend-cap settlement path.
 - No Gradle build, Worker tests/check, website tests/build, device QA, or deployment was run. These are left for the requester.
 - Remaining release blockers remain: production agent builder/connector credential lifecycle, authorized provider-backed identity verification, end-to-end two-person vault export and secure delivery, Android Business Inbox and Organization AI analytics parity, Android category-level notification preferences, team GitHub integration, Worker-side per-member spend-cap enforcement, and external scheduler/OAuth/mTLS runtime verification.
+
+
+## Phase 2–4 follow-up — 2026-11-02 (source only)
+- Added authenticated Worker /business/storage endpoint. It returns the caller's Business storage quota/usage, add-on threshold state, plan expiry and server clock from the canonical businessStorage/{uid} and entitlement records.
+- Added WorkspaceApiClient.businessStorage() and connected BusinessWorkspaceScreen to render BusinessStorageMeter and BusinessPlanExpiryBanner from the server response. No storage amount or expiry is hard-coded.
+- Added authenticated Worker /secret-chats GET/POST/DELETE endpoints. They verify Firebase identity, accept ciphertext-only primary/recovery blobs, enforce owner-scoped document IDs and rate limits, and store records in the same secretChats collection used by the website.
+- Added Android WorkspaceApiClient methods for list/read/save/delete secret chats so a native UI can use the shared encrypted vault. The native secret-chat creation/unlock/auto-lock/FLAG_SECURE UI is not yet mounted.
+- Commits: d7e8bf8e, 52d11eec, 884539e2, fac38c47, 625f1431, 096c37e1.
+- Remaining Phase 2–4 items: Android chat menu/export/secret-chat UI parity; full Android secret-chat create/unlock/recovery flow and FLAG_SECURE; WebAuthn/biometric unlock; full generated-file viewers/edit/regenerate across formats; server-emitted reconnect-safe taskStarted/phase/taskEnded events; monthly feedback survey and feature campaigns with admin receiver assignment; full website/admin parity before removing Android admin source; complete secret-chat exclusions from all history/search/export/memory/training paths.
+- No build, test, lint, browser/device QA or deployment was run. User will run these checks.
