@@ -11,9 +11,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -34,6 +37,7 @@ fun BqChatHeader(
     drawerOpen: Boolean,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onMore: () -> Unit = {},
     logo: @Composable (size: androidx.compose.ui.unit.Dp) -> Unit
 ) {
     var showTitle by remember { mutableStateOf(false) }
@@ -73,6 +77,9 @@ fun BqChatHeader(
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        IconButton(onClick = onMore, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Default.MoreVert, contentDescription = "Chat options", tint = MaterialTheme.colorScheme.onSurface)
         }
         IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp)) {
             Icon(Icons.Default.Add, contentDescription = "New chat", tint = MaterialTheme.colorScheme.primary)
