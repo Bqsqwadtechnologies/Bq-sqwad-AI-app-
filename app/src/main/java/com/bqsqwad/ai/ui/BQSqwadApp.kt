@@ -2681,14 +2681,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var renameDialogOpen by remember { mutableStateOf(false) }
     var renameDraft by remember { mutableStateOf("") }
     var chatTitleOverride by rememberSaveable { mutableStateOf<String?>(null) }
-    // Protect the Android window while the ephemeral Private Chat session is active.
-    DisposableEffect(privateChat) {
-        val activity = context as? android.app.Activity
-        val secureFlag = android.view.WindowManager.LayoutParams.FLAG_SECURE
-        if (privateChat) activity?.window?.setFlags(secureFlag, secureFlag)
-        else activity?.window?.clearFlags(secureFlag)
-        onDispose { if (privateChat) activity?.window?.clearFlags(secureFlag) }
-    }
     var statusText by remember { mutableStateOf("Ready") }
     var creditNotice by remember { mutableStateOf<String?>(null) }
     var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
