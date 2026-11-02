@@ -33,6 +33,7 @@ import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokP
 import { computeHold, computeSettlement, splitCreditBuckets } from "./billing-hold.js";
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
+import { getNativeMonthlyFeedbackState, submitNativeMonthlyFeedback, getNativeMonthlyFeedbackAdmin, saveNativeMonthlyFeedbackAdmin } from "./monthly-feedback-native.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
 import { notifyDailyFreeCredit } from "./free-credit-notify-native.js";
@@ -2727,7 +2728,24 @@ export default {
           reverse: async (uid, reservationId) => reverseCredits(uid, reservationId),
         });
         if (teamsResp) return teamsResp;
-      }      if (url.pathname === "/admin/training-candidates" && request.method === "GET") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await listTrainingCandidates({ status: url.searchParams.get("status") || "pending", limit: Number(url.searchParams.get("limit") || 50) })); }
+      }
+      if (url.pathname === "/monthly-feedback" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        return json(await getNativeMonthlyFeedbackState(u));
+      }
+      if (url.pathname === "/monthly-feedback" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        return json(await submitNativeMonthlyFeedback(u, await readBody(request)));
+      }
+      if (url.pathname === "/admin/monthly-feedback" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        return json(await getNativeMonthlyFeedbackAdmin(u, env, isSuperAdmin));
+      }
+      if (url.pathname === "/admin/monthly-feedback" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        return json(await saveNativeMonthlyFeedbackAdmin(u, await readBody(request), env, isSuperAdmin));
+      }
+      if (url.pathname === "/admin/training-candidates" && request.method === "GET") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await listTrainingCandidates({ status: url.searchParams.get("status") || "pending", limit: Number(url.searchParams.get("limit") || 50) })); }
       if (url.pathname === "/admin/training-candidates/build" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await buildTrainingCandidates({ limit: 50 })); }
       if (url.pathname === "/admin/training-candidates/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await exportApprovedTrainingJsonl({ max: 500 })); }
       if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }
