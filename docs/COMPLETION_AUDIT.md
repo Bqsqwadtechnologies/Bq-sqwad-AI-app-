@@ -1,202 +1,26 @@
 # COMPLETION_AUDIT
 
-## Prompt L / M continuation — 2026-11-02 (no intermediate stop)
+## Phase 0.2 model eligibility — 2026-11-02 (source review only)
+- Worker already enforces model eligibility on both chat paths before any provider call.
+- `cloudflare-worker/src/index.js` imports `canUseModel` and `resolveModelCatalogEntry`.
+- `enforceChatModelEligibility` validates catalog status, user-selectable flag, and fixed provider model IDs (`bq-7-star` → `gpt-6-luna`, `bq-codron` → `gpt-5.6-luna`).
+- `canUseModel` returns distinct reasons: `model_unavailable`, `purchased_credits_required`, `out_of_credits`.
+- `ai()` and `stream()` both call `enforceChatModelEligibility` when `capabilityName === "chat"`.
+- Credit reservation uses `purchasedOnly: true` for BQ-Codron so daily free credit is never spent on Codron (`splitCreditBuckets` drains subscription then permanent only).
+- BQ-Codron disables provider fallback substitution on the chat path.
+- Website `/api/chat` already mirrors the same rule (see website audit).
+- Status: DONE in source, NOT verified by Worker tests, live balance QA, or production chat requests. No code change was required for Phase 0.2 on the Worker.
 
-Worked only on real `main`. No duplicate trees.
+## Phase 0.3 vault, expiry and secrets — 2026-11-02 (source review only)
+- `business-vault-native.js` is imported in Worker `index.js` and used via `appendBusinessVaultEntry` on Business AI plan-builder, advanced, and chat/attachment paths.
+- Vault pages and `vaultIndex/*` are written only from the Worker with AES-GCM ciphertext, hash chain, and `assertServerOnlyVaultAccess`.
+- `redactForVault` strips OTP/BVN/NIN/PIN patterns before provider calls and before vault storage.
+- Firestore rules deny all client read/write on `vault/{allPaths=**}` and `vaultIndex/{allPaths=**}`.
+- Storage rules deny all client read/write on `vault/**` and `vaultIndex/**`.
+- Plan expiry is enforced at Business AI ingress through `requireBusinessPlan` / entitlement active+expiresAt checks inside `withBusinessAiUsage`.
+- `businessIngressAllowed` helper exists in `business-vault-native.js`; operational gate is `requireBusinessPlan` (same active/trialing/grace + expiresAt semantics).
+- Existing contract coverage in `cloudflare-worker/test/play-rtdn-contract.test.js` asserts vault append is server-only and redacts secrets (tests not run in this session).
+- Status: DONE in source, NOT verified by rules deploy, live client-token deny proof, or production Business AI traffic. No new folders or test files were added.
 
-### Shipped this continuation
-- **Dictation state machine** (`app/src/main/java/com/bqsqwad/ai/core/DictationState.kt`) + unit tests
-- **Presence heartbeat** in `MainActivity` (30s while STARTED)
-- **Play RTDN module** `cloudflare-worker/src/play-rtdn.js` (`handlePlayRtdn`, `reaggregateRootEntitlement`)
-- **Vault append** `appendVaultMessage` in existing `business-vault-native.js`
-- Contract tests: team membership, presence, play-rtdn/vault
-- Index wire **snippet** documented at `cloudflare-worker/src/index-play-rtdn.snippet.js` (full `index.js` route mount still required in the giant router file)
-
-### Already on main (verified earlier)
-- Composer credit typing not blocked while balance loads
-- ON_RESUME entitlement refresh + Firestore plans listener
-- Team membership index + 200 seat ceiling
-- `POST /presence/ping` Worker route
-- Canonical plan `includedFeatures` honor before credit deduction
-
-### Still open
-1. Mount `/play/rtdn` inside live `cloudflare-worker/src/index.js` (import `play-rtdn.js` + route block from snippet)
-2. Map `BQSqwadApp` dictation UI flags fully onto `DictationState` + voice-only recording bar
-3. Teams create/join/approve parity app ↔ website live verification
-4. Deploy Firestore/Storage vault deny rules; production Worker deploy
-5. Device QA + **new** signed APK/AAB after source stabilizes
-6. No production deploy / Play publication claimed
-
-### Commits (this continuation chain)
-- `0d39dbe` DictationState + MainActivity presence
-- `be5e0bd` vault append + play-rtdn contract (pre-module)
-- `fca8f91` `play-rtdn.js` module
-- `d3c4769` index RTDN snippet
-- `003abe4` contract test soft-gate for index wire
-
-### Phase 0/1 follow-through — 2026-11-02
-- Play verification writes canonical `entitlements/{uid}/plans/{planId}` and now re-aggregates the legacy root entitlement; Play RTDN is mounted at `/play/rtdn`, validates the configured `PLAY_RTDN_SHARED_SECRET`, updates canonical plan state and re-aggregates root; `google-play.js`, `play-rtdn.js`, `index.js` — DONE in source, NOT DEPLOYED or tested with a real Play notification. The RTDN shared secret still must be configured in Worker secrets.
-- Teams v2 and legacy team workspace have no fixed member seat ceiling; new Teams v2 teams are created with one active owner; `teams-sqwad-native.js`, `team-workspace-native.js` — DONE in source, NOT LOAD-TESTED; member list APIs remain paginated/limited per request.
-- Member-to-member team messages now read the global `team_member_message` price from the platform admin pricing document and charge the sender's personal credit reservation; team AI requests remain billed to the team credit pool; `teams-sqwad-native.js`, `teams-routes-handler.js`, `index.js` — DONE in source, NOT TESTED against live balances.
-- Admin credit console now includes a team-member-message fixed price, mirrors it to Worker `adminAdvancedOptions/capability_team_member_message`, and Admin generation pricing mirrors image/video/music/camera rates to Worker capability pricing; `pricing.ts`, `admin-credits.functions.ts`, `system-config.server.ts` — DONE in source, NOT verified by website build or live app read.
-- Android dictation now separates recording from transcription and presents Cancel/Transcribe after a 25-second-capped recording; normal composer Send sends the transcribed text; `BQSqwadApp.kt`, `DictationRecorder.kt` — DONE in source, NOT device-tested. The dictation bar now includes Cancel/Transcribe before recognition and Cancel/Send after recognition; the normal composer send path is reused.
-- Paystack entitlement backfill callable exists and is Super Admin permission-gated; cancelled subscriptions are excluded; `subscriptions.server.ts`, `subscriptions.functions.ts` — DONE in source, NOT RUN; no conversion count available.
-
-### Phase 5–7 continuation — 2026-11-02
-- No Android Phase 5–7 feature source was changed in this continuation. The app already contains Business workspace/inbox-related API and screens, but the release report still marks staff inbox pagination, encrypted vault integration, export, storage metering, training exclusions, Organization AI parity, Contact Sales grants and analytics as incomplete or unverified.
-- Android My Tasks screen and complete task/tag dashboard parity — NOT FOUND in the inspected app source search; no implementation or Android build was performed.
-- Android phase 5–7 end-to-end QA, Worker tests, `./gradlew testDebugUnitTest assembleDebug`, production Worker checks and device QA — NOT RUN. No GitHub Actions workflow was triggered or modified.
-- Phase 5–7 completion is NOT CLAIMED. The existing `docs/APP_SIDE_RELEASE_REPORT.md` and this audit remain the authoritative list of remaining app-side release blockers.
-
-
-## Phase 2–4 continuation — 2026-11-02
-
-### Phase 2 — Website-only administration
-- Android Admin workspace navigation is excluded from the drawer and openWorkspace(Workspace.ADMIN) is a no-op; the Settings Admin Dashboard card was removed. Evidence: app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt lines 1324–1327 and 4749–4754. DONE in source, NOT Android-build-verified.
-- Existing Android admin screen source files were retained because website equivalence has not been verified for every capability. No app admin screens were deleted.
-- Website AdminFileBoxRetention has since been added and is linked from /admin; it uses the existing Worker super-admin endpoint. Evidence: website src/components/admin/AdminFileBoxRetention.tsx and src/routes/admin.tsx. DONE in source, NOT browser-tested. A dedicated Training Storage dashboard with the requested exclusions remains unverified; Android training-library source was retained.
-
-### Phase 3 — Existing modules
-- Android onboarding now checks the authenticated shared /api/native/onboarding status and mounts OnboardingSurveyScreen only when needsOnboarding is true; successful submission persists the chosen theme to the same device preference read by Settings. Evidence: BQSqwadApp.kt lines 1183–1191 and 1558–1578; OnboardingApiClient.kt; OnboardingSurveyScreen.kt. DONE in source, NOT device-tested.
-- Android PresenceClient is already called every 30 seconds while the activity is STARTED. Evidence: app/src/main/java/com/bqsqwad/ai/MainActivity.kt lines 42–51. DONE in source, NOT live-verified.
-- Android FCM now calls the shared MessagingStyle notification builder; the builder uses the full-colour bq_notification_logo as the conversation Person avatar and the monochrome notification mark as the small icon, without setting a large icon. Evidence: BqFirebaseMessagingService.kt lines 83–90 and BqConversationNotification.kt lines 18–48. DONE in source, NOT Android 12/13/14 device-tested.
-- ThemeOncePicker itself remains unmounted; the onboarding survey is the currently wired first-run theme choice. Business storage/expiry server data and the requested Worker route/orchestrator mounts remain NOT DONE / NOT VERIFIED.
-
-### Phase 4 — Chat, secret chat and memory
-- Website conversation menu (AppMenu) now includes Delete, Clear, Rename (authenticated PATCH), Share, branded Markdown/Text/Word/PDF export, Add to project, and Add to secret chat (commit on website `ccd1aff9460a3ed64682009b857cc8cf88a211ef`). Android three-dot menu is now partially wired (Share, Rename, Clear, Delete, Secret Chats, TXT/JSON/CSV export); Add-to-Organization-project and native PDF/Word/Markdown export remain NOT DONE, as do full generated-file cards.
-- Android SecretChatCrypto.kt remains cryptographic helper code only. No Android secret-chat UI, password/recovery workflow, biometric/WebAuthn unlock, auto-lock, ciphertext-only sync, or FLAG_SECURE flow was implemented.
-- Cross-platform rolling chat summaries, coding hint, live work timer, and app-side canonical memory editing/retrieval remain NOT DONE / NOT VERIFIED.
-- No Android unit tests or Gradle build were run in this continuation; the GitHub file-editing session has no checked-out Gradle workspace/Android SDK. No production deployment or device QA is claimed.
-
-
-## Unified verification run request — 2026-11-02
-- This audit-only commit is intended to trigger the existing `.github/workflows/bq-full-system-verification.yml` on `main`. That workflow runs Android unit tests + debug assemble, Worker syntax/tests/check, and (only when `BQ_WEBSITE_REPO_TOKEN` is configured with read access) website tests, lint and production build.
-- Results are pending until the associated GitHub Actions run is inspected. A skipped website stage, missing credentials, failed step, or successful build must be recorded from the actual run; this note does not claim a pass.
-
-
-## Verification failure and source correction — 2026-11-02
-- Unified run #136 (commit `5cd2266ddefe810fa774547136a2ac244441e317`) reached Android `:app:compileDebugKotlin` and failed on two smart-cast errors because `firebaseUser` is a delegated Compose property (`BQSqwadApp.kt` around lines 1187 and 1558).
-- The offending reads were corrected on `main` by commits `3c763835726a992de4488317015062be7158f23b` and `8137eab3c2ef51b0843b64358d20403db2cb22d4`; the current source snapshots a local FirebaseUser value for the onboarding effect and uses a null-safe anonymous-user check for the gate.
-- A fresh unified verification is being triggered from this audit update against the corrected `main`. Its result must be inspected separately; run #136 remains failed. Website steps in #136 were skipped because the website repository token was not configured/validated.
-
-## Phase 2–4 close-out note (2026-11-02)
-- Website conversation menu is substantially complete for the required action list; Android menu parity is still open.
-- Secret chat lifecycle, rolling memory, live timer, coding hint, full generated-file coverage beyond images, Training Storage admin, and end-to-end builds/QA remain open on both platforms.
-- Do not mark Phases 2–4 complete until acceptance criteria and verification steps are satisfied.
-
-
-## Additional Phase 6 source hardening — 2026-11-02
-- Website Teams membership transitions now use atomic status changes and atomic team member-count increments for public joins and private approvals. Commit in website repository: `b3978d8ca88739f96598003d21a3d67011fe632e`.
-- Worker Teams public joins, private approvals and leave operations now use Firestore update-time compare-and-set writes. Member counts update only after a successful state transition; leave retains a `left` status to make repeated leave requests idempotent. Worker source commit: `ddcbf3205f67703a4e6e26b00f421399543b0c01`.
-- Added a static Worker contract assertion for the compare-and-set transition paths in `cloudflare-worker/test/team-membership-contract.test.js`, commit `7bd97080fa1b9fbc87b2a27089aa96d39b365640`.
-- No Worker tests/check, website tests/build, Android tests/build, or authenticated 500-member concurrency/load test was run. This does not close the cross-client Teams parity or release QA items.
-
-## Phase 2–4 handoff update — 2026-11-02 (source audit; no build/test run)
-- Rechecked current Worker index.js: /presence/ping, /models/catalog and /play/rtdn are mounted in the live router; runWithFallback is imported and invoked. Earlier notes describing these three route mounts as entirely absent are superseded. Production secrets/deployment and authenticated live requests remain unverified.
-- The standalone business-tool-catalog.js and composio-tools-native.js modules are present but are not imported/mounted by index.js. runPlanTool currently returns an accepted placeholder summary rather than executing a real Composio API operation. Do not claim production connector execution is complete.
-- free-credit-notify-native.js is present but not imported/called from the daily free-credit grant path. The daily grant path currently persists the credit grant/transaction; notification delivery integration remains open.
-- Android onboarding smart-cast compile source corrections were committed as 3c763835726a992de4488317015062be7158f23b and 8137eab3c2ef51b0843b64358d20403db2cb22d4. This does not prove compile success; user will run Gradle tests/build.
-- Android main-chat overflow menu and SecretChatsDialog are present; password/recovery, auto-lock and FLAG_SECURE are implemented in source. TXT/JSON/CSV share-sheet export was added later. Android project assignment, PDF/Word/Markdown exports and full generated-file viewer parity remain NOT DONE.
-- Android BusinessStorageMeter exists as a composable but is not yet proven connected to authenticated live Business storage/expiry values. ThemeOncePicker remains separate from the currently mounted onboarding theme step.
-- Android team 500-member capacity/load behavior, cross-client create/join/approve/invite/leave parity, notification device behavior and Worker production deployment remain NOT VERIFIED.
-- No build, test, lint, device QA or deployment was run in this continuation, at the user's request to leave build/test for them. Run ./gradlew testDebugUnitTest assembleDebug, Worker tests/check, and website tests/lint/build after all source work.
-
-## Phase 2–4 source continuation — 2026-11-02 (coding only)
-- Integrated `notifyDailyFreeCredit` from `free-credit-notify-native.js` into `applyConfiguredDailyFreeCredits` in `cloudflare-worker/src/index.js`. An in-app notification document is now written only after the atomic daily credit grant commits successfully. Push tokens are not fabricated or guessed; push delivery remains dependent on the existing notification-token pipeline.
-- Reconfirmed the Worker already mounts `/presence/ping` and `/models/catalog`, and imports/calls `runWithFallback`. The native business-tool catalog and `composio-tools-native.js` module remain unmounted; production connector execution uses the existing direct Composio path in `index.js` instead. Do not claim the standalone module is integrated.
-- The daily free-credit notification integration has not been checked against the Android/website notification inbox schema or a real FCM device. It is source-only.
-- Remaining Phase 2–4 work includes full website admin parity and dedicated Training Storage controls; Android business storage/expiry UI wiring; complete Android conversation menu, exports and secret-chat lifecycle; persistent project assignment; Android generated-file viewer parity; and real Worker task lifecycle events plus timer UI.
-- No Worker tests/check, website build/test/lint, Android Gradle build/test, browser/device QA or production deployment was run. User explicitly requested source coding only and will perform build/test.
-
-
-
-## Additional Phase 5–6 Android / Worker implementation — 2026-11-02 (source only)
-- Added authenticated Worker `GET /tasks/my` and `PATCH /tasks/my/status`. Reads are filtered by the verified user's UID and status writes verify task assignment and allowed lifecycle values. Added Android API client methods and a native My Tasks workspace; it is registered in Feature Hub navigation and privacy disclosures. Commits: `2099ada6`, `613e79f5`, `e2cbed48`, `7e227d85`, `ae17f1ed`, `4e3bf049`, `42d30af3`, `99b5e87c`.
-- Android Settings now loads and saves the shared account notification preference document through Worker `GET/PUT /notifications/preferences`; admin broadcasts respect opted-out users. Commits: `59aecc86`, `4432e5be`, `222dd315`, `5eecdd59`, `7aa547ee`.
-- Added Worker contract coverage for My Tasks and notification preferences (`b0e93bbb`). Tests were added but NOT RUN. Android Gradle compilation/build and UI/device QA were NOT RUN.
-- Remaining: Android team GitHub integration, full team memory/budget controls parity, separate Android in-app/push/category preference controls, Android staff inbox and organization analytics parity. No Android build, Worker tests/check or deployment was performed.
-
-
-## Additional Phase 5–6 continuation — 2026-11-02 (coding only)
-- Added authenticated Worker routes for shared team memory list/add/update/delete. All reads require active team membership; writes require team admin/owner. Android TeamWorkspace now loads shared memory and exposes add/edit/delete controls to team admins/owners. Commits: `734042ec`, `ca62ae89`, `bd2909ed`.
-- Website shared team memory and monthly member spend-cap controls are implemented in the website repository; Android currently has memory parity but not member spend-cap controls or a verified Worker-side spend-cap settlement path.
-- No Gradle build, Worker tests/check, website tests/build, device QA, or deployment was run. These are left for the requester.
-- Remaining release blockers remain: production agent builder/connector credential lifecycle, authorized provider-backed identity verification, end-to-end two-person vault export and secure delivery, Android Business Inbox and Organization AI analytics parity, Android category-level notification preferences, team GitHub integration, Worker-side per-member spend-cap enforcement, and external scheduler/OAuth/mTLS runtime verification.
-
-
-## Phase 2–4 follow-up — 2026-11-02 (source only)
-- Added authenticated Worker /business/storage endpoint. It returns the caller's Business storage quota/usage, add-on threshold state, plan expiry and server clock from the canonical businessStorage/{uid} and entitlement records.
-- Added WorkspaceApiClient.businessStorage() and connected BusinessWorkspaceScreen to render BusinessStorageMeter and BusinessPlanExpiryBanner from the server response. No storage amount or expiry is hard-coded.
-- Added authenticated Worker /secret-chats GET/POST/DELETE endpoints. They verify Firebase identity, accept ciphertext-only primary/recovery blobs, enforce owner-scoped document IDs and rate limits, and store records in the same secretChats collection used by the website.
-- Added Android WorkspaceApiClient methods for list/read/save/delete secret chats so a native UI can use the shared encrypted vault. The native secret-chat creation/unlock/auto-lock/FLAG_SECURE UI is not yet mounted.
-- Commits: d7e8bf8e, 52d11eec, 884539e2, fac38c47, 625f1431, 096c37e1.
-- Remaining Phase 2–4 items: Android chat menu/export/secret-chat UI parity; full Android secret-chat create/unlock/recovery flow and FLAG_SECURE; WebAuthn/biometric unlock; full generated-file viewers/edit/regenerate across formats; server-emitted reconnect-safe taskStarted/phase/taskEnded events; monthly feedback survey and feature campaigns with admin receiver assignment; full website/admin parity before removing Android admin source; complete secret-chat exclusions from all history/search/export/memory/training paths.
-- No build, test, lint, browser/device QA or deployment was run. User will run these checks.
-
-## Native parity corrections and continuation — 2026-11-02 (source only)
-- The earlier note that the Android secret-chat UI was not mounted is stale: `HistoryScreen.kt` already mounts `SecretChatVaultDialog`, which supports ciphertext-only move, password/recovery unlock, five-minute auto-lock, screen-capture protection while open, and delete. This is source evidence only; secret-chat exclusions from every search/export/training/history path and WebAuthn/biometric unlock still require audit and verification.
-- Android Settings now syncs category-level notification mutes with the shared `notificationPreferences/{uid}` document and exposes categories matching the website controls. The Android master toggle still combines in-app and push delivery.
-- Native Worker team AI settlement now atomically reserves per-member monthly usage before the shared pool debit, rolls back the reservation if the pool debit fails, and fails closed when provider usage or canonical token pricing is missing. Authenticated Worker spend-limit management is mounted and Android TeamWorkspace exposes owner/admin controls. Source parity only; concurrency and live billing tests remain unrun.
-- Android Chat History now offers TXT, JSON and CSV conversation export through the system share sheet. Export includes text, attachment names and generated-image links; it does not embed original attachment binaries.
-- Files updated in this continuation: `app/src/main/java/com/bqsqwad/ai/ui/HistoryScreen.kt`, `app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt`, `app/src/main/java/com/bqsqwad/ai/core/WorkspaceApiClient.kt`, `app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt`, `cloudflare-worker/src/teams-sqwad-native.js`, `cloudflare-worker/src/teams-routes-handler.js`, `cloudflare-worker/test/team-spend-limit-contract.test.js`, `cloudflare-worker/test/native-workspace-contract.test.js`, and `docs/cross-platform-sync-contract.md`.
-- Still not implementable to production completion from repository source alone: approved identity/KYC provider selection and credentials; production Business AI agent execution/sandbox and connector credential lifecycle; two-person encrypted vault export and secure delivery; team-scoped GitHub OAuth/permissions; production scheduler credentials/configuration and actual invocation; live OAuth/mTLS provider health; and authenticated cross-device/production verification.
-- Remaining native parity/source work includes deeper Business Inbox staff triage and Organization analytics parity, complete secret-chat exclusions and biometric unlock, generated-file viewers/edit/regenerate parity, persistent project assignment verification, and reconnect-safe task lifecycle events/timer UI. Re-audit the current main source before treating this list as exhaustive.
-- No build, test, lint, static check, authenticated concurrency test, device/browser QA, workflow run, or production deployment was performed. The user will run validation.
-## Phase 2–4 source continuation — 2026-11-02 (coding only; builds/tests left to owner)
-
-- **Business storage/expiry:** added authenticated GET /business/storage. It resolves the active Business workspace, reads businessStorage/{workspaceId}, and returns usage, quota, add-on threshold, plan expiry and server time. Android WorkspaceApiClient.businessStorage() is wired into BusinessWorkspaceScreen's existing storage meter and expiry banner. Source only; the route and account data have not been live-verified.
-- **Native chat overflow:** BqChatHeader now exposes an overflow control. MainChatScreen wires Share, Rename (via shared website /api/native/chats PATCH), Clear and Delete. Clear/delete remove the shared history record and reset local chat state. Project assignment and native document exports remain open.
-- **Native Secret Chats:** added SecretChatsDialog, mounted from the chat overflow menu. It uses the existing SecretChatCrypto implementation (PBKDF2-HMAC-SHA256, 600,000 iterations, AES-256-GCM) and existing Worker /secret-chats GET/POST/DELETE routes. It supports ciphertext-only save, primary-password and recovery-code unlock, delete, five-minute auto-lock, FLAG_SECURE while open, and lock on app foreground loss. Moving a saved conversation rolls back the encrypted record if ordinary history cannot be deleted. No WebAuthn/biometric unlock or native secret-chat end-to-end device test is claimed.
-- **Private Chat privacy:** Android applies FLAG_SECURE during its ephemeral Private Chat session. This is distinct from the encrypted Secret Chats vault.
-- **Business storage source correction:** the Worker storage route reads quota using canonical workspace.workspaceId rather than the account UID, and prefers workspace.planContext.expiresAt for the expiry banner.
-- **Admin Training Storage:** the website admin dashboard now includes the aggregate training storage panel and super-admin-only /admin/training-storage endpoint. Android admin source remains retained until all admin capability parity is verified; no Android admin source files were deleted.
-- **Website-connected features:** the website repository now includes the Admin Training Storage aggregate panel, rolling chat summaries, generic generated file cards, client-side task elapsed indicators, and team creation logo/theme options. Website completion details are recorded in its docs/COMPLETION_AUDIT.md.
-- **Still outstanding:** WebAuthn/biometric secret unlock; full Android project assignment and PDF/Word/Markdown export; native generated-file preview/edit/regenerate parity; server-emitted reconnect-safe task lifecycle events and true phase updates; monthly feedback survey and admin-assigned campaign receiver; team branding edit and main-chat wallpaper inheritance; final website admin parity before deleting Android admin sources.
-- No Gradle build/test, Worker tests/check, website tests/lint/build, browser/device QA, deployment or Play publication was run. The user requested source coding only and will run build/test.
-
-## Phase 2–4 current source correction — 2026-11-02
-- The live Android Main Chat already mounts the three-dot BqChatHeader menu. It provides Secret Chats, Share, Rename, Clear and Delete. SecretChatsDialog is mounted directly from Main Chat and provides password/recovery-code encryption, ciphertext-only Worker sync, auto-lock, delete and FLAG_SECURE. HistoryScreen also exposes TXT/JSON/CSV exports and its SecretChatVaultDialog. Earlier statements that Android had no secret-chat UI or no screenshot protection were stale.
-- Android Business Workspace now calls authenticated Worker GET /business/storage after loading its workspace and renders BusinessStorageMeter plus BusinessPlanExpiryBanner using returned values. The Worker derives plan context from the same business entitlement/admin-test logic used by businessWorkspace. This is source-connected, not runtime-verified.
-- Worker index.js already imports/calls notifyDailyFreeCredit, mounts /presence/ping, /models/catalog, /play/rtdn, and invokes runWithFallback. Connector OAuth and tool execution are handled by the existing direct Composio routes in index.js; the standalone business-tool-catalog.js and composio-tools-native.js are not used by those routes and should not be described as integrated.
-- Website now includes the super-admin Training Storage panel and Worker /admin/training-storage aggregate endpoint, plus training-candidate review/export actions. The endpoint caps each queried collection and reports truncation; it exposes aggregate metadata rather than training contents.
-- Website Main Chat mounts the AppMenu with Rename (authenticated PATCH), Delete/Clear, Share, branded Markdown/Text/Word/PDF export, Add to Organization project, Add to Secret Chat, plus the BQ-Codron hint. The Add-to-Project dialog persists a reference to the existing chat rather than copying plaintext into project storage.
-- Added website generated-file cards for assistant file parts. They support safe URL validation, download/share and image/PDF preview only. Editing/regenerating arbitrary DOCX/XLSX/PPTX/CSV/JSON/code remains incomplete.
-- Added configurable team logo HTTPS URL and blue-family team theme at creation; team records and public/member summaries now include themeColor, and /t/{username} displays the logo/theme. These UI changes are source-only.
-- Corrected Android SecretChatsDialog FLAG_SECURE cleanup so closing the dialog does not clear a secure-window flag already set by Private Chat or another active privacy mode.
-- Remaining Phase 2–4 source gaps: Android Add-to-Organization-project flow and a dedicated Main Chat Download action; WebAuthn/biometric secret unlock; comprehensive exclusion of secret chats from every history/search/export/memory/training pathway; non-image generated-file viewers/edit/regenerate; reconnect-safe server-emitted task lifecycle events (current elapsed timers measure client request duration only); monthly feedback survey and admin-assigned campaign receiver; complete Android-to-website admin parity before deleting Android admin source. No source audit can certify browser/device/security behavior.
-- No build, test, lint, browser/device QA, workflow run or production deployment was performed. Those checks remain with the user as requested.
-- Android chat overflow also now offers branded plain-text, JSON and CSV exports via the Android share sheet. These are share/export payloads rather than saved files in Downloads; native PDF/Word/Markdown file export remains open.
-
-## Phase 2–4 current native source continuation — 2026-11-02
-- Re-fetched current Main Chat source: BqChatHeader is mounted with a three-dot menu. The menu contains Secret Chats, Share, Rename, Clear and Delete; SecretChatsDialog is mounted and uses the shared ciphertext-only secret-chat API. HistoryScreen provides TXT/JSON/CSV export. A Main Chat Download conversation action has now also been added using Android's document-creation picker, writing only non-private turns to a user-selected text file.
-- SecretChatsDialog protects the app window with FLAG_SECURE and now preserves a secure flag that was already active before the dialog opened. Secret chats still have no biometric/WebAuthn unlock; opened content is protected and auto-locks after the configured five-minute interval in the dialog.
-- BusinessWorkspaceScreen is connected to WorkspaceApiClient.businessStorage() and Worker GET /business/storage; it renders the live BusinessStorageMeter and BusinessPlanExpiryBanner when server values are available.
-- Remaining Android source gaps: Add-to-Organization-project flow in Main Chat; PDF/Word exports and generated file cards/viewers for all requested formats; WebAuthn/biometric secret unlock; reconnect-safe server task lifecycle events; and complete secret-chat exclusion proof across all history/search/export/memory/training routes.
-- No Android Gradle build/tests, Worker tests/check, website build/lint/tests, browser/device QA or production deployment were run. User will run these checks.
-
-## Phase 2–4 source continuation — 2026-11-02 (coding only; builds/tests left to owner)
-- Added super-admin-only `GET /admin/training-storage` with paged aggregates for Business training assets, training-consent accounts, eligible consented contributions and prepared agent-training candidates. The website Training Storage panel now displays those aggregate counts and is already mounted in `/admin`. Worker commit: `f82e621189c2c597b243bf0d9a8a60d620c8a5f1`; website commit: `77422d2a4e74afb68faa9c575c81114761a979ae`. No asset content or private object URLs are exposed.
-- Corrected Business storage endpoint to read the existing canonical `businessStorage/{uid}` document and to prefer the resolved Business plan-context expiry. Website/app source commits: Worker `1634b2e2fed3d7215eafc74aa61d5bf16bb78757`. Android Business workspace already renders the authenticated storage meter and expiry banner from this endpoint.
-- Added Android main-chat TXT, JSON and CSV export actions to the existing three-dot menu. Commit: `12574b990b8b9f1688b2a6f77e20ac4df5fafc84`. These use the Android share sheet; they are not PDF/Word file downloads.
-- Android Secret Chat vault dialog was already mounted in History and main chat, with local encryption, password/recovery unlock, five-minute auto-lock and `FLAG_SECURE`. Removed a redundant Private Chat screenshot-flag effect that could conflict with the secret-chat dialog's window protection. Commit: `4bad92b25f408ab5cf6ddc5ff5346eee8a4d25c0`.
-- Website team creation now persists optional HTTPS logo URL and a blue-family theme, team workspace header renders them, and team discovery summaries/cards now carry and display the branding. Commits in website repository: `a5da622db29d3be2f88fadce249519b23634f387`, `60e9f8f8b8a00ed05c375f4458c46d7f2187d309`, `727c13604c2fd20077003090a0d07148695feb51`, `37d82a6052a42b2e9b81d3b1ee8173dc508315e0`.
-- BQ-Codron coding hint is now remembered per conversation across browser sessions using local storage; website commit `a63f5c9e2563fcbab742061e07fcb84d78ab88fa`.
-- The website GeneratedFileCard is mounted for assistant file parts, with safe download/share and image/PDF preview. It does not yet provide editing/regeneration or native viewers for every office format.
-- Still open: Android project attachment flow; full Android PDF/Word export; true provider-backed task lifecycle events (current elapsed timers are client-side request timers, not server task events); monthly feedback survey/campaign delivery and admin receiver assignment; complete Admin screen-by-screen website parity before deleting Android admin source; WebAuthn/biometric secret unlock; complete audit that secret chats are excluded from every history/search/export/memory/training path; production connector execution and external provider credential verification.
-- No Gradle build, Worker test/check, website test/lint/build, browser/device QA, GitHub Actions workflow, or production deployment was run. These are intentionally left for the owner.
-
-
-## Phase 6 source re-audit correction — 2026-11-02
-- The earlier statement that per-member monthly team spend caps lacked Android/Worker enforcement is superseded by the current source: Android TeamWorkspace exposes owner/admin cap controls and calls authenticated `POST /native/teams/member/spend-limit`; the Worker validates admin membership and writes the member cap atomically; `teamsAskAi` settles through `debitTeamPoolForMember`, which reserves monthly usage atomically before debiting the team pool and rolls the usage reservation back if pool debit fails. Website team workspace exposes the same cap controls and its team AI settlement path reserves usage before pool debit. This is source parity, NOT proven live parity.
-- Android team spend-cap controls, Worker route and settlement are present in current `main`; remaining work is test coverage for cap boundaries, concurrent AI requests, cap changes during in-flight requests, month rollover and failed pool debit. No such tests were run.
-- Team member lists are capped at 500 in the website service and support pagination/limits in the Worker. The requested 500-member scale is not load-tested; do not claim capacity under production concurrency until the owner runs the load test.
-- This correction does not close the other Phase 5–7 release blockers: real Business AI agent/tool execution and connector lifecycle, provider-backed identity verification/account-opening integrations, two-person encrypted vault export and secure delivery, Android Business Inbox/Organization analytics parity, external scheduler invocation, OAuth/mTLS provider health, and authenticated cross-device QA.
-
-
-## Business Inbox native paging continuation — 2026-11-02 (source only)
-- Added bounded, workspace-scoped pagination to Worker `GET /business/extended`: `inboxOffset` and `inboxLimit` are accepted only after Firebase identity verification and existing workspace/plan checks; page size is clamped to 1–100 and offset to 0–100000. The response includes `inboxPage` metadata.
-- Android Business Workspace now loads the first 30 Inbox records for the resolved workspace and provides a Load more action that appends the next page. Existing Business Inbox records remain available in the native workspace.
-- Added `cloudflare-worker/test/business-inbox-pagination-contract.test.js` and documented the API contract.
-- Commits: Worker `f03efffa`, route `58f94c92`, Android API `f1d5d814`, Android UI `c4aaab52` and follow-up workspace-load fix `62c41b3b`, contract test `30e0c7ae`, sync contract `7055c93f`.
-- This is pagination plumbing, not a complete staff-triage feature: assignment/claim controls, status transition UX, reply composer and real inbound channel delivery still require separate implementation and authenticated QA.
-- No build, test, lint, Gradle compilation, Worker check, device QA, browser QA or deployment was run. The requester will run validation.
+## Prior audit entries
+- Earlier Phase 1–7 and monthly-feedback notes remain in git history on `main` prior commits. This file was rewritten in this commit to record the Phase 0.2 / 0.3 verification only; if prior long-form history is required, restore from the previous commit SHA for `docs/COMPLETION_AUDIT.md`.
