@@ -70,9 +70,19 @@ export async function appendHashChain(prevHash, payload) {
 }
 
 /** Server-only vault append: redacts secrets, extends hash chain, records index. */
+async function vaultAesKey(secret) {
+  const material = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(String(secret || "")),
+  );
+  return crypto.subtle.importKey("raw", material, { name: "AES-GCM" }, false, ["encrypt"]);
+}
+
+/** Server-only encrypted vault append. Only ciphertext is stored with metadata. */
 export async function appendVaultMessage({
   dbSet,
   dbGet,
+  encryptionKey,
   businessId,
   agentId,
   threadId,
@@ -81,8 +91,14 @@ export async function appendVaultMessage({
   caller = "worker",
 }) {
   assertServerOnlyVaultAccess(caller);
+  if (!String(encryptionKey || "").trim()) {
+    throw Object.assign(new Error("business_vault_encryption_not_configured"), {
+      status: 503,
+      safeError: "business_vault_not_configured",
+    });
+  }
   const redacted = redactForVault(text);
-  const indexPath = `vaultIndex/${businessId}/${agentId}/${threadId}`;
+  const indexPath = "vaultIndex/" + businessId + "/" + agentId + "/" + threadId;
   const index = (await dbGet(indexPath)) || { page: 1, prevHash: "", messageCount: 0 };
   const page = Number(index.page || 1);
   const payload = JSON.stringify({
@@ -90,14 +106,26 @@ export async function appendVaultMessage({
     role: String(role || "assistant"),
     text: redacted,
   });
-  const hash = await appendHashChain(index.prevHash, payload);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await vaultAesKey(encryptionKey);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(payload),
+  );
+  const ciphertext = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+  const hash = await appendHashChain(index.prevHash, ciphertext);
   const path = vaultPagePath(businessId, agentId, threadId, page);
-  const existing = (await dbGet(path)) || { lines: [] };
-  const lines = Array.isArray(existing.lines) ? existing.lines.slice() : [];
-  lines.push({ payload, hash });
-  await dbSet(path, { lines, updatedAt: new Date().toISOString() }, true);
+  const existing = (await dbGet(path)) || { records: [] };
+  const records = Array.isArray(existing.records) ? existing.records.slice() : [];
+  records.push({
+    iv: btoa(String.fromCharCode(...iv)),
+    ciphertext,
+    hash,
+  });
+  await dbSet(path, { records, updatedAt: new Date().toISOString() }, true);
   const messageCount = Number(index.messageCount || 0) + 1;
-  const nextPage = lines.length >= 200 ? page + 1 : page;
+  const nextPage = records.length >= 200 ? page + 1 : page;
   await dbSet(indexPath, {
     page: nextPage,
     prevHash: hash,
