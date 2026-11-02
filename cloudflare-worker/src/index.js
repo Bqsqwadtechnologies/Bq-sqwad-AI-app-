@@ -3549,8 +3549,7 @@ export default {
             op: "ARRAY_CONTAINS",
             value: { stringValue: user.uid },
           }],
-          orderBy: { field: "updatedAt", direction: "DESCENDING" },
-          limit: 100,
+          limit: 200,
         }).catch(() => []);
         const tasks = rows
           .filter(row => Array.isArray(row.assignees) && row.assignees.includes(user.uid))
@@ -3563,7 +3562,9 @@ export default {
             dueAt: row.dueAt ? String(row.dueAt) : null,
             updatedAt: String(row.updatedAt || ""),
           }))
-          .filter(row => row.id && row.title);
+          .filter(row => row.id && row.title)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .slice(0, 100);
         return json({ tasks });
       }
       if (url.pathname === "/tasks/my/status" && request.method === "PATCH") {
