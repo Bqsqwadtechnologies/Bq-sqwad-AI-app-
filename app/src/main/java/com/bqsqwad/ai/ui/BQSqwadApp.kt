@@ -3971,7 +3971,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                         else -> speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                     }
                                 },
-                                enabled = !busy && !dictationTranscribing
+                                enabled = !busy && !dictationTranscribing,
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
                                     if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
@@ -3982,9 +3983,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     },
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                            },
-                            modifier = Modifier.size(36.dp)
-                        )
+                            }
 
                         OutlinedTextField(
                             value = message,
