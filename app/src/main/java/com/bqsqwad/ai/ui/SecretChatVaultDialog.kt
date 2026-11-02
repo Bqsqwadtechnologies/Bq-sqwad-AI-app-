@@ -136,9 +136,9 @@ fun SecretChatVaultDialog(
         error = null
         scope.launch {
             runCatching {
-                val chat = api.getSecretChat(id).optJSONObject("chat") ?: error("Secret chat not found.")
-                primary = chat.optJSONObject("primary") ?: error("Primary encrypted copy is unavailable.")
-                recoveryBlob = chat.optJSONObject("recovery") ?: error("Recovery encrypted copy is unavailable.")
+                val chat = api.getSecretChat(id).optJSONObject("chat") ?: kotlin.error("Secret chat not found.")
+                primary = chat.optJSONObject("primary") ?: kotlin.error("Primary encrypted copy is unavailable.")
+                recoveryBlob = chat.optJSONObject("recovery") ?: kotlin.error("Recovery encrypted copy is unavailable.")
                 mode = "unlock"
             }.onFailure { error = safeUserFacingIssue(it, "Secret chat could not be opened.") }
             busy = false
@@ -162,7 +162,7 @@ fun SecretChatVaultDialog(
                 val decoded = JSONObject(String(plaintext, Charsets.UTF_8))
                 openedTitle = decoded.optString("title", "Secret chat")
                 openedTranscript = decoded.optString("transcript")
-                if (openedTranscript.isBlank()) error("This secret chat has no readable transcript.")
+                if (openedTranscript.isBlank()) kotlin.error("This secret chat has no readable transcript.")
                 mode = "view"
                 password = ""
             }.onFailure { error = "That password or recovery code could not unlock this secret chat." }
