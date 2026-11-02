@@ -96,3 +96,30 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 ## PDF Phase 7 — Website-only routes
 
 - **NOT APPLICABLE TO ANDROID:** `verify.$token.tsx` and `/docs/business-ai/integration` are website TanStack Start routes. Android does not duplicate these routes; the app continues to use the configured business official-link handoff.
+
+## PDF Phase 8 — Android admin UI inventory and website mapping (final phase)
+
+| Android screen | Website admin equivalent | Mapping status |
+|---|---|---|
+| `AdminAppEditorPanel.kt` | `AdminAppConfig.tsx` | MAPPED |
+| `AdminAuthBackgroundVideoPanel.kt` | `AdminAuthMedia.tsx` | MAPPED |
+| `AdminContactSalesScreen.kt` | `AdminSalesRouting.tsx` | MAPPED |
+| `AdminControlSurface.kt` | `AdminOverview.tsx` + `AdminStudio.tsx` | MAPPED |
+| `AdminFeatureTestLab.kt` | `AdminTestCenter.tsx` + `AdminAiAgentLab.tsx` | MAPPED |
+| `AdminFeedbackPanel.kt` | `AdminSupportInbox.tsx` | MAPPED |
+| `AdminFileBoxRetentionPanel.kt` | `AdminFileBoxRetention.tsx` | MAPPED |
+| `AdminLivePricingScreen.kt` | `AdminGenerationPricing.tsx` + `AdminTokenPricing.tsx` | MAPPED |
+| `AdminModelManagement.kt` | `AdminAiProviders.tsx` + `AdminAssistant.tsx` | MAPPED |
+| `AdminMonthlyFeedbackCampaign.kt` | `AdminMonthlyFeedback.tsx` | MAPPED |
+| `AdminOperationsPanel.kt` | `AdminMonitoring.tsx` + `AdminIncidents.tsx` | MAPPED |
+| `AdminOrganizationTestPanel.kt` | `AdminPlanTest.tsx` | MAPPED |
+| `AdminPlanCatalogScreen.kt` | `AdminOrganizationPlans.tsx` | MAPPED |
+| `AdminProviderSecretsScreen.kt` | `AdminAiProviders.tsx` + `AdminVideoProviders.tsx` | MAPPED |
+| `AdminRuntimeScreen.kt` | `AdminStudio.tsx` + `AdminAppConfig.tsx` | MAPPED |
+| `AdminSecurityScreen.kt` | `AdminSecurity.tsx` + `AdminVerification.tsx` | MAPPED |
+| `AdminTrainingLibraryPanel.kt` | `AdminTrainingStorage.tsx` + `AdminLearningStudio.tsx` | MAPPED |
+| `AdminWorkspaceScopeScreen.kt` | `AdminRoles.tsx` + `AdminTeams.tsx` | MAPPED |
+
+- `BQSqwadApp.kt` contains **zero references** to the 18 listed screen names; there are no admin drawer/navigation entry points there to remove. The 18 UI screen files are not imported by the active app navigation. `Admin*Client.kt` and configuration readers remain untouched.
+- Website `/admin` now runs `verifyAdminRouteAccess` server-side through `requirePermission()` before rendering the control center. `/admin/login` remains public by design; every privileged admin server function retains its own permission check.
+- **Build gate:** `assembleDebug` completed and packaged the debug APK in run `41494815972`; unit tests had one failing `NoInfrastructureNamesInUserCopyTest` assertion. Admin UI files are being removed only after the entry-point audit; a fresh rebuild/test is required after deletion.
