@@ -146,6 +146,64 @@ async function getPoolBalance(creditPoolId) {
   return num(pool?.balance);
 }
 
+/**
+ * Enforce the same monthly per-member cap as the website before debiting the
+ * shared team wallet. Both reservations use Firestore update-time CAS so
+ * concurrent requests cannot race past a member cap or overspend the pool.
+ */
+async function debitTeamPoolForMember(team, member, uid, amount) {
+  if (!(amount > 0)) return getPoolBalance(team.creditPoolId);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error("Invalid team usage amount.");
+  const ym = new Date().toISOString().slice(0, 7).replace("-", "");
+  const usagePath = "teams/" + team.id + "/usage/" + ym + "_" + uid;
+  const ts = now();
+  await firestoreUpdateAtomic(usagePath, (current) => {
+    const spent = num(current?.credits);
+    const limit = member.spendLimitCredits;
+    if (limit !== null && spent + amount > limit + 1e-9) {
+      const error = new Error("Your monthly team spending limit has been reached. Ask a team admin to adjust it.");
+      error.httpStatus = 403;
+      error.safeError = "team_member_spend_limit_reached";
+      throw error;
+    }
+    return {
+      ...(current || {}),
+      credits: Number((spent + amount).toFixed(7)),
+      tokens: num(current?.tokens),
+      updatedAt: ts,
+    };
+  });
+
+  try {
+    let remaining = 0;
+    await firestoreUpdateAtomic("teamCreditPools/" + team.creditPoolId, (current) => {
+      const balance = num(current?.balance);
+      if (balance < amount) {
+        const error = new Error("This team has no credits. Ask an admin to add credits, or continue in your personal chat.");
+        error.httpStatus = 402;
+        error.safeError = "team_insufficient_credits";
+        throw error;
+      }
+      remaining = Number((balance - amount).toFixed(7));
+      return {
+        ...(current || {}),
+        balance: remaining,
+        lifetimeSpent: num(current?.lifetimeSpent) + amount,
+        updatedAt: ts,
+      };
+    });
+    return remaining;
+  } catch (error) {
+    await firestoreUpdateAtomic(usagePath, (current) => ({
+      ...(current || {}),
+      credits: Math.max(0, Number((num(current?.credits) - amount).toFixed(7))),
+      tokens: num(current?.tokens),
+      updatedAt: now(),
+    })).catch(() => false);
+    throw error;
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Create                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -871,19 +929,16 @@ export async function teamsAskAi(user, body, env) {
   }
 
   if (creditsCharged > 0) {
-    const pool = await firestoreGet("teamCreditPools/" + team.creditPoolId);
-    const current = num(pool?.balance);
-    const next = Math.max(0, current - creditsCharged);
-    await firestoreSet(
-      "teamCreditPools/" + team.creditPoolId,
-      {
-        ...(pool || {}),
-        balance: next,
-        lifetimeSpent: num(pool?.lifetimeSpent) + creditsCharged,
-        updatedAt: now(),
-      },
-      true,
-    );
+    try {
+      await debitTeamPoolForMember(team, member, user.uid, creditsCharged);
+    } catch (error) {
+      // Do not return an uncharged AI answer when the member cap or team
+      // balance prevents settlement. The provider cost is absorbed safely.
+      creditsCharged = 0;
+      replyText = String(error?.message || "").includes("monthly team spending limit")
+        ? "Your monthly team spending limit has been reached. Ask a team admin to adjust it."
+        : "The team credit balance is not sufficient for this AI response. Ask an admin to add credits.";
+    }
   }
 
   const aiId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
