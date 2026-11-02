@@ -32,3 +32,252 @@
      var speechBaseMessage by remember { mutableStateOf("") }
      var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
      var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
+@@ -2863,7 +2866,7 @@
+     LaunchedEffect(dictationRecording, isListening) {
+         if (dictationRecording || isListening) {
+             while (dictationRecording || isListening) {
+-                val raw = dictationLevel.coerceIn(0f, 1f)
++                val raw = (if (dictationRecording) dictationLevel else speechLevel).coerceIn(0f, 1f)
+                 val db = if (raw > 0.00001f) 20f * kotlin.math.log10(raw) else -100f
+                 val gained = ((db + 55f) / 55f).coerceIn(0f, 1f)
+                 if (dictationWaveform.size >= 24) dictationWaveform.removeAt(0)
+@@ -2901,14 +2904,12 @@
+     }
+     val fallbackSpeechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+         isListening = false
+-        dictationLevel = 0f
++        speechLevel = 0f
+         if (result.resultCode == android.app.Activity.RESULT_OK) {
+             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+             if (spoken.isNotBlank()) {
+                 message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                 micError = null
+-                dictationError = null
+-                dictationNeedsCredits = false
+             } else {
+                 micError = "No speech was detected. Try again."
+             }
+@@ -2923,11 +2924,11 @@
+         val recognizer = speechRecognizer
+         if (recognizer != null) {
+             recognizer.setRecognitionListener(object : RecognitionListener {
+-                override fun onReadyForSpeech(params: Bundle?) { isListening = true; dictationLevel = 0f; micError = null }
++                override fun onReadyForSpeech(params: Bundle?) { isListening = true; speechLevel = 0f; micError = null }
+                 override fun onBeginningOfSpeech() { isListening = true }
+-                override fun onRmsChanged(rmsdB: Float) { dictationLevel = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f) }
++                override fun onRmsChanged(rmsdB: Float) { speechLevel = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f) }
+                 override fun onBufferReceived(buffer: ByteArray?) = Unit
+-                override fun onEndOfSpeech() { isListening = false; dictationLevel = 0f }
++                override fun onEndOfSpeech() { isListening = false; speechLevel = 0f }
+                 override fun onError(errorCode: Int) {
+                     isListening = false
+                     micError = when (errorCode) {
+@@ -2939,13 +2940,11 @@
+                 }
+                 override fun onResults(results: Bundle?) {
+                     isListening = false
+-                    dictationLevel = 0f
++                    speechLevel = 0f
+                     val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                     if (spoken.isNotBlank()) {
+                         message = listOf(speechBaseMessage.trim(), spoken.trim()).filter { it.isNotBlank() }.joinToString(" ")
+                         micError = null
+-                        dictationError = null
+-                        dictationNeedsCredits = false
+                     } else micError = "No speech was detected. Try again."
+                 }
+                 override fun onPartialResults(partialResults: Bundle?) {
+@@ -2973,112 +2972,108 @@
+                 .onFailure { isListening = false; micError = "Voice input could not start. Please try again." }
+         } else {
+             isListening = false
+-            dictationLevel = 0f
++            speechLevel = 0f
+             micError = "On-device speech recognition is unavailable. Use BQ voice dictation or enable a speech recognition service in device settings."
+         }
+     }
+     val stopDictationAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+     val startDictationRecording: () -> Unit = {
+         micError = null
+-        dictationError = null
+-        dictationNeedsCredits = false
+         dictationReadyAudio = null
+-        dictationTranscriptReady = false
+         speechBaseMessage = message
++        val sessionId = dictationNextSessionId
++        dictationNextSessionId += 1
+         try {
+             val recorder = DictationRecorder(context)
+             dictationRecorder = recorder
+-            dictationSeconds = 0
+-            dictationStartedAt = System.currentTimeMillis()
+-            dictationRecording = true
++            dictationState = DictationState.start(sessionId = sessionId)
+             recorder.start(
+-                onLevel = { dictationLevel = it },
++                onLevel = { level ->
++                    dictationState = DictationState.level(dictationState, level)
++                    for (i in 0 until dictationWaveform.size - 1) dictationWaveform[i] = dictationWaveform[i + 1]
++                    dictationWaveform[dictationWaveform.lastIndex] = level
++                },
+                 onLimitReached = { stopDictationAction.value?.invoke() }
+             )
+         } catch (failure: Throwable) {
+-            dictationRecording = false
+-            dictationLevel = 0f
+             dictationRecorder = null
+-            micError = "Phone recording could not start. Please retry or choose Use phone speech."
+-            dictationError = micError
++            dictationState = DictationState.fail(sessionId, "Phone recording could not start. Please retry or choose Use phone speech.")
++            micError = dictationState.errorMessage
+         }
+     }
+
+     fun stopDictation() {
+-        if (!dictationRecording) return
+-        dictationRecording = false
+-        dictationLevel = 0f
++        if (!dictationState.isRecording) return
++        val sessionId = (dictationState as DictationState.Recording).sessionId
+         val recorder = dictationRecorder
+         dictationRecorder = null
++        dictationState = DictationState.Idle
+         scope.launch {
+             try {
+                 val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
+                 if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
+                 dictationReadyAudio = wav
+-                dictationError = null
+             } catch (failure: Throwable) {
+                 dictationReadyAudio = null
+-                dictationError = safeUserFacingIssue(failure, "The recording could not be prepared. Please retry.")
++                dictationState = DictationState.fail(
++                    sessionId,
++                    failure.message?.takeIf { it.isNotBlank() } ?: "Recording could not be saved. Please retry."
++                )
+             }
+         }
+     }
+
+     fun transcribeDictation() {
+         val wav = dictationReadyAudio ?: return
+-        dictationTranscribing = true
+-        dictationError = null
+-        val duration = dictationSeconds.coerceIn(1, 25)
+-        val session = ++dictationSessionId
++        if (dictationState.isTranscribing) return
++        val session = (dictationNextSessionId - 1).coerceAtLeast(1)
++        dictationState = DictationState.beginTranscribe(session)
++        val duration = (wav.size - 44).coerceAtLeast(0) / (DictationRecorder.SAMPLE_RATE * 2)
+         dictationTranscriptionJob?.cancel()
+         dictationTranscriptionJob = scope.launch {
+             try {
+                 val transcript = withTimeout(25_000L) {
+                     WorkspaceApiClient().transcribeAudioWav(wav, duration)
+                 }
+-                if (session != dictationSessionId) return@launch
+-                message = listOf(speechBaseMessage.trim(), transcript.trim())
++                if ((dictationState as? DictationState.Transcribing)?.sessionId != session) return@launch
++                val combined = listOf(speechBaseMessage.trim(), transcript.trim())
+                     .filter { it.isNotBlank() }.joinToString(" ")
++                message = combined
+                 dictationReadyAudio = null
+-                dictationTranscriptReady = true
++                dictationState = DictationState.ready(session, combined)
+                 micError = null
+-                dictationError = null
+-                dictationNeedsCredits = false
+             } catch (failure: Throwable) {
+-                if (session != dictationSessionId) return@launch
++                if ((dictationState as? DictationState.Transcribing)?.sessionId != session) return@launch
+                 val reason = failure.message.orEmpty()
+-                dictationError = if (failure is TimeoutCancellationException)
++                val msg = if (failure is TimeoutCancellationException)
+                     "Transcription took too long (25 seconds). Retry or discard the recording."
+                 else safeUserFacingIssue(failure, "Transcription could not be completed. Please retry.")
+-                dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) ||
+-                    reason.contains("credit balance", ignoreCase = true)
+-                if (session == dictationSessionId) dictationTranscribing = false
++                dictationState = DictationState.fail(
++                    session,
++                    msg,
++                    needsCredits = reason.contains("need credits", ignoreCase = true) ||
++                        reason.contains("credit balance", ignoreCase = true)
++                )
+             }
+         }
+     }
+     stopDictationAction.value = { stopDictation() }
+
+     fun cancelDictation() {
+-        dictationSessionId += 1
++        dictationNextSessionId += 1
+         dictationTranscriptionJob?.cancel()
+         dictationTranscriptionJob = null
+-        dictationRecording = false
+-        dictationTranscribing = false
+-        dictationLevel = 0f
+-        dictationSeconds = 0
+-        dictationError = null
+-        dictationNeedsCredits = false
+         dictationReadyAudio = null
+-        dictationTranscriptReady = false
++        dictationState = DictationState.cancel()
+         val recorder = dictationRecorder
+         dictationRecorder = null
+         scope.launch(Dispatchers.IO) { runCatching { recorder?.cancel() } }
+     }
+
+-    LaunchedEffect(dictationRecording) {
+-        while (dictationRecording) {
++    LaunchedEffect(dictationState.isRecording) {
++        while (dictationState.isRecording) {
+             delay(250)
+-            dictationSeconds = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(0, 25)
++            dictationState = DictationState.tick(dictationState)
+         }
+     }
+     DisposableEffect(Unit) {
+@@ -3090,14 +3085,13 @@
+     val dictationBackgroundCallback = remember(context) {
+         object : android.content.ComponentCallbacks2 {
+             override fun onTrimMemory(level: Int) {
+-                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && (dictationRecording || dictationTranscribing)) {
+-                    dictationSessionId += 1
++                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN &&
++                    (dictationState.isRecording || dictationState.isTranscribing || dictationReadyAudio != null)) {
+                     dictationTranscriptionJob?.cancel()
+                     dictationTranscriptionJob = null
+                     val recorder = dictationRecorder
+-                    dictationRecording = false
+-                    dictationTranscribing = false
+-                    dictationLevel = 0f
++                    dictationReadyAudio = null
++                    dictationState = DictationState.cancel()
+                     dictationRecorder = null
+                     if (recorder != null) Thread { runCatching { recorder.cancel() } }.start()
+                 }
+@@ -4272,7 +4266,7 @@
+                                         if (dictationRecording) cancelDictation() else {
+                                             speechRecognizer?.cancel()
+                                             isListening = false
+-                                            dictationLevel = 0f
++                                            speechLevel = 0f
+                                         }
+                                     }, modifier = Modifier.size(40.dp)) {
+                                         Icon(Icons.Default.Close, contentDescription = "Cancel dictation", tint = MaterialTheme.colorScheme.primary)
+@@ -4300,12 +4294,12 @@
+                                 Text("Dictation ready", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
+                                 TextButton(onClick = {
+                                     message = speechBaseMessage
+-                                    dictationTranscriptReady = false
++                                    dictationState = DictationState.cancel()
+                                 }) { Text("Cancel") }
+                                 Button(
+                                     onClick = {
+                                         val transcriptMessage = message.trim()
+-                                        dictationTranscriptReady = false
++                                        dictationState = DictationState.cancel()
+                                         if (transcriptMessage.isNotBlank()) sendAuthenticatedMessage(transcriptMessage)
+                                     },
+                                     enabled = message.isNotBlank() && !busy
