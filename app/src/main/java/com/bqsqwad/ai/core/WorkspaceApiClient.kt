@@ -285,7 +285,7 @@ class WorkspaceApiClient {
             doOutput = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Content-Type", "audio/wav")
-            setRequestProperty("X-BQ-Audio-Duration-Seconds", durationSeconds.coerceIn(1, 120).toString())
+            setRequestProperty("X-BQ-Audio-Duration-Seconds", durationSeconds.coerceIn(1, 25).toString())
         }
         val statusAndBody = try {
             connection.outputStream.use { it.write(wavBytes) }
