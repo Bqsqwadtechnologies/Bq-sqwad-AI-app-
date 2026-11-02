@@ -19,6 +19,7 @@ import {
   teamsListProjects,
   teamsListMessages,
   teamsPostMessage,
+  teamsUpdateSettings,
   teamsAskAi,
   teamsSeedWhite,
 } from "./teams-sqwad-native.js";
@@ -75,7 +76,11 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
     }
     if (path === "/native/teams/post-message" && method === "POST") {
       const u = await verifyFirebaseUser(request);
-      return json(await teamsPostMessage(u, await body()));
+      return json(await teamsPostMessage(u, await body(), deps));
+    }
+    if (path === "/native/teams/settings" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsUpdateSettings(u, await body()));
     }
     if (path === "/native/teams/ask-ai" && method === "POST") {
       const u = await verifyFirebaseUser(request);
