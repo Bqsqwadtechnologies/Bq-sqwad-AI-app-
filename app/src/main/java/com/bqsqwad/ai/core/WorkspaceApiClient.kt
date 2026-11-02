@@ -782,6 +782,12 @@ class WorkspaceApiClient {
         request("/organization/production/event", payload=payload)
 
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
+    suspend fun listSecretChats(): JSONObject = request("/secret-chats", "GET")
+    suspend fun getSecretChat(chatId: String): JSONObject =
+        request("/secret-chats?chatId=" + java.net.URLEncoder.encode(chatId, "UTF-8"), "GET")
+    suspend fun saveSecretChat(payload: JSONObject): JSONObject = request("/secret-chats", "POST", payload)
+    suspend fun deleteSecretChat(chatId: String): JSONObject =
+        request("/secret-chats?chatId=" + java.net.URLEncoder.encode(chatId, "UTF-8"), "DELETE")
     suspend fun businessStorage(workspaceId: String? = null): JSONObject = request("/business/storage" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
 
     suspend fun createBusinessWorkspace(name:String, planId:String="bizstarter"): JSONObject =
