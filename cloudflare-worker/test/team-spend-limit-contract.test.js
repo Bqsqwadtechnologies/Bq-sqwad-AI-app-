@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const teams = readFileSync(join(root, "src/teams-sqwad-native.js"), "utf8");
+const routes = readFileSync(join(root, "src/teams-routes-handler.js"), "utf8");
+const android = readFileSync(join(root, "../app/src/main/java/com/bqsqwad/ai/ui/teams/TeamWorkspaceScreen.kt"), "utf8");
 
 test("native team AI settlement reserves monthly member usage before pool debit", () => {
   assert.match(teams, /async function debitTeamPoolForMember\(/);
@@ -18,4 +20,13 @@ test("native team AI settlement rolls back member usage if pool debit fails", ()
   assert.match(teams, /credits: Math\.max\(0, Number\(\(num\(current\?\.credits\) - amount\)\.toFixed\(7\)\)\)/);
   assert.match(teams, /debitTeamPoolForMember\(team, member, user\.uid, creditsCharged\)/);
   assert.match(teams, /team_member_spend_limit_reached/);
+});
+
+test("team spend-limit administration is mounted and available in Android workspace", () => {
+  assert.match(routes, /\/native\/teams\/member\/spend-limit/);
+  assert.match(routes, /teamsSetMemberSpendLimit/);
+  assert.match(teams, /target\.role === "owner" && user\.uid !== targetUid/);
+  assert.match(teams, /spendLimitUpdatedBy: user\.uid/);
+  assert.match(android, /\/native\/teams\/member\/spend-limit/);
+  assert.match(android, /Monthly AI spending limit/);
 });
