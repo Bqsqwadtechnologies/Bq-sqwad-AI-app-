@@ -463,10 +463,15 @@ class WorkspaceApiClient {
     suspend fun registerNotificationToken(token:String):JSONObject = request("/notifications/token", payload=JSONObject().put("token", token).put("platform", "android"))
     suspend fun unregisterNotificationToken(token:String):JSONObject = request("/notifications/token", "DELETE", JSONObject().put("token", token))
     suspend fun notificationPreferences():JSONObject = request("/notifications/preferences", "GET")
-    suspend fun updateNotificationPreferences(inAppEnabled:Boolean, pushEnabled:Boolean):JSONObject =
+    suspend fun updateNotificationPreferences(
+        inAppEnabled:Boolean,
+        pushEnabled:Boolean,
+        mutedKinds:List<String> = emptyList(),
+    ):JSONObject =
         request("/notifications/preferences", payload=JSONObject()
             .put("inAppEnabled", inAppEnabled)
-            .put("pushEnabled", pushEnabled))
+            .put("pushEnabled", pushEnabled)
+            .put("mutedKinds", JSONArray(mutedKinds)))
     suspend fun myTasks():JSONObject = request("/tasks/my", "GET")
     suspend fun updateMyTaskStatus(taskId:String, status:String):JSONObject =
         request("/tasks/my/status", "PATCH", JSONObject().put("taskId", taskId).put("status", status))
