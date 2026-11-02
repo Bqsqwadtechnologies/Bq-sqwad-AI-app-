@@ -58,6 +58,7 @@ async function getTeam(teamId) {
     memberCount: num(doc.memberCount),
     projectCount: num(doc.projectCount),
     description: str(doc.description),
+    memberMessagePriceCredits: num(doc.memberMessagePriceCredits),
     createdAt: str(doc.createdAt),
     updatedAt: str(doc.updatedAt),
   };
