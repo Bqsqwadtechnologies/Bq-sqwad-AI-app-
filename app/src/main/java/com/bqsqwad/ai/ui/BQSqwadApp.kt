@@ -2855,7 +2855,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             }
         }
     }
-    var stopDictationAction: (() -> Unit)? = null
+    val stopDictationAction = remember { mutableStateOf<(() -> Unit)?>(null) }
     val startDictationRecording: () -> Unit = {
         micError = null
         dictationError = null
@@ -2869,14 +2869,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             dictationRecording = true
             recorder.start(
                 onLevel = { dictationLevel = it },
-                onLimitReached = { stopDictationAction?.invoke() }
+                onLimitReached = { stopDictationAction.value?.invoke() }
             )
         } catch (failure: Throwable) {
             dictationRecording = false
             dictationLevel = 0f
             dictationRecorder = null
-            micError = "Phone recording could not start. Switching to the installed speech service."
-            startSpeechRecognition()
+            micError = "Phone recording could not start. Please retry or choose Use phone speech."
         }
     }
 
@@ -2892,7 +2891,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             try {
                 val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
                 if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
-                val transcript = WorkspaceApiClient().transcribeAudioWav(wav, duration)
+                val transcript = withTimeout(25_000L) { WorkspaceApiClient().transcribeAudioWav(wav, duration) }
                 message = listOf(speechBaseMessage.trim(), transcript.trim()).filter { it.isNotBlank() }.joinToString(" ")
                 micError = null
                 dictationError = null
@@ -2901,17 +2900,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 val reason = failure.message.orEmpty()
                 dictationError = safeUserFacingIssue(failure, "Transcription could not be completed. Please try again.")
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
-                if (!dictationNeedsCredits) {
-                    dictationError = null
-                    micError = "Server transcription failed; trying your phone's speech service."
-                    startSpeechRecognition()
-                }
+
             } finally {
                 dictationTranscribing = false
             }
         }
     }
-    stopDictationAction = { stopDictation() }
+    stopDictationAction.value = { stopDictation() }
 
     fun cancelDictation() {
         dictationRecording = false
@@ -3933,7 +3928,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 BqSqwadLoadingIndicator(Modifier.size(22.dp))
-                                Text("Transcribing…", color = MaterialTheme.colorScheme.primary)
+                                Text("Transcribing…", color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { cancelDictation() }) { Text("Cancel") }
                             }
                         }
                         dictationError?.let { dictationMessage ->
@@ -3941,6 +3937,8 @@ val composerShape = RoundedCornerShape(26.dp)
                                 Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
+                                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
+                                    TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech") }
                                     if (dictationNeedsCredits) {
                                         Button(onClick = { openCredits() }) { Text("Buy credits") }
                                     }
