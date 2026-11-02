@@ -22,6 +22,13 @@
 - Existing contract coverage in `cloudflare-worker/test/play-rtdn-contract.test.js` asserts vault append is server-only and redacts secrets (tests not run in this session).
 - Status: DONE in source, NOT verified by rules deploy, live client-token deny proof, or production Business AI traffic. No new folders or test files were added.
 
+## Phase 0.4 model rule audit — 2026-11-02 (source review only)
+- Worker `providers.js`: `DEFAULT_MODELS.openai = "gpt-6-luna"`; allowlist is only `gpt-6-luna` and `gpt-5.6-luna`; unknown OpenAI text models fall back to `gpt-6-luna`.
+- Worker `index.js` `applyChatModelKey`: default/`bq-7-star` → `gpt-6-luna`; `bq-codron` → `gpt-5.6-luna` only.
+- Worker `model-registry-native.js`: text-chat/device-commands safe set is `gpt-6-luna` only.
+- Worker `ai-model-catalog.ts` seed: BQ-7-Star → `gpt-6-luna`; BQ-Codron → `gpt-5.6-luna`.
+- No production Worker default or capability route uses `gpt-5.6-luna` except explicit Codron selection.
+- Status: DONE in source, NOT verified by Worker tests or live provider calls. No code change required.
+
 ## Prior long-form audit
 - The previous full `docs/COMPLETION_AUDIT.md` history (Phases 1–7, Business Inbox paging, monthly feedback, Teams, etc.) is preserved in git at commit `635e28f32ccd98beb6c63826c2249b2312019e7d` and parent history on `main`.
-- This file records the Phase 0.2 / 0.3 source verification only so the status is visible on HEAD without rewriting production code.
