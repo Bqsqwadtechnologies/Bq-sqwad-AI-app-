@@ -2615,8 +2615,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
     var livePlanCount by remember { mutableIntStateOf(0) }
+    var planRefreshNonce by remember { mutableIntStateOf(0) }
     val signedInUid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
-    LaunchedEffect(signedInUid) {
+    val planLifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
+    DisposableEffect(planLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) planRefreshNonce++
+        }
+        planLifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { planLifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
+    LaunchedEffect(signedInUid, planRefreshNonce) {
         if (signedInUid.isNotBlank()) {
             runCatching { EntitlementsClient().fetchEntitlements() }
                 .onSuccess { payload -> livePlanCount = payload.optJSONArray("items")?.length() ?: 0 }
