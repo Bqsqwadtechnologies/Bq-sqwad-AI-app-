@@ -1473,22 +1473,20 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                             label = { Text(if (firebaseUser == null) "Teams · 🔒 Sign in" else "Teams") },
                             selected = teamsOpen,
                             onClick = {
-                                shellScope.launch {
-                                    drawerState.close()
-                                    if (firebaseUser == null) {
-                                        signInRequired = true
-                                        signUpRequired = false
-                                    } else {
-                                        teamsOpen = true
-                                        connectorsOpen = false
-                                        settings = false
-                                        history = false
-                                        plans = false
-                                        workspace = null
-                                        featureHub = false
-                                        fileBoxOpen = false
-                                    }
+                                if (firebaseUser == null) {
+                                    signInRequired = true
+                                    signUpRequired = false
+                                } else {
+                                    teamsOpen = true
+                                    connectorsOpen = false
+                                    settings = false
+                                    history = false
+                                    plans = false
+                                    workspace = null
+                                    featureHub = false
+                                    fileBoxOpen = false
                                 }
+                                shellScope.launch { drawerState.close() }
                             },
                             icon = { Icon(Icons.Default.Groups, null) }
                         )
