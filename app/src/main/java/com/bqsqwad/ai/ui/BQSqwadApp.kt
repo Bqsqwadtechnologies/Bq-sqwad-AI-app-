@@ -1556,7 +1556,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     consentRequired = false
                 }
             }
-        } else if (onboardingRequired && firebaseUser != null && !firebaseUser.isAnonymous) {
+        } else if (onboardingRequired && firebaseUser?.isAnonymous == false) {
             Column(Modifier.fillMaxSize()) {
                 onboardingError?.let { Text(it, modifier = Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.error) }
                 if (onboardingSaving) {
