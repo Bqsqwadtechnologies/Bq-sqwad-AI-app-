@@ -684,7 +684,7 @@ export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = fa
   };
 }
 
-const ADMIN_SEED_DEFAULTS = { image_generation: 1.5, image_edit: 1.5, chat_background_upload: 2 };
+const ADMIN_SEED_DEFAULTS = { image_generation: 1.5, image_edit: 1.5, chat_background_upload: 2, team_member_message: 0 };
 let adminPricingSeeded = false;
 let adminPricingSeedAttemptedAt = 0;
 
@@ -2618,7 +2618,7 @@ export default {
         const teamsResp = await handleTeamsSqwadRoutes(url, request, env, {
           verifyFirebaseUser,
           json,
-          price: async () => featurePrice("team_member_message"),
+          price: async () => { await seedAdminPricingDefaults(); return featurePrice("team_member_message"); },
           reserve: async (user, amount) => chargeCredits(user.uid, amount, "team_member_message", user, { allowFractional: true }),
           commit: async (uid, reservationId) => commitCredits(uid, reservationId, "internal"),
           reverse: async (uid, reservationId) => reverseCredits(uid, reservationId),
