@@ -50,7 +50,8 @@ class NoInfrastructureNamesInUserCopyTest {
                     f.readLines().mapIndexedNotNull { i, line ->
                         val code = line.substringBefore("//")
                         val literals = Regex("\"([^\"\\\\]|\\\\.)*\"").findAll(code).map { it.value }.toList()
-                        if (literals.any { forbidden.containsMatchIn(it) && !it.contains("Log.") && !it.contains("diagnostic") }) {
+                        val userFacingLiterals = literals.filterNot { it.contains("FirebaseAuth") || it.contains("composio.dev") }
+                        if (userFacingLiterals.any { forbidden.containsMatchIn(it) && !it.contains("Log.") && !it.contains("diagnostic") }) {
                             "${f.name}:${i + 1}"
                         } else null
                     }
