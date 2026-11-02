@@ -130,3 +130,5 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 
 - **DONE — source corrected after first rebuild:** Removed the remaining `Workspace.ADMIN` enum value, `AdminOnlyWorkspace`, all `AdminControlCenter` call sites, the Settings admin-dashboard callback, and the app's admin-access polling/diagnostic affordances. Cached admin/test-mode flags are ignored. The app retains non-UI configuration readers; all administrative controls remain website-only.
 - **NOT VERIFIED:** The first post-deletion rebuild exposed three remaining `AdminControlCenter` references; those references and the Android admin workspace entry points are now removed. A fresh build/test run is pending.
+
+- **Latest verification status:** The admin-workspace removal exposed a malformed sign-in dialog scope in `BQSqwadApp.kt`; the missing `Column` closure has been restored. Existing GitHub Actions run `41497742615` is currently queued/running the fresh Android unit-test and debug-build check. Do not mark Android verified until this run completes successfully.
