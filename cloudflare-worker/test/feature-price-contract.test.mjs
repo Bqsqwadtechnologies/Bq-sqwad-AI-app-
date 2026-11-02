@@ -12,7 +12,7 @@ test("fixed-price features fail closed when the admin price is missing", () => {
 });
 
 test("media price seeds are admin documents and preserve later administrator edits", () => {
-  assert.match(source, /const ADMIN_SEED_DEFAULTS = \{ image_generation: 1\.5, image_edit: 1\.5, chat_background_upload: 2 \}/);
+  assert.match(source, /const ADMIN_SEED_DEFAULTS = \{ image_generation: 1\.5, image_edit: 1\.5, chat_background_upload: 2, team_member_message: 0 \}/);
   assert.match(source, /if \(!\(await firestoreGet\(path\)\.catch\(\(\) => null\)\)\) \{[\s\S]*?firestoreSet\(path, \{ name, creditCost: price, seeded: true/);
   assert.match(source, /await seedAdminPricingDefaults\(\)/);
 });
