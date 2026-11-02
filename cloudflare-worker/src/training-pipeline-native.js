@@ -60,7 +60,7 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
   const consentRows = await firestoreQuery("userConsents", { limit: 200 }).catch(() => []);
   const consentedUids = new Set(
     consentRows
-      .filter(r => hasAdultTrainingConsent(r) && String(r.version || "") === ACTIVE_CONSENT_VERSION)
+      .filter(r => hasAdultTrainingConsent(r) && String(r.policyVersion || r.version || "") === ACTIVE_CONSENT_VERSION)
       .map(r => String(r.uid || String(r.__name || "").split("/").pop() || ""))
       .filter(Boolean)
   );
