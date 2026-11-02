@@ -71,8 +71,12 @@ fun SecretChatsDialog(open: Boolean, chatId: String?, transcript: String, title:
     DisposableEffect(open) {
         val activity = context as? android.app.Activity
         val flag = WindowManager.LayoutParams.FLAG_SECURE
-        activity?.window?.setFlags(flag, flag)
-        onDispose { activity?.window?.clearFlags(flag) }
+        val wasAlreadySecure = activity?.window?.attributes?.flags?.and(flag) != 0
+        activity?.window?.addFlags(flag)
+        onDispose {
+            // Do not undo another active privacy mode (for example Private Chat).
+            if (!wasAlreadySecure) activity?.window?.clearFlags(flag)
+        }
     }
 
     Dialog(onDismissRequest = { if (!busy) onClose() }) {
