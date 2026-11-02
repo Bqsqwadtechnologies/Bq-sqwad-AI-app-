@@ -2,6 +2,7 @@
 
 package com.bqsqwad.ai.ui
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,11 +11,14 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.HistoryApiClient
 import com.bqsqwad.ai.core.HistoryItem
 import com.bqsqwad.ai.core.HistoryMessage
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 @Composable
 fun HistoryScreen(
@@ -22,6 +26,7 @@ fun HistoryScreen(
     onContinue: (HistoryItem, List<HistoryMessage>) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var items by remember { mutableStateOf<List<HistoryItem>>(emptyList()) }
     var historyLimit by remember { mutableStateOf(25) }
     var selected by remember { mutableStateOf<Pair<HistoryItem, List<HistoryMessage>>?>(null) }
@@ -134,6 +139,53 @@ fun HistoryScreen(
     }
 
     selected?.let { (item, messages) ->
+        fun shareExport(format: String) {
+            val content = when (format) {
+                "json" -> JSONObject()
+                    .put("title", item.title)
+                    .put("exportedAt", System.currentTimeMillis())
+                    .put("messages", JSONArray().apply {
+                        messages.forEach { message ->
+                            put(JSONObject()
+                                .put("role", if (message.mine) "user" else "assistant")
+                                .put("text", message.text)
+                                .put("attachments", JSONArray(message.attachmentNames))
+                                .put("imageUrl", message.imageUrl ?: JSONObject.NULL))
+                        }
+                    }).toString(2)
+                "csv" -> buildString {
+                    appendLine("role,text,attachments,image_url")
+                    messages.forEach { message ->
+                        fun csv(value: String) = "\\"\\" + value.replace("\\"\\"","\\"\\"\\"\\"").replace("\\r"," ").replace("\\n"," ") + "\\"\\""
+                        appendLine(listOf(
+                            if (message.mine) "user" else "assistant",
+                            csv(message.text),
+                            csv(message.attachmentNames.joinToString(" | ")),
+                            csv(message.imageUrl.orEmpty())
+                        ).joinToString(","))
+                    }
+                }
+                else -> buildString {
+                    appendLine(item.title)
+                    appendLine("Exported: " + java.time.Instant.now().toString())
+                    appendLine()
+                    messages.forEach { message ->
+                        appendLine((if (message.mine) "You" else "BQ Sqwad AI") + ":")
+                        appendLine(message.text)
+                        if (message.attachmentNames.isNotEmpty()) appendLine("Attachments: " + message.attachmentNames.joinToString(", "))
+                        message.imageUrl?.takeIf { it.isNotBlank() }?.let { appendLine("Image: " + it) }
+                        appendLine()
+                    }
+                }
+            }
+            val mime = if (format == "json") "application/json" else "text/plain"
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_SUBJECT, item.title + " — BQ Sqwad AI conversation")
+                putExtra(Intent.EXTRA_TEXT, content)
+            }
+            context.startActivity(Intent.createChooser(send, "Export conversation"))
+        }
         AlertDialog(
             onDismissRequest = { selected = null },
             title = { Text(item.title) },
@@ -155,10 +207,15 @@ fun HistoryScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { shareExport("txt") }) { Text("TXT") }
+                    TextButton(onClick = { shareExport("json") }) { Text("JSON") }
+                    TextButton(onClick = { shareExport("csv") }) { Text("CSV") }
+                    TextButton(onClick = {
                     onContinue(item, messages)
                     selected = null
-                }) { Text("Continue in Chat") }
+                    }) { Text("Continue in Chat") }
+                }
             },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
