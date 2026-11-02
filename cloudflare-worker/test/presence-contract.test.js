@@ -6,7 +6,6 @@ import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const presenceUsage = readFileSync(join(root, "src/presence-usage-native.js"), "utf8");
-const presenceRoute = readFileSync(join(root, "src/presence-route.js"), "utf8");
 const indexJs = readFileSync(join(root, "src/index.js"), "utf8");
 
 test("presence helper writes presence/{uid} shape", () => {
@@ -15,9 +14,13 @@ test("presence helper writes presence/{uid} shape", () => {
   assert.match(presenceUsage, /lastSeen/);
 });
 
-test("presence route rejects unsigned callers", () => {
-  assert.match(presenceRoute, /Sign in required/);
-  assert.match(presenceRoute, /handlePresencePing/);
+test("inline presence route authenticates callers before writing", () => {
+  const start = indexJs.indexOf('url.pathname === "/presence/ping"');
+  const end = indexJs.indexOf("\n      }", start);
+  assert.ok(start >= 0 && end > start, "presence route must exist in the main router");
+  const route = indexJs.slice(start, end);
+  assert.match(route, /verifyFirebaseUser\(request\)/);
+  assert.match(route, /writePresence\(/);
 });
 
 test("index routes POST /presence/ping", () => {
