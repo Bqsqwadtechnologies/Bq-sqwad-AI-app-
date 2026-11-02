@@ -146,3 +146,14 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Gemini fallback is not yet active: the current provider helpers attempt only the primary provider; the separate `orchestrator-native.js` helper is not wired into `index.js`. Implement fallback eligibility, admin cost rules, and one-settlement behavior before enabling it.
 - `usageDaily` sharding helper exists; complete instrumentation of every feature settlement path is still outstanding.
 - Free-credit notification delivery, encrypted vault persistence/hash-chain integration, teams v2 pooled billing, organization parity, and full client notification inbox behavior require runtime verification before being called complete.
+
+
+
+## Shared notifications and My Tasks
+- `notificationPreferences/{uid}` is shared across website and Android. Worker `GET/PUT /notifications/preferences` reads/writes account-level in-app and push toggles plus muted categories. Android Settings uses a combined master toggle for both delivery channels; website currently exposes the separate controls.
+- Worker `GET /tasks/my` returns only records assigned to the verified UID; `PATCH /tasks/my/status` checks assignment and restricts status to `open`, `in_progress`, `blocked`, or `done`. Android My Tasks is connected to these endpoints.
+
+## Training privacy
+- Training candidates require explicit consent and a server-owned adult-only gate. Parental consent alone cannot qualify a minor.
+- Business, organization, team, private/secret conversations and any media/attachment-bearing chat are excluded; identifiers are redacted before candidate review.
+- Training remains a prepare/review/export workflow only. It does not fine-tune or deploy a model.
