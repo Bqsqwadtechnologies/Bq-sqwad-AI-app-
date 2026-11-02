@@ -2546,6 +2546,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var dictationSeconds by remember { mutableIntStateOf(0) }
     var dictationStartedAt by remember { mutableLongStateOf(0L) }
     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
+    var dictationTranscriptionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var dictationSessionId by remember { mutableIntStateOf(0) }
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
@@ -2887,28 +2889,34 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         val recorder = dictationRecorder
         dictationRecorder = null
         val duration = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(1, 120)
-        scope.launch {
+        val session = ++dictationSessionId
+        dictationTranscriptionJob?.cancel()
+        dictationTranscriptionJob = scope.launch {
             try {
                 val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
                 if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
                 val transcript = withTimeout(25_000L) { WorkspaceApiClient().transcribeAudioWav(wav, duration) }
+                if (session != dictationSessionId) return@launch
                 message = listOf(speechBaseMessage.trim(), transcript.trim()).filter { it.isNotBlank() }.joinToString(" ")
                 micError = null
                 dictationError = null
                 dictationNeedsCredits = false
             } catch (failure: Throwable) {
+                if (session != dictationSessionId) return@launch
                 val reason = failure.message.orEmpty()
-                dictationError = safeUserFacingIssue(failure, "Transcription could not be completed. Please try again.")
+                dictationError = if (failure is TimeoutCancellationException) "Transcription took too long (25 seconds). Retry or discard the recording." else safeUserFacingIssue(failure, "Transcription could not be completed. Please retry.")
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) || reason.contains("credit balance", ignoreCase = true)
-
             } finally {
-                dictationTranscribing = false
+                if (session == dictationSessionId) dictationTranscribing = false
             }
         }
     }
     stopDictationAction.value = { stopDictation() }
 
     fun cancelDictation() {
+        dictationSessionId += 1
+        dictationTranscriptionJob?.cancel()
+        dictationTranscriptionJob = null
         dictationRecording = false
         dictationTranscribing = false
         dictationLevel = 0f
@@ -2933,7 +2941,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     val dictationBackgroundCallback = remember(context) {
         object : android.content.ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && dictationRecording) {
+                if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && (dictationRecording || dictationTranscribing)) {
+                    dictationSessionId += 1
+                    dictationTranscriptionJob?.cancel()
+                    dictationTranscriptionJob = null
                     val recorder = dictationRecorder
                     dictationRecording = false
                     dictationTranscribing = false
