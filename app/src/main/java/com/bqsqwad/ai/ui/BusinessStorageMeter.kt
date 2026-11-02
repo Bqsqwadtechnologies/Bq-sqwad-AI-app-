@@ -31,7 +31,7 @@ fun BusinessStorageMeter(
             modifier = Modifier.padding(top = 4.dp)
         )
         when {
-            showRenewalOnly -> Text("Renew your plan to restore full service.", color = MaterialTheme.colorScheme.error)
+            showRenewalOnly -> Text("Renew your plan to restore full service.", color = MaterialTheme.colorScheme.tertiary)
             showAddon -> Text("You are near your storage limit. A storage add-on is available.")
         }
     }
@@ -56,8 +56,8 @@ fun BusinessPlanExpiryBanner(
         label,
         style = MaterialTheme.typography.bodyMedium,
         color = when {
-            remaining <= 12 * 3_600_000 -> MaterialTheme.colorScheme.error
             remaining <= 3 * 86_400_000 -> MaterialTheme.colorScheme.tertiary
+            remaining <= 12 * 3_600_000 -> MaterialTheme.colorScheme.tertiary
             else -> MaterialTheme.colorScheme.onSurface
         },
         modifier = modifier.padding(12.dp)
