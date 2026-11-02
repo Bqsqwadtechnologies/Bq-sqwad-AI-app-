@@ -929,6 +929,7 @@ export async function teamsAskAi(user, body, env) {
   let replyText = "";
   let inputTokens = 0;
   let outputTokens = 0;
+  let providerSucceeded = false;
   try {
     const { runProvider } = await import("./providers.js");
     const result = await runProvider(env, {
@@ -950,22 +951,29 @@ export async function teamsAskAi(user, body, env) {
     replyText = str(result?.text || result?.content || "");
     inputTokens = num(result?.usage?.inputTokens || result?.usage?.prompt_tokens);
     outputTokens = num(result?.usage?.outputTokens || result?.usage?.completion_tokens);
+    providerSucceeded = Boolean(replyText.trim());
   } catch (e) {
     replyText =
       "I could not complete that request right now. Please try again in a moment.";
   }
 
-  // Settle credits from team pool using shared token pricing when available
+  // Settle credits from team pool using the canonical token pricing. A
+  // successful provider response without usage/pricing must fail closed.
   let creditsCharged = 0;
-  try {
-    const { calculateTokenCost, resolveTokenPricing } = await import(
-      "./token-billing-native.js"
-    );
-    const pricing = await resolveTokenPricing(env, {
-      feature: "team_chat",
-      model: "gpt-6-luna",
-    });
-    if (pricing && (inputTokens > 0 || outputTokens > 0)) {
+  let settlementError = "";
+  if (providerSucceeded) {
+    try {
+      if (inputTokens <= 0 && outputTokens <= 0) {
+        throw new Error("provider_usage_unavailable");
+      }
+      const { calculateTokenCost, resolveTokenPricing } = await import(
+        "./token-billing-native.js"
+      );
+      const pricing = await resolveTokenPricing(env, {
+        feature: "team_chat",
+        model: "gpt-6-luna",
+      });
+      if (!pricing) throw new Error("token_pricing_not_configured");
       const cost = calculateTokenCost({
         inputTokens,
         outputTokens,
@@ -973,9 +981,19 @@ export async function teamsAskAi(user, body, env) {
         rates: pricing,
       });
       creditsCharged = num(cost?.credits);
+      if (!(creditsCharged > 0) || !Number.isFinite(creditsCharged)) {
+        throw new Error("token_pricing_not_configured");
+      }
+    } catch (error) {
+      settlementError = String(error?.message || "team_usage_settlement_failed");
     }
-  } catch {
+  }
+
+  if (settlementError) {
     creditsCharged = 0;
+    replyText = settlementError === "provider_usage_unavailable"
+      ? "The AI provider did not return usage details, so this team response was not delivered or charged. Please try again."
+      : "Team AI pricing is not configured correctly. This response was not delivered or charged. Please contact a team admin.";
   }
 
   if (creditsCharged > 0) {
