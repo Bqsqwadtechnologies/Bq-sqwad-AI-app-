@@ -23,7 +23,7 @@ object BqConversationNotification {
         shortcutId: String? = conversationId
     ): android.app.Notification {
         val logo = runCatching {
-            BitmapFactory.decodeResource(context.resources, R.drawable.bq_launcher_logo)
+            BitmapFactory.decodeResource(context.resources, R.drawable.bq_notification_logo)
         }.getOrNull()
         val personBuilder = Person.Builder()
             .setName("BQ Sqwad AI")
