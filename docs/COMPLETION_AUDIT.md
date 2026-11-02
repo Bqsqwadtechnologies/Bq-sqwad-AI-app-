@@ -107,3 +107,11 @@ Worked only on real `main`. No duplicate trees.
 - The daily free-credit notification integration has not been checked against the Android/website notification inbox schema or a real FCM device. It is source-only.
 - Remaining Phase 2–4 work includes full website admin parity and dedicated Training Storage controls; Android business storage/expiry UI wiring; complete Android conversation menu, exports and secret-chat lifecycle; persistent project assignment; Android generated-file viewer parity; and real Worker task lifecycle events plus timer UI.
 - No Worker tests/check, website build/test/lint, Android Gradle build/test, browser/device QA or production deployment was run. User explicitly requested source coding only and will perform build/test.
+
+
+
+## Additional Phase 5–6 Android / Worker implementation — 2026-11-02 (source only)
+- Added authenticated Worker `GET /tasks/my` and `PATCH /tasks/my/status`. Reads are filtered by the verified user's UID and status writes verify task assignment and allowed lifecycle values. Added Android API client methods and a native My Tasks workspace; it is registered in Feature Hub navigation and privacy disclosures. Commits: `2099ada6`, `613e79f5`, `e2cbed48`, `7e227d85`, `ae17f1ed`, `4e3bf049`, `42d30af3`, `99b5e87c`.
+- Android Settings now loads and saves the shared account notification preference document through Worker `GET/PUT /notifications/preferences`; admin broadcasts respect opted-out users. Commits: `59aecc86`, `4432e5be`, `222dd315`, `5eecdd59`, `7aa547ee`.
+- Added Worker contract coverage for My Tasks and notification preferences (`b0e93bbb`). Tests were added but NOT RUN. Android Gradle compilation/build and UI/device QA were NOT RUN.
+- Remaining: Android team GitHub integration, full team memory/budget controls parity, separate Android in-app/push/category preference controls, Android staff inbox and organization analytics parity. No Android build, Worker tests/check or deployment was performed.
