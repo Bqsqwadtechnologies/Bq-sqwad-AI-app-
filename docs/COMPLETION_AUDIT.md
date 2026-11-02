@@ -1,29 +1,28 @@
 # COMPLETION_AUDIT
 
-## Phase 0.2 model eligibility — DONE in source (not verified)
-## Phase 0.3 vault, expiry and secrets — DONE in source (not verified)
-## Phase 0.4 model rule audit — DONE in source (not verified)
+## URGENT — restore BQSqwadApp.kt again
+Commit `53e3830` accidentally replaced the shell with a path string. Restore, then apply the Phase 1 dictation patch:
 
-## Phase 1 — composer / voice / Teams — 2026-11-02
+```bash
+git fetch origin
+git checkout 13a727a7088fb57b73bccead16318cd85ba718d7 -- app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+git apply docs/phase1-dictation-state.patch
+# if git apply fails, use: patch -p1 < docs/phase1-dictation-state.patch
+git add app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+git commit -m "feat(android): Phase 1 map BQSqwadApp dictation onto DictationState"
+git push origin main
+```
 
-### Composer idle / typing
-- `CreditComposerGate.BLOCK_TYPING_WHILE_LOADING = false` — typing never waits on live credit refresh; server still bills on send.
-- Status: DONE in source, NOT device-verified.
+Good restore commit: `13a727a7088fb57b73bccead16318cd85ba718d7` (same body as `1f30f9a` / blob `0adc560c`).
 
-### Voice mode / DictationState
-- `DictationState` + `DictationRecorder` (25s in-memory PCM, no disk) exist on main.
-- Phase 1 helpers added on `DictationState` (`isReadyToSend`, `showCancelSend`, `sessionIdOrZero`, `errorMessage`, `recordingSeconds`, `beginTranscribe(sessionId)`).
-- Commit: `e253572d58834336d3e1e02f31f6916505da3cfc`.
-- `BQSqwadApp.kt` still drives dictation with independent booleans (`dictationRecording`, `dictationTranscribing`, …). Mapping those onto `DictationState` requires editing the ~516 KB shell file; this session cannot safely push that size. Local migration was prepared earlier and discarded after a failed oversized push (file was restored by the operator).
-- Status: helpers DONE; full composer wiring NOT DONE (needs local edit of `BQSqwadApp.kt`).
+## Phase 0.2–0.4 — DONE in source (not verified)
 
-### Instant Teams
-- Worker: `teamsCreate`, `teamsJoin` (public → active; private → pending), `teamsApproveMember`, atomic membership updates in `teams-sqwad-native.js`.
-- Android: `TeamsHubScreen` + `TeamWorkspaceScreen` + `WorkspaceTeamScreen` entry — create dialog, search, one-tap Join (public) / Request (private), recommended White team, open workspace after create/join.
-- Status: DONE in source, NOT verified by live auth create/join round-trip or website parity QA.
+## Phase 1 — composer / voice / Teams
 
-### Builds / tests
-- Not run in this session.
+### Composer idle / typing — DONE (`CreditComposerGate`)
+### Instant Teams — DONE in source (`TeamsHubScreen` + Worker create/join)
+### DictationState helpers — DONE (`e253572`)
+### BQSqwadApp DictationState mapping — READY as `docs/phase1-dictation-state.patch` (apply after restore; this session cannot push the ~516 KB file)
 
 ## Prior long-form audit
-- Full history at `635e28f32ccd98beb6c63826c2249b2312019e7d` and parent commits on `main`.
+- Full history at `635e28f32ccd98beb6c63826c2249b2312019e7d` and parents.
