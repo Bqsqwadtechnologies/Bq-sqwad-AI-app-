@@ -569,7 +569,6 @@ private fun SignInScreen(onOpenSignUp: () -> Unit, onAuthenticated: () -> Unit =
                         label = { Text("Email") },
                         singleLine = true
                     )
-                }
             },
             confirmButton = {
                 TextButton(
@@ -1078,7 +1077,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
-    var adminAuthorized by remember(firebaseUser?.uid) { mutableStateOf(firebaseUser != null && accountPreferences(context, "workspace_access_cache").getBoolean("admin", false)) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
     LaunchedEffect(notificationsEnabled) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
@@ -1141,7 +1139,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         featureHub = false
         featureSettings = null
         advancedFeature = null
-        adminAuthorized = false
         workspaceAccess = WorkspaceAccessSnapshot.empty()
         accessLoading = false
         paywallWorkspace = null
@@ -1160,25 +1157,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     fun signOutFromShell() {
         cancelActiveWorkOnSignOut?.invoke()
         performSignOut(context) { resetShellAfterSignOut() }
-    }
-
-    LaunchedEffect(email, firebaseUser?.uid) {
-        if (email.isBlank() || firebaseUser == null) {
-            adminAuthorized = false
-            accountPreferences(context, "workspace_access_cache").edit().putBoolean("admin", false).apply()
-            return@LaunchedEffect
-        }
-        // A transient authorization-network failure must not make the admin entry
-        // disappear. Only persist a decision returned by the authenticated server.
-        while (true) {
-            runCatching {
-                WorkspaceApiClient().adminAccess().optBoolean("allowed")
-            }.onSuccess { allowed ->
-                adminAuthorized = allowed
-                accountPreferences(context, "workspace_access_cache").edit().putBoolean("admin", allowed).apply()
-            }
-            delay(60_000L)
-        }
     }
 
     LaunchedEffect(firebaseUser?.uid) {
@@ -1273,11 +1251,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 kotlinx.coroutines.coroutineScope {
                     val catalogTask = async(Dispatchers.IO) { api.nativeCatalog() }
                     val entitlementsTask = async(Dispatchers.IO) { runCatching { EntitlementsClient().fetchEntitlements() }.getOrElse { api.entitlements() } }
-                    val adminTask = async(Dispatchers.IO) { api.adminAccess().optBoolean("allowed") }
                     val catalog = catalogTask.await()
                     val entitlements = entitlementsTask.await()
-                    val admin = adminTask.await()
-                    val testMode = if (admin) runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false) else false
+                    val admin = false
+                    val testMode = false
                     accessPrefs.edit()
                         .putString("catalog", catalog.toString())
                         .putString("entitlements", entitlements.toString())
@@ -1294,7 +1271,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val current = workspace
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ADMIN
+                    Workspace.VIDEO, Workspace.PERSONAL
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1307,7 +1284,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 workspaceAccess.planModules["data-analysis"].orEmpty().isNotEmpty()
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ADMIN
+                    Workspace.VIDEO, Workspace.PERSONAL
                 ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
                 accessRetryWorkspace = current
             }
@@ -1322,9 +1299,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         if (FirebaseAuth.getInstance().currentUser == null) {
             workspace = null
             signInRequired = true
-        } else if (selected == Workspace.ADMIN) {
-            // Administration is website-only; Android never opens an admin workspace.
-            workspace = null
         } else if (selected in setOf(
             Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
             Workspace.VIDEO, Workspace.PERSONAL
@@ -1659,8 +1633,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             legalCenter -> LegalCenterScreen { legalCenter = false }
             settings -> SettingsScreen(
                 onBack = { settings = false },
-                adminAuthorized = adminAuthorized,
-                onOpenAdminDashboard = { settings = false; workspace = Workspace.ADMIN },
                 onSignOut = { signOutFromShell() },
                 onOpenSignIn = { signInRequired = true; signUpRequired = false },
                 onOpenAccountProtection = { if (firebaseUser == null && AccessPolicy.requiresAccount(AccessArea.ACCOUNT_PROTECTION)) { signInRequired = true; signUpRequired = false } else accountProtection = true },
@@ -1678,17 +1650,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 }
             )
             workspace != null -> {
-                if (workspace == Workspace.ADMIN) {
-                    if (adminAuthorized) {
-                        AdminOnlyWorkspace(onBack = { workspace = null })
-                    } else {
-                        AccessDenied()
-                    }
-                } else {
                     WorkspaceScreen(
                         workspace!!,
                         email,
-                        adminAuthorized,
                         onBack = { workspace = null },
                         onLearnMore = { featureInfo = workspace!! },
                         onPrivacy = { featurePrivacy = workspace!! },
@@ -4785,7 +4749,6 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Business AI connects the business workspace, assistants, knowledge, contacts, leads, pipelines, inbox, automation, channels, advanced AI and enterprise configuration."
     Workspace.TASKS -> "Review tasks assigned to your account, update their status and track due dates."
     Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio provides professional organization intelligence, production coordination and your connected organization tools."
-    Workspace.ADMIN -> "Admin Control Center manages service settings, billing, security and testing. Sensitive configuration is protected."
 }
 
 private fun featureHowItWorks(w: Workspace): String = when (w) {
@@ -4804,7 +4767,6 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Manage records, automation, social accounts, integrations and organization settings in Business Studio."
     Workspace.TASKS -> "Tasks are loaded for the signed-in account; status changes are saved through the workspace API."
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio helps you work with the services you have connected and authorized."
-    Workspace.ADMIN -> "Admin actions require administrator permission. Sensitive credentials and security information are protected."
 }
 
 private fun featurePermissions(w: Workspace): String = when (w) {
@@ -4823,7 +4785,6 @@ private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Connected channels and integrations use account authorization and provider permissions configured for that integration."
     Workspace.TASKS -> "Tasks are account-scoped and require sign-in; no additional device permissions are needed."
     Workspace.ORGANIZATION_STUDIO -> "Connected production or organization tools request only the permissions required for the selected operation."
-    Workspace.ADMIN -> "Administrative operations require administrator permission. Sensitive settings are protected."
 }
 
 private fun featurePrivacyHeading(w: Workspace): String = when (w) {
@@ -4842,7 +4803,6 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.BUSINESS -> "Business AI"
     Workspace.TASKS -> "My Tasks"
     Workspace.ORGANIZATION_STUDIO -> "Organization AI / Studio"
-    Workspace.ADMIN -> "Admin Control Center"
 }
 
 private data class AppFeature(val id: String, val title: String, val description: String, val capability: String, val webSearch: Boolean = false)
@@ -4985,8 +4945,8 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
         )
     }
 
-private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>, adminAuthorized: Boolean): List<Workspace> {
-    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ADMIN }
+private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>): List<Workspace> {
+    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
     val byName = all.associateBy { it.name }
     val configured = order.mapNotNull { id -> byName[id] }.filter { enabled[it.name] != false }
     val remaining = all.filter { it.name !in order && enabled[it.name] != false }
@@ -5061,7 +5021,7 @@ private fun FeatureHub(
     onWorkspace: (Workspace) -> Unit,
     onAdvancedFeature: (AppFeature) -> Unit
 ) {
-    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ADMIN }
+    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
     val primary = listOf(
         Workspace.LEARNING,
         Workspace.TRUTH_GUARD,
@@ -5278,35 +5238,9 @@ private fun FeatureHub(
 }
 
 @Composable
-private fun AdminOnlyWorkspace(onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Admin Control Center") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
-                }
-            )
-        }
-    ) { p ->
-        Column(
-            Modifier.fillMaxSize().padding(p).padding(16.dp)
-        ) {
-            AdminControlCenter()
-        }
-    }
-}
-
-@Composable
 private fun WorkspaceScreen(
     w: Workspace,
     email: String,
-    adminAuthorized: Boolean,
     onBack: () -> Unit,
     onLearnMore: () -> Unit,
     onPrivacy: () -> Unit,
@@ -5335,32 +5269,12 @@ private fun WorkspaceScreen(
             )
         }
     ) { p ->
-        if (w == Workspace.ADMIN) {
-            if (!adminAuthorized) {
-                AccessDenied()
-                return@Scaffold
-            }
-            var allowed by remember { mutableStateOf<Boolean?>(null) }
-            LaunchedEffect(Unit) {
-                allowed = runCatching { AdminAdvancedClient().list(); true }.getOrDefault(false)
-            }
-            when (allowed) {
-                null -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) { BqSqwadLoadingIndicator(Modifier.size(56.dp)) }
-                true -> Column(Modifier.padding(p).padding(16.dp).fillMaxSize()) {
-                    AdminControlCenter()
-                }
-                false -> Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
-                    AccessDenied()
-                }
-            }
-            return@Scaffold
-        }
         Column(
             Modifier
                 .padding(p)
                 .then(if (w == Workspace.CAMERA) Modifier.fillMaxSize() else Modifier.padding(16.dp).fillMaxSize())
         ) {
-            if (w !in setOf(Workspace.CAMERA, Workspace.VOICE, Workspace.CHAT, Workspace.ADMIN)) {
+            if (w !in setOf(Workspace.CAMERA, Workspace.VOICE, Workspace.CHAT)) {
                 val workspaceDescription = when (w) {
                     Workspace.LEARNING -> "Learn with guided lessons, focused practice, study plans and progress tracking."
                     Workspace.TRUTH_GUARD -> "Check claims against evidence, review sources and understand confidence before sharing."
@@ -5398,8 +5312,8 @@ private fun WorkspaceScreen(
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.DATA_ANALYSIS -> DataAnalysisWorkspace()
-                Workspace.CAMERA -> CameraWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = adminAuthorized)
-                Workspace.VOICE -> VoiceWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = adminAuthorized)
+                Workspace.CAMERA -> CameraWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = false)
+                Workspace.VOICE -> VoiceWorkspace(onOpenCredits = onOpenCredits, showDiagnostics = false)
                 Workspace.PERSONAL -> PersonalIntelligenceWorkspace()
                 Workspace.LIFE -> LifeMattersWorkspace(onOpenPlans = onOpenPlans)
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans, onOpenCredits = onOpenCredits)
@@ -5407,7 +5321,6 @@ private fun WorkspaceScreen(
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.TASKS -> MyTasksWorkspace()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
-                Workspace.ADMIN -> AdminControlCenter()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }
         }
@@ -7667,7 +7580,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, adminAuthorized: Boolean, onOpenAdminDashboard: () -> Unit, onSignOut: () -> Unit, onOpenSignIn: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenSignIn: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val prefs = remember(uid) { accountPreferences(context) }
