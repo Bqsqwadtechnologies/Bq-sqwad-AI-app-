@@ -139,11 +139,6 @@ export async function teamInvite(user, body) {
   const targetUid = String(target.uid || String(target.__name || "").split("/").pop() || "");
   if (!targetUid) throw Object.assign(new Error("Account not found"), { httpStatus: 404 });
   if (targetUid === user.uid) throw Object.assign(new Error("You are already on this team"), { httpStatus: 400 });
-  const seatLimit = Math.max(200, Number(team.seatLimit || 200));
-  const occupiedSeats = Object.values(team.members || {}).filter(member => ["active", "invited"].includes(String(member.status || "active"))).length;
-  if (!team.members?.[targetUid] && occupiedSeats >= seatLimit) {
-    throw Object.assign(new Error("This workspace has reached its member limit."), { httpStatus: 409, safeError: "team_seat_limit_reached" });
-  }
   team.members = team.members || {};
   team.members[targetUid] = {
     uid: targetUid, email,
