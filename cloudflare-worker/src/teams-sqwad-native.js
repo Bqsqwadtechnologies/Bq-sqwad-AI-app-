@@ -291,8 +291,9 @@ export async function teamsListMine(user) {
   // Lightweight: scan memberships via query on a member index if present;
   // fallback scans recent teams the user owns or is in via known pattern.
   // For scale, website maintains userTeams/{uid}/items/{teamId}.
-  const index = await firestoreQuery("userTeams/" + user.uid + "/items", {
-    limit: 50,
+  const index = await firestoreQuery("items", {
+    parent: "userTeams/" + user.uid,
+    limit: 200,
   }).catch(() => []);
 
   if (index.length) {
