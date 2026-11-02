@@ -4007,7 +4007,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                     }
                                 }
                             }
-                        } else if (dictationReadyAudio != null) {
+                        } else if (dictationReadyAudio != null && !dictationTranscribing) {
                             Row(
                                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
