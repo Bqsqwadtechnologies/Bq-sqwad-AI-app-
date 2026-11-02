@@ -210,3 +210,11 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Android calls authenticated Worker `POST /native/teams/member/spend-limit`; Worker checks active admin membership and atomically updates the target member's cap.
 - Worker AI settlement reserves `teams/{teamId}/usage/{YYYYMM}_{uid}` atomically before debiting `teamCreditPools/{poolId}`; a failed pool debit attempts to roll back the reservation. Website AI settlement uses the corresponding website server reservation/debit flow.
 - These paths are implemented in source but have not been tested under concurrent requests, cap changes, month rollover, insufficient pool balance or cross-client live usage. Do not treat this contract as production-verified.
+
+
+## Business Inbox paging — 2026-11
+- Android and Worker use the authenticated `GET /business/extended` contract with `workspaceId`, `inboxOffset` and `inboxLimit`.
+- The Worker derives the caller UID from the Firebase ID token, checks workspace ownership/membership and Business plan entitlement, clamps page size to 1–100 and offset to 0–100000, and returns `inboxPage.offset`, `limit` and `hasMore`.
+- Android initially loads 30 inbox records and requests additional pages on demand, merging records without replacing the existing list.
+- The API uses Firestore offset paging, not a cursor snapshot. Very large inboxes may incur increasing read/latency costs; a future cursor-based query should be considered after index and runtime verification.
+- Source implementation only. The contract test has been added but not run; Android build, Worker tests/check and authenticated staff workflow QA remain the user's validation steps.
