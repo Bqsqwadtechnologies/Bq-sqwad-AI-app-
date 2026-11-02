@@ -156,7 +156,7 @@ fun HistoryScreen(
                 "csv" -> buildString {
                     appendLine("role,text,attachments,image_url")
                     messages.forEach { message ->
-                        fun csv(value: String) = "\\"\\" + value.replace("\\"\\"","\\"\\"\\"\\"").replace("\\r"," ").replace("\\n"," ") + "\\"\\""
+                        fun csv(value: String) = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
                         appendLine(listOf(
                             if (message.mine) "user" else "assistant",
                             csv(message.text),
