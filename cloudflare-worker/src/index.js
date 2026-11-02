@@ -33,7 +33,8 @@ import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamAppr
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
-import { handleModelsCatalog } from "./ai-model-catalog-route.js";
+import { handleModelsCatalog, resolveModelCatalogEntry } from "./ai-model-catalog-route.js";
+import { canUseModel } from "./ai-model-catalog.ts";
 
 
 // Composio project keys (ak_...) use x-api-key; user keys (uak_...) use
@@ -1755,24 +1756,32 @@ function applyChatModelKey(control, body) {
 async function enforceChatModelEligibility(uid, body, control, user) {
   const modelKey = String(body?.modelKey || "bq-7-star").trim().toLowerCase();
   const modelId = String(control?.modelId || "").trim().toLowerCase();
-  if (modelId.includes("gpt-5.6") && modelKey !== "bq-codron") {
-    throw Object.assign(new Error("model_unavailable"), { httpStatus: 403, safeError: "model_unavailable" });
+  const catalogModel = await resolveModelCatalogEntry(modelKey);
+  if (!catalogModel || catalogModel.userSelectable !== true ||
+      String(catalogModel.providerModelId || "").trim().toLowerCase() !== modelId) {
+    throw Object.assign(new Error("model_unavailable"), {
+      httpStatus: 403,
+      safeError: "model_unavailable"
+    });
   }
-  if (modelKey !== "bq-codron") return { purchasedOnly: false };
-  if (modelId !== "gpt-5.6-luna") {
+  if (modelId.includes("gpt-5.6") && modelKey !== "bq-codron") {
     throw Object.assign(new Error("model_unavailable"), { httpStatus: 403, safeError: "model_unavailable" });
   }
   if (isSuperAdmin(user, globalThis.__bqEnv)) return { purchasedOnly: false };
   const profile = await readCanonicalUserBalance(uid);
   const balance = canonicalUserBalance(profile);
   const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
-  if (purchasedBalance <= 0) {
-    throw Object.assign(new Error("purchased_credits_required"), {
-      httpStatus: 402,
-      safeError: "purchased_credits_required"
+  const eligibility = canUseModel({
+    balance: balance?.total || 0,
+    hasPurchasedCredits: purchasedBalance > 0
+  }, catalogModel);
+  if (!eligibility.ok) {
+    throw Object.assign(new Error(eligibility.reason), {
+      httpStatus: eligibility.reason === "model_unavailable" ? 403 : 402,
+      safeError: eligibility.reason
     });
   }
-  return { purchasedOnly: true };
+  return { purchasedOnly: modelKey === "bq-codron" };
 }
 
 async function ai(request, user, body) {
