@@ -63,7 +63,7 @@ Worked only on real `main`. No duplicate trees.
 - ThemeOncePicker itself remains unmounted; the onboarding survey is the currently wired first-run theme choice. Business storage/expiry server data and the requested Worker route/orchestrator mounts remain NOT DONE / NOT VERIFIED.
 
 ### Phase 4 — Chat, secret chat and memory
-- Android main chat now exposes the existing conversation menu for Markdown export, share, clear and delete. Evidence: website-shared AppMenu.tsx and Android main-chat history client remains separate. Android three-dot menu, rename, project assignment, secret-chat assignment, PDF/Word/text exports and generated-file cards remain NOT DONE.
+- Website conversation menu (AppMenu) now includes Delete, Clear, Rename (authenticated PATCH), Share, branded Markdown/Text/Word/PDF export, Add to project, and Add to secret chat (commit on website `ccd1aff9460a3ed64682009b857cc8cf88a211ef`). Android three-dot menu parity, project assignment, secret-chat assignment, PDF/Word/text exports and full generated-file cards remain NOT DONE on the app.
 - Android SecretChatCrypto.kt remains cryptographic helper code only. No Android secret-chat UI, password/recovery workflow, biometric/WebAuthn unlock, auto-lock, ciphertext-only sync, or FLAG_SECURE flow was implemented.
 - Cross-platform rolling chat summaries, coding hint, live work timer, and app-side canonical memory editing/retrieval remain NOT DONE / NOT VERIFIED.
 - No Android unit tests or Gradle build were run in this continuation; the GitHub file-editing session has no checked-out Gradle workspace/Android SDK. No production deployment or device QA is claimed.
@@ -78,3 +78,8 @@ Worked only on real `main`. No duplicate trees.
 - Unified run #136 (commit `5cd2266ddefe810fa774547136a2ac244441e317`) reached Android `:app:compileDebugKotlin` and failed on two smart-cast errors because `firebaseUser` is a delegated Compose property (`BQSqwadApp.kt` around lines 1187 and 1558).
 - The offending reads were corrected on `main` by commits `3c763835726a992de4488317015062be7158f23b` and `8137eab3c2ef51b0843b64358d20403db2cb22d4`; the current source snapshots a local FirebaseUser value for the onboarding effect and uses a null-safe anonymous-user check for the gate.
 - A fresh unified verification is being triggered from this audit update against the corrected `main`. Its result must be inspected separately; run #136 remains failed. Website steps in #136 were skipped because the website repository token was not configured/validated.
+
+## Phase 2–4 close-out note (2026-11-02)
+- Website conversation menu is substantially complete for the required action list; Android menu parity is still open.
+- Secret chat lifecycle, rolling memory, live timer, coding hint, full generated-file coverage beyond images, Training Storage admin, and end-to-end builds/QA remain open on both platforms.
+- Do not mark Phases 2–4 complete until acceptance criteria and verification steps are satisfied.
