@@ -2614,7 +2614,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     var speechBaseMessage by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
-    var livePlanCount by remember { mutableIntStateOf(0) }
+    var chatIncludedInPlan by remember { mutableStateOf(false) }
     var planRefreshNonce by remember { mutableIntStateOf(0) }
     val signedInUid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val planLifecycleOwner = context as? androidx.lifecycle.LifecycleOwner
@@ -2628,8 +2628,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     LaunchedEffect(signedInUid, planRefreshNonce) {
         if (signedInUid.isNotBlank()) {
             runCatching { EntitlementsClient().fetchEntitlements() }
-                .onSuccess { payload -> livePlanCount = payload.optJSONArray("items")?.length() ?: 0 }
-        } else livePlanCount = 0
+                .onSuccess { payload ->
+                    val items = payload.optJSONArray("items")
+                    chatIncludedInPlan = (0 until (items?.length() ?: 0)).any { index ->
+                        val item = items?.optJSONObject(index) ?: return@any false
+                        val features = item.optJSONArray("includedFeatures")
+                        (0 until (features?.length() ?: 0)).any { featureIndex ->
+                            features?.optString(featureIndex)?.lowercase() in setOf("chat", "main_chat", "*")
+                        }
+                    }
+                }
+        } else chatIncludedInPlan = false
     }
     DisposableEffect(signedInUid) {
         if (signedInUid.isBlank()) return@DisposableEffect onDispose { }
@@ -2638,11 +2647,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             .addSnapshotListener { snapshot, error ->
                 if (error == null && snapshot != null) {
                     val now = System.currentTimeMillis()
-                    livePlanCount = snapshot.documents.count { document ->
+                    chatIncludedInPlan = snapshot.documents.any { document ->
                         val state = document.getString("state").orEmpty()
                         val expiry = document.getTimestamp("expiresAt")?.toDate()?.time
                             ?: document.getString("expiresAt")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
-                        state in listOf("active", "trialing", "grace") && (expiry == null || expiry > now)
+                        val features = document.get("includedFeatures") as? List<*>
+                        state in listOf("active", "trialing", "grace") &&
+                            (expiry == null || expiry > now) &&
+                            features.orEmpty().any { it?.toString()?.lowercase() in setOf("chat", "main_chat", "*") }
                     }
                 }
             }
@@ -4233,7 +4245,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 onSelect = { selectedModelKey = it.modelKey },
                                 onBuyCredits = { }
                             )
-                            if (livePlanCount > 0) {
+                            if (chatIncludedInPlan) {
                                 Text(
                                     "Included in your plan",
                                     style = MaterialTheme.typography.labelSmall,
