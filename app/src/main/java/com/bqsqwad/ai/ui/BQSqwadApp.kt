@@ -3612,9 +3612,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         val transcript = messages.filterNot { it.privateSession }.joinToString("\n\n") {
                             (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text
                         }
-                        pendingDownloadContent = "BQ SQWAD TECHNOLOGIES\\nBQ Sqwad AI\\n" +
-                            (chatTitleOverride ?: "Conversation") + "\\n" +
-                            java.time.Instant.now().toString() + "\\n\\n" + transcript
+                        pendingDownloadContent = "BQ SQWAD TECHNOLOGIES\nBQ Sqwad AI\n" +
+                            (chatTitleOverride ?: "Conversation") + "\n" +
+                            java.time.Instant.now().toString() + "\n\n" + transcript
                         downloadConversationLauncher.launch(
                             (chatTitleOverride ?: "BQ-Sqwad-AI-conversation").replace(Regex("[^A-Za-z0-9_-]"), "-").take(60) + ".txt"
                         )
