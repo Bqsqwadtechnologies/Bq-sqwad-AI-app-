@@ -1766,7 +1766,6 @@ async function enforceChatModelEligibility(uid, body, control, user) {
       safeError: "model_unavailable"
     });
   }
-  if (isSuperAdmin(user, globalThis.__bqEnv)) return { purchasedOnly: false };
   const profile = await readCanonicalUserBalance(uid);
   const balance = canonicalUserBalance(profile);
   const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
@@ -1774,13 +1773,14 @@ async function enforceChatModelEligibility(uid, body, control, user) {
     balance: balance?.total || 0,
     hasPurchasedCredits: purchasedBalance > 0
   }, catalogModel);
-  if (!eligibility.ok) {
+  const adminBypass = isSuperAdmin(user, globalThis.__bqEnv);
+  if (!eligibility.ok && (!adminBypass || eligibility.reason === "model_unavailable")) {
     throw Object.assign(new Error(eligibility.reason), {
       httpStatus: eligibility.reason === "model_unavailable" ? 403 : 402,
       safeError: eligibility.reason
     });
   }
-  return { purchasedOnly: modelKey === "bq-codron" };
+  return { purchasedOnly: modelKey === "bq-codron" && !adminBypass };
 }
 
 async function ai(request, user, body) {
