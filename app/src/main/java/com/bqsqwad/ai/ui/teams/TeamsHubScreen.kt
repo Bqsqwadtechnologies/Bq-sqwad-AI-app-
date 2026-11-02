@@ -20,6 +20,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * Shared Teams hub (website parity).
@@ -39,6 +41,11 @@ data class TeamSummary(
 
 private const val RECOMMENDED = "white"
 
+private object TeamHubMemoryCache {
+    val mine = ConcurrentHashMap<String, List<TeamSummary>>()
+    val discover = ConcurrentHashMap<String, List<TeamSummary>>()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamsHubScreen(
@@ -48,10 +55,19 @@ fun TeamsHubScreen(
     onBack: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
-    var mine by remember { mutableStateOf<List<TeamSummary>>(emptyList()) }
-    var results by remember { mutableStateOf<List<TeamSummary>>(emptyList()) }
+    val cacheKey = remember(baseUrl) {
+        "${baseUrl}:${FirebaseAuth.getInstance().currentUser?.uid.orEmpty()}"
+    }
+    var mine by remember(cacheKey) {
+        mutableStateOf(TeamHubMemoryCache.mine[cacheKey].orEmpty())
+    }
+    var results by remember(cacheKey) {
+        mutableStateOf(TeamHubMemoryCache.discover[cacheKey].orEmpty())
+    }
     var query by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
+    var loading by remember(cacheKey) {
+        mutableStateOf(TeamHubMemoryCache.mine[cacheKey].isNullOrEmpty())
+    }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showCreate by remember { mutableStateOf(false) }
@@ -61,7 +77,7 @@ fun TeamsHubScreen(
 
     fun load() {
         scope.launch {
-            loading = true
+            if (mine.isEmpty()) loading = true
             error = null
             try {
                 val token = authTokenProvider() ?: error("Sign in required")
@@ -69,6 +85,8 @@ fun TeamsHubScreen(
                 val discover = apiPost(baseUrl, token, "/native/teams/search", JSONObject().put("query", ""))
                 mine = parseTeamList(myList.optJSONArray("teams"))
                 results = parseTeamList(discover.optJSONArray("teams"))
+                TeamHubMemoryCache.mine[cacheKey] = mine
+                TeamHubMemoryCache.discover[cacheKey] = results
             } catch (e: Exception) {
                 error = e.message
             } finally {
@@ -77,7 +95,7 @@ fun TeamsHubScreen(
         }
     }
 
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(cacheKey) { load() }
 
     val recommended = results.firstOrNull { it.username == RECOMMENDED }
 
@@ -112,7 +130,14 @@ fun TeamsHubScreen(
             )
 
             if (error != null) {
-                Text(error!!, color = MaterialTheme.colorScheme.error)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { load() }) { Text("Retry") }
+                }
             }
 
             if (loading) {
