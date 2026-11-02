@@ -2585,6 +2585,10 @@ export default {
           return json({ ok: true, text, charged: chargeAmount, free: chargeAmount === 0 });
         } catch (error) {
           if (reservation?.reservationId) await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          const timeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+          await notifyAdminOfIssue(env, url.pathname, timeout ? 504 : 502,
+            timeout ? "dictation_upstream_timeout" : "dictation_upstream_network_or_provider_error").catch(() => {});
+          if (timeout) throw Object.assign(new Error("transcription_timeout"), { httpStatus: 504, safeError: "transcription_timeout" });
           throw error;
         }
       }
