@@ -16,6 +16,14 @@ service cloud.firestore {
          request.auth.token.role == 'super_admin');
     }
 
+    // Business AI vault content and its searchable metadata are server-only.
+    match /vault/{allPaths=**} {
+      allow read, write: if false;
+    }
+    match /vaultIndex/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     match /adminProviderSecrets/{id} {
       allow read, write: if false;
     }
