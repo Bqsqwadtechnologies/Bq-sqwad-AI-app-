@@ -92,3 +92,7 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **DONE — source implemented, build pending:** Worker `token-billing-native.js` reads canonical per-token customer rates first and converts legacy per-1k fields only as fallback. Provider USD per-token/per-million values remain internal cost telemetry.
 - **DONE — test sources updated:** Both billing vector JSON files now express token prices per single token; vector and legacy-compatibility test cases were updated.
 - **NOT VERIFIED:** Website tests/build and Worker tests await CI access; no website build has run because the shared verification workflow's website token receives HTTP 403.
+
+## PDF Phase 7 — Website-only routes
+
+- **NOT APPLICABLE TO ANDROID:** `verify.$token.tsx` and `/docs/business-ai/integration` are website TanStack Start routes. Android does not duplicate these routes; the app continues to use the configured business official-link handoff.
