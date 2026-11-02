@@ -115,3 +115,10 @@ Worked only on real `main`. No duplicate trees.
 - Android Settings now loads and saves the shared account notification preference document through Worker `GET/PUT /notifications/preferences`; admin broadcasts respect opted-out users. Commits: `59aecc86`, `4432e5be`, `222dd315`, `5eecdd59`, `7aa547ee`.
 - Added Worker contract coverage for My Tasks and notification preferences (`b0e93bbb`). Tests were added but NOT RUN. Android Gradle compilation/build and UI/device QA were NOT RUN.
 - Remaining: Android team GitHub integration, full team memory/budget controls parity, separate Android in-app/push/category preference controls, Android staff inbox and organization analytics parity. No Android build, Worker tests/check or deployment was performed.
+
+
+## Additional Phase 5–6 continuation — 2026-11-02 (coding only)
+- Added authenticated Worker routes for shared team memory list/add/update/delete. All reads require active team membership; writes require team admin/owner. Android TeamWorkspace now loads shared memory and exposes add/edit/delete controls to team admins/owners. Commits: `734042ec`, `ca62ae89`, `bd2909ed`.
+- Website shared team memory and monthly member spend-cap controls are implemented in the website repository; Android currently has memory parity but not member spend-cap controls or a verified Worker-side spend-cap settlement path.
+- No Gradle build, Worker tests/check, website tests/build, device QA, or deployment was run. These are left for the requester.
+- Remaining release blockers remain: production agent builder/connector credential lifecycle, authorized provider-backed identity verification, end-to-end two-person vault export and secure delivery, Android Business Inbox and Organization AI analytics parity, Android category-level notification preferences, team GitHub integration, Worker-side per-member spend-cap enforcement, and external scheduler/OAuth/mTLS runtime verification.
