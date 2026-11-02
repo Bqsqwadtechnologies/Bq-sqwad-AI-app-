@@ -35,6 +35,7 @@ import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamAppr
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
+import { notifyDailyFreeCredit } from "./free-credit-notify-native.js";
 import { handleModelsCatalog, resolveModelCatalogEntry } from "./ai-model-catalog-route.js";
 import { canUseModel } from "./ai-model-catalog.ts";
 
@@ -905,6 +906,15 @@ async function applyConfiguredDailyFreeCredits(uid) {
         reason: "Admin-configured daily allowance", createdAt: now
       }, exists: false }
     ]);
+    // Persist an in-app notification only after the atomic daily grant succeeds.
+    // Device push tokens are managed separately; this does not invent recipients.
+    await notifyDailyFreeCredit(globalThis.__bqEnv || {}, {
+      projectId: String(globalThis.__bqEnv?.FIREBASE_PROJECT_ID || ""),
+      uid,
+      tokens: [],
+      credits,
+      dbWrite: (documentPath, data) => firestoreSet(documentPath, data, true),
+    }).catch(() => ({ notified: false }));
   } catch {
     // Concurrent requests can race for the same daily grant; only one may succeed.
   }
