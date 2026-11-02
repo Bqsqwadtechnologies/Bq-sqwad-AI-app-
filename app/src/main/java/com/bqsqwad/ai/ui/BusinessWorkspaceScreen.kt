@@ -30,6 +30,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf("Overview") }
     var data by remember { mutableStateOf(JSONObject()) }
+    var storageData by remember { mutableStateOf(JSONObject()) }
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -39,7 +40,12 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
         loading = true; error = null
         scope.launch {
             runCatching { api.businessWorkspace() }
-                .onSuccess { data = it }
+                .onSuccess { result ->
+                    data = result
+                    runCatching { api.businessStorage(result.optString("workspaceId").takeIf { it.isNotBlank() }) }
+                        .onSuccess { storageData = it }
+                        .onFailure { storageData = JSONObject() }
+                }
                 .onFailure { error = safeUserFacingIssue(it, "Business workspace could not be loaded.") }
             loading = false
         }
@@ -191,6 +197,26 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 SurfaceCard("Workspace", data.optString("name").ifBlank { "My Business" })
                 val planContext = data.optJSONObject("planContext") ?: JSONObject()
                 val planName = planContext.optString("name").ifBlank { data.optString("planId").ifBlank { "Business Starter" } }
+                val storage = storageData.optJSONObject("storage") ?: JSONObject()
+                val expiresAt = storageData.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" }
+                val serverNow = storageData.optString("serverNow")
+                if (expiresAt != null) {
+                    val expiryMs = runCatching { java.time.Instant.parse(expiresAt).toEpochMilli() }.getOrDefault(0L)
+                    val serverNowMs = runCatching { java.time.Instant.parse(serverNow).toEpochMilli() }.getOrDefault(System.currentTimeMillis())
+                    BusinessPlanExpiryBanner(expiryMs, serverNowMs)
+                }
+                val usedBytes = storage.optLong("usedBytes", 0L)
+                val totalBytes = storage.optLong("totalBytes", 0L)
+                if (totalBytes > 0L) {
+                    BusinessStorageMeter(
+                        usedBytes = usedBytes,
+                        totalBytes = totalBytes,
+                        showAddon = storage.optBoolean("showAddonOffer"),
+                        showRenewalOnly = storage.optBoolean("showRenewalOnly")
+                    )
+                } else {
+                    SurfaceCard("Business storage", "Storage quota is not configured for this account yet.")
+                }
                 SurfaceCard(
                     "Business Dashboard",
                     buildString {
