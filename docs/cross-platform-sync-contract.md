@@ -203,3 +203,10 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Submission creates an in-app notification at `notifications/{receiverUid}/items/{notificationId}`; Admin > Monthly feedback campaign lists the latest 100 records routed to the signed-in administrator.
 - The admin config is stored in `adminAdvancedOptions/monthlyFeedback`. The receiver must be a verified administrator.
 - Android survey UI, push/email delivery, external scheduled campaigns and runtime verification are not implemented.
+
+
+## Team spending-limit contract — source re-audit 2026-11-02
+- Website and Android TeamWorkspace provide owner/admin monthly member cap controls.
+- Android calls authenticated Worker `POST /native/teams/member/spend-limit`; Worker checks active admin membership and atomically updates the target member's cap.
+- Worker AI settlement reserves `teams/{teamId}/usage/{YYYYMM}_{uid}` atomically before debiting `teamCreditPools/{poolId}`; a failed pool debit attempts to roll back the reservation. Website AI settlement uses the corresponding website server reservation/debit flow.
+- These paths are implemented in source but have not been tested under concurrent requests, cap changes, month rollover, insufficient pool balance or cross-client live usage. Do not treat this contract as production-verified.
