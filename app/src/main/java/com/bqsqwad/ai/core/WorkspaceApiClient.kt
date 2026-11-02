@@ -782,6 +782,7 @@ class WorkspaceApiClient {
         request("/organization/production/event", payload=payload)
 
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
+    suspend fun businessStorage(workspaceId: String? = null): JSONObject = request("/business/storage" + (workspaceId?.let { "?workspaceId=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""), "GET")
 
     suspend fun createBusinessWorkspace(name:String, planId:String="bizstarter"): JSONObject =
         request("/business/workspace", payload=JSONObject().put("name", name.take(180)).put("planId", planId.take(100)))
