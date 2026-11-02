@@ -4701,14 +4701,15 @@ export default {
         await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "user", safeMessage);
         const attachments = Array.isArray(b.attachments) ? b.attachments.slice(0, 8) : [];
         for (const attachment of attachments) {
+          const attachmentContent = String(attachment?.fileBase64 || attachment?.base64 || attachment?.text || attachment?.url || "");
+          if (attachmentContent.length > 180000) {
+            throw Object.assign(new Error("business_attachment_too_large"), { httpStatus: 413, safeError: "attachment_too_large" });
+          }
           const encryptedAttachmentPayload = JSON.stringify({
             name: String(attachment?.name || "attachment").slice(0, 180),
             mimeType: String(attachment?.mimeType || attachment?.type || "application/octet-stream").slice(0, 120),
-            content: String(attachment?.fileBase64 || attachment?.base64 || attachment?.text || attachment?.url || "").slice(0, 180000)
+            content: attachmentContent
           });
-          if (encryptedAttachmentPayload.length > 180000) {
-            throw Object.assign(new Error("business_attachment_too_large"), { httpStatus: 413, safeError: "attachment_too_large" });
-          }
           await appendBusinessVaultEntry(env, w.workspaceId, agentId, threadId, "attachment", encryptedAttachmentPayload);
         }
         const result = await withBusinessAiUsage(u.uid, w.workspaceId, () => withSharedCreditCharge(u, "business_ai", async control => {
