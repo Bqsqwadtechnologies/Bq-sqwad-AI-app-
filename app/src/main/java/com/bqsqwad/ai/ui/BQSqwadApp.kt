@@ -4830,6 +4830,7 @@ private fun FeatureHub(
         Workspace.LIFE,
         Workspace.COMPANION,
         Workspace.BUSINESS,
+        Workspace.TASKS,
         Workspace.CAMERA,
         Workspace.VOICE,
         Workspace.DATA_ANALYSIS
@@ -4843,6 +4844,7 @@ private fun FeatureHub(
         Workspace.LIFE -> Icons.Default.Favorite
         Workspace.COMPANION -> Icons.Default.Face
         Workspace.BUSINESS -> Icons.Default.Business
+        Workspace.TASKS -> Icons.Default.Assignment
         Workspace.CAMERA -> Icons.Default.CameraAlt
         Workspace.VOICE -> Icons.Default.Mic
         Workspace.DATA_ANALYSIS -> Icons.Default.Analytics
@@ -5127,6 +5129,7 @@ private fun WorkspaceScreen(
                     Workspace.LIFE -> "Turn real-life decisions into clear options, trade-offs and practical next steps."
                     Workspace.COMPANION -> "A private, supportive space for conversation, reflection and preferences you control."
                     Workspace.BUSINESS -> "Build business assistants, organize knowledge and streamline customer-facing work."
+                    Workspace.TASKS -> "Review work assigned to your account, update progress and keep deadlines visible."
                     Workspace.FRONTIER_LAB -> "Explore emerging ideas, compare evidence and shape research into useful next steps."
                     Workspace.DATA_ANALYSIS -> "Bring a supported dataset, inspect its structure and turn findings into clear reports."
                     Workspace.PERSONAL -> "Organize personal goals, priorities and context in one focused intelligence workspace."
@@ -5164,6 +5167,7 @@ private fun WorkspaceScreen(
                 Workspace.COMPANION -> CompanionWorkspace(onOpenPlans = onOpenPlans, onOpenCredits = onOpenCredits)
                 Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans, onOpenMainChat = onOpenMainChat)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
+                Workspace.TASKS -> MyTasksWorkspace()
                 Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
                 Workspace.ADMIN -> AdminControlCenter()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
