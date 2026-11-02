@@ -5125,7 +5125,44 @@ export default {
       if (url.pathname === "/admin/providers" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const rows=await firestoreQuery("adminAdvancedOptions",{limit:200});return json({providers:providerSecretStatus(env),routes:rows.filter(x=>String(x.__name||"").split("/").pop().startsWith("capability_")).map(x=>({capability:String(x.__name||"").split("/").pop().replace(/^capability_/,""),providerId:x.providerId||"openai",modelId:x.modelId||DEFAULT_MODELS.openai,enabled:x.enabled!==false&&x.killSwitch!==true}))}); }
       if (url.pathname === "/admin/social-integrations" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const x=await firestoreGet("socialIntegrations/global");return json({config:x||{enabled:true},platforms:["x","youtube","tiktok"]}); }
       if (url.pathname === "/admin/social-integrations" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);await firestoreSet("socialIntegrations/global",{enabled:b.enabled!==false,testMode:b.testMode!==false,updatedBy:u.uid,updatedAt:new Date()},true);return json({ok:true}); }
-      if (url.pathname === "/admin/notifications/broadcast" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request),title=String(b.title||"").trim().slice(0,120),body=String(b.body||"").trim().slice(0,1200);if(!title||!body)throw new Error("notification_title_and_body_required");const rows=await firestoreQuery("notificationTokens",{filters:[{field:{fieldPath:"enabled"},op:"EQUAL",value:{booleanValue:true}}],limit:100});const tokens=rows.map(x=>String(x.token||"")).filter(Boolean),project=JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id,result=await broadcast(env,project,tokens,title,body,b.data&&typeof b.data==="object"?Object.fromEntries(Object.entries(b.data).slice(0,20).map(([k,v])=>[String(k).slice(0,40),String(v).slice(0,500)])):{}),id=crypto.randomUUID();await firestoreCreate("adminBroadcasts/"+id,{id,title,body,data:b.data||{},...result,createdBy:u.uid,createdAt:new Date()});return json({ok:true,broadcastId:id,...result}); }
+      if (url.pathname === "/admin/notifications/broadcast" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        if (!isSuperAdmin(u, env)) throw new Error("Admin access required");
+        const b = await readBody(request);
+        const title = String(b.title || "").trim().slice(0, 120);
+        const body = String(b.body || "").trim().slice(0, 1200);
+        if (!title || !body) throw new Error("notification_title_and_body_required");
+        const rows = await firestoreQuery("notificationTokens", {
+          filters: [{ field: { fieldPath: "enabled" }, op: "EQUAL", value: { booleanValue: true } }],
+          limit: 100,
+        });
+        const uids = [...new Set(rows.map(row => String(row.uid || "")).filter(Boolean))];
+        const preferences = new Map(await Promise.all(uids.map(async uid => [
+          uid,
+          await firestoreGet("notificationPreferences/" + uid).catch(() => null),
+        ])));
+        const tokens = rows
+          .filter(row => preferences.get(String(row.uid || ""))?.pushEnabled !== false)
+          .map(row => String(row.token || ""))
+          .filter(Boolean);
+        const project = JSON.parse(env.BQ_FIREBASE_SERVICE_ACCOUNT_JSON).project_id;
+        const result = await broadcast(
+          env,
+          project,
+          tokens,
+          title,
+          body,
+          b.data && typeof b.data === "object"
+            ? Object.fromEntries(Object.entries(b.data).slice(0, 20).map(([k, v]) => [String(k).slice(0, 40), String(v).slice(0, 500)]))
+            : {},
+        );
+        const id = crypto.randomUUID();
+        await firestoreCreate("adminBroadcasts/" + id, {
+          id, title, body, data: b.data || {}, ...result,
+          createdBy: u.uid, createdAt: new Date(),
+        });
+        return json({ ok: true, broadcastId: id, ...result });
+      }
       if (url.pathname === "/admin/access" && request.method === "GET") { const u=await verifyFirebaseUser(request); return isSuperAdmin(u,env)?json({allowed:true}):json({allowed:false,error:"Admin access required"},403); }
       if (url.pathname === "/admin/daily-free-credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
