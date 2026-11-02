@@ -194,3 +194,12 @@ Defaults apply only when the relevant config document is missing: markup 600%, f
 - Website team creation and discovery share logo URL and theme color metadata. Allowed theme values are `blue`, `indigo`, `violet`, and `cyan`; logo URLs are HTTPS-only. Android team logo/theme rendering is still outstanding.
 - Website BQ-Codron hint dismissal/seen state is persisted per conversation across browser sessions.
 - All items above are source-only. Do not infer production deployment, test success, or cross-client runtime parity from these commits.
+
+
+
+## Monthly feedback campaign — 2026-11-02 (website-only)
+- Website root shell shows the monthly survey to authenticated non-anonymous users when the campaign is enabled and the configured receiver is still a verified administrator.
+- One submission per account per UTC month is enforced atomically at `monthlyFeedback/{YYYY-MM}_{uid}`.
+- Submission creates an in-app notification at `notifications/{receiverUid}/items/{notificationId}`; Admin > Monthly feedback campaign lists the latest 100 records routed to the signed-in administrator.
+- The admin config is stored in `adminAdvancedOptions/monthlyFeedback`. The receiver must be a verified administrator.
+- Android survey UI, push/email delivery, external scheduled campaigns and runtime verification are not implemented.
