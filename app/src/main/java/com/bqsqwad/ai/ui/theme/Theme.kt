@@ -9,13 +9,17 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.Density
 
 // Shared message surfaces intentionally remain distinct in light and dark themes.
@@ -165,14 +169,14 @@ private fun paletteScheme(p: ThemePalette, dark: Boolean) =
 fun BQSqwadTheme(content: @Composable () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
-    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "system") ?: "system") }
+    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "light") ?: "light") }
     var accentName by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
     var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
 
     DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
-                "theme_mode" -> mode = prefs.getString(key, "system") ?: "system"
+                "theme_mode" -> mode = prefs.getString(key, "light") ?: "light"
                 "accent_palette" -> accentName = prefs.getString(key, "signature") ?: "signature"
                 "text_scale" -> textScale = prefs.getFloat(key, 1.0f).coerceIn(0.85f, 1.4f)
             }
@@ -184,9 +188,8 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     val normalized = mode.lowercase()
     val dark = when (normalized) {
         "dark", "amoled", "midnight", "aurora", "sunset" -> true
-        "light" -> false
-        "ocean" -> systemDark
-        else -> systemDark
+        "system", "ocean" -> systemDark
+        else -> false
     }
     val paletteMode = if (normalized == "system") "system" else normalized
     val schemeMode = when {
@@ -195,6 +198,20 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     }
     val primary = accentForTheme(accentName, dark)
     val palette = if (dark) darkPalette(primary, schemeMode) else lightPalette(primary, schemeMode)
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+            @Suppress("DEPRECATION")
+            window.statusBarColor = palette.background.toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = palette.background.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !dark
+            controller.isAppearanceLightNavigationBars = !dark
+        }
+    }
 
     val systemDensity = LocalDensity.current
     CompositionLocalProvider(
