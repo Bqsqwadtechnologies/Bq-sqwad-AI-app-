@@ -2615,7 +2615,13 @@ export default {
       if (url.pathname === "/native/team/accept-invite" && request.method === "POST") { const u = await verifyFirebaseUser(request); return json(await teamAcceptInvite(u, await readBody(request))); }
 
       {
-        const teamsResp = await handleTeamsSqwadRoutes(url, request, env, { verifyFirebaseUser, json });
+        const teamsResp = await handleTeamsSqwadRoutes(url, request, env, {
+          verifyFirebaseUser,
+          json,
+          reserve: async (user, amount) => chargeCredits(user.uid, amount, "team_member_message", user, { allowFractional: true }),
+          commit: async (uid, reservationId) => commitCredits(uid, reservationId, "internal"),
+          reverse: async (uid, reservationId) => reverseCredits(uid, reservationId),
+        });
         if (teamsResp) return teamsResp;
       }      if (url.pathname === "/admin/training-candidates" && request.method === "GET") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await listTrainingCandidates({ status: url.searchParams.get("status") || "pending", limit: Number(url.searchParams.get("limit") || 50) })); }
       if (url.pathname === "/admin/training-candidates/build" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await buildTrainingCandidates({ limit: 50 })); }
