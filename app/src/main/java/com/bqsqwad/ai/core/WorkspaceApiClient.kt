@@ -462,6 +462,11 @@ class WorkspaceApiClient {
     suspend fun adminAccess():JSONObject = request("/admin/access","GET")
     suspend fun registerNotificationToken(token:String):JSONObject = request("/notifications/token", payload=JSONObject().put("token", token).put("platform", "android"))
     suspend fun unregisterNotificationToken(token:String):JSONObject = request("/notifications/token", "DELETE", JSONObject().put("token", token))
+    suspend fun notificationPreferences():JSONObject = request("/notifications/preferences", "GET")
+    suspend fun updateNotificationPreferences(inAppEnabled:Boolean, pushEnabled:Boolean):JSONObject =
+        request("/notifications/preferences", payload=JSONObject()
+            .put("inAppEnabled", inAppEnabled)
+            .put("pushEnabled", pushEnabled))
     suspend fun adminIssues():JSONObject = request("/admin/issues","GET")
     suspend fun adminPricingAudit():JSONObject = request("/admin/pricing/audit","GET")
     suspend fun adminDiagnostics():JSONObject = request("/admin/diagnostics","GET")
