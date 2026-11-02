@@ -68,3 +68,41 @@ export async function appendHashChain(prevHash, payload) {
   const dig = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(dig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/** Server-only vault append: redacts secrets, extends hash chain, records index. */
+export async function appendVaultMessage({
+  dbSet,
+  dbGet,
+  businessId,
+  agentId,
+  threadId,
+  role,
+  text,
+  caller = "worker",
+}) {
+  assertServerOnlyVaultAccess(caller);
+  const redacted = redactForVault(text);
+  const indexPath = `vaultIndex/${businessId}/${agentId}/${threadId}`;
+  const index = (await dbGet(indexPath)) || { page: 1, prevHash: "", messageCount: 0 };
+  const page = Number(index.page || 1);
+  const payload = JSON.stringify({
+    ts: new Date().toISOString(),
+    role: String(role || "assistant"),
+    text: redacted,
+  });
+  const hash = await appendHashChain(index.prevHash, payload);
+  const path = vaultPagePath(businessId, agentId, threadId, page);
+  const existing = (await dbGet(path)) || { lines: [] };
+  const lines = Array.isArray(existing.lines) ? existing.lines.slice() : [];
+  lines.push({ payload, hash });
+  await dbSet(path, { lines, updatedAt: new Date().toISOString() }, true);
+  const messageCount = Number(index.messageCount || 0) + 1;
+  const nextPage = lines.length >= 200 ? page + 1 : page;
+  await dbSet(indexPath, {
+    page: nextPage,
+    prevHash: hash,
+    messageCount,
+    updatedAt: new Date().toISOString(),
+  }, true);
+  return { path, hash, messageCount, page: nextPage };
+}
