@@ -72,3 +72,9 @@ Worked only on real `main`. No duplicate trees.
 ## Unified verification run request — 2026-11-02
 - This audit-only commit is intended to trigger the existing `.github/workflows/bq-full-system-verification.yml` on `main`. That workflow runs Android unit tests + debug assemble, Worker syntax/tests/check, and (only when `BQ_WEBSITE_REPO_TOKEN` is configured with read access) website tests, lint and production build.
 - Results are pending until the associated GitHub Actions run is inspected. A skipped website stage, missing credentials, failed step, or successful build must be recorded from the actual run; this note does not claim a pass.
+
+
+## Verification failure and source correction — 2026-11-02
+- Unified run #136 (commit `5cd2266ddefe810fa774547136a2ac244441e317`) reached Android `:app:compileDebugKotlin` and failed on two smart-cast errors because `firebaseUser` is a delegated Compose property (`BQSqwadApp.kt` around lines 1187 and 1558).
+- The offending reads were corrected on `main` by commits `3c763835726a992de4488317015062be7158f23b` and `8137eab3c2ef51b0843b64358d20403db2cb22d4`; the current source snapshots a local FirebaseUser value for the onboarding effect and uses a null-safe anonymous-user check for the gate.
+- A fresh unified verification is being triggered from this audit update against the corrected `main`. Its result must be inspected separately; run #136 remains failed. Website steps in #136 were skipped because the website repository token was not configured/validated.
