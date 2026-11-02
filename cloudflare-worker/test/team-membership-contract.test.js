@@ -22,11 +22,19 @@ test("team workspace pages membership reads instead of a single 50-row scan", ()
   assert.match(teamWorkspace, /offset/);
 });
 
-test("team workspace and Teams v2 enforce a 200-member ceiling", () => {
-  assert.match(teamWorkspace, /Math\.max\(200/);
-  assert.match(teamWorkspace, /team_seat_limit_reached/);
-  assert.match(teamsSqwad, /activeSeats >= 200/);
-  assert.match(teamsSqwad, /team_seat_limit_reached/);
+test("teams have no hard-coded member ceiling and new teams start with their owner", () => {
+  assert.doesNotMatch(teamWorkspace, /team_seat_limit_reached|activeSeats\s*>=\s*\d+/);
+  assert.doesNotMatch(teamsSqwad, /team_seat_limit_reached|activeSeats\s*>=\s*\d+/);
+  assert.match(teamsSqwad, /memberCount:\s*1/);
+  assert.match(teamsSqwad, /role:\s*"owner"/);
+  assert.match(teamsSqwad, /userTeams\/.*items/);
+});
+
+test("member-to-member team messages use the sender's personal credit reservation", () => {
+  assert.match(teamsSqwad, /billing\.reserve\(user, price\)/);
+  assert.match(teamsSqwad, /billing\.commit\(user\.uid, reservation\.reservationId\)/);
+  assert.match(indexJs, /team_member_message/);
+  assert.match(indexJs, /reverse: async \(uid, reservationId\) => reverseCredits/);
 });
 
 test("Teams v2 my-teams path indexes owners and active members", () => {
