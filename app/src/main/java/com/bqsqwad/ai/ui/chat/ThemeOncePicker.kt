@@ -38,11 +38,11 @@ fun saveThemeChoice(context: Context, mode: String) {
 
 @Composable
 fun ThemeOncePicker(onChosen: (mode: String) -> Unit) {
-    // White (System) is the recommended default
+    // System theme is the default: light/white when the device is light, dark when the device is dark.
     var selected by remember { mutableStateOf("system") }
     val options = listOf(
-        Triple("system", "White (System) · Recommended", Icons.Default.PhoneAndroid),
-        Triple("light", "Light", Icons.Default.LightMode),
+        Triple("system", "System · White when device is light (recommended)", Icons.Default.PhoneAndroid),
+        Triple("light", "Light (always white surfaces)", Icons.Default.LightMode),
         Triple("dark", "Dark", Icons.Default.DarkMode)
     )
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -53,7 +53,7 @@ fun ThemeOncePicker(onChosen: (mode: String) -> Unit) {
         ) {
             Spacer(Modifier.height(32.dp))
             Text("Choose your look", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("You can change this later in Settings → Appearance.",
+            Text("Default follows your phone theme. You can change this later in Settings → Appearance.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
