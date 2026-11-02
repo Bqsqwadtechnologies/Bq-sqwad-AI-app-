@@ -15,6 +15,5 @@ enum class Workspace(val title: String, val description: String) {
     BUSINESS("Business AI", "Agents, knowledge, connections and automation"),
     TASKS("My Tasks", "Assigned work, deadlines and task status"),
     ORGANIZATION_STUDIO("Organization AI / Studio", "Organization AI, shared knowledge, team controls, live production, multi-camera coordination and streaming"),
-    DATA_ANALYSIS("Data Analyst", "Structured data analysis, calculations, charts and AI-generated reports"),
-    ADMIN("Admin Control Center", "Remote configuration, providers, billing and testing")
+    DATA_ANALYSIS("Data Analyst", "Structured data analysis, calculations, charts and AI-generated reports")
 }
