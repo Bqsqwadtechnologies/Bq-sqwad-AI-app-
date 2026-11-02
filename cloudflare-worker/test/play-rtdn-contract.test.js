@@ -12,7 +12,8 @@ const indexJs = readFileSync(join(root, "src/index.js"), "utf8");
 test("play-rtdn module exports handlers", () => {
   assert.match(playRtdn, /export async function handlePlayRtdn/);
   assert.match(playRtdn, /export async function reaggregateRootEntitlement/);
-  assert.match(playRtdn, /google_play_rtdn/);
+  assert.match(playRtdn, /source: "google_play"/);
+  assert.match(playRtdn, /state: notificationType === 5 \? "grace" : notificationType === 3 \? "cancelled" : "expired"/);
 });
 
 test("vault append is server-only and redacts secrets", () => {
@@ -23,7 +24,7 @@ test("vault append is server-only and redacts secrets", () => {
 
 test("index import or route for RTDN preferred when present", () => {
   // Soft preference: fail only if neither snippet path nor live route exists.
-  const wired = indexJs.includes("/play/rtdn") || indexJs.includes("play-rtdn.js");
+  const wired = indexJs.includes("/play/rtdn") && indexJs.includes("PLAY_RTDN_SHARED_SECRET") && indexJs.includes("handlePlayRtdn");
   const snippet = existsSync(join(root, "src/index-play-rtdn.snippet.js"));
   assert.ok(wired || snippet, "expected /play/rtdn wire or index-play-rtdn.snippet.js");
 });
