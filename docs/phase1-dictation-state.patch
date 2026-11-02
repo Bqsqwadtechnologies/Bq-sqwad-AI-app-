@@ -1,1 +1,34 @@
-PLACEHOLDER
+--- a/app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
++++ b/app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt
+@@ -2600,19 +2600,22 @@
+     var feedbackReason by remember { mutableStateOf("inaccurate") }
+     var feedbackComment by remember { mutableStateOf("") }
+     var micError by remember { mutableStateOf<String?>(null) }
+-    var dictationError by remember { mutableStateOf<String?>(null) }
+-    var dictationNeedsCredits by remember { mutableStateOf(false) }
+-    var dictationRecording by remember { mutableStateOf(false) }
+-    var dictationTranscribing by remember { mutableStateOf(false) }
+-    var dictationLevel by remember { mutableFloatStateOf(0f) }
++    // Phase 1: single DictationState drives voice-mode UI (not independent booleans).
++    var dictationState by remember { mutableStateOf<DictationState>(DictationState.Idle) }
++    val dictationRecording = dictationState.isRecording
++    val dictationTranscribing = dictationState.isTranscribing
++    val dictationSeconds = dictationState.recordingSeconds
++    val dictationLevel = dictationState.recordingLevel
++    val dictationSessionId = dictationState.sessionIdOrZero
++    val dictationError = dictationState.errorMessage
++    val dictationNeedsCredits = dictationState.needsCredits
++    val dictationTranscriptReady = dictationState.isReadyToSend
+     val dictationWaveform = remember { mutableStateListOf<Float>().apply { repeat(24) { add(0f) } } }
+-    var dictationSeconds by remember { mutableIntStateOf(0) }
+-    var dictationStartedAt by remember { mutableLongStateOf(0L) }
+     var dictationRecorder by remember { mutableStateOf<DictationRecorder?>(null) }
+     var dictationReadyAudio by remember { mutableStateOf<ByteArray?>(null) }
+-    var dictationTranscriptReady by remember { mutableStateOf(false) }
+     var dictationTranscriptionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+-    var dictationSessionId by remember { mutableIntStateOf(0) }
++    var dictationNextSessionId by remember { mutableIntStateOf(1) }
++    var speechLevel by remember { mutableFloatStateOf(0f) }
+     var speechBaseMessage by remember { mutableStateOf("") }
+     var attachments by remember { mutableStateOf<List<PreparedChatAttachment>>(emptyList()) }
+     var selectedModelKey by rememberSaveable { mutableStateOf("bq-7-star") }
