@@ -28,7 +28,7 @@ import { youtubeChannel, youtubeCreateLive, youtubeTransition, youtubeStatus, yo
 import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runtime-native.js";
 import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
-import { computeHold, computeSettlement } from "./billing-hold.js";
+import { computeHold, computeSettlement, splitCreditBuckets } from "./billing-hold.js";
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
@@ -997,20 +997,24 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
       const h = computeHold({ balanceTotal: spendableBalance, estimate: charge });
       if (!h.ok) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
       charge = h.hold;
-    } else if (spendableBalance < charge) {
+    }
+    // The website's users/{uid} document is the shared credit authority.
+    // Bucket splitting is shared/tested: BQ-7-Star drains daily, subscription,
+    // then permanent; BQ-Codron drains subscription then permanent only.
+    const split = splitCreditBuckets({
+      daily: balance.daily,
+      subscription: balance.subscription,
+      permanent: balance.permanent,
+      amount: charge,
+      purchasedOnly: options.purchasedOnly === true
+    });
+    if (!split.ok) {
       throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
     }
-
-    // The website's users/{uid} document is the shared credit authority.
-    // Reserve the exact bucket(s) here so website and app cannot both spend
-    // the same credits. Purchased-only model requests never touch the daily
-    // allowance or retired trial bucket.
-    const fromDaily = options.purchasedOnly ? 0 : Math.min(balance.daily, charge);
-    const afterDaily = charge - fromDaily;
-    const fromTrial = options.purchasedOnly ? 0 : Math.min(balance.trial, afterDaily);
-    const afterTrial = afterDaily - fromTrial;
-    const fromSubscription = Math.min(balance.subscription, afterTrial);
-    const fromPermanent = afterTrial - fromSubscription;
+    const fromDaily = split.fromDaily;
+    const fromTrial = 0;
+    const fromSubscription = split.fromSubscription;
+    const fromPermanent = split.fromPermanent;
     try {
       await firestoreCommit([
         {
