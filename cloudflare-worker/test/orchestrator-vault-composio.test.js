@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { shouldFallback, estimateCostUsd } from "../src/orchestrator-native.js";
 import { businessIngressAllowed, storageMeterView, redactForVault } from "../src/business-vault-native.js";
-import { toolsForPlan } from "../src/composio-tools-native.js";
+import { toolsForPlan } from "../src/business-tool-catalog.js";
 import { isActivePresence } from "../src/presence-usage-native.js";
 
 test("fallback on 429 not on auth", () => {
