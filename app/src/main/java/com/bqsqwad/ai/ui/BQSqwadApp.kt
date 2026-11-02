@@ -2870,15 +2870,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             runCatching { recognizer.startListening(intent); isListening = true; micError = null }
                 .onFailure { isListening = false; micError = "Voice input could not start. Please try again." }
         } else {
-            val canHandle = runCatching {
-                context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
-            }.getOrDefault(false)
-            if (canHandle) {
-                runCatching { fallbackSpeechLauncher.launch(intent); isListening = true; micError = null }
-                    .onFailure { isListening = false; micError = "Voice input could not be opened. Please check your installed speech apps." }
-            } else {
-                micError = "Voice input is not available on this device. Install or enable a speech recognition app and try again."
-            }
+            isListening = false
+            dictationLevel = 0f
+            micError = "On-device speech recognition is unavailable. Use BQ voice dictation or enable a speech recognition service in device settings."
         }
     }
     val stopDictationAction = remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -2913,7 +2907,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationLevel = 0f
         val recorder = dictationRecorder
         dictationRecorder = null
-        val duration = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(1, 120)
+        val duration = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(1, 25)
         val session = ++dictationSessionId
         dictationTranscriptionJob?.cancel()
         dictationTranscriptionJob = scope.launch {
@@ -2956,7 +2950,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     LaunchedEffect(dictationRecording) {
         while (dictationRecording) {
             delay(250)
-            dictationSeconds = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(0, 120)
+            dictationSeconds = ((System.currentTimeMillis() - dictationStartedAt) / 1000L).toInt().coerceIn(0, 25)
         }
     }
     DisposableEffect(Unit) {
