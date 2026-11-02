@@ -37,3 +37,11 @@
 - Worker Teams join/approve/leave now use Firestore update-time compare-and-set transitions. Concurrent duplicate transitions do not each change the denormalized member count; leaving marks the membership as `left` and removes the user's active membership index. Source: `cloudflare-worker/src/teams-sqwad-native.js`, commit `ddcbf3205f67703a4e6e26b00f421399543b0c01`.
 - Static contract coverage was added in `cloudflare-worker/test/team-membership-contract.test.js`, commit `7bd97080fa1b9fbc87b2a27089aa96d39b365640`. Tests were not executed.
 - The server has no hard-coded 200-seat ceiling, but 500-member load, pagination, migration/index correctness and website↔Android round-trip still require testing.
+
+
+
+## My Tasks and notification preferences update — 2026-11-02
+- Native My Tasks screen is now present and wired to authenticated Worker endpoints. It lists only tasks assigned to the signed-in UID and permits open/in-progress/blocked/done transitions after server-side assignment checks. Feature Hub navigation and privacy disclosure are connected. Commits: `2099ada6`, `613e79f5`, `e2cbed48`, `7e227d85`, `ae17f1ed`, `42d30af3`.
+- Android Settings reads/writes the account-scoped notification preferences API; Worker admin broadcast filters accounts with push disabled. Commits: `59aecc86`, `4432e5be`, `222dd315`, `5eecdd59`, `7aa547ee`.
+- Worker My Tasks and notification contract assertions added in `cloudflare-worker/test/native-workspace-contract.test.js`, commit `b0e93bbb`. Test suite and Gradle build were NOT run.
+- No release readiness, Android build success, Worker test pass, live auth validation or device QA is claimed.
