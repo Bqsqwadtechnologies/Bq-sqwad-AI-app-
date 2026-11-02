@@ -2,6 +2,7 @@ package com.bqsqwad.ai.ui
 
 import android.view.WindowManager
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -138,9 +139,9 @@ fun SecretChatsDialog(open: Boolean, chatId: String?, transcript: String, title:
                             busy = true; error = null
                             scope.launch {
                                 runCatching {
-                                    val response = api.getSecretChat(item.id).optJSONObject("chat") ?: error("Secret chat not found.")
+                                    val response = api.getSecretChat(item.id).optJSONObject("chat") ?: throw IllegalStateException("Secret chat not found.")
                                     fun blob(key: String): SecretChatCrypto.EncryptedBlob {
-                                        val value = response.optJSONObject(key) ?: error("Encrypted record is incomplete.")
+                                        val value = response.optJSONObject(key) ?: throw IllegalStateException("Encrypted record is incomplete.")
                                         return SecretChatCrypto.EncryptedBlob(value.getString("salt"), value.getString("iv"), value.getString("ciphertext"))
                                     }
                                     SecretCipherRecord(item.id, blob("primary"), blob("recovery"))
