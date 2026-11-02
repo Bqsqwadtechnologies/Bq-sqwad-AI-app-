@@ -146,6 +146,7 @@ private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.COMPANION -> "AI Companion"
     Workspace.LEARNING -> "Learning Studio"
     Workspace.BUSINESS -> "Business AI"
+    Workspace.TASKS -> "My Tasks"
     Workspace.ORGANIZATION_STUDIO -> "Organization Studio AI"
     Workspace.ADMIN -> "System controls"
     Workspace.VIDEO -> "Video Generation"
@@ -170,6 +171,7 @@ private fun featurePrivacyDetail(w: Workspace): String = when (w) {
     Workspace.TRUTH_GUARD -> "TruthGuard requests, claims and source information are processed to provide evidence-aware fact checking and claim review."
     Workspace.FRONTIER_LAB -> "Frontier Lab requests and experiment data are processed for advanced AI experimentation and research workflows."
     Workspace.DATA_ANALYSIS -> "Data-analysis inputs and generated reports are processed to provide calculations, structured analysis and visualizations."
+    Workspace.TASKS -> "Task titles, descriptions, assignments and status changes are processed to show work assigned to your authenticated account."
 }
 
 @Composable
