@@ -74,7 +74,10 @@ class ChatApiClient(
         capability: String = "chat",
         system: String? = null,
         modelRegistryId: String? = null,
-        modelKey: String? = null
+        modelKey: String? = null,
+        onTaskStarted: (Long) -> Unit = {},
+        onPhase: (String) -> Unit = {},
+        onTaskEnded: () -> Unit = {}
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) { withContext(Dispatchers.IO) {
             val token = authToken()
@@ -215,12 +218,18 @@ class ChatApiClient(
                 var modelId: String? = null
                 var creditsCharged = 0.0
                 var eventData = StringBuilder()
+                var eventName = "message"
                 var completed = false
 
-                fun processEvent(data: String) {
+                fun processEvent(data: String, event: String) {
                     val trimmed = data.trim()
                     if (trimmed.isEmpty() || trimmed == "[DONE]") return
                     val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+                    when (event) {
+                        "taskStarted" -> { onTaskStarted(json.optLong("startedAt", System.currentTimeMillis())); return }
+                        "phase" -> { onPhase(json.optString("label").ifBlank { "Working" }); return }
+                        "taskEnded" -> { onTaskEnded(); return }
+                    }
                     when (json.optString("type")) {
                         "delta" -> {
                             val delta = json.optString("text")
@@ -251,14 +260,17 @@ class ChatApiClient(
                 while (true) {
                     val line = reader.readLine() ?: break
                     if (line.isEmpty()) {
-                        processEvent(eventData.toString())
+                        processEvent(eventData.toString(), eventName)
                         eventData = StringBuilder()
+                        eventName = "message"
+                    } else if (line.startsWith("event:")) {
+                        eventName = line.removePrefix("event:").trim().ifBlank { "message" }
                     } else if (line.startsWith("data:")) {
                         if (eventData.isNotEmpty()) eventData.append('\n')
                         eventData.append(line.removePrefix("data:").trimStart())
                     }
                 }
-                if (eventData.isNotEmpty()) processEvent(eventData.toString())
+                if (eventData.isNotEmpty()) processEvent(eventData.toString(), eventName)
 
                 if (!completed) throw IllegalStateException("AI streaming ended before completion.")
                 val finalText = textBuilder.toString().trim()
