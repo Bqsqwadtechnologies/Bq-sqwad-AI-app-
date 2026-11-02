@@ -47,3 +47,23 @@ Worked only on real `main`. No duplicate trees.
 - Android My Tasks screen and complete task/tag dashboard parity — NOT FOUND in the inspected app source search; no implementation or Android build was performed.
 - Android phase 5–7 end-to-end QA, Worker tests, `./gradlew testDebugUnitTest assembleDebug`, production Worker checks and device QA — NOT RUN. No GitHub Actions workflow was triggered or modified.
 - Phase 5–7 completion is NOT CLAIMED. The existing `docs/APP_SIDE_RELEASE_REPORT.md` and this audit remain the authoritative list of remaining app-side release blockers.
+
+
+## Phase 2–4 continuation — 2026-11-02
+
+### Phase 2 — Website-only administration
+- Android Admin workspace navigation is excluded from the drawer and openWorkspace(Workspace.ADMIN) is a no-op; the Settings Admin Dashboard card was removed. Evidence: app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt lines 1324–1327 and 4749–4754. DONE in source, NOT Android-build-verified.
+- Existing Android admin screen source files were retained because website equivalence has not been verified for every capability. No app admin screens were deleted.
+- Website admin parity inventory is recorded in the website audit. File Box retention and a dedicated Training Storage dashboard still need a verified website equivalent before deleting their Android source screens.
+
+### Phase 3 — Existing modules
+- Android onboarding now checks the authenticated shared /api/native/onboarding status and mounts OnboardingSurveyScreen only when needsOnboarding is true; successful submission persists the chosen theme to the same device preference read by Settings. Evidence: BQSqwadApp.kt lines 1183–1191 and 1558–1578; OnboardingApiClient.kt; OnboardingSurveyScreen.kt. DONE in source, NOT device-tested.
+- Android PresenceClient is already called every 30 seconds while the activity is STARTED. Evidence: app/src/main/java/com/bqsqwad/ai/MainActivity.kt lines 42–51. DONE in source, NOT live-verified.
+- Android FCM now calls the shared MessagingStyle notification builder; the builder uses the full-colour bq_notification_logo as the conversation Person avatar and the monochrome notification mark as the small icon, without setting a large icon. Evidence: BqFirebaseMessagingService.kt lines 83–90 and BqConversationNotification.kt lines 18–48. DONE in source, NOT Android 12/13/14 device-tested.
+- ThemeOncePicker itself remains unmounted; the onboarding survey is the currently wired first-run theme choice. Business storage/expiry server data and the requested Worker route/orchestrator mounts remain NOT DONE / NOT VERIFIED.
+
+### Phase 4 — Chat, secret chat and memory
+- Android main chat now exposes the existing conversation menu for Markdown export, share, clear and delete. Evidence: website-shared AppMenu.tsx and Android main-chat history client remains separate. Android three-dot menu, rename, project assignment, secret-chat assignment, PDF/Word/text exports and generated-file cards remain NOT DONE.
+- Android SecretChatCrypto.kt remains cryptographic helper code only. No Android secret-chat UI, password/recovery workflow, biometric/WebAuthn unlock, auto-lock, ciphertext-only sync, or FLAG_SECURE flow was implemented.
+- Cross-platform rolling chat summaries, coding hint, live work timer, and app-side canonical memory editing/retrieval remain NOT DONE / NOT VERIFIED.
+- No Android unit tests or Gradle build were run in this continuation; the GitHub file-editing session has no checked-out Gradle workspace/Android SDK. No production deployment or device QA is claimed.
