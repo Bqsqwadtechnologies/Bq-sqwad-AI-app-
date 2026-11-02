@@ -128,7 +128,7 @@ function subscriptionPeriodFromBasePlan(basePlanId) {
   return "monthly";
 }
 
-function canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState) {
+export function canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState) {
   if (mapping.productType !== "subs" || mapping.organizationWalletTopup === true) return null;
   const expiresAt = lineItem?.expiryTime ? new Date(lineItem.expiryTime) : null;
   if (!expiresAt || !Number.isFinite(expiresAt.getTime())) return null;
@@ -256,20 +256,26 @@ export async function verifyPlayPurchase(env, firestore, input) {
     if (!Number.isFinite(previousTime) || !Number.isFinite(currentTime) || previousTime === currentTime) {
       const migrated = { ...existing, cycleId, cycleReference, expiryTime: currentExpiry, updatedAt: new Date() };
       delete migrated.__name;
-      await firestore.commit([
+      const migrationWrites = [
         { path: "playPurchases/" + purchaseId, data: migrated },
         { path: eventPath, data: { uid, purchaseId, productId, productType: "subs", cycleId, cycleReference, state: existing.state || "verified", verified: true, acknowledged: true, legacyMigrated: true }, create: true }
-      ]);
+      ];
+      const canonical = canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState);
+      if (canonical) migrationWrites.push(canonical);
+      await firestore.commit(migrationWrites);
       return { ok: true, alreadyProcessed: true, state: existing.state || "verified", migrated: true };
     }
   }
   if (existing?.verified === true && mapping.productType === "subs" && String(existing.cycleId || "") === cycleId) {
     const migrated = { ...existing, cycleId, cycleReference, expiryTime: lineItem.expiryTime || null, updatedAt: new Date() };
     delete migrated.__name;
-    await firestore.commit([
+    const migrationWrites = [
       { path: "playPurchases/" + purchaseId, data: migrated },
       { path: eventPath, data: { uid, purchaseId, productId, productType: "subs", cycleId, cycleReference, state: existing.state || "verified", verified: true, acknowledged: true, legacyMigrated: true }, create: true }
-    ]);
+    ];
+    const canonical = canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, subscriptionState);
+    if (canonical) migrationWrites.push(canonical);
+    await firestore.commit(migrationWrites);
     return { ok: true, alreadyProcessed: true, state: existing.state || "verified", migrated: true };
   }
 
