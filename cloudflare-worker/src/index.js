@@ -656,6 +656,8 @@ const CAPABILITY_PRICE_OPERATIONS = Object.freeze({
   file_html: "file.html",
   file_json: "file.json",
   file_code: "file.code",
+  file_xml: "file.xml",
+  file_yaml: "file.yaml",
   video_generation: "video.generate",
   music: "music.generate",
   resume: "resume.generate",
