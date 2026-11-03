@@ -3774,7 +3774,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     dismissButton = { TextButton(onClick = { renameDialogOpen = false }) { Text("Cancel") } }
                 )
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            val dictationUiActive = dictationRecording || isListening || dictationTranscribing || dictationReadyAudio != null || dictationTranscriptReady || dictationError != null
+            Box(Modifier.then(if (dictationUiActive) Modifier.height(0.dp) else Modifier.weight(1f).fillMaxWidth())) {
                 BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
                 LazyColumn(
                     state = chatListState,
@@ -4131,7 +4132,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     confirmButton = { TextButton(onClick = { pastedTextPreview = null }) { Text("Close") } }
                 )
             }
-            if (attachments.isNotEmpty()) {
+            if (!dictationUiActive && attachments.isNotEmpty()) {
                 LazyRow(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -4179,12 +4180,13 @@ val composerShape = RoundedCornerShape(26.dp)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(if (dictationUiActive) Modifier.widthIn(max = 420.dp).align(Alignment.CenterHorizontally) else Modifier)
                     .navigationBarsPadding()
                     .imePadding(),
-                horizontalAlignment = Alignment.End,
+                horizontalAlignment = if (dictationUiActive) Alignment.CenterHorizontally else Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Surface(
+                if (!dictationUiActive) Surface(
                     modifier = Modifier
                         .size(48.dp)
                         .border(
@@ -4318,7 +4320,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 }
                             }
                         }
-                        Column(
+                        if (!dictationUiActive) Column(
                             Modifier
                                 .fillMaxWidth()
                                 .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
