@@ -38,7 +38,7 @@ import { computeHold, computeSettlement, splitCreditBuckets } from "./billing-ho
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { getNativeMonthlyFeedbackState, submitNativeMonthlyFeedback, getNativeMonthlyFeedbackAdmin, saveNativeMonthlyFeedbackAdmin } from "./monthly-feedback-native.js";
-import { buildTrainingCandidates, exportApprovedTrainingJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
+import { buildTrainingCandidates, exportApprovedTrainingJsonl, exportBusinessConversationJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
 import { notifyDailyFreeCredit } from "./free-credit-notify-native.js";
 import { handleModelsCatalog, resolveModelCatalogEntry } from "./ai-model-catalog-route.js";
@@ -2787,6 +2787,7 @@ export default {
       if (url.pathname === "/admin/training-candidates" && request.method === "GET") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await listTrainingCandidates({ status: url.searchParams.get("status") || "pending", limit: Number(url.searchParams.get("limit") || 50) })); }
       if (url.pathname === "/admin/training-candidates/build" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await buildTrainingCandidates({ limit: 50 })); }
       if (url.pathname === "/admin/training-candidates/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await exportApprovedTrainingJsonl({ max: 500 })); }
+      if (url.pathname === "/admin/business-conversations/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 }); return json(await exportBusinessConversationJsonl({ max: 500 })); }
       if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }
       if (url.pathname === "/native/catalog" && request.method === "GET") {
         return json(await nativeCatalog());
