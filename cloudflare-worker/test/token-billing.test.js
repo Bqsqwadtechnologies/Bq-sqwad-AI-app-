@@ -91,7 +91,7 @@ test("native Main Chat uses the model-specific direct token rates without a mult
   assert.equal(result.customerCredits, 0.15);
 });
 
-test("shared website meter applies minimum only to nonzero usage and never overrides token rates", () => {
+test("shared website meter never applies a minimum charge", () => {
   const pricing = {
     inputPriceUsdPerMillion: 1,
     outputPriceUsdPerMillion: 2,
@@ -120,7 +120,7 @@ test("shared website meter applies minimum only to nonzero usage and never overr
     creditReferenceValueUsd: 0.1199,
     multiplier: 7,
   });
-  assert.equal(tiny.customerCredits, 0.002);
+  assert.equal(tiny.customerCredits, 0);
 });
 
 test("shared website meter rejects invalid admin metering instead of charging unpredictably", () => {
