@@ -486,7 +486,7 @@ export async function teamsJoin(user, body) {
       joinedAt: ts,
       spendLimitCredits: null,
     },
-    false,
+    true,
   );
   await firestoreSet("userTeams/" + user.uid + "/items/" + teamId, { teamId, joinedAt: ts, status: "pending" }, true);
   const member = await getMember(teamId, user.uid);
