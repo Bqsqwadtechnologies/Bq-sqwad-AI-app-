@@ -4075,7 +4075,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     ) {
                         BqSqwadLoadingIndicator(Modifier.size(24.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(thinkingStage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(thinkingStage, style = MaterialTheme.typography.labelMedium, color = Color.DarkGray)
                     }
                 }
                 error?.let { message ->
@@ -4225,7 +4225,7 @@ val composerShape = RoundedCornerShape(26.dp)
                         .fillMaxWidth()
                         .border(1.dp, composerBlue, composerShape),
                     shape = composerShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    color = Color.White,
                     shadowElevation = 2.dp
                 ) {
                     Column(Modifier.fillMaxWidth()) {
@@ -4334,22 +4334,6 @@ val composerShape = RoundedCornerShape(26.dp)
                                 .fillMaxWidth()
                                 .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Surface(
-                                modifier = Modifier.clickable(onClick = openFeatures),
-                                shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.secondaryContainer
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(23.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    Text("More features", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                }
-                            }
-                        }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
@@ -4410,13 +4394,13 @@ val composerShape = RoundedCornerShape(26.dp)
                             minLines = 1,
                             maxLines = 6,
                             textStyle = LocalTextStyle.current.copy(
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = Color.Black,
                                 fontWeight = FontWeight.Medium
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                disabledTextColor = Color.Black,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                                 disabledBorderColor = Color.Transparent,
