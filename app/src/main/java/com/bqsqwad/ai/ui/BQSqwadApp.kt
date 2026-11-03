@@ -4221,12 +4221,10 @@ val composerShape = RoundedCornerShape(26.dp)
                 }
 
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, composerBlue, composerShape),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = composerShape,
-                    color = Color.White,
-                    shadowElevation = 2.dp
+                    color = Color.Transparent,
+                    shadowElevation = 0.dp
                 ) {
                     Column(Modifier.fillMaxWidth()) {
                         if (dictationRecording || isListening) {
@@ -4334,7 +4332,14 @@ val composerShape = RoundedCornerShape(26.dp)
                                 .fillMaxWidth()
                                 .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(composerShape)
+                                .background(Color.White)
+                                .border(1.dp, composerBlue, composerShape),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             IconButton(
                                 onClick = {
                                     micError = null
