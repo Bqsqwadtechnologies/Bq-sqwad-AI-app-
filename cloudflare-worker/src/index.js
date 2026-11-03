@@ -648,6 +648,14 @@ const CAPABILITY_PRICE_OPERATIONS = Object.freeze({
   chat_background_upload: "chat.background_upload",
   team_member_message: "team.member_message",
   pdf: "file.pdf",
+  file_docx: "file.docx",
+  file_xlsx: "file.xlsx",
+  file_csv: "file.csv",
+  file_txt: "file.txt",
+  file_md: "file.md",
+  file_html: "file.html",
+  file_json: "file.json",
+  file_code: "file.code",
   video_generation: "video.generate",
   music: "music.generate",
   resume: "resume.generate",
@@ -5009,7 +5017,10 @@ export default {
         const requiredOperations = [
           ["image_generation", "image.generate"], ["image_edit", "image.edit"],
           ["chat_background_upload", "chat.background_upload"], ["team_member_message", "team.member_message"],
-          ["pdf", "file.pdf"], ["video_generation", "video.generate"], ["music", "music.generate"],
+          ["pdf", "file.pdf"], ["file_docx", "file.docx"], ["file_xlsx", "file.xlsx"],
+          ["file_csv", "file.csv"], ["file_txt", "file.txt"], ["file_md", "file.md"], ["file_html", "file.html"],
+          ["file_json", "file.json"], ["file_code", "file.code"],
+          ["video_generation", "video.generate"], ["music", "music.generate"], ["music_render", "music.render"],
           ["resume", "resume.generate"], ["web_search", "web.search"], ["deep_research", "web.research"],
           ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"]
         ];
