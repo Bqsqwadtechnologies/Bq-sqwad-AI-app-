@@ -372,17 +372,25 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion;
   const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion;
   const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion;
-  // Match the website's private OpenAI reference rates when canonical pricing
-  // documents/rules are absent. Other providers still require their own rates;
-  // never substitute OpenAI prices for Gemini or an unrelated provider.
+  // Exact model-specific OpenAI reference rates (USD per token). These are
+  // internal provider-cost telemetry only; customer charges still come from
+  // the active tokenPricingRules credit rates shared with the website.
   const defaultOpenAiRates = {
-    input: 0.00000005,
-    output: 0.00000025,
-    cached: 0.000000005
+    "gpt-6-luna": {
+      input: 0.0000001,
+      cached: 0.00000001,
+      output: 0.0000005
+    },
+    "gpt-5.6-luna": {
+      input: 0.0000002,
+      cached: 0.00000002,
+      output: 0.0000012
+    }
   };
-  const fallbackInput = isOpenAi ? defaultOpenAiRates.input : undefined;
-  const fallbackOutput = isOpenAi ? defaultOpenAiRates.output : undefined;
-  const fallbackCached = isOpenAi ? defaultOpenAiRates.cached : undefined;
+  const modelOpenAiDefaults = isOpenAi ? defaultOpenAiRates[modelIdLower] : undefined;
+  const fallbackInput = modelOpenAiDefaults?.input;
+  const fallbackOutput = modelOpenAiDefaults?.output;
+  const fallbackCached = modelOpenAiDefaults?.cached;
   const rates = {
     inputPriceUsdPerToken: inputTokenRate == null ? fallbackInput : Number(inputTokenRate),
     outputPriceUsdPerToken: outputTokenRate == null ? fallbackOutput : Number(outputTokenRate),
