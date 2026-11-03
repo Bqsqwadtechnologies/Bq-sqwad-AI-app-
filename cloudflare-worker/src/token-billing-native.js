@@ -202,7 +202,7 @@ async function loadCanonicalUsageBilling() {
   if (!document) {
     // Safe, user-approved defaults apply only when the canonical document is
     // genuinely absent. Existing admin values remain authoritative.
-    const fallback = { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
+    const fallback = { markupPercent: 0, feePercent: 0, usdPerCredit: 0.1199 };
     const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
     const warningId = "billing_config_config_usageBilling_" + hour;
     await firestoreCreate("adminIssues/" + warningId, {
