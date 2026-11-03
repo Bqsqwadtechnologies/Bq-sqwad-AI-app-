@@ -3775,7 +3775,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 )
             }
             val dictationUiActive = dictationRecording || isListening || dictationTranscribing || dictationReadyAudio != null || dictationTranscriptReady || dictationError != null
-            Box(Modifier.then(if (dictationUiActive) Modifier.height(0.dp) else Modifier.weight(1f).fillMaxWidth())) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 BqLogo(184.dp, Modifier.align(Alignment.Center).graphicsLayer { alpha = 0.055f })
                 LazyColumn(
                     state = chatListState,
