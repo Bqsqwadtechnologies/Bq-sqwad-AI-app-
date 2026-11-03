@@ -676,9 +676,11 @@ function capabilityPriceOperation(name) {
   return CAPABILITY_PRICE_OPERATIONS[key] || ("feature." + key.replace(/[^a-z0-9_.-]/g, "_"));
 }
 
-async function featurePrice(name, model = "*") {
+async function featurePrice(name) {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
+  const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
+  const model = capabilityConfig?.billingModelId || capabilityConfig?.modelId || "*";
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   let existing = (Array.isArray(rows) ? rows : []).find(row =>
     String(row.operation || "").trim().toLowerCase() === operation
@@ -875,7 +877,7 @@ async function capability(uid, name) {
     // Use an explicitly configured capability model when present. BQ model
     // IDs select their own generation rule; provider-specific media models
     // naturally fall back to the shared operation rule.
-    creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name, value.billingModelId || value.modelId || d.modelId || "*"),
+    creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name),
     config: {
       ...(value.config || {}),
       fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
