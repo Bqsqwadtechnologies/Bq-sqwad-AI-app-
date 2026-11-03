@@ -2755,6 +2755,16 @@ export default {
           reserve: async (user, amount) => chargeCredits(user.uid, amount, "team_member_message", user, { allowFractional: true }),
           commit: async (uid, reservationId) => commitCredits(uid, reservationId, "internal"),
           reverse: async (uid, reservationId) => reverseCredits(uid, reservationId),
+          personalCharge: async (user, amount) => {
+            const reservation = await chargeCredits(user.uid, amount, "team_chat", user, { allowFractional: true });
+            try {
+              await commitCredits(user.uid, reservation.reservationId, "internal");
+              return reservation.amount;
+            } catch (error) {
+              await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+              throw error;
+            }
+          },
         });
         if (teamsResp) return teamsResp;
       }
