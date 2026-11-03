@@ -17,7 +17,6 @@ import {
   teamsLeave,
   teamsListMembers,
   teamsSetMemberSpendLimit,
-  teamsApproveMember,
   teamsListProjects,
   teamsListMessages,
   teamsPostMessage,
