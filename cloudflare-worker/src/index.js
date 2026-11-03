@@ -642,24 +642,66 @@ async function logMissingPrice(name) {
   }, true).catch(() => {});
 }
 
+const CAPABILITY_PRICE_OPERATIONS = Object.freeze({
+  image_generation: "image.generate",
+  image_edit: "image.edit",
+  chat_background_upload: "chat.background_upload",
+  team_member_message: "team.member_message",
+  pdf: "file.pdf",
+  video_generation: "video.generate",
+  music: "music.generate",
+  resume: "resume.generate",
+  business: "feature.business",
+  business_ai: "feature.business_ai",
+  companion: "feature.companion",
+  companion_checkin: "feature.companion_checkin",
+  device_commands: "feature.device_commands",
+  learning: "feature.learning",
+  organization_studio: "feature.organization_studio",
+  truth_guard: "feature.truth_guard"
+});
+
+function capabilityPriceOperation(name) {
+  const key = String(name || "").trim().toLowerCase();
+  return CAPABILITY_PRICE_OPERATIONS[key] || ("feature." + key.replace(/[^a-z0-9_.-]/g, "_"));
+}
+
 async function featurePrice(name) {
-  const doc = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
-  const value = Number(doc?.creditCost);
-  if (doc?.creditCost != null && Number.isFinite(value) && value >= 0) return value;
-  await logMissingPrice(name);
-  throw Object.assign(new Error("price_not_configured"), {
-    httpStatus: 503,
-    safeError: "feature_temporarily_unavailable"
-  });
+  await seedAdminPricingDefaults();
+  const operation = capabilityPriceOperation(name);
+  let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  let existing = (Array.isArray(rows) ? rows : []).find(row =>
+    String(row.operation || "").trim().toLowerCase() === operation
+  );
+  if (!existing) {
+    const legacy = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
+    const legacyPrice = Number(legacy?.creditCost);
+    if (legacy?.creditCost != null && Number.isFinite(legacyPrice) && legacyPrice >= 0) {
+      const id = "migrated-" + String(name).toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 48);
+      await firestoreSet("generationCostRules/" + id, {
+        operation,
+        label: String(legacy.name || name).slice(0, 160),
+        credits: legacyPrice,
+        creditsPerUnit: 0,
+        unit: "none",
+        status: "active",
+        version: 1,
+        migratedFrom: "adminAdvancedOptions/capability_" + name,
+        updatedAt: new Date().toISOString()
+      }, true);
+    }
+  }
+  const rule = await activeGenerationRule(operation);
+  return rule.credits + (rule.unit === "none" ? 0 : rule.creditsPerUnit);
 }
 
 async function activeGenerationRule(operation) {
   const key = String(operation || "").trim().toLowerCase();
   const rows = await firestoreQuery("generationCostRules", { limit: 200 }).catch(() => []);
-  const rule = (Array.isArray(rows) ? rows : []).find(row =>
+  const rule = (Array.isArray(rows) ? rows : []).filter(row =>
     String(row.operation || "").trim().toLowerCase() === key &&
     String(row.status || "").toLowerCase() === "active"
-  );
+  ).sort((a, b) => Number(b.version || 0) - Number(a.version || 0))[0];
   const credits = Number(rule?.credits ?? 0);
   const creditsPerUnit = Number(rule?.creditsPerUnit ?? 0);
   const unit = String(rule?.unit || "none").toLowerCase();
@@ -688,12 +730,34 @@ function generationCreditsPerMinute(rule) {
 
 
 async function seedAdminPricingDefaults() {
-  for (const [name, price] of Object.entries(ADMIN_SEED_DEFAULTS)) {
-    const path = "adminAdvancedOptions/capability_" + name;
-    if (!(await firestoreGet(path).catch(() => null))) {
-      await firestoreSet(path, { name, creditCost: price, seeded: true, updatedAt: new Date().toISOString() }, true);
-    }
+  if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
+  adminPricingSeedAttemptedAt = Date.now();
+  const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  const existingOperations = new Set((Array.isArray(rows) ? rows : []).map(row => String(row.operation || "").trim().toLowerCase()));
+  for (const [name, defaultPrice] of Object.entries(ADMIN_SEED_DEFAULTS)) {
+    const operation = capabilityPriceOperation(name);
+    if (existingOperations.has(operation)) continue;
+    const legacy = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
+    const legacyPrice = Number(legacy?.creditCost);
+    // Preserve an existing admin value during migration; use the shipped seed
+    // only when neither a generation rule nor a legacy price exists.
+    if (legacy && (legacy.creditCost == null || !Number.isFinite(legacyPrice) || legacyPrice < 0)) continue;
+    const price = legacy?.creditCost != null ? legacyPrice : defaultPrice;
+    const id = "capability-" + name.replace(/_/g, "-");
+    await firestoreSet("generationCostRules/" + id, {
+      operation,
+      label: String(legacy?.name || name.replace(/_/g, " ")).slice(0, 160),
+      credits: price,
+      creditsPerUnit: 0,
+      unit: "none",
+      status: "active",
+      version: 1,
+      seeded: legacy?.creditCost == null,
+      ...(legacy?.creditCost != null ? { migratedFrom: "adminAdvancedOptions/capability_" + name } : {}),
+      updatedAt: new Date().toISOString()
+    }, true);
   }
+  adminPricingSeeded = true;
 }
 
 async function capability(uid, name) {
@@ -5003,33 +5067,33 @@ export default {
       if (url.pathname === "/admin/pricing/audit" && request.method === "GET") {
         const admin = await verifyFirebaseUser(request);
         if (!isSuperAdmin(admin, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        const knownFeatures = [
-          "image_generation", "image_edit", "chat_background_upload", "pdf", "video_generation",
-          "music", "resume", "web_search", "deep_research", "business", "business_ai",
-          "companion", "companion_checkin", "device_commands", "learning",
-          "organization_studio", "truth_guard"
+        const requiredOperations = [
+          ["image_generation", "image.generate"], ["image_edit", "image.edit"],
+          ["chat_background_upload", "chat.background_upload"], ["team_member_message", "team.member_message"],
+          ["pdf", "file.pdf"], ["video_generation", "video.generate"], ["music", "music.generate"],
+          ["resume", "resume.generate"], ["web_search", "web.search"], ["deep_research", "web.research"],
+          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"]
         ];
-        const rows = await firestoreQuery("adminAdvancedOptions", { limit: 500 });
-        const configured = new Map((Array.isArray(rows) ? rows : []).map(row => [
-          String(row.__name || "").split("/").pop().replace(/^capability_/, ""),
-          row
-        ]).filter(([name]) => String(name || "") !== ""));
+        const rows = await firestoreQuery("generationCostRules", { limit: 500 });
+        const active = new Map((Array.isArray(rows) ? rows : [])
+          .filter(row => String(row.status || "").toLowerCase() === "active")
+          .map(row => [String(row.operation || "").trim().toLowerCase(), row]));
         const missing = [];
-        for (const feature of knownFeatures) {
-          const row = configured.get(feature) || await firestoreGet("adminAdvancedOptions/capability_" + feature).catch(() => null);
-          const cost = Number(row?.creditCost);
-          if (row?.creditCost == null || !Number.isFinite(cost) || cost < 0) {
-            missing.push({ feature, document: "adminAdvancedOptions/capability_" + feature, reason: row ? "invalid_creditCost" : "missing_document" });
-            await logMissingPrice(feature);
+        for (const [feature, operation] of requiredOperations) {
+          const row = active.get(operation);
+          const credits = Number(row?.credits);
+          const perUnit = Number(row?.creditsPerUnit ?? 0);
+          if (!row || !Number.isFinite(credits) || credits < 0 || !Number.isFinite(perUnit) || perUnit < 0) {
+            missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: row ? "invalid_credit_price" : "missing_active_rule" });
+            await logMissingPrice(operation);
           }
         }
-        for (const [feature, row] of configured) {
-          if (!knownFeatures.includes(feature)) {
-            const cost = Number(row?.creditCost);
-            if (row?.creditCost == null || !Number.isFinite(cost) || cost < 0) {
-              missing.push({ feature, document: "adminAdvancedOptions/capability_" + feature, reason: "invalid_creditCost" });
-              await logMissingPrice(feature);
-            }
+        for (const [operation, row] of active) {
+          const credits = Number(row?.credits);
+          const perUnit = Number(row?.creditsPerUnit ?? 0);
+          if (!Number.isFinite(credits) || credits < 0 || !Number.isFinite(perUnit) || perUnit < 0) {
+            missing.push({ feature: operation, operation, document: "generationCostRules/" + operation, reason: "invalid_credit_price" });
+            await logMissingPrice(operation);
           }
         }
         return json({ checkedAt: new Date().toISOString(), checkedBy: admin.uid, missing, missingCount: missing.length });
