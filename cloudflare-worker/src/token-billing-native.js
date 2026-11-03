@@ -110,6 +110,12 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   };
 }
 
+export function matchesCustomerClass(rule, customerClass = "paid") {
+  const configuredClass = String(rule?.customerClass || "all").toLowerCase();
+  const requestedClass = customerClass === "free" ? "free" : "paid";
+  return configuredClass === "all" || configuredClass === requestedClass;
+}
+
 function customerCreditsPerToken(rule, tokenField, legacyField) {
   const direct = rule?.[tokenField];
   if (typeof direct === "number" && Number.isFinite(direct)) return direct;
@@ -145,6 +151,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   if (featureAliases.has("text-chat")) featureAliases.add("chat");
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
+    if (!matchesCustomerClass(rule, control.customerClass || "paid")) return false;
     if (!((["gemini", "google", "google-gemini"].includes(String(providerId || "").toLowerCase()) && ["gemini", "google", "google-gemini"].includes(String(rule.provider || "").toLowerCase())) || (["lovable-gateway", "lovable", "gateway"].includes(String(providerId || "").toLowerCase()) && ["lovable-gateway", "lovable", "gateway"].includes(String(rule.provider || "").toLowerCase())) || (String(rule.provider || "").toLowerCase() === String(providerId || "").toLowerCase()))) return false;
     if (String(rule.model || "*") !== "*" && String(rule.model) !== String(modelId || "")) return false;
     if (Array.isArray(rule.features) && rule.features.length && !rule.features.some(name => featureAliases.has(String(name)))) return false;
@@ -154,6 +161,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   }).sort((a, b) => {
     const specificity = (String(a.model || "*") === "*" ? 1 : 0) - (String(b.model || "*") === "*" ? 1 : 0);
     if (specificity !== 0) return specificity;
+    const classSpecificity = (String(a.customerClass || "all") === "all" ? 1 : 0) - (String(b.customerClass || "all") === "all" ? 1 : 0);
+    if (classSpecificity !== 0) return classSpecificity;
     const effective = new Date(b.effectiveFrom || 0).getTime() - new Date(a.effectiveFrom || 0).getTime();
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
