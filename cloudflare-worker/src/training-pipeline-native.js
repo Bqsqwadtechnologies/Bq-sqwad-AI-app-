@@ -108,6 +108,47 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
     });
     created++;
   }
+  // The explicit opt-in contribution flow stores prompt/response pairs separately
+  // from the chats collection. Include those records too; previously they were
+  // visible in storage metrics but never entered the review/export pipeline.
+  const [contributions, existingCandidates] = await Promise.all([
+    firestoreQuery("consented_contributions", { limit: 500 }).catch(() => []),
+    firestoreQuery("agentTrainingCandidates", { limit: 500 }).catch(() => [])
+  ]);
+  const importedIds = new Set(existingCandidates.map(r => String(r.sourceContributionId || "")).filter(Boolean));
+  for (const contribution of contributions) {
+    if (created >= limit) break;
+    const contributionId = String(contribution.id || String(contribution.__name || "").split("/").pop() || "");
+    const uid = String(contribution.userId || "");
+    if (!contributionId || importedIds.has(contributionId) || !uid || !consentedUids.has(uid)) continue;
+    if (contribution.status === "withdrawn" || contribution.contentDeleted === true) continue;
+    if (String(contribution.dataType || "chat").toLowerCase() !== "chat") continue;
+    if (!isTrainingChatEligible({ workspace: contribution.workspace || "main_chat" })) continue;
+    const prompt = sanitizeText(contribution.prompt || "");
+    const response = sanitizeText(contribution.response || "");
+    if (prompt.length <= 8 || response.length <= 8) continue;
+    const id = crypto.randomUUID();
+    await firestoreCreate("agentTrainingCandidates/" + id, {
+      id,
+      sourceType: "consented_contribution",
+      sourceContributionId: contributionId,
+      consentVersion: ACTIVE_CONSENT_VERSION,
+      sanitizerVersion: SANITIZER_VERSION,
+      createdAt: new Date().toISOString(),
+      sourceChatHash: await hashRef(contribution.chatId || contributionId),
+      userRef: await hashRef(uid),
+      language: "unknown",
+      tokenEstimate: Math.ceil(prompt.length / 4) + Math.ceil(response.length / 4),
+      reviewStatus: "pending",
+      messages: [
+        { role: "system", content: "You are BQ Sqwad AI, The AI That Grows With You." },
+        { role: "user", content: prompt },
+        { role: "assistant", content: response }
+      ]
+    });
+    importedIds.add(contributionId);
+    created++;
+  }
   return { ok: true, created, sanitizerVersion: SANITIZER_VERSION, consentVersion: ACTIVE_CONSENT_VERSION };
 }
 
@@ -156,4 +197,32 @@ export async function setTrainingCandidateStatus(id, status, actorUid) {
     reviewedAt: new Date().toISOString()
   }, true);
   return { ok: true, id, status };
+}
+
+/** Admin-only JSONL export of Business AI inbox turns. Direct identifiers are redacted. */
+export async function exportBusinessConversationJsonl({ max = 500 } = {}) {
+  const [messages, conversations] = await Promise.all([
+    firestoreQuery("businessMessages", { limit: Math.min(500, Math.max(1, max)) }).catch(() => []),
+    firestoreQuery("businessConversations", { limit: 500 }).catch(() => [])
+  ]);
+  const byId = new Map(conversations.map(row => [String(row.id || String(row.__name || "").split("/").pop()), row]));
+  const rows = messages
+    .filter(row => (row.role === "user" || row.role === "assistant") && typeof row.text === "string" && row.text.trim())
+    .slice(0, max);
+  const lines = rows.map(row => {
+    const conversationId = String(row.conversationId || "");
+    const conversation = byId.get(conversationId) || {};
+    return JSON.stringify({
+      conversationId,
+      assistantId: String(conversation.assistantId || ""),
+      channel: String(row.channel || conversation.channel || "unknown"),
+      role: row.role,
+      content: sanitizeText(row.text),
+      createdAt: row.createdAt || null
+    });
+  });
+  return {
+    jsonl: lines.join("\\n"),
+    manifest: { count: rows.length, truncated: messages.length >= max, exportedAt: new Date().toISOString(), piiRedacted: true }
+  };
 }
