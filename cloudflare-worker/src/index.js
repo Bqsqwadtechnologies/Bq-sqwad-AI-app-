@@ -2068,7 +2068,8 @@ async function ai(request, user, body) {
       await recordTokenUsage({
         uid: user.uid, feature: capabilityName, providerId: result.providerId, modelId: result.modelId,
         usage, pricing: actualPricing, calculation, requestId: reservation.reservationId || crypto.randomUUID(),
-        chargedCredits: creditsCharged, planCovered: reservation.planCovered === true, modality: "text"
+        chargedCredits: creditsCharged, planCovered: reservation.planCovered === true,
+        modality: (usage.inputAudioTokens || usage.outputAudioTokens || usage.inputImageTokens || usage.outputImageTokens) ? "multimodal" : "text"
       }).catch(error => notifyAdminOfIssue(globalThis.__bqEnv, "/ai", 500, "token_usage_ledger_write_failed"));
     } else {
       await commitCredits(user.uid, reservation.reservationId, result.providerId);
