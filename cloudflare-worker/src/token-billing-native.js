@@ -235,7 +235,7 @@ async function loadCanonicalUsageBilling() {
     // A malformed admin document must not take chat offline. Keep the bad
     // document intact for diagnosis and use the website's conservative defaults
     // for this request; only document names and the validation category are logged.
-    const fallback = { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
+    const fallback = { markupPercent: 0, feePercent: 0, usdPerCredit: 0.1199 };
     const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
     const warningId = "billing_config_config_usageBilling_" + hour;
     await firestoreCreate("adminIssues/" + warningId, {
