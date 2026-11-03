@@ -913,75 +913,69 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     "Current speaker: " + member.displayName + ".",
   ].join("\n");
 
-  // Call provider via existing runProvider when available
+  // BQ Team AI uses the same GPT-6 model token card as Main Chat.
+  // Usage is normalized from the provider response before any team credits move.
   let replyText = "";
   let inputTokens = 0;
+  let cachedInputTokens = 0;
   let outputTokens = 0;
   let providerSucceeded = false;
+  let creditsCharged = 0;
+  let settlementError = "";
   try {
     const { runProvider } = await import("./providers.js");
     const result = await runProvider(env, {
-      feature: "team_chat",
-      messages: [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content:
-            "Recent team chat:\n" +
-            history +
-            "\n\n" +
-            member.displayName +
-            " asks the AI:\n" +
-            text,
-        },
-      ],
+      primaryProviderId: "openai",
+      primaryModelId: "gpt-6-luna",
+      fallbackProviderIds: [],
+      fallbackModels: {}
+    }, {
+      message: "Recent team chat:\n" + history + "\n\n" + member.displayName + " asks the AI:\n" + text,
+      system
     });
     replyText = str(result?.text || result?.content || "");
-    inputTokens = num(result?.usage?.inputTokens || result?.usage?.prompt_tokens);
-    outputTokens = num(result?.usage?.outputTokens || result?.usage?.completion_tokens);
     providerSucceeded = Boolean(replyText.trim());
-  } catch (e) {
-    replyText =
-      "I could not complete that request right now. Please try again in a moment.";
+    if (!providerSucceeded) throw new Error("provider_empty_response");
+    const { normalizeProviderUsage, resolveTokenPricing, calculateTokenCost } = await import("./token-billing-native.js");
+    const usage = normalizeProviderUsage(result.providerId || "openai", result.usage || {});
+    inputTokens = usage.inputTokens;
+    cachedInputTokens = usage.cachedInputTokens;
+    outputTokens = usage.outputTokens;
+    if (inputTokens + outputTokens <= 0) throw new Error("provider_usage_unavailable");
+    const pricing = await resolveTokenPricing(
+      result.providerId || "openai",
+      result.modelId || "gpt-6-luna",
+      "team_chat",
+      {}
+    );
+    const calculation = calculateTokenCost({ usage, pricing });
+    creditsCharged = num(calculation.customerCredits);
+    if (!Number.isFinite(creditsCharged) || creditsCharged < 0) throw new Error("team_usage_settlement_failed");
+  } catch (error) {
+    settlementError = String(error?.message || "team_usage_settlement_failed");
   }
 
-  // Settle credits from team pool using the canonical token pricing. A
-  // successful provider response without usage/pricing must fail closed.
-  let creditsCharged = 0;
-  let settlementError = "";
-  if (providerSucceeded) {
+  if (providerSucceeded && !settlementError && creditsCharged > 0) {
     try {
-      if (inputTokens <= 0 && outputTokens <= 0) {
-        throw new Error("provider_usage_unavailable");
-      }
-      const { calculateTokenCost, resolveTokenPricing } = await import(
-        "./token-billing-native.js"
-      );
-      const pricing = await resolveTokenPricing(env, {
-        feature: "team_chat",
-        model: "gpt-6-luna",
-      });
-      if (!pricing) throw new Error("token_pricing_not_configured");
-      const cost = calculateTokenCost({
-        inputTokens,
-        outputTokens,
-        cachedInputTokens: 0,
-        rates: pricing,
-      });
-      creditsCharged = num(cost?.credits);
-      if (!(creditsCharged > 0) || !Number.isFinite(creditsCharged)) {
-        throw new Error("token_pricing_not_configured");
+      if (billingSource === "personal") {
+        if (typeof billing.personalCharge !== "function") throw new Error("Personal billing is unavailable.");
+        await billing.personalCharge(user, creditsCharged);
+      } else {
+        await debitTeamPoolForMember(team, member, user.uid, creditsCharged);
       }
     } catch (error) {
-      settlementError = String(error?.message || "team_usage_settlement_failed");
+      settlementError = String(error?.message || "team_credit_settlement_failed");
     }
   }
-
   if (settlementError) {
     creditsCharged = 0;
     replyText = settlementError === "provider_usage_unavailable"
       ? "The AI provider did not return usage details, so this team response was not delivered or charged. Please try again."
-      : "Team AI pricing is not configured correctly. This response was not delivered or charged. Please contact a team admin.";
+      : settlementError.includes("monthly team spending limit")
+        ? "Your monthly team spending limit has been reached. Ask a team admin to adjust it."
+        : settlementError.includes("team has no credits") || settlementError.includes("not sufficient")
+          ? "The team credit balance is not sufficient for this AI response. Ask an admin to add credits."
+          : "Team AI pricing is not configured correctly. This response was not delivered or charged. Please contact a team admin.";
   }
 
   if (creditsCharged > 0) {
@@ -1011,7 +1005,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
       text: replyText,
       attachments: [],
       createdAt: now(),
-      tokenUsage: { inputTokens, cachedInputTokens: 0, outputTokens },
+      tokenUsage: { inputTokens, cachedInputTokens, outputTokens },
       credits: creditsCharged,
     },
     false,
