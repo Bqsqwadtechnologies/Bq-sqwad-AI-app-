@@ -641,39 +641,6 @@ export async function teamsSetMemberSpendLimit(user, body) {
   return { ok: true, uid: targetUid, spendLimitCredits: limitCredits, updatedBy: user.uid };
 }
 
-export async function teamsApproveMember(user, body) {
-  const teamId = str(body?.teamId);
-  const targetUid = str(body?.uid);
-  await requireActiveMember(user, teamId, "admin");
-  const ts = now();
-  const activated = await firestoreUpdateAtomic(
-    "teams/" + teamId + "/members/" + targetUid,
-    (current) => {
-      if (!current || current.status !== "pending") return null;
-      return { ...current, status: "active", joinedAt: ts };
-    },
-  );
-  if (!activated) {
-    const err = new Error("No pending join request for that member.");
-    err.httpStatus = 404;
-    throw err;
-  }
-  await firestoreUpdateAtomic("teams/" + teamId, (current) => {
-    if (!current) {
-      const err = new Error("That team does not exist.");
-      err.httpStatus = 404;
-      throw err;
-    }
-    return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
-  });
-  await firestoreSet(
-    "userTeams/" + targetUid + "/items/" + teamId,
-    { teamId, joinedAt: ts },
-    false,
-  ).catch(() => {});
-  return { ok: true };
-}
-
 /* -------------------------------------------------------------------------- */
 /* Shared team memory                                                          */
 /* -------------------------------------------------------------------------- */
