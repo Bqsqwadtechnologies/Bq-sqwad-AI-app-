@@ -869,7 +869,7 @@ export async function teamsPostMessage(user, body, billing = {}) {
  * Explicit AI turn. Only call when user presses Ask AI or message invokes AI.
  * Debits team credit pool only. Returns no-credit message when pool is empty.
  */
-export async function teamsAskAi(user, body, env) {
+export async function teamsAskAi(user, body, env, billing = {}) {
   const teamId = str(body?.teamId);
   const projectId = str(body?.projectId);
   const text = str(body?.text).slice(0, 20000);
@@ -880,7 +880,8 @@ export async function teamsAskAi(user, body, env) {
   }
 
   const { team, member } = await requireActiveMember(user, teamId, "member");
-  const balance = await getPoolBalance(team.creditPoolId);
+  const billingSource = body?.billingSource === "personal" ? "personal" : "team";
+  const balance = billingSource === "team" ? await getPoolBalance(team.creditPoolId) : Number.POSITIVE_INFINITY;
 
   // Always store the user message first
   const userMsgId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
@@ -1018,7 +1019,12 @@ export async function teamsAskAi(user, body, env) {
 
   if (creditsCharged > 0) {
     try {
-      await debitTeamPoolForMember(team, member, user.uid, creditsCharged);
+      if (billingSource === "personal") {
+        if (typeof billing.personalCharge !== "function") throw new Error("Personal billing is unavailable.");
+        await billing.personalCharge(user, creditsCharged);
+      } else {
+        await debitTeamPoolForMember(team, member, user.uid, creditsCharged);
+      }
     } catch (error) {
       // Do not return an uncharged AI answer when the member cap or team
       // balance prevents settlement. The provider cost is absorbed safely.
