@@ -29,28 +29,48 @@ export function allocateReservationRefund(reservation = {}, refundNeeded = 0) {
   return { refundPermanent, refundSubscription, refundTrial, refundDaily };
 }
 
+function modalityTokens(details, modality) {
+  const key = String(modality || "").toLowerCase();
+  if (Array.isArray(details)) {
+    const item = details.find(row => String(row?.modality || row?.type || "").toLowerCase() === key);
+    return Math.max(0, Number(item?.tokenCount ?? item?.token_count ?? item?.tokens ?? 0));
+  }
+  if (!details || typeof details !== "object") return 0;
+  const aliases = key === "audio" ? ["audio_tokens", "audioTokenCount"] : key === "image" ? ["image_tokens", "imageTokenCount"] : [];
+  for (const field of aliases) if (details[field] != null) return Math.max(0, Number(details[field]) || 0);
+  return 0;
+}
+
 export function normalizeProviderUsage(providerId, raw = {}) {
   const provider = String(providerId || "").toLowerCase();
   if (provider === "openai") {
-    const details = raw.input_tokens_details || raw.prompt_tokens_details || {};
+    const inputDetails = raw.input_token_details || raw.input_tokens_details || raw.prompt_tokens_details || {};
+    const outputDetails = raw.output_token_details || raw.output_tokens_details || raw.completion_tokens_details || {};
     return {
       inputTokens: Math.max(0, Number(raw.input_tokens ?? raw.prompt_tokens ?? 0)),
       outputTokens: Math.max(0, Number(raw.output_tokens ?? raw.completion_tokens ?? 0)),
-      cachedInputTokens: Math.max(0, Number(details.cached_tokens ?? details.cache_read_input_tokens ?? 0)),
-      reasoningTokens: Math.max(0, Number(raw.output_tokens_details?.reasoning_tokens ?? 0)),
-      modalityUsage: {}
+      cachedInputTokens: Math.max(0, Number(inputDetails.cached_tokens ?? inputDetails.cache_read_input_tokens ?? 0)),
+      reasoningTokens: Math.max(0, Number(outputDetails.reasoning_tokens ?? 0)),
+      inputAudioTokens: Math.max(0, Number(raw.input_audio_tokens ?? inputDetails.audio_tokens ?? 0)),
+      outputAudioTokens: Math.max(0, Number(raw.output_audio_tokens ?? outputDetails.audio_tokens ?? 0)),
+      inputImageTokens: Math.max(0, Number(raw.input_image_tokens ?? inputDetails.image_tokens ?? 0)),
+      outputImageTokens: Math.max(0, Number(raw.output_image_tokens ?? outputDetails.image_tokens ?? 0)),
+      modalityUsage: { input: inputDetails, output: outputDetails }
     };
   }
   if (["gemini", "google", "google-gemini"].includes(provider)) {
+    const inputDetails = raw.promptTokensDetails || raw.prompt_tokens_details || [];
+    const outputDetails = raw.candidatesTokensDetails || raw.candidates_tokens_details || [];
     return {
       inputTokens: Math.max(0, Number(raw.promptTokenCount ?? raw.prompt_token_count ?? 0)),
       outputTokens: Math.max(0, Number(raw.candidatesTokenCount ?? raw.candidates_token_count ?? 0)),
       cachedInputTokens: Math.max(0, Number(raw.cachedContentTokenCount ?? raw.cached_content_token_count ?? 0)),
       reasoningTokens: Math.max(0, Number(raw.thoughtsTokenCount ?? raw.thoughts_token_count ?? 0)),
-      modalityUsage: {
-        promptTokensDetails: raw.promptTokensDetails || null,
-        candidatesTokensDetails: raw.candidatesTokensDetails || null
-      }
+      inputAudioTokens: modalityTokens(inputDetails, "audio"),
+      outputAudioTokens: modalityTokens(outputDetails, "audio"),
+      inputImageTokens: modalityTokens(inputDetails, "image"),
+      outputImageTokens: modalityTokens(outputDetails, "image"),
+      modalityUsage: { promptTokensDetails: inputDetails, candidatesTokensDetails: outputDetails }
     };
   }
   return {
@@ -58,26 +78,42 @@ export function normalizeProviderUsage(providerId, raw = {}) {
     outputTokens: Math.max(0, Number(raw.outputTokens ?? raw.output_tokens ?? 0)),
     cachedInputTokens: Math.max(0, Number(raw.cachedInputTokens ?? raw.cached_input_tokens ?? 0)),
     reasoningTokens: Math.max(0, Number(raw.reasoningTokens ?? raw.reasoning_tokens ?? 0)),
-    modalityUsage: {}
+    inputAudioTokens: Math.max(0, Number(raw.inputAudioTokens ?? raw.input_audio_tokens ?? 0)),
+    outputAudioTokens: Math.max(0, Number(raw.outputAudioTokens ?? raw.output_audio_tokens ?? 0)),
+    inputImageTokens: Math.max(0, Number(raw.inputImageTokens ?? raw.input_image_tokens ?? 0)),
+    outputImageTokens: Math.max(0, Number(raw.outputImageTokens ?? raw.output_image_tokens ?? 0)),
+    modalityUsage: raw.modalityUsage || {}
   };
 }
 
 export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD }) {
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
-  const cachedInputTokens = Math.min(inputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
+  const inputAudioTokens = Math.max(0, Number(usage?.inputAudioTokens || 0));
+  const outputAudioTokens = Math.max(0, Number(usage?.outputAudioTokens || 0));
+  const inputImageTokens = Math.max(0, Number(usage?.inputImageTokens || 0));
+  const outputImageTokens = Math.max(0, Number(usage?.outputImageTokens || 0));
+  if (inputAudioTokens + inputImageTokens > inputTokens || outputAudioTokens + outputImageTokens > outputTokens) {
+    throw Object.assign(new Error("provider_modality_usage_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+  }
+  const textInputTokens = inputTokens - inputAudioTokens - inputImageTokens;
+  const textOutputTokens = outputTokens - outputAudioTokens - outputImageTokens;
+  const cachedInputTokens = Math.min(textInputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
   const inputRate = pricing?.inputPriceUsdPerToken != null ? Number(pricing.inputPriceUsdPerToken) * 1_000_000 : Number(pricing?.inputPriceUsdPerMillion);
   const outputRate = pricing?.outputPriceUsdPerToken != null ? Number(pricing.outputPriceUsdPerToken) * 1_000_000 : Number(pricing?.outputPriceUsdPerMillion);
   const cachedRate = pricing?.cachedInputPriceUsdPerToken != null ? Number(pricing.cachedInputPriceUsdPerToken) * 1_000_000
     : pricing?.cachedInputPriceUsdPerMillion == null ? inputRate : Number(pricing.cachedInputPriceUsdPerMillion);
   const providerRatesConfigured = [inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0);
-  const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
+  const uncachedInputTokens = Math.max(0, textInputTokens - cachedInputTokens);
   const inputCostUsd = providerRatesConfigured ? (uncachedInputTokens / 1_000_000) * inputRate : 0;
   const cachedInputCostUsd = providerRatesConfigured ? (cachedInputTokens / 1_000_000) * cachedRate : 0;
-  const outputCostUsd = providerRatesConfigured ? (outputTokens / 1_000_000) * outputRate : 0;
-  const providerCostUsd = inputCostUsd + cachedInputCostUsd + outputCostUsd;
-  // Admin-entered credits-per-token values are the final customer prices.
-  // Provider USD, markup, fees, and model multipliers never set the deduction.
+  const outputCostUsd = providerRatesConfigured ? (textOutputTokens / 1_000_000) * outputRate : 0;
+  const providerCostUsd =
+    inputCostUsd + cachedInputCostUsd + outputCostUsd +
+    (inputAudioTokens / 1_000_000) * Math.max(0, Number(pricing?.inputAudioPriceUsdPerMillion || 0)) +
+    (outputAudioTokens / 1_000_000) * Math.max(0, Number(pricing?.outputAudioPriceUsdPerMillion || 0)) +
+    (inputImageTokens / 1_000_000) * Math.max(0, Number(pricing?.inputImagePriceUsdPerMillion || 0)) +
+    (outputImageTokens / 1_000_000) * Math.max(0, Number(pricing?.outputImagePriceUsdPerMillion || 0));
   const meter = pricing?.sharedCreditMetering;
   if (!meter || typeof meter !== "object") {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
@@ -88,14 +124,32 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const conversionRate = Number(meter.conversionRate ?? 1);
   const minimumCredits = Number(meter.minimumCredits ?? 0);
   const precision = Number(meter.precision ?? 7);
+  const modalityRates = [
+    ["input audio", inputAudioTokens, meter.creditsPerInputAudioToken],
+    ["output audio", outputAudioTokens, meter.creditsPerOutputAudioToken],
+    ["input image", inputImageTokens, meter.creditsPerInputImageToken],
+    ["output image", outputImageTokens, meter.creditsPerOutputImageToken]
+  ];
+  for (const [label, count, rate] of modalityRates) {
+    if (count > 0 && (rate == null || !Number.isFinite(Number(rate)) || Number(rate) < 0)) {
+      throw Object.assign(new Error("modality_token_pricing_not_configured:" + label), { httpStatus: 409, safeError: "provider_unavailable" });
+    }
+  }
   const values = [inputCreditRate, cachedCreditRate, outputCreditRate, conversionRate, minimumCredits, precision];
   if (!values.every(Number.isFinite) || inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
       conversionRate < 0 || minimumCredits < 0 || !Number.isInteger(precision) || precision < 0 || precision > 8) {
     throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
-  const rawCredits = (uncachedInputTokens * inputCreditRate + cachedInputTokens * cachedCreditRate + outputTokens * outputCreditRate) * conversionRate;
+  const rawCredits =
+    uncachedInputTokens * inputCreditRate +
+    cachedInputTokens * cachedCreditRate +
+    textOutputTokens * outputCreditRate +
+    inputAudioTokens * Number(meter.creditsPerInputAudioToken || 0) +
+    outputAudioTokens * Number(meter.creditsPerOutputAudioToken || 0) +
+    inputImageTokens * Number(meter.creditsPerInputImageToken || 0) +
+    outputImageTokens * Number(meter.creditsPerOutputImageToken || 0);
   const roundedCredits = rawCredits > 0
-    ? Math.max(minimumCredits, Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
+    ? Math.max(minimumCredits, Math.round((rawCredits * conversionRate + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
     : 0;
   const creditValue = Number(creditReferenceValueUsd);
   const safeCreditValue = Number.isFinite(creditValue) && creditValue > 0 ? creditValue : DEFAULT_CREDIT_REFERENCE_USD;
@@ -103,7 +157,8 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const providerCostCredits = providerCostUsd / safeCreditValue;
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
   return {
-    inputTokens, outputTokens, cachedInputTokens, inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
+    inputTokens, outputTokens, cachedInputTokens, inputAudioTokens, outputAudioTokens, inputImageTokens, outputImageTokens,
+    inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
     creditReferenceValueUsd: safeCreditValue, customerMultiplier: 1, estimatedFeePercent: 0, estimatedFeeUsd: 0,
     providerCostCredits, customerCredits: roundedCredits, grossUsageValueUsd, estimatedGrossProfitUsd,
     estimatedNetProfitUsd: estimatedGrossProfitUsd
@@ -198,6 +253,12 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
           : providerInputUsdPerMillion
       }
     : {};
+  const modalityProviderRates = {
+    inputAudioPriceUsdPerMillion: Number(tokenRule?.inputAudioUsdPerMillion || 0),
+    outputAudioPriceUsdPerMillion: Number(tokenRule?.outputAudioUsdPerMillion || 0),
+    inputImagePriceUsdPerMillion: Number(tokenRule?.inputImageUsdPerMillion || 0),
+    outputImagePriceUsdPerMillion: Number(tokenRule?.outputImageUsdPerMillion || 0)
+  };
   const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
   const customerMultiplier = 1;
   const estimatedFeePercent = 0;
@@ -222,13 +283,17 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     creditsPerInputToken: customerInputCreditsPerToken,
     creditsPerOutputToken: customerOutputCreditsPerToken,
     creditsPerCachedInputToken: customerCachedCreditsPerToken,
+    creditsPerInputAudioToken: Number(tokenRule.inputAudioCreditsPerToken || 0),
+    creditsPerOutputAudioToken: Number(tokenRule.outputAudioCreditsPerToken || 0),
+    creditsPerInputImageToken: Number(tokenRule.inputImageCreditsPerToken || 0),
+    creditsPerOutputImageToken: Number(tokenRule.outputImageCreditsPerToken || 0),
     minimumCredits: Math.max(0, Number(tokenRule.minimumCredits ?? 0)),
     fallbackCredits: 0,
     precision: 7,
     conversionRate: 1
   } : null;
   return {
-    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier,
+    ...rates, ...modalityProviderRates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier,
     applyFeeToUsage, estimatedFeePercent, configured,
     sharedCreditMetering,
     sharedModelMultiplier: 1,
