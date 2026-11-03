@@ -2,6 +2,11 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
 const DIRECT_CREDIT_REFERENCE_USD = 0.07999;
 
+function finite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 export function calculateDirectCreditCharge({ credits }) {
   const amount = Number(credits);
   if (!Number.isFinite(amount) || amount < 0) throw new Error("direct_credit_price_invalid");

@@ -7,7 +7,7 @@ const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8
 test("fixed-price features fail closed when the direct generation rule is missing", () => {
   assert.match(source, /async function featurePrice\(name\)/);
   assert.match(source, /const rule = await activeGenerationRule\(operation\)/);
-  assert.match(source, /await logMissingPrice\(name\);[\s\S]*?httpStatus: 503[\s\S]*?safeError: "feature_temporarily_unavailable"/);
+  assert.match(source, /await logMissingPrice\(key \|\| "unknown"\);[\s\S]*?httpStatus: 503[\s\S]*?safeError: "feature_temporarily_unavailable"/);
   assert.doesNotMatch(source, /Math\.max\(1, Number\(value\.creditCost == null/);
 });
 
