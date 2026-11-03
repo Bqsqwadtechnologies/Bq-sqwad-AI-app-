@@ -76,7 +76,7 @@ async function vaultAesKey(secret) {
     "SHA-256",
     new TextEncoder().encode(String(secret || "")),
   );
-  return crypto.subtle.importKey("raw", material, { name: "AES-GCM" }, false, ["encrypt"]);
+  return crypto.subtle.importKey("raw", material, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
 /** Server-only encrypted vault append. Only ciphertext is stored with metadata. */
@@ -122,6 +122,8 @@ export async function appendVaultMessage({
   }
   const hash = await appendHashChain(index.prevHash, ciphertext);
   const path = vaultPagePath(businessId, agentId, threadId, page);
+  const pagePaths = Array.isArray(index.pagePaths) ? index.pagePaths.slice() : [];
+  if (!pagePaths.includes(path)) pagePaths.push(path);
   const existing = (await dbGet(path)) || { records: [] };
   const records = Array.isArray(existing.records) ? existing.records.slice() : [];
   records.push({
@@ -137,7 +139,56 @@ export async function appendVaultMessage({
     pageBytes,
     prevHash: hash,
     messageCount,
+    pagePaths,
     updatedAt: new Date().toISOString(),
   }, true);
-  return { path, hash, messageCount, page };
+  return { path, hash, messageCount, page, pagePaths };
+}
+
+
+/** Super-admin export helper. Decrypts only server-side vault records for download. */
+export async function exportBusinessVaultJsonl({ dbGet, dbQuery, encryptionKey, max = 500 }) {
+  if (!String(encryptionKey || "").trim()) {
+    throw Object.assign(new Error("business_vault_encryption_not_configured"), { status: 503 });
+  }
+  const key = await vaultAesKey(encryptionKey);
+  const threads = await dbQuery("businessVaultThreadIndex", { limit: Math.min(500, Math.max(1, max)) }).catch(() => []);
+  const lines = [];
+  for (const thread of threads) {
+    const businessId = String(thread.businessId || "");
+    const agentId = String(thread.agentId || "");
+    const threadId = String(thread.threadId || "");
+    if (!businessId || !agentId || !threadId) continue;
+    const indexPath = "vaultIndex/" + businessId + "/" + agentId + "/" + threadId;
+    const index = await dbGet(indexPath);
+    if (!index) continue;
+    const paths = Array.isArray(index.pagePaths) && index.pagePaths.length
+      ? index.pagePaths
+      : [vaultPagePath(businessId, agentId, threadId, Number(index.page || 1))];
+    for (const path of paths) {
+      const page = await dbGet(String(path));
+      for (const record of Array.isArray(page?.records) ? page.records : []) {
+        try {
+          const iv = Uint8Array.from(atob(String(record.iv || "")), c => c.charCodeAt(0));
+          const ciphertext = Uint8Array.from(atob(String(record.ciphertext || "")), c => c.charCodeAt(0));
+          const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+          const message = JSON.parse(new TextDecoder().decode(clear));
+          lines.push(JSON.stringify({
+            workspaceId: businessId,
+            assistantId: agentId,
+            conversationId: threadId,
+            role: String(message.role || "assistant"),
+            content: redactForVault(message.text || ""),
+            createdAt: message.ts || null
+          }));
+        } catch {
+          // Skip a corrupt/unreadable record; never fail an entire export on one row.
+        }
+      }
+    }
+  }
+  return {
+    jsonl: lines.join("\\n"),
+    manifest: { count: lines.length, threadCount: threads.length, truncated: threads.length >= max, exportedAt: new Date().toISOString(), encryptedAtRest: true, piiRedacted: true }
+  };
 }
