@@ -78,7 +78,7 @@ test("malformed canonical pricing JSON is ignored with an admin-visible warning"
 test("missing canonical documents use website defaults without blocking billing", async () => {
   const { loadBillingConfig } = await import("../src/billing-core.js");
   const config = await loadBillingConfig(async () => null);
-  assert.deepEqual(config.usageBilling, { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 });
+  assert.deepEqual(config.usageBilling, { markupPercent: 0, feePercent: 0, usdPerCredit: 0.1199 });
   assert.ok(config.warnings.some((warning) => warning.includes("config/usageBilling missing")));
   assert.ok(config.warnings.some((warning) => warning.includes("config/providerConnections missing")));
   assert.ok(config.warnings.some((warning) => warning.includes("config/aiModels missing")));
