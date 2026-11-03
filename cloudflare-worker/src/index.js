@@ -1895,6 +1895,21 @@ async function ai(request, user, body) {
   if (idem?.replay) return idem.replay;
   if (idem?.fresh) await firestoreCreate("idempotency/" + idem.hash, { uid:user.uid, status:"pending", createdAt:new Date(), expiresAt:new Date(Date.now()+600000) });
   let control = await capability(user.uid, capabilityName);
+  // All dedicated text workspaces use GPT-6 Luna. Only Main Chat may honour
+  // the explicit BQ-7-Star / BQ-Codron model switch.
+  const GPT6_FEATURE_CAPABILITIES = new Set([
+    "frontier_lab", "life_matters", "learning_studio", "data_analysis_workspace",
+    "personal_intelligence", "organization_studio", "truth_guard", "companion",
+    "companion_checkin", "learning", "frontier", "truthguard"
+  ]);
+  if (GPT6_FEATURE_CAPABILITIES.has(capabilityName)) {
+    control = {
+      ...control,
+      providerId: "openai",
+      modelId: "gpt-6-luna",
+      config: { ...(control.config || {}), fallbackProviderIds: [], fallbackModels: {} }
+    };
+  }
   if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
