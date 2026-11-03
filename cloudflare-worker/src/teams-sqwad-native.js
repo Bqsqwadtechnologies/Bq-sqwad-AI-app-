@@ -472,38 +472,8 @@ export async function teamsJoin(user, body) {
   const displayName = user.name || user.email || "Member";
   const photoUrl = user.picture || "";
   const email = (user.email || "").toLowerCase();
-  if (team.visibility === "public") {
-    const activated = await firestoreUpdateAtomic(
-      "teams/" + teamId + "/members/" + user.uid,
-      (current) => current?.status === "active" ? null : ({
-        ...(current || {}),
-        role: "member",
-        displayName,
-        photoUrl,
-        email,
-        status: "active",
-        tags: [],
-        joinedAt: ts,
-        spendLimitCredits: null,
-      }),
-    );
-    if (activated) {
-      await firestoreUpdateAtomic("teams/" + teamId, (current) => {
-        if (!current) throw new Error("That team does not exist.");
-        return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
-      });
-    }
-    // Membership index is idempotently overwritten for repeat requests.
-    await firestoreSet(
-      "userTeams/" + user.uid + "/items/" + teamId,
-      { teamId, joinedAt: ts, status: "active" },
-      true,
-    );
-    const [member, refreshedTeam] = await Promise.all([getMember(teamId, user.uid), getTeam(teamId)]);
-    return { team: refreshedTeam || team, member, pending: false };
-  }
 
-  // Private → pending
+  // Every new join request waits for owner/admin approval.
   await firestoreSet(
     "teams/" + teamId + "/members/" + user.uid,
     {
@@ -518,8 +488,39 @@ export async function teamsJoin(user, body) {
     },
     false,
   );
+  await firestoreSet("userTeams/" + user.uid + "/items/" + teamId, { teamId, joinedAt: ts, status: "pending" }, true);
   const member = await getMember(teamId, user.uid);
   return { team, member, pending: true };
+}
+
+export async function teamsApproveMember(user, body) {
+  const teamId = str(body?.teamId);
+  const targetUid = str(body?.targetUid);
+  if (!targetUid || targetUid.length > 160) {
+    const err = new Error("A valid pending member is required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  await requireActiveMember(user, teamId, "admin");
+  const ts = now();
+  const activated = await firestoreUpdateAtomic(
+    "teams/" + teamId + "/members/" + targetUid,
+    (current) => {
+      if (!current || current.status !== "pending") return null;
+      return { ...current, status: "active", joinedAt: ts, approvedBy: user.uid, approvedAt: ts };
+    },
+  );
+  if (!activated) {
+    const err = new Error("No pending join request exists for this member.");
+    err.httpStatus = 409;
+    throw err;
+  }
+  await firestoreUpdateAtomic("teams/" + teamId, (current) => {
+    if (!current) throw new Error("That team does not exist.");
+    return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
+  });
+  await firestoreSet("userTeams/" + targetUid + "/items/" + teamId, { teamId, joinedAt: ts, status: "active" }, true);
+  return { ok: true };
 }
 
 export async function teamsLeave(user, body) {
