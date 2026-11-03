@@ -2180,6 +2180,18 @@ async function stream(request, user, body) {
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
   if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
+  const SPECIALIZED_NON_TEXT_CAPABILITIES = new Set([
+    "image_generation", "image_edit", "video_generation", "live_camera",
+    "live_voice", "web_search"
+  ]);
+  if (capabilityName !== "chat" && !SPECIALIZED_NON_TEXT_CAPABILITIES.has(capabilityName)) {
+    control = {
+      ...control,
+      providerId: "openai",
+      modelId: "gpt-6-luna",
+      config: { ...(control.config || {}), fallbackProviderIds: [], fallbackModels: {} }
+    };
+  }
   const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
   const isDedicatedFeatureMode = capabilityName === "chat" && dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
   if (isDedicatedFeatureMode) {
