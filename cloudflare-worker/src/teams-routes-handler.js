@@ -97,7 +97,7 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
     }
     if (path === "/native/teams/ask-ai" && method === "POST") {
       const u = await verifyFirebaseUser(request);
-      return json(await teamsAskAi(u, await body(), env));
+      return json(await teamsAskAi(u, await body(), env, deps));
     }
     if (path === "/native/teams/seed-white" && method === "POST") {
       const u = await verifyFirebaseUser(request);
