@@ -208,6 +208,25 @@ async function debitTeamPoolForMember(team, member, uid, amount) {
 /* Create                                                                      */
 /* -------------------------------------------------------------------------- */
 
+export async function teamsCheckUsername(user, body) {
+  const username = normalizeUsername(body?.username);
+  if (username.length < 3) return { username, available: false, suggestions: [] };
+  const availableFor = async (candidate) => {
+    if (RESERVED.has(candidate)) return false;
+    const doc = await firestoreGet("teamUsernames/" + candidate);
+    return !doc?.teamId;
+  };
+  const available = await availableFor(username);
+  const base = username.slice(0, 26) || "team";
+  const candidates = [`${base}_team`, `${base}_2`, `${base}_3`, `${base}_hq`, `${base}_${crypto.randomUUID().replace(/-/g, "").slice(0, 4)}`];
+  const suggestions = [];
+  for (const candidate of candidates) {
+    if (suggestions.length >= 4) break;
+    if (candidate.length >= 3 && await availableFor(candidate)) suggestions.push(candidate);
+  }
+  return { username, available, suggestions };
+}
+
 export async function teamsCreate(user, body) {
   const name = str(body?.name).trim().slice(0, 80);
   if (name.length < 2) {
