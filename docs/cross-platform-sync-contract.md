@@ -219,3 +219,10 @@ Status: implementation baseline; runtime verification remains required.
 ## Token pricing unit contract
 
 Customer token prices are canonical **credits per one token**: `inputCreditsPerToken`, `cachedInputCreditsPerToken`, and `outputCreditsPerToken`. Admin writes and the shared settlement calculation use these per-token values. Existing Firestore documents containing `inputCreditsPer1k`, `cachedInputCreditsPer1k`, or `outputCreditsPer1k` remain readable through the shared conversion helpers and are normalized to per-token values; legacy mirrors remain only for compatibility. Provider USD telemetry (`*UsdPerToken`, `*UsdPerMillion`, or USD-per-1k fields) is a separate internal cost measure and must never be confused with customer credit prices.
+
+
+## BQ Live Credit Pricing dashboard — 2026-11-03
+- The website Admin Control Center exposes one dedicated `BQ Live Credit Pricing` page. Model token rates and fixed/unit feature rates are edited there; old credit-management, legacy generation-pricing and legacy token-pricing panels are not mounted inside this pricing page.
+- Website saves use the canonical Firestore `tokenPricingRules` and `generationCostRules` collections. Fixed-price legacy capability mirrors are maintained by the website server function for older Worker feature paths. Android usage is charged by the Cloudflare Worker against shared pricing records; it must not use a local pricing table.
+- Token settlement has no minimum charge in the website usage billing engine or Cloudflare Worker token billing engine. A configured zero remains free; tiny usage may round to zero at configured precision. The legacy `minimumCredits` field is retained for compatibility but is not applied to token deductions.
+- Source implementation only. Website/Worker deployment workflows, builds, integration tests, and authenticated Android/web billing checks must succeed before production propagation is considered verified.
