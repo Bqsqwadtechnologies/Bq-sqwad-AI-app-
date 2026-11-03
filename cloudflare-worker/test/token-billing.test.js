@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateTokenCost, allocateReservationRefund } from "../src/token-billing-native.js";
+import { calculateTokenCost, allocateReservationRefund, normalizeProviderUsage } from "../src/token-billing-native.js";
 
 test("token billing charges direct input, cached and output credit rates", () => {
   const result = calculateTokenCost({
@@ -199,4 +199,67 @@ test("token pricing selects free and paid rules independently and prefers the ex
   assert.equal(matchesCustomerClass({ customerClass: "paid" }, "paid"), true);
   assert.equal(matchesCustomerClass({ customerClass: "all" }, "free"), true);
   assert.equal(matchesCustomerClass({}, "paid"), true);
+});
+
+test("provider-reported audio and image tokens use their own Admin Live Credit Pricing rates", () => {
+  const result = calculateTokenCost({
+    usage: {
+      inputTokens: 1000,
+      cachedInputTokens: 200,
+      outputTokens: 500,
+      inputImageTokens: 300,
+      outputAudioTokens: 100
+    },
+    pricing: {
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.0001,
+        creditsPerCachedInputToken: 0.00002,
+        creditsPerOutputToken: 0.0002,
+        creditsPerInputImageToken: 0.0003,
+        creditsPerOutputAudioToken: 0.0004,
+        minimumCredits: 0,
+        precision: 7,
+        conversionRate: 1
+      }
+    }
+  });
+  // Text: (500 uncached × .0001) + (200 cached × .00002) + (400 output × .0002)
+  // Modalities: (300 image × .0003) + (100 audio × .0004) = .13
+  assert.equal(result.customerCredits, 0.264);
+  assert.equal(result.inputImageTokens, 300);
+  assert.equal(result.outputAudioTokens, 100);
+});
+
+test("OpenAI usage normalization extracts cached, audio and image token details", () => {
+  const usage = normalizeProviderUsage("openai", {
+    input_tokens: 1200,
+    output_tokens: 500,
+    input_token_details: { cached_tokens: 100, audio_tokens: 300, image_tokens: 200 },
+    output_token_details: { audio_tokens: 150, image_tokens: 50, reasoning_tokens: 40 }
+  });
+  assert.equal(usage.cachedInputTokens, 100);
+  assert.equal(usage.inputAudioTokens, 300);
+  assert.equal(usage.inputImageTokens, 200);
+  assert.equal(usage.outputAudioTokens, 150);
+  assert.equal(usage.outputImageTokens, 50);
+  assert.equal(usage.reasoningTokens, 40);
+});
+
+test("Gemini usage normalization extracts modality token counts", () => {
+  const usage = normalizeProviderUsage("gemini", {
+    promptTokenCount: 1000,
+    candidatesTokenCount: 200,
+    promptTokensDetails: [
+      { modality: "TEXT", tokenCount: 500 },
+      { modality: "IMAGE", tokenCount: 300 },
+      { modality: "AUDIO", tokenCount: 200 }
+    ],
+    candidatesTokensDetails: [
+      { modality: "TEXT", tokenCount: 150 },
+      { modality: "AUDIO", tokenCount: 50 }
+    ]
+  });
+  assert.equal(usage.inputImageTokens, 300);
+  assert.equal(usage.inputAudioTokens, 200);
+  assert.equal(usage.outputAudioTokens, 50);
 });
