@@ -7,7 +7,7 @@ const providerSource = await readFile(new URL("../src/providers.js", import.meta
 const tokenBillingSource = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 
 test("chat and attachment capability defaults are token-metered without a one-credit floor", () => {
-  assert.match(source, /const TOKEN_METERED = new Set\\(\\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"\\]\\)/);
+  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"\]\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
   assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
 });
@@ -71,6 +71,9 @@ test("Tavily search and deep research use the shared direct generation credit ru
   assert.match(source, /activeGenerationRule\(deepResearch \? "web\.research" : "web\.search"\)/);
   assert.match(source, /const charge = searchRule\.credits/);
   assert.doesNotMatch(source, /const configuredSearchCharge = deepResearch/);
+  assert.match(source, /activeGenerationRule\(isCameraMode \? "live.camera" : "live.voice"\)/);
+  assert.match(source, /activeGenerationRule\("speech.transcribe"\)/);
+  assert.doesNotMatch(source, /\/admin\/ai-billing\/config/);
 });
 
 test("website-owned token budgets cap native and connector-aware chat spend", () => {
