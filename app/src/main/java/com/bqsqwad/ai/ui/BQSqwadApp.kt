@@ -2431,6 +2431,27 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val advertisedFeatures = remember {
+        listOf(
+            "AI Live Voice" to "Talk naturally with real-time AI voice",
+            "AI Live Camera" to "Ask questions about what your camera sees",
+            "AI Business" to "Plan, analyse and grow a business",
+            "Organization AI" to "Tools for churches and organizations",
+            "AI Life Matters" to "Get help thinking through life decisions",
+            "AI Learning" to "Explore subjects and learn step by step",
+            "AI Companions" to "Choose a helpful AI companion",
+            "TruthGuard AI" to "Check claims and understand information",
+            "Frontier Lab" to "Explore advanced AI capabilities",
+            "Video & Creative Studio" to "Create and edit visual content",
+            "Teams" to "Work with people in a shared AI space",
+            "Projects" to "Organize notes and working documents"
+        )
+    }
+    var advertisedFeatureIndex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(advertisedFeatureIndex) {
+        kotlinx.coroutines.delay(5_000L)
+        advertisedFeatureIndex = (advertisedFeatureIndex + 1) % advertisedFeatures.size
+    }
     val prefs = remember { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
     var birthdayCardOpen by remember { mutableStateOf(false) }
@@ -3784,34 +3805,32 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 ) {
                 if (messages.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 2.dp, bottom = 2.dp),
-                            contentAlignment = Alignment.Center
+                        val advertisedFeature = advertisedFeatures[advertisedFeatureIndex]
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clickable(onClick = openFeatures)
-                                    .padding(horizontal = 18.dp)
+                            FloatingLogo(Modifier)
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).clickable(onClick = openFeatures),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                tonalElevation = 2.dp
                             ) {
-                                FloatingLogo(Modifier)
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.94f),
-                                    shadowElevation = 8.dp
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
-                                        Text("AI Features", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.SemiBold)
-                                    }
+                                    Text(advertisedFeature.first, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(advertisedFeature.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Try this feature", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 }
+                            }
+                            TextButton(onClick = openFeatures) {
+                                Text("All features", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -4325,6 +4344,22 @@ val composerShape = RoundedCornerShape(26.dp)
                                 .fillMaxWidth()
                                 .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Surface(
+                                modifier = Modifier.clickable(onClick = openFeatures),
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(23.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Text("More features", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            }
+                        }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
