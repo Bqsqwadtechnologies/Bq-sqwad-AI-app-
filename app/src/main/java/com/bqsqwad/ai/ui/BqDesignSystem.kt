@@ -35,12 +35,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import com.bqsqwad.ai.R
 
-/** The official bundled BQ Sqwad AI logo is fixed for all users. */
+/** The official bundled BQ Sqwad AI logo is rendered without an opaque theme
+ * plate, so every placement (including loading and Diamond Chat indicators)
+ * inherits the actual screen theme behind the logo. */
 @Composable
 fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
     Surface(
@@ -48,13 +51,13 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
         shape = CircleShape,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        color = MaterialTheme.colorScheme.surface
+        color = Color.Transparent
     ) {
         Image(
             painter = painterResource(R.drawable.bq_sqwad_logo),
             contentDescription = "BQ Sqwad AI logo",
-            modifier = Modifier.fillMaxSize().clip(CircleShape),
-            contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
         )
     }
 }
@@ -206,4 +209,3 @@ fun SurfaceCard(title: String, body: String) {
         }
     }
 }
-
