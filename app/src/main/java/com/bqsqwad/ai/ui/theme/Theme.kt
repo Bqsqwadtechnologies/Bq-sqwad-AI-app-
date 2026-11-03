@@ -23,8 +23,8 @@ import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.Density
 
 // Shared message surfaces intentionally remain distinct in light and dark themes.
-val bubbleUser = Color(0xFF7EC8F7)
-val onBubbleUser = Color(0xFF0A1A2A)
+val bubbleUser = Color.White
+val onBubbleUser = Color.Black
 val bubbleAi = Color(0xFF000000)
 val onBubbleAi = Color(0xFFFFFFFF)
 val bubbleAiBorder = Color(0xFF2A3441)
