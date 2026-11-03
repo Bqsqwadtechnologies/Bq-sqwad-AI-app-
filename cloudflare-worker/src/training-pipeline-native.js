@@ -222,7 +222,7 @@ export async function exportBusinessConversationJsonl({ max = 500 } = {}) {
     });
   });
   return {
-    jsonl: lines.join("\\n"),
+    jsonl: lines.join("\n"),
     manifest: { count: rows.length, truncated: messages.length >= max, exportedAt: new Date().toISOString(), piiRedacted: true }
   };
 }
