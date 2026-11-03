@@ -191,3 +191,12 @@ test("team chat and deep research are eligible for shared model token metering",
   const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
   assert.match(source, /"team_chat", "deep_research"/);
 });
+
+test("token pricing selects free and paid rules independently and prefers the exact class", async () => {
+  const { matchesCustomerClass } = await import("../src/token-billing-native.js");
+  assert.equal(matchesCustomerClass({ customerClass: "free" }, "free"), true);
+  assert.equal(matchesCustomerClass({ customerClass: "free" }, "paid"), false);
+  assert.equal(matchesCustomerClass({ customerClass: "paid" }, "paid"), true);
+  assert.equal(matchesCustomerClass({ customerClass: "all" }, "free"), true);
+  assert.equal(matchesCustomerClass({}, "paid"), true);
+});
