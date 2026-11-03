@@ -188,7 +188,7 @@ export async function exportBusinessVaultJsonl({ dbGet, dbQuery, encryptionKey, 
     }
   }
   return {
-    jsonl: lines.join("\\n"),
+    jsonl: lines.join("\n"),
     manifest: { count: lines.length, threadCount: threads.length, truncated: threads.length >= max, exportedAt: new Date().toISOString(), encryptedAtRest: true, piiRedacted: true }
   };
 }
