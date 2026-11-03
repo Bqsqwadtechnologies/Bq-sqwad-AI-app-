@@ -29,7 +29,7 @@ export function computeTokenCredits(input, policy, rates) {
   const cachedRate = rate(rates?.cachedInputUsdPerToken, rates?.cachedInputUsdPerMillionTokens != null ? Number(rates.cachedInputUsdPerMillionTokens) / 1_000_000 : undefined, inputRate * 0.1);
   const outputRate = rate(rates?.outputUsdPerToken, rates?.outputUsdPerMillionTokens != null ? Number(rates.outputUsdPerMillionTokens) / 1_000_000 : undefined, 0.00000025);
   const providerCostUsd = uncached * inputRate + cached * cachedRate + output * outputRate;
-  const markupPercent = nonNegative(policy?.markupPercent, 0);
+  const markupPercent = nonNegative(policy?.markupPercent, 600);
   const feePercent = nonNegative(policy?.feePercent, 0);
   const usdPerCredit = nonNegative(policy?.usdPerCredit, 0.1199) || 0.1199;
   const customerUsd = providerCostUsd * (1 + markupPercent / 100) * (1 + feePercent / 100);
@@ -96,7 +96,7 @@ export async function loadBillingConfig(firestoreGet, now = Date.now()) {
   return {
     loadedAt: now,
     usageBilling: {
-      markupPercent: nonNegative(usageBilling?.markupPercent, 0),
+      markupPercent: nonNegative(usageBilling?.markupPercent, 600),
       feePercent: nonNegative(usageBilling?.feePercent, 0),
       usdPerCredit: nonNegative(usageBilling?.usdPerCredit, 0.1199) || 0.1199
     },
