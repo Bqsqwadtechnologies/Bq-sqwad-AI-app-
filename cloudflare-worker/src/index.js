@@ -884,7 +884,8 @@ function canonicalUserBalance(profile) {
 async function applyConfiguredDailyFreeCredits(uid) {
   const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
   const enabled = config == null ? true : config.enabled === true;
-  const credits = Math.max(0, Math.min(1, Number(config?.credits ?? 1)));
+  const configuredCredits = Number(config?.credits ?? 1);
+  const credits = Number.isFinite(configuredCredits) ? Math.min(10000, Math.max(0, configuredCredits)) : 1;
   if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
