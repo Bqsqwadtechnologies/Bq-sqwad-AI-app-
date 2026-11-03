@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,6 +70,8 @@ fun TeamWorkspaceScreen(
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    var showTeamDetails by remember { mutableStateOf(screenWidthDp >= 600) }
     var teamName by remember { mutableStateOf(username) }
     var teamId by remember { mutableStateOf<String?>(null) }
     var balance by remember { mutableStateOf(0.0) }
@@ -183,6 +186,11 @@ fun TeamWorkspaceScreen(
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text("Back") }
                 },
+                actions = {
+                    TextButton(onClick = { showTeamDetails = !showTeamDetails }) {
+                        Text(if (showTeamDetails) "Hide details" else "Members")
+                    }
+                },
             )
         }
     ) { padding ->
@@ -210,9 +218,7 @@ fun TeamWorkspaceScreen(
             // Side panel (members + projects) — compact on phone
             Column(
                 Modifier
-                    .width(140.dp)
-                    .fillMaxHeight()
-                    .padding(8.dp),
+                    .then(if (showTeamDetails) Modifier.width(180.dp).fillMaxHeight().padding(8.dp) else Modifier.width(0.dp)),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (!isActive) {
@@ -249,7 +255,7 @@ fun TeamWorkspaceScreen(
                     )
                     Text("Members", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items(members.filter { it.status == "active" }) { m ->
+                        items(members) { m ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (!m.photoUrl.isNullOrBlank()) {
                                     AsyncImage(
@@ -267,7 +273,27 @@ fun TeamWorkspaceScreen(
                                 }
                                 Column {
                                     Text(m.displayName, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                                    Text(m.role, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(if (m.status == "pending") "Pending approval" else m.role, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (m.status == "pending" && (memberRole == "owner" || memberRole == "admin")) {
+                                        TextButton(
+                                            enabled = !busy,
+                                            onClick = {
+                                                scope.launch {
+                                                    busy = true
+                                                    try {
+                                                        val token = authTokenProvider() ?: error("Sign in required")
+                                                        apiPost(baseUrl, token, "/native/teams/approve", JSONObject().put("teamId", teamId).put("targetUid", m.uid))
+                                                        load()
+                                                    } catch (e: Exception) {
+                                                        error = e.message
+                                                    } finally {
+                                                        busy = false
+                                                    }
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                                        ) { Text("Approve", style = MaterialTheme.typography.labelSmall) }
+                                    }
                                     if (memberRole == "owner" || memberRole == "admin") {
                                         TextButton(
                                             onClick = {
