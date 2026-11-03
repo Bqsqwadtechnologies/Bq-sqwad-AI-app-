@@ -1764,7 +1764,7 @@ async function buildProviderExecutionRoute(control, primaryPricing, pricingFeatu
     : "";
   let fallbackPricing = null;
   if (fallbackProviderId && fallbackModelId && primaryPricing?.configured === true) {
-    fallbackPricing = await resolveTokenPricing(fallbackProviderId, fallbackModelId, pricingFeature, { planId: control?.planId }).catch(() => null);
+    fallbackPricing = await resolveTokenPricing(fallbackProviderId, fallbackModelId, pricingFeature, { planId: control?.planId, customerClass: control?.customerClass }).catch(() => null);
   }
   return {
     primaryProviderId,
@@ -1858,7 +1858,17 @@ async function enforceChatModelEligibility(uid, body, control, user) {
       safeError: eligibility.reason
     });
   }
-  return { purchasedOnly: modelKey === "bq-codron" && !adminBypass };
+  const persistedClass = String(profile?.customerClass || "").toLowerCase();
+  const customerClass = persistedClass === "paid" || purchasedBalance > 0 || Boolean(balance?.subscriptionExpiresAt)
+    ? "paid"
+    : "free";
+  if (persistedClass !== customerClass) {
+    await firestoreSet("users/" + uid, {
+      customerClass,
+      customerClassUpdatedAt: new Date().toISOString()
+    }, true).catch(() => {});
+  }
+  return { purchasedOnly: modelKey === "bq-codron" && !adminBypass, customerClass };
 }
 
 async function ai(request, user, body) {
@@ -1933,7 +1943,8 @@ async function ai(request, user, body) {
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
-    : { purchasedOnly: false };
+    : { purchasedOnly: false, customerClass: "paid" };
+  control = { ...control, customerClass: chatEligibility.customerClass };
   if (capabilityName === "chat" && String(body.modelKey || "bq-7-star").trim().toLowerCase() === "bq-codron") {
     // BQ-Codron is a fixed model choice: never substitute Gemini or another route.
     control = { ...control, config: { ...(control.config || {}), fallbackProviderIds: [], fallbackModels: {} } };
@@ -2211,7 +2222,8 @@ async function stream(request, user, body) {
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
-    : { purchasedOnly: false };
+    : { purchasedOnly: false, customerClass: "paid" };
+  control = { ...control, customerClass: chatEligibility.customerClass };
   const pricingFeature = capabilityName === "chat" ? "chat" : capabilityName.replace(/_/g, "-");
   // Text chat defaults to measured provider-cost billing. Explicit admin settings
   // may opt out; missing model rates fail safely rather than silently charging 1 credit.
