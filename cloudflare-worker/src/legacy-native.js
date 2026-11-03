@@ -1,5 +1,5 @@
 import { firestoreGet, firestoreSet, firestoreCreate, firestoreDelete, firestoreQuery, firestoreCommit } from "./firebase.js";
-import { runProvider, callTavily, DEFAULT_MODELS } from "./providers.js";
+import { runProvider, callTavily } from "./providers.js";
 
 const activeStates=new Set(["active","trialing","grace"]);
 const clean=(v,n=12000)=>String(v??"").trim().slice(0,n);
