@@ -56,6 +56,7 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
         val source = BitmapFactory.decodeResource(context.resources, R.drawable.bq_sqwad_logo)
             ?: return@remember null
         val bitmap = source.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            ?: return@remember null
         val width = bitmap.width
         val height = bitmap.height
         val pixels = IntArray(width * height)
