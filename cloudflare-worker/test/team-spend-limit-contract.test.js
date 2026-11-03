@@ -33,7 +33,7 @@ test("team spend-limit administration is mounted and available in Android worksp
 
 test("team AI settlement does not deliver a successful provider response without usage pricing", () => {
   assert.match(teams, /if \(inputTokens \+ outputTokens <= 0\)/);
-  assert.match(teams, /if \(!pricing\) throw new Error\("token_pricing_not_configured"\)/);
+  assert.match(teams, /resolveTokenPricing\(/);
   assert.match(teams, /if \(settlementError\)/);
   assert.match(teams, /response was not delivered or charged/i);
 });
