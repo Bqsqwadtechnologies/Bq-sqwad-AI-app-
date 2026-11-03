@@ -95,6 +95,7 @@ fun TeamWorkspaceScreen(
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var aiBusy by remember { mutableStateOf(false) }
+    var aiBillingSource by remember { mutableStateOf("team") }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
@@ -478,6 +479,8 @@ fun TeamWorkspaceScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                             }
+                            TextButton(onClick = { aiBillingSource = "team" }, enabled = !aiBusy) { Text(if (aiBillingSource == "team") "✓ Team credits" else "Team credits") }
+                            TextButton(onClick = { aiBillingSource = "personal" }, enabled = !aiBusy) { Text(if (aiBillingSource == "personal") "✓ My credits" else "My credits") }
                             FilledTonalButton(
                                 onClick = {
                                     val tid = teamId ?: return@FilledTonalButton
@@ -493,7 +496,8 @@ fun TeamWorkspaceScreen(
                                                 JSONObject()
                                                     .put("teamId", tid)
                                                     .put("projectId", pid)
-                                                    .put("text", text.trim()),
+                                                    .put("text", text.trim())
+                                                    .put("billingSource", aiBillingSource),
                                             )
                                             text = ""
                                             if (res.optBoolean("noCredits")) {
@@ -516,7 +520,7 @@ fun TeamWorkspaceScreen(
                             }
                         }
                         Text(
-                            "Send deducts the configured price from your personal balance. Ask AI uses the team credit pool.",
+                            "Choose which balance pays for each AI request. Member messages use the configured message price.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
