@@ -1,6 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { priceOperation, recordBillingTransaction, updateBillingTransaction, getDynamicBillingConfig, calculateDynamicCharge, providerCostFromUsage } from "./dynamic-billing.js";
+import { priceOperation, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
 
 const ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || "isaacoshiomole0@gmail.com").trim().toLowerCase();
 
@@ -38,21 +38,19 @@ export async function reserveCredits(uid, amount, capability) {
   let pricing;
   try {
     pricing = await priceOperation(capability, legacyEstimate);
-  } catch (error) {
-    // Keep requests billable if the optional dynamic configuration is temporarily
-    // unavailable: use the server-provided capability estimate plus the 80% markup.
-    const fallbackCharge = Math.ceil(legacyEstimate * 1.8 * 100) / 100;
+  } catch {
+    // The server-provided capability credit price is already the final customer price.
     pricing = {
       capability: String(capability || "unknown"),
-      providerCostUsd: legacyEstimate * 0.07999,
-      sellingPriceUsd: fallbackCharge * 0.07999,
-      credits: fallbackCharge,
-      reservedCredits: fallbackCharge,
-      profitMarkup: 0.8,
+      providerCostUsd: 0,
+      sellingPriceUsd: 0,
+      credits: legacyEstimate,
+      reservedCredits: legacyEstimate,
+      profitMarkup: 0,
       feeRateApplied: 0,
       creditValueUsd: 0.07999,
       estimated: true,
-      estimateSource: "safe_fallback_legacy_estimate",
+      estimateSource: "direct_server_credit_price",
       pricingVersion: 1
     };
   }
@@ -165,13 +163,12 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const adminRef = db.collection("aiBillingTransactions").doc(reservationId);
     const adminSnap = await adminRef.get();
     const adminData = adminSnap.exists ? adminSnap.data() || {} : {};
-    const actualCost = providerCostFromUsage(metadata.usage, adminData.rateSnapshot);
     await updateBillingTransaction(reservationId, {
       providerId: providerId || null,
       modelId: metadata.modelId || adminData.modelId || null,
       usage: metadata.usage || null,
-      providerCostUsd: actualCost == null ? Number(adminData.providerCostUsd || 0) : actualCost,
-      costType: actualCost == null ? "estimated" : "calculated_from_actual_usage",
+      providerCostUsd: 0,
+      costType: "direct_credit_price",
       status: "committed", creditsCharged: 0,
       sellingPriceUsd: 0, exemptType: "admin_exempt",
       committedAt: FieldValue.serverTimestamp()
@@ -182,13 +179,12 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const includedRef = db.collection("aiBillingTransactions").doc(reservationId);
     const includedSnap = await includedRef.get();
     const includedData = includedSnap.exists ? includedSnap.data() || {} : {};
-    const actualCost = providerCostFromUsage(metadata.usage, includedData.rateSnapshot);
     await updateBillingTransaction(reservationId, {
       providerId: providerId || null,
       modelId: metadata.modelId || includedData.modelId || null,
       usage: metadata.usage || null,
-      providerCostUsd: actualCost == null ? Number(includedData.providerCostUsd || 0) : actualCost,
-      costType: actualCost == null ? "estimated" : "calculated_from_actual_usage",
+      providerCostUsd: 0,
+      costType: "direct_credit_price",
       status: "committed", creditsCharged: 0, sellingPriceUsd: 0,
       exemptType: includedData.exemptType || "subscription_or_free",
       committedAt: FieldValue.serverTimestamp()
@@ -196,26 +192,6 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     return;
   }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
-  const initialSnap = await reservationRef.get();
-  const initialData = initialSnap.exists ? initialSnap.data() || {} : {};
-  let actualProviderCost = null;
-  let actualQuote = null;
-  try {
-    actualProviderCost = providerCostFromUsage(metadata.usage, initialData.rateSnapshot);
-    if (actualProviderCost != null) {
-      const currentConfig = await getDynamicBillingConfig();
-      const pricingSnapshot = initialData.pricingSnapshot || {};
-      actualQuote = calculateDynamicCharge({
-        providerCostUsd: actualProviderCost,
-        config: { ...currentConfig, ...pricingSnapshot, version: pricingSnapshot.version || initialData.pricingVersion || currentConfig.version },
-        estimated: false
-      });
-    }
-  } catch {
-    actualProviderCost = null;
-    actualQuote = null;
-  }
-
   await db.runTransaction(async tx => {
     const snap = await tx.get(reservationRef);
     if (!snap.exists || snap.data().uid !== uid || snap.data().status !== "reserved") return;
@@ -231,12 +207,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const balance = canonicalBalance(profile);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
     const reservedAmount = Math.max(0, Number(data.amount || 0));
-    const requestedFinalCharge = Math.max(0, Number(actualQuote?.credits ?? data.finalCharge ?? reservedAmount));
-    // Never surprise-charge beyond the pre-authorized reservation. If actual
-    // usage exceeds the reserved ceiling, deliver the completed result and record
-    // the provider-cost overrun for administrator review instead of failing late.
+    const requestedFinalCharge = Math.max(0, Number(data.finalCharge ?? reservedAmount));
     const finalCharge = Math.min(reservedAmount, requestedFinalCharge);
-    const costOverrunCredits = Math.max(0, requestedFinalCharge - reservedAmount);
+    const costOverrunCredits = 0;
     const unused = Math.max(0, reservedAmount - finalCharge);
     // Refund unused safety-margin credits to the same buckets originally debited.
     const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
@@ -259,7 +232,7 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       status: "committed",
       finalCharge,
       costOverrunCredits,
-      providerCostUsd: actualProviderCost == null ? Number(data.providerCostUsd || 0) : actualProviderCost,
+      providerCostUsd: 0,
       providerId: providerId || null,
       committedAt: FieldValue.serverTimestamp()
     });
@@ -280,11 +253,11 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
         providerId: providerId || null,
         modelId: metadata.modelId || data.modelId || null,
         usage: metadata.usage && typeof metadata.usage === "object" ? metadata.usage : null,
-        providerCostUsd: actualProviderCost == null ? Number(data.providerCostUsd || 0) : actualProviderCost,
-        costType: actualProviderCost == null ? "estimated" : "calculated_from_actual_usage",
-        sellingPriceUsd: actualQuote ? finalCharge * Number(data.creditValueUsd || actualQuote.creditValueUsd) : Number(data.sellingPriceUsd || 0),
-        costOverrunCredits: Number(data.costOverrunCredits || 0),
-        costOverrun: Number(data.costOverrunCredits || 0) > 0,
+        providerCostUsd: 0,
+        costType: "direct_credit_price",
+        sellingPriceUsd: 0,
+        costOverrunCredits: 0,
+        costOverrun: false,
         status: "committed",
         creditsCharged: Number(data.finalCharge ?? data.amount ?? 0),
         creditsReserved: Number(data.amount || 0),

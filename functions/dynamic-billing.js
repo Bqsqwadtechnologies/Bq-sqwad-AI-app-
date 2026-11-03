@@ -1,169 +1,33 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const CONFIG_PATH = "aiBillingConfig/current";
-const DEFAULTS = Object.freeze({
-  enabled: true,
-  version: 1,
-  profitMarkup: 0.80,
-  feeRate: 0.15,
-  applyFeeToUsage: false,
-  creditValueUsd: 0.07999,
-  reservationSafetyMargin: 0.20,
-  minimumCredits: 0.01,
-  maximumCredits: 100000,
-  // Admins may enter providerCostUsd per capability. When absent, the
-  // existing server-configured capability credit cost is used as a conservative
-  // cost proxy and explicitly marked estimated; it is never labelled actual.
-  capabilityRates: {},
-  providerModelRates: {}
-});
+const DIRECT_CREDIT_REFERENCE_USD = 0.07999;
 
-function finite(value, fallback) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function validateConfig(raw = {}) {
-  const config = { ...DEFAULTS, ...(raw && typeof raw === "object" ? raw : {}) };
-  config.profitMarkup = finite(config.profitMarkup, DEFAULTS.profitMarkup);
-  config.feeRate = finite(config.feeRate, DEFAULTS.feeRate);
-  config.creditValueUsd = finite(config.creditValueUsd, DEFAULTS.creditValueUsd);
-  config.reservationSafetyMargin = finite(config.reservationSafetyMargin, DEFAULTS.reservationSafetyMargin);
-  config.minimumCredits = finite(config.minimumCredits, DEFAULTS.minimumCredits);
-  config.maximumCredits = finite(config.maximumCredits, DEFAULTS.maximumCredits);
-  if (config.profitMarkup < 0 || config.profitMarkup > 10) throw new Error("billing_markup_out_of_range");
-  if (config.feeRate < 0 || config.feeRate >= 1) throw new Error("billing_fee_rate_out_of_range");
-  if (config.creditValueUsd <= 0 || config.creditValueUsd > 1000) throw new Error("billing_credit_value_invalid");
-  if (config.reservationSafetyMargin < 0 || config.reservationSafetyMargin > 5) throw new Error("billing_safety_margin_out_of_range");
-  if (config.minimumCredits < 0 || config.maximumCredits < config.minimumCredits) throw new Error("billing_credit_limits_invalid");
-  if (!config.capabilityRates || typeof config.capabilityRates !== "object" || Array.isArray(config.capabilityRates)) {
-    throw new Error("billing_capability_rates_invalid");
-  }
-  for (const [key, rate] of Object.entries(config.capabilityRates)) {
-    if (!/^[a-z0-9_-]{1,80}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_capability_rate_invalid");
-    if (rate.providerCostUsd != null && (!Number.isFinite(Number(rate.providerCostUsd)) || Number(rate.providerCostUsd) < 0)) {
-      throw new Error("billing_provider_cost_invalid");
-    }
-    if (rate.providerCostUsd == null) throw new Error("billing_capability_provider_cost_required");
-  }
-  if (!config.providerModelRates || typeof config.providerModelRates !== "object" || Array.isArray(config.providerModelRates)) {
-    throw new Error("billing_provider_model_rates_invalid");
-  }
-  for (const [key, rate] of Object.entries(config.providerModelRates)) {
-    if (!/^[a-z0-9_.:-]{1,180}$/i.test(key) || !rate || typeof rate !== "object") throw new Error("billing_provider_model_rate_invalid");
-    const rateFields = ["providerCostUsd", "inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M", "apiCreditUsd"];
-    if (!rateFields.some(field => rate[field] != null)) throw new Error("billing_provider_model_rate_required");
-    for (const field of [...rateFields, "estimatedInputTokens", "estimatedCachedInputTokens", "estimatedOutputTokens", "apiCreditUsd", "estimatedApiCredits"]) {
-      if (rate[field] != null && (!Number.isFinite(Number(rate[field])) || Number(rate[field]) < 0)) throw new Error("billing_provider_model_rate_invalid");
-    }
-  }
-  return config;
-}
-
-export async function getDynamicBillingConfig() {
-  const snap = await getFirestore().doc(CONFIG_PATH).get();
-  const raw = snap.exists ? (snap.data() || {}) : {};
-  return validateConfig({ ...DEFAULTS, ...raw, version: Math.max(1, Number(raw.version || DEFAULTS.version)) });
-}
-
-export function calculateDynamicCharge({ providerCostUsd, config, estimated = true }) {
-  const cfg = validateConfig(config);
-  const cost = Number(providerCostUsd);
-  if (!Number.isFinite(cost) || cost < 0) throw new Error("billing_provider_cost_invalid");
-  const feeRate = cfg.applyFeeToUsage === true ? cfg.feeRate : 0;
-  const sellingPriceUsd = cost * (1 + cfg.profitMarkup) / (1 - feeRate);
-  const rawCredits = sellingPriceUsd / cfg.creditValueUsd;
-  const credits = cost === 0 ? 0 : Math.min(cfg.maximumCredits, Math.max(cfg.minimumCredits, Math.ceil(rawCredits * 100) / 100));
+export function calculateDirectCreditCharge({ credits }) {
+  const amount = Number(credits);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error("direct_credit_price_invalid");
   return {
-    providerCostUsd: cost,
-    sellingPriceUsd,
-    credits,
-    profitMarkup: cfg.profitMarkup,
-    feeRateApplied: feeRate,
-    creditValueUsd: cfg.creditValueUsd,
-    estimated: Boolean(estimated),
-    pricingVersion: cfg.version
+    credits: amount,
+    reservedCredits: amount,
+    providerCostUsd: 0,
+    sellingPriceUsd: 0,
+    profitMarkup: 0,
+    feeRateApplied: 0,
+    creditValueUsd: DIRECT_CREDIT_REFERENCE_USD,
+    estimated: true,
+    pricingVersion: 1,
+    estimateSource: "direct_credit_price"
   };
 }
 
-export async function priceOperation(capability, legacyCreditEstimate = 0) {
-  const config = await getDynamicBillingConfig();
-  const key = String(capability || "chat").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 80);
-  const db = getFirestore();
-  const routeSnap = await db.collection("adminAdvancedOptions").doc("capability_" + key).get();
-  const route = routeSnap.exists ? (routeSnap.data() || {}) : {};
-  const providerId = String(route.providerId || "openai").toLowerCase();
-  const modelId = String(route.modelId || "unknown").toLowerCase();
-  const modelRate = config.providerModelRates[providerId + ":" + modelId] || config.providerModelRates[providerId];
-  const capabilityRate = config.capabilityRates[key];
-  const configured = modelRate || capabilityRate;
-  const legacy = Math.max(0, finite(legacyCreditEstimate, 0));
-  let providerCostUsd;
-  if (configured && configured.providerCostUsd != null) {
-    providerCostUsd = Number(configured.providerCostUsd);
-  } else if (modelRate && modelRate.apiCreditUsd != null) {
-    providerCostUsd = finite(modelRate.apiCreditUsd, 0) * finite(modelRate.estimatedApiCredits, 1);
-  } else if (modelRate && ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(field => modelRate[field] != null)) {
-    const inputTokens = finite(modelRate.estimatedInputTokens, 1000);
-    const outputTokens = finite(modelRate.estimatedOutputTokens, 500);
-    const cachedInputTokens = Math.min(inputTokens, finite(modelRate.estimatedCachedInputTokens, 0));
-    providerCostUsd = (
-      (inputTokens - cachedInputTokens) * finite(modelRate.inputUsdPer1M, 0) +
-      cachedInputTokens * finite(modelRate.cachedInputUsdPer1M, 0) +
-      outputTokens * finite(modelRate.outputUsdPer1M, 0)
-    ) / 1_000_000;
-  } else {
-    providerCostUsd = legacy * config.creditValueUsd;
-  }
-  const base = calculateDynamicCharge({ providerCostUsd, config, estimated: true });
-  // Without a model-specific provider rate, retain the existing server-owned
-  // capability estimate as a floor. The resulting amount remains explicitly estimated.
-  const credits = configured
-    ? base.credits
-    : Math.max(base.credits, Math.ceil(legacy * (1 + config.profitMarkup) * 100) / 100);
-  const safetyCredits = Math.ceil(credits * (1 + config.reservationSafetyMargin) * 100) / 100;
+export async function priceOperation(capability, finalCreditPrice = 0) {
   return {
-    ...base,
-    capability: key,
-    providerId,
-    modelId,
-    rateSnapshot: configured ? { ...configured } : null,
-    pricingSnapshot: {
-      profitMarkup: config.profitMarkup, feeRate: config.feeRate,
-      applyFeeToUsage: config.applyFeeToUsage, creditValueUsd: config.creditValueUsd,
-      minimumCredits: config.minimumCredits, maximumCredits: config.maximumCredits,
-      version: config.version
-    },
-    estimateSource: modelRate ? "admin_configured_provider_model_rate" : (capabilityRate && capabilityRate.providerCostUsd != null ? "admin_configured_provider_cost" : "legacy_capability_estimate"),
-    credits,
-    reservedCredits: Math.min(config.maximumCredits, safetyCredits),
-    pricingVersion: config.version
+    ...calculateDirectCreditCharge({ credits: finalCreditPrice }),
+    capability: String(capability || "unknown").trim().toLowerCase().slice(0, 80),
+    providerId: null,
+    modelId: null,
+    rateSnapshot: null,
+    pricingSnapshot: { mode: "direct_credit_price" }
   };
-}
-
-export function providerCostFromUsage(usage, rate) {
-  if (!usage || typeof usage !== "object" || !rate || typeof rate !== "object") return null;
-  if (rate.apiCreditUsd != null) {
-    const credits = finite(usage.api_credits ?? usage.credits_used ?? usage.creditsUsed, NaN);
-    return Number.isFinite(credits) && credits >= 0 ? credits * finite(rate.apiCreditUsd, 0) : null;
-  }
-  const hasTokenRates = ["inputUsdPer1M", "cachedInputUsdPer1M", "outputUsdPer1M"].some(key => rate[key] != null);
-  if (!hasTokenRates || rate.providerCostUsd != null) return null;
-  const usageMetadata = usage.usageMetadata || usage.usage_metadata || {};
-  const input = finite(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens ?? usage.promptTokenCount ?? usageMetadata.promptTokenCount, NaN);
-  const output = finite(usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens ?? usage.candidatesTokenCount ?? usageMetadata.candidatesTokenCount, NaN);
-  if (!Number.isFinite(input) || !Number.isFinite(output) || input < 0 || output < 0) return null;
-  const details = usage.input_tokens_details || usage.prompt_tokens_details || {};
-  const cached = Math.min(input, Math.max(0, finite(
-    details.cached_tokens ?? usage.cached_input_tokens ?? usage.cachedInputTokens ?? usage.cachedContentTokenCount ?? usageMetadata.cachedContentTokenCount ?? 0,
-    0
-  )));
-  const cost = (
-    (input - cached) * finite(rate.inputUsdPer1M, 0) +
-    cached * finite(rate.cachedInputUsdPer1M, 0) +
-    output * finite(rate.outputUsdPer1M, 0)
-  ) / 1_000_000;
-  return Number.isFinite(cost) && cost >= 0 ? cost : null;
 }
 
 export async function recordBillingTransaction(id, data) {
@@ -185,7 +49,7 @@ export async function recordBillingTransaction(id, data) {
         sellingPriceUsd: Number(data.sellingPriceUsd || 0),
         profitMarkup: Number(data.profitMarkup || 0),
         feeRateApplied: Number(data.feeRateApplied || 0),
-        creditValueUsd: Number(data.creditValueUsd || DEFAULTS.creditValueUsd),
+        creditValueUsd: Number(data.creditValueUsd || DIRECT_CREDIT_REFERENCE_USD),
         creditsReserved: Number(data.creditsReserved || 0),
         creditsCharged: Number(data.creditsCharged || 0),
         creditsRefunded: Number(data.creditsRefunded || 0),
@@ -214,25 +78,6 @@ export async function updateBillingTransaction(id, patch = {}) {
   }
 }
 
-export async function saveDynamicBillingConfig(input, adminUid) {
-  const db = getFirestore();
-  const ref = db.doc(CONFIG_PATH);
-  const beforeSnap = await ref.get();
-  const before = validateConfig({ ...DEFAULTS, ...(beforeSnap.exists ? beforeSnap.data() || {} : {}) });
-  const next = validateConfig({ ...before, ...input, version: Number(before.version || 1) + 1 });
-  const safeNext = { ...next, updatedBy: String(adminUid || ""), updatedAt: FieldValue.serverTimestamp() };
-  await ref.set(safeNext);
-  await db.collection("aiBillingConfigAudit").add({
-    actorUid: String(adminUid || ""),
-    previousVersion: before.version,
-    newVersion: next.version,
-    previous: before,
-    next: { ...next },
-    createdAt: FieldValue.serverTimestamp()
-  });
-  return next;
-}
-
 function asDate(value) {
   if (value?.toDate) return value.toDate();
   if (value instanceof Date) return value;
@@ -255,7 +100,7 @@ export async function getBillingAnalytics(limit = 500) {
     const cost = Math.max(0, finite(x.providerCostUsd, 0));
     const charged = Math.max(0, finite(x.creditsCharged, 0));
     const refunded = Math.max(0, finite(x.creditsRefunded, 0));
-    const creditValue = Math.max(0, finite(x.creditValueUsd, DEFAULTS.creditValueUsd));
+    const creditValue = Math.max(0, finite(x.creditValueUsd, DIRECT_CREDIT_REFERENCE_USD));
     const exempt = x.exemptType === "admin_exempt";
     const subscription = x.exemptType === "subscription_included" || x.exemptType === "subscription_or_free";
     const revenue = exempt || subscription ? 0 : Math.max(0, finite(x.sellingPriceUsd, charged * creditValue));
