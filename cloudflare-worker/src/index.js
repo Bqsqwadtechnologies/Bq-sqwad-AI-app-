@@ -695,9 +695,79 @@ async function featurePrice(name) {
   return rule.credits + (rule.unit === "none" ? 0 : rule.creditsPerUnit);
 }
 
+async function migrateLegacyGenerationRule(operation, existingRows = []) {
+  const key = String(operation || "").trim().toLowerCase();
+  if ((Array.isArray(existingRows) ? existingRows : []).some(row =>
+    String(row.operation || "").trim().toLowerCase() === key
+  )) return;
+  let label = key;
+  let credits = null;
+  let creditsPerUnit = 0;
+  let unit = "none";
+  let status = "active";
+
+  const legacyCapability = {
+    "web.search": "web_search",
+    "web.research": "deep_research"
+  }[key];
+  if (legacyCapability) {
+    const capabilityDoc = await firestoreGet("adminAdvancedOptions/capability_" + legacyCapability).catch(() => null);
+    if (capabilityDoc?.creditCost != null) {
+      const value = Number(capabilityDoc.creditCost);
+      if (Number.isFinite(value) && value >= 0) {
+        credits = value;
+        label = String(capabilityDoc.name || legacyCapability);
+      }
+    }
+    if (credits == null) {
+      const oldBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
+        || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null);
+      const field = key === "web.search" ? "tavilyCreditsPerSearch" : "deepResearchCredits";
+      const value = Number(oldBilling?.featureRates?.[field]);
+      if (oldBilling?.featureRates?.[field] != null && Number.isFinite(value) && value >= 0) {
+        credits = value;
+        label = key === "web.search" ? "Web search (Tavily)" : "Deep research (Tavily)";
+      }
+    }
+  } else {
+    const legacyKey = {
+      "live.voice": "live_voice_pricing",
+      "live.camera": "live_camera_pricing",
+      "speech.transcribe": "dictation_pricing"
+    }[key];
+    if (legacyKey) {
+      const stored = await firestoreGet("adminAdvancedOptions/" + legacyKey).catch(() => null);
+      const settings = stored?.config && typeof stored.config === "object" ? stored.config : stored || {};
+      if (Object.prototype.hasOwnProperty.call(settings, "creditsPerMinute")) {
+        const rate = Number(settings.creditsPerMinute);
+        const startFee = Number(settings.startFeeCredits ?? 0);
+        if (Number.isFinite(rate) && rate >= 0 && Number.isFinite(startFee) && startFee >= 0) {
+          credits = startFee;
+          creditsPerUnit = rate;
+          unit = "minute";
+          status = stored?.enabled === false || stored?.killSwitch === true || settings.enabled === false || settings.killSwitch === true
+            ? "inactive" : "active";
+          label = key === "live.voice" ? "Live voice" : key === "live.camera" ? "Live camera" : "Transcription";
+        }
+      }
+    }
+  }
+
+  if (credits == null) return;
+  const id = "legacy-" + key.replace(/[^a-z0-9_-]/g, "-").slice(0, 48);
+  await firestoreSet("generationCostRules/" + id, {
+    operation: key, label, credits, creditsPerUnit, unit, status, version: 1,
+    migratedFrom: "legacy_admin_pricing", updatedAt: new Date().toISOString()
+  }, true);
+}
+
 async function activeGenerationRule(operation) {
   const key = String(operation || "").trim().toLowerCase();
-  const rows = await firestoreQuery("generationCostRules", { limit: 200 }).catch(() => []);
+  let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  if (!(Array.isArray(rows) ? rows : []).some(row => String(row.operation || "").trim().toLowerCase() === key)) {
+    await migrateLegacyGenerationRule(key, rows);
+    rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  }
   const rule = (Array.isArray(rows) ? rows : []).filter(row =>
     String(row.operation || "").trim().toLowerCase() === key &&
     String(row.status || "").toLowerCase() === "active"
