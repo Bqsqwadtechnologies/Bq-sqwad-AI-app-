@@ -73,7 +73,28 @@ fun TeamsHubScreen(
     var showCreate by remember { mutableStateOf(false) }
     var createName by remember { mutableStateOf("") }
     var createUsername by remember { mutableStateOf("") }
+    var usernameAvailable by remember { mutableStateOf<Boolean?>(null) }
+    var usernameSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var checkingUsername by remember { mutableStateOf(false) }
+    var usernameEdited by remember { mutableStateOf(false) }
     var createPublic by remember { mutableStateOf(true) }
+
+    fun checkUsername(candidate: String) {
+        if (candidate.length < 3) { usernameAvailable = null; usernameSuggestions = emptyList(); return }
+        scope.launch {
+            checkingUsername = true
+            try {
+                val token = authTokenProvider() ?: error("Sign in required")
+                val res = apiPost(baseUrl, token, "/native/teams/username/check", JSONObject().put("username", candidate))
+                usernameAvailable = res.optBoolean("available")
+                val arr = res.optJSONArray("suggestions")
+                usernameSuggestions = buildList { if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i)) }
+            } catch (_: Exception) {
+                usernameAvailable = null
+                usernameSuggestions = emptyList()
+            } finally { checkingUsername = false }
+        }
+    }
 
     fun load() {
         scope.launch {
@@ -109,7 +130,7 @@ fun TeamsHubScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showCreate = true }) {
+                    IconButton(onClick = { showCreate = true; createName = ""; createUsername = ""; usernameEdited = false; usernameAvailable = null; usernameSuggestions = emptyList() }) {
                         Icon(Icons.Default.Add, contentDescription = "Create team")
                     }
                 },
@@ -289,12 +310,12 @@ fun TeamsHubScreen(
             title = { Text("Create a team") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = createName, onValueChange = { createName = it }, label = { Text("Team name") }, singleLine = true)
+                    OutlinedTextField(value = createName, onValueChange = { value -> createName = value; if (!usernameEdited) { createUsername = value.lowercase().trim().replace(Regex("[^a-z0-9]+"), "_").trim("_").take(26); checkUsername(createUsername) } }, label = { Text("Team name") }, singleLine = true)
                     OutlinedTextField(
                         value = createUsername,
-                        onValueChange = { createUsername = it.lowercase().replace(Regex("[^a-z0-9_]"), "") },
+                        onValueChange = { value -> usernameEdited = true; createUsername = value.lowercase().replace(Regex("[^a-z0-9_]"), ""); checkUsername(createUsername) },
                         label = { Text("Unique username") },
-                        supportingText = { Text("Link: /t/username") },
+                        supportingText = { Text(when { checkingUsername -> "Checking availability…"; usernameAvailable == true -> "Available · Link: /t/$createUsername"; usernameAvailable == false -> "Unavailable · choose a suggestion below"; else -> "Link: /t/username" }) },
                         singleLine = true,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -328,7 +349,7 @@ fun TeamsHubScreen(
                             }
                         }
                     },
-                    enabled = !busy && createName.length >= 2 && createUsername.length >= 3,
+                    enabled = !busy && !checkingUsername && usernameAvailable == true && createName.length >= 2 && createUsername.length >= 3,
                 ) { Text("Create") }
             },
             dismissButton = {
