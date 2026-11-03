@@ -32,10 +32,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
+import android.graphics.BitmapFactory
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +49,59 @@ import com.bqsqwad.ai.R
  * inherits the actual screen theme behind the logo. */
 @Composable
 fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    // The bundled source is a JPEG with a dark matte. Remove only dark pixels
+    // connected to the image edge so internal dark details in the logo remain.
+    val logoBitmap = remember(context) {
+        val source = BitmapFactory.decodeResource(context.resources, R.drawable.bq_sqwad_logo)
+            ?: return@remember null
+        val bitmap = source.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+        val visited = BooleanArray(pixels.size)
+        val queue = IntArray(pixels.size)
+        var tail = 0
+        var head = 0
+        fun isMatte(index: Int): Boolean {
+            val pixel = pixels[index]
+            val red = android.graphics.Color.red(pixel)
+            val green = android.graphics.Color.green(pixel)
+            val blue = android.graphics.Color.blue(pixel)
+            return (red + green + blue) / 3 < 76 &&
+                maxOf(red, green, blue) - minOf(red, green, blue) < 42
+        }
+        fun seed(index: Int) {
+            if (!visited[index] && isMatte(index)) {
+                visited[index] = true
+                queue[tail++] = index
+            }
+        }
+        for (x in 0 until width) {
+            seed(x)
+            seed((height - 1) * width + x)
+        }
+        for (y in 1 until height - 1) {
+            seed(y * width)
+            seed(y * width + width - 1)
+        }
+        while (head < tail) {
+            val index = queue[head++]
+            val x = index % width
+            val y = index / width
+            if (x > 0) seed(index - 1)
+            if (x + 1 < width) seed(index + 1)
+            if (y > 0) seed(index - width)
+            if (y + 1 < height) seed(index + width)
+        }
+        for (index in pixels.indices) {
+            if (visited[index]) pixels[index] = android.graphics.Color.TRANSPARENT
+        }
+        bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        bitmap.asImageBitmap()
+    }
+
     Surface(
         modifier = modifier.size(size),
         shape = CircleShape,
@@ -53,12 +109,14 @@ fun BqLogo(size: Dp = 40.dp, modifier: Modifier = Modifier) {
         shadowElevation = 0.dp,
         color = Color.Transparent
     ) {
-        Image(
-            painter = painterResource(R.drawable.bq_sqwad_logo),
-            contentDescription = "BQ Sqwad AI logo",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit
-        )
+        if (logoBitmap != null) {
+            Image(
+                bitmap = logoBitmap,
+                contentDescription = "BQ Sqwad AI logo",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        }
     }
 }
 
