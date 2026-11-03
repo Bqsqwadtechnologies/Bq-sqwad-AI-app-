@@ -1914,7 +1914,9 @@ async function ai(request, user, body) {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   } else if (capabilityName === "chat") {
-    control = applyChatModelKey(control, body);
+    const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
+    const isDedicatedFeatureMode = dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
+    control = applyChatModelKey(control, isDedicatedFeatureMode ? { ...body, modelKey: "bq-7-star" } : body);
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
@@ -2177,7 +2179,9 @@ async function stream(request, user, body) {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   } else if (capabilityName === "chat") {
-    control = applyChatModelKey(control, body);
+    const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
+    const isDedicatedFeatureMode = dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
+    control = applyChatModelKey(control, isDedicatedFeatureMode ? { ...body, modelKey: "bq-7-star" } : body);
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
