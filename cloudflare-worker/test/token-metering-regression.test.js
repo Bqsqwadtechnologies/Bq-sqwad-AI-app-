@@ -6,10 +6,12 @@ const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8
 const providerSource = await readFile(new URL("../src/providers.js", import.meta.url), "utf8");
 const tokenBillingSource = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 
-test("chat and attachment capability defaults are token-metered without a one-credit floor", () => {
+test("chat and attachment capability defaults are token-metered and zero prices stay free", () => {
   assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"\]\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
-  assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
+  assert.match(source, /const requestedCharge = Number\(amount\)/);
+  assert.match(source, /if \(!charge\) return \{ reservationId: null, amount: 0, free: true \}/);
+  assert.doesNotMatch(source, /if \(!charge && !options\.allowFractional/);
 });
 
 test("native token-metered features use canonical per-token customer credit rates", () => {
