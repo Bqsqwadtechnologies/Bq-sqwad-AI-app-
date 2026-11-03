@@ -2,23 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateTokenCost, allocateReservationRefund } from "../src/token-billing-native.js";
 
-test("token billing prices uncached input, cached input, and output separately", () => {
+test("token billing charges direct input, cached and output credit rates", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
     pricing: {
-      inputPriceUsdPerMillion: 1,
-      cachedInputPriceUsdPerMillion: 0.25,
-      outputPriceUsdPerMillion: 2,
-      profitMarkupPercent: 100,
+      inputPriceUsdPerMillion: 1, cachedInputPriceUsdPerMillion: 0.25, outputPriceUsdPerMillion: 2,
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.0001, creditsPerCachedInputToken: 0.000025, creditsPerOutputToken: 0.0002,
+        minimumCredits: 0, precision: 7, conversionRate: 1,
+      },
     },
-    creditReferenceValueUsd: 0.1,
-    multiplier: 2,
   });
   assert.equal(result.inputCostUsd, 0.0006);
   assert.equal(result.cachedInputCostUsd, 0.0001);
   assert.equal(result.outputCostUsd, 0.001);
   assert.ok(Math.abs(result.providerCostUsd - 0.0017) < 1e-12);
-  assert.ok(Math.abs(result.customerCredits - 0.034) < 1e-12);
+  assert.equal(result.customerCredits, 0.17);
+  assert.equal(result.customerMultiplier, 1);
+  assert.equal(result.estimatedFeePercent, 0);
 });
 
 test("native Main Chat follows website per-token metering instead of stale USD conversion", () => {
@@ -156,9 +157,10 @@ test("token billing rejects missing rates but permits explicitly configured zero
   );
   const free = calculateTokenCost({
     usage: { inputTokens: 10, outputTokens: 10 },
-    pricing: { inputPriceUsdPerMillion: 0, outputPriceUsdPerMillion: 0 },
-    creditReferenceValueUsd: 0.1,
-    multiplier: 2,
+    pricing: { sharedCreditMetering: {
+      creditsPerInputToken: 0, creditsPerCachedInputToken: 0, creditsPerOutputToken: 0,
+      minimumCredits: 0, precision: 7, conversionRate: 1,
+    } },
   });
   assert.equal(free.providerCostUsd, 0);
   assert.equal(free.customerCredits, 0);

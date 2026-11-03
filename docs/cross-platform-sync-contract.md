@@ -49,19 +49,15 @@ Status: implementation baseline; runtime verification remains required.
 - Push tokens are canonical in `pushTokens/{token}`; consent state is `users/{uid}.consents` with history in `consentEvents`.
 - Companion, Learning, TruthGuard, Life Mathis, and Frontier data use the website's canonical models and authenticated native endpoints. Device permissions, camera/microphone state, flashlight and local audio volume remain device-local.
 
-### Canonical billing formula
-```
-customerUsd = providerCostUsd * (1 + markupPercent / 100) * (1 + feePercent / 100)
-credits = round5(customerUsd / usdPerCredit)
-```
-Defaults apply only when the relevant config document is missing: markup 600%, fee 0%, USD per credit 0.1199. A missing-document fallback must emit an administrator-visible warning. Do not silently substitute a different credit value or multiplier.
+### Direct customer credit pricing
 
-- Token charges use provider-reported uncached input, cached input and output token counts, and the active matching `tokenPricingRules` rule. Do not impose a minimum charge.
-- Voice, camera, screen-share and transcription costs use canonical `config/providerConnections` rates and elapsed seconds; do not round elapsed time up to whole minutes. An explicit `creditsPerMinute: 0` means free.
-- Fixed-price generation rules are final customer prices and receive no second markup. Reference fixed prices: web search 1.7 credits and deep research 5 credits.
+- Token charges use active model-specific `tokenPricingRules/{id}` values in credits per individual uncached input token, cached input token, and output token. These values are final customer prices; do not convert provider USD costs, apply percentage markup, fee, or model multiplier, or impose a minimum charge.
+- The website Admin Live Credit Pricing dashboard is the single editor for model token rates and `generationCostRules`. The Worker and website read the same Firestore collections. Android requests are charged by the Worker using those same saved values; no Android-side rate table may override them.
+- Fixed and unit-priced operations use active `generationCostRules/{id}` records. The same records price Tavily search (`web.search`), deep research (`web.research`), live voice (`live.voice`), live camera/screen (`live.camera`), and transcription (`speech.transcribe`). Duration is billed proportionally to measured seconds using the rule's configured per-second or per-minute rate; the base credit field is an optional start/fixed fee.
+- Other fixed-output capabilities continue to use shared `adminAdvancedOptions/capability_<feature>.creditCost` records. A configured zero is free; missing or invalid prices fail closed and create an administrator-visible alert.
 - Live plan-included features cost zero while entitlement is active. Deduction order is daily-free, subscription, permanent; refunds return to the original buckets. Configured admin accounts are unlimited.
-- One charge creates one `creditTransactions` row and one `providerUsage` row with a breakdown. Responses expose safe `creditsCharged` and breakdown fields; provider USD rates and secrets are never exposed to normal clients.
-- Web search runs only when requested/needed, charges once per question only if usable sources were returned, and appears as a separate fixed-price line item.
+- One charge creates one `creditTransactions` row and one `providerUsage` row with a breakdown. Responses expose safe `creditsCharged` and breakdown fields; provider USD telemetry and secrets are never exposed to normal clients.
+
 
 ### Shared settings and activity
 - Synced settings live on `users/{uid}`, preserving existing top-level `memoryEnabled`, voice fields and `theme`, and adding `featureSettings`: `web_search`, `memory`, `notifications`, `history`, `auto_save`, `streaming`, `voice_responses`, `save_files`, `personalization`, `camera_enhance`, `companion_memory`, `truthguard_sources`, and `text_scale`.

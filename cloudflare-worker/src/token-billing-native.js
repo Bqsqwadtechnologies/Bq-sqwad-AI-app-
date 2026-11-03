@@ -1,11 +1,9 @@
 import { firestoreCreate, firestoreGet, firestoreQuery } from "./firebase.js";
-import { computeTokenCredits } from "./billing-core.js";
 
 // Canonical credit value: the 1,000-credit monthly plan is $79.99.
 const MONTHLY_PLAN_PRICE_USD = 79.99;
 const MONTHLY_PLAN_CREDITS = 1000;
 const DEFAULT_CREDIT_REFERENCE_USD = MONTHLY_PLAN_PRICE_USD / MONTHLY_PLAN_CREDITS;
-const DEFAULT_CUSTOMER_MULTIPLIER = 1.0;
 
 /**
  * Allocate a reservation refund back to the same balance buckets that funded it.
@@ -64,199 +62,52 @@ export function normalizeProviderUsage(providerId, raw = {}) {
   };
 }
 
-export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD, multiplier = DEFAULT_CUSTOMER_MULTIPLIER, estimatedFeePercent = Number(pricing?.estimatedFeePercent ?? 0) }) {
+export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD }) {
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
   const cachedInputTokens = Math.min(inputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
-  // Canonical provider prices are USD per token. The legacy per-million fields
-  // remain supported for existing model registry/admin documents.
-  const inputRate = pricing?.inputPriceUsdPerToken != null
-    ? Number(pricing.inputPriceUsdPerToken) * 1_000_000
-    : Number(pricing?.inputPriceUsdPerMillion);
-  const outputRate = pricing?.outputPriceUsdPerToken != null
-    ? Number(pricing.outputPriceUsdPerToken) * 1_000_000
-    : Number(pricing?.outputPriceUsdPerMillion);
-  const cachedRate = pricing?.cachedInputPriceUsdPerToken != null
-    ? Number(pricing.cachedInputPriceUsdPerToken) * 1_000_000
-    : pricing?.cachedInputPriceUsdPerMillion == null
-      ? inputRate
-      : Number(pricing.cachedInputPriceUsdPerMillion);
-  const sharedMeter = pricing?.sharedCreditMetering;
+  const inputRate = pricing?.inputPriceUsdPerToken != null ? Number(pricing.inputPriceUsdPerToken) * 1_000_000 : Number(pricing?.inputPriceUsdPerMillion);
+  const outputRate = pricing?.outputPriceUsdPerToken != null ? Number(pricing.outputPriceUsdPerToken) * 1_000_000 : Number(pricing?.outputPriceUsdPerMillion);
+  const cachedRate = pricing?.cachedInputPriceUsdPerToken != null ? Number(pricing.cachedInputPriceUsdPerToken) * 1_000_000
+    : pricing?.cachedInputPriceUsdPerMillion == null ? inputRate : Number(pricing.cachedInputPriceUsdPerMillion);
   const providerRatesConfigured = [inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0);
-  if (!providerRatesConfigured && !(sharedMeter && typeof sharedMeter === "object")) {
-    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
-  }
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-  // Provider USD rates are optional internal telemetry when the admin has
-  // explicitly configured customer credit rates. They never block or set the
-  // customer charge in that case.
   const inputCostUsd = providerRatesConfigured ? (uncachedInputTokens / 1_000_000) * inputRate : 0;
   const cachedInputCostUsd = providerRatesConfigured ? (cachedInputTokens / 1_000_000) * cachedRate : 0;
   const outputCostUsd = providerRatesConfigured ? (outputTokens / 1_000_000) * outputRate : 0;
   const providerCostUsd = inputCostUsd + cachedInputCostUsd + outputCostUsd;
+  // Admin-entered credits-per-token values are the final customer prices.
+  // Provider USD, markup, fees, and model multipliers never set the deduction.
+  const meter = pricing?.sharedCreditMetering;
+  if (!meter || typeof meter !== "object") {
+    throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
+  }
+  const inputCreditRate = Number(meter.creditsPerInputToken);
+  const cachedCreditRate = Number(meter.creditsPerCachedInputToken);
+  const outputCreditRate = Number(meter.creditsPerOutputToken);
+  const conversionRate = Number(meter.conversionRate ?? 1);
+  const minimumCredits = Number(meter.minimumCredits ?? 0);
+  const precision = Number(meter.precision ?? 7);
+  const values = [inputCreditRate, cachedCreditRate, outputCreditRate, conversionRate, minimumCredits, precision];
+  if (!values.every(Number.isFinite) || inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
+      conversionRate < 0 || minimumCredits < 0 || !Number.isInteger(precision) || precision < 0 || precision > 8) {
+    throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+  }
+  const rawCredits = (uncachedInputTokens * inputCreditRate + cachedInputTokens * cachedCreditRate + outputTokens * outputCreditRate) * conversionRate;
+  const roundedCredits = rawCredits > 0
+    ? Math.max(minimumCredits, Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
+    : 0;
   const creditValue = Number(creditReferenceValueUsd);
-  if (!Number.isFinite(creditValue) || creditValue <= 0) {
-    throw Object.assign(new Error("token_billing_config_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
-  }
-  if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) {
-    throw Object.assign(new Error("estimated_fee_percent_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
-  }
-  const providerCostCredits = providerCostUsd / creditValue;
-
-  // Main Chat uses the website's canonical per-token credit meter when it is
-  // available. Provider USD rates are retained for usage/profit reporting, but
-  // must not override the website's configured credits-per-token policy.
-  if (sharedMeter && typeof sharedMeter === "object") {
-    const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
-    const inputCreditRate = Number(sharedMeter.creditsPerInputToken);
-    const cachedCreditRate = Number(sharedMeter.creditsPerCachedInputToken);
-    const outputCreditRate = Number(sharedMeter.creditsPerOutputToken);
-    const conversionRate = Number(sharedMeter.conversionRate ?? 1);
-    const minimumCredits = Number(sharedMeter.minimumCredits ?? 0);
-    const precision = Number(sharedMeter.precision ?? 4);
-    const modelWeight = Number(pricing.sharedModelMultiplier ?? 1);
-    const sharedValues = [inputCreditRate, cachedCreditRate, outputCreditRate, conversionRate, minimumCredits, precision, modelWeight];
-    if (!sharedValues.every(Number.isFinite) ||
-        inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
-        conversionRate < 0 || minimumCredits < 0 ||
-        !Number.isInteger(precision) || precision < 0 || precision > 8 ||
-        modelWeight <= 0 || modelWeight > 10) {
-      throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
-    }
-    const rawCredits = (
-      uncachedInputTokens * inputCreditRate +
-      cachedInputTokens * cachedCreditRate +
-      outputTokens * outputCreditRate
-    ) * conversionRate * modelWeight;
-    const roundedCredits = rawCredits > 0
-      ? Math.max(minimumCredits, Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
-      : 0;
-    const grossUsageValueUsd = roundedCredits * creditValue;
-    const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
-    const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
-    return {
-      inputTokens, outputTokens, cachedInputTokens,
-      inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
-      creditReferenceValueUsd: creditValue,
-      customerMultiplier: modelWeight,
-      estimatedFeePercent,
-      estimatedFeeUsd,
-      providerCostCredits,
-      customerCredits: roundedCredits,
-      grossUsageValueUsd,
-      estimatedGrossProfitUsd,
-      estimatedNetProfitUsd: estimatedGrossProfitUsd - estimatedFeeUsd
-    };
-  }
-
-  // USD cost-plus is the fallback for features/providers that do not use the
-  // website's shared per-token credit meter.
-  const effectiveMultiplier = Number(multiplier);
-  if (!Number.isFinite(effectiveMultiplier) || effectiveMultiplier < 1 || effectiveMultiplier > 10000) {
-    throw Object.assign(new Error("effective_model_multiplier_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
-  }
-  const canonicalCalculation = computeTokenCredits({
-    uncachedInputTokens,
-    cachedInputTokens,
-    outputTokens
-  }, {
-    markupPercent: (effectiveMultiplier - 1) * 100,
-    feePercent: 0,
-    usdPerCredit: creditValue
-  }, {
-    inputUsdPerToken: inputRate / 1_000_000,
-    cachedInputUsdPerToken: cachedRate / 1_000_000,
-    outputUsdPerToken: outputRate / 1_000_000
-  });
-  const customerCredits = canonicalCalculation.credits;
-  // Match the website's canonical cost-plus engine: use the active tokenPricingRules
-  // provider rates for uncached input, cached input and output tokens, then apply
-  // config/usageBilling markup, fee and USD-per-credit settings exactly once.
-  // Never turn a Main Chat request into a fixed one-credit charge.
-  const grossUsageValueUsd = customerCredits * creditValue;
-  const estimatedFeeUsd = grossUsageValueUsd * (estimatedFeePercent / 100);
+  const safeCreditValue = Number.isFinite(creditValue) && creditValue > 0 ? creditValue : DEFAULT_CREDIT_REFERENCE_USD;
+  const grossUsageValueUsd = roundedCredits * safeCreditValue;
+  const providerCostCredits = providerCostUsd / safeCreditValue;
   const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
-  const markup = effectiveMultiplier;
-
   return {
-    inputTokens, outputTokens, cachedInputTokens,
-    inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
-    creditReferenceValueUsd: creditValue,
-    customerMultiplier: markup,
-    estimatedFeePercent,
-    estimatedFeeUsd,
-    providerCostCredits,
-    customerCredits,
-    grossUsageValueUsd,
-    estimatedGrossProfitUsd,
-    estimatedNetProfitUsd: estimatedGrossProfitUsd - estimatedFeeUsd
+    inputTokens, outputTokens, cachedInputTokens, inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
+    creditReferenceValueUsd: safeCreditValue, customerMultiplier: 1, estimatedFeePercent: 0, estimatedFeeUsd: 0,
+    providerCostCredits, customerCredits: roundedCredits, grossUsageValueUsd, estimatedGrossProfitUsd,
+    estimatedNetProfitUsd: estimatedGrossProfitUsd
   };
-}
-
-let canonicalUsageBillingCache = null;
-let canonicalUsageBillingCacheUntil = 0;
-
-async function loadCanonicalUsageBilling() {
-  if (canonicalUsageBillingCache && Date.now() < canonicalUsageBillingCacheUntil) return canonicalUsageBillingCache;
-  const document = await firestoreGet("config/usageBilling");
-  if (!document) {
-    // Safe, user-approved defaults apply only when the canonical document is
-    // genuinely absent. Existing admin values remain authoritative.
-    const fallback = { markupPercent: 0, feePercent: 0, usdPerCredit: 0.1199 };
-    const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
-    const warningId = "billing_config_config_usageBilling_" + hour;
-    await firestoreCreate("adminIssues/" + warningId, {
-      id: warningId,
-      category: "billing_configuration",
-      severity: "warning",
-      state: "open",
-      status: "open",
-      document: "config/usageBilling",
-      source: "token-billing-native",
-      message: "config/usageBilling is missing; website-aligned defaults are active.",
-      createdAt: new Date().toISOString()
-    }).catch(() => {});
-    console.warn("[BQ Billing] config/usageBilling missing; using the website-aligned fallback defaults.");
-    canonicalUsageBillingCache = fallback;
-    canonicalUsageBillingCacheUntil = Date.now() + 60000;
-    return canonicalUsageBillingCache;
-  }
-  let policy = document;
-  if (typeof document.json === "string") {
-    try { policy = JSON.parse(document.json); } catch { policy = null; }
-  }
-  const markupPercent = Number(policy?.markupPercent);
-  const feePercent = Number(policy?.feePercent);
-  const usdPerCredit = Number(policy?.usdPerCredit);
-  const valid = !!policy && Number.isFinite(markupPercent) && markupPercent >= 0 && markupPercent <= 10000 &&
-    Number.isFinite(feePercent) && feePercent >= 0 && feePercent <= 100 &&
-    Number.isFinite(usdPerCredit) && usdPerCredit > 0;
-  if (!valid) {
-    // A malformed admin document must not take chat offline. Keep the bad
-    // document intact for diagnosis and use the website's conservative defaults
-    // for this request; only document names and the validation category are logged.
-    const fallback = { markupPercent: 0, feePercent: 0, usdPerCredit: 0.1199 };
-    const hour = new Date().toISOString().slice(0, 13).replace(/[^0-9]/g, "");
-    const warningId = "billing_config_config_usageBilling_" + hour;
-    await firestoreCreate("adminIssues/" + warningId, {
-      id: warningId,
-      category: "billing_configuration",
-      severity: "warning",
-      state: "open",
-      status: "open",
-      document: "config/usageBilling",
-      source: "token-billing-native",
-      message: "config/usageBilling is invalid; website-aligned defaults are active.",
-      createdAt: new Date().toISOString()
-    }).catch(() => {});
-    console.warn("[BQ Billing] config/usageBilling invalid; request uses defaults.");
-    canonicalUsageBillingCache = fallback;
-    canonicalUsageBillingCacheUntil = Date.now() + 60000;
-    return canonicalUsageBillingCache;
-  }
-  canonicalUsageBillingCache = { markupPercent, feePercent, usdPerCredit };
-  canonicalUsageBillingCacheUntil = Date.now() + 60000;
-  return canonicalUsageBillingCache;
 }
 
 function customerCreditsPerToken(rule, tokenField, legacyField) {
@@ -286,7 +137,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     ) || {};
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
-  const canonicalUsageBilling = await loadCanonicalUsageBilling();
   const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
   const featureAliases = new Set([String(feature || "")]);
   // The website's token-pricing engine uses "chat"; older model-registry and
@@ -312,8 +162,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
     || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
     || {};
-  const profitMarkup = canonicalUsageBilling.markupPercent;
-  const feeRate = canonicalUsageBilling.feePercent;
   const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
@@ -322,22 +170,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // price, while preserving an explicitly configured registry price as the
   // highest-priority source.
   const sharedAiConfig = await firestoreGet("config/aiModels").catch(() => null);
-  const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object"
-    ? sharedAiConfig.metering
-    : {
-        // Match the website's ai-models.server.ts defaults when the canonical
-        // shared config has not yet been created in Firestore.
-        creditsPerInputToken: 0.00003,
-        creditsPerCachedInputToken: 0.000003,
-        creditsPerOutputToken: 0.00024,
-        minimumCredits: 0.002,
-        fallbackCredits: 0.05,
-        conversionRate: 1,
-        precision: 7,
-        modelMultipliers: { luna: 1, terra: 3, sol: 8, gemini: 0.8 },
-        maxRequestTokens: 8_000,
-        maxOutputTokens: 512,
-      };
+  const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object" ? sharedAiConfig.metering : { maxRequestTokens: 8_000, maxOutputTokens: 512 };
   const boundedLimit = (value, fallback, min, max) => {
     const number = Number(value);
     return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
@@ -345,15 +178,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
   const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
   const modelIdLower = String(modelId || "").toLowerCase();
-  const modelMultipliers = sharedMetering.modelMultipliers && typeof sharedMetering.modelMultipliers === "object"
-    ? Object.entries(sharedMetering.modelMultipliers)
-        // Multipliers are relative weights, not provider prices. Reject accidental
-        // per-million or percentage values here so a bad admin entry cannot
-        // turn one ordinary chat message into a full-balance charge.
-        .filter(([key, value]) => String(key).trim() && Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= 10)
-        .sort(([a], [b]) => String(b).length - String(a).length)
-    : [];
-  const sharedModelMultiplier = modelMultipliers.find(([key]) => modelIdLower.includes(String(key).toLowerCase()));
   // Canonical defaults are USD per token; legacy admin/registry prices are
   // normalized to USD per million tokens for backwards compatibility. Provider
   // rates must be explicitly configured; never invent provider costs in code.
@@ -393,12 +217,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   // Convert provider USD cost into credits using the canonical $79.99 / 1,000-credit value.
   // This is the fallback conversion value; the shared Firebase billing policy remains authoritative.
-  const creditReferenceValueUsd = canonicalUsageBilling.usdPerCredit;
-  const baseCustomerMultiplier = (1 + profitMarkup / 100) * (1 + feeRate / 100);
-  // Website model multipliers are deliberate relative cost weights and are
-  // applied after the canonical markup and fee policy.
-  const customerMultiplier = baseCustomerMultiplier * (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1);
-  const estimatedFeePercent = feeRate;
+  const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
+  const customerMultiplier = 1;
+  const estimatedFeePercent = 0;
   // Input/output ceilings are enforced by the shared website-admin token budget.
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
@@ -418,9 +239,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   if (isTokenMeteredFeature && !hasCustomerCreditRule) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
   }
-  const configured = (usdRatesConfigured && Number.isFinite(customerMultiplier) && customerMultiplier >= 1 && customerMultiplier <= 100 &&
-    Number.isFinite(estimatedFeePercent) && estimatedFeePercent >= 0 && estimatedFeePercent <= 100) ||
-    (isTokenMeteredFeature && hasCustomerCreditRule);
+  const configured = isTokenMeteredFeature && hasCustomerCreditRule;
   const sharedCreditMetering = isTokenMeteredFeature ? {
     creditsPerInputToken: customerInputCreditsPerToken,
     creditsPerOutputToken: customerOutputCreditsPerToken,
@@ -431,10 +250,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     conversionRate: 1
   } : null;
   return {
-    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: profitMarkup,
+    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: 0,
     applyFeeToUsage, estimatedFeePercent, configured,
     sharedCreditMetering,
-    sharedModelMultiplier: isTokenMeteredFeature && hasCustomerCreditRule ? 1 : (sharedModelMultiplier ? Number(sharedModelMultiplier[1]) : 1),
+    sharedModelMultiplier: 1,
     billingMode: isTokenMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };

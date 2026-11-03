@@ -48,22 +48,16 @@ test("refund allocation fails closed when the requested refund exceeds its sourc
   );
 });
 
-test("per-token rates use $11.99 per 100 credits and the effective 600% model multiplier", () => {
+test("token charges use final direct per-token credit prices", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cachedInputTokens: 0 },
-    pricing: {
-      inputPriceUsdPerToken: 0.00000005,
-      outputPriceUsdPerToken: 0.00000025,
-      cachedInputPriceUsdPerToken: 0.000000005,
-      profitMarkupPercent: 600
-    },
-    creditReferenceValueUsd: CREDIT_VALUE_USD,
-    multiplier: 7 * 1.2
+    pricing: { sharedCreditMetering: {
+      creditsPerInputToken: 0.000001, creditsPerCachedInputToken: 0.0000001, creditsPerOutputToken: 0.000002,
+      minimumCredits: 0, precision: 7, conversionRate: 1,
+    }, profitMarkupPercent: 600 },
+    multiplier: 8.4,
   });
-
-  assert.ok(Math.abs(result.providerCostUsd - 0.30) < 1e-10);
-  assert.equal(result.creditReferenceValueUsd, CREDIT_VALUE_USD);
-  assert.equal(result.customerMultiplier, 8.4);
-  const unroundedCredits = (0.30 / CREDIT_VALUE_USD) * 8.4;
-  assert.equal(result.customerCredits, Math.round((unroundedCredits + Number.EPSILON) * 100000) / 100000);
+  assert.equal(result.customerCredits, 3);
+  assert.equal(result.customerMultiplier, 1);
+  assert.equal(result.estimatedFeePercent, 0);
 });

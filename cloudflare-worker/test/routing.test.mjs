@@ -201,10 +201,9 @@ test("admin plan catalog drives Play mappings for custom eligible plans", async 
 });
 
 
-test("live pricing defaults to canonical 600% markup and validates paid rates and minimum balance", () => {
+test("live pricing has no provider-cost markup fallback and validates paid rates and minimum balance", () => {
   const defaults = normalizeLivePricing({}, {}, "live_voice_pricing");
-  const expectedDefaultRate = (0.05 * 7) / (11.99 / 100);
-  assert.ok(Math.abs(defaults.creditsPerMinute - expectedDefaultRate) < 1e-10);
+  assert.equal(defaults.creditsPerMinute, 0);
   assert.equal(defaults.startFeeCredits, 0);
   assert.equal(defaults.minimumBalanceToStart, expectedDefaultRate);
   const paid = normalizeLivePricing({ creditsPerMinute: 1.5, startFeeCredits: 2, minimumBalanceToStart: 4 }, {}, "live_voice_pricing");

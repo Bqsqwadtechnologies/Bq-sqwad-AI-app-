@@ -3,7 +3,7 @@ function sseFrame(event, data) {
 }
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1-mini";
-const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"]);
+const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
@@ -577,24 +577,8 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
     if (!Number.isFinite(value) || value < 0 || value > maximum) throw new Error("invalid_live_pricing_" + key);
     return value;
   };
-  // Canonical credit value is $11.99 / 100 = $0.1199 per credit.
-  // Provider unit cost is multiplied by 7 (600% markup) and then converted to credits.
-  // Live rates are credits per minute internally, settled proportionally to elapsed seconds.
-  const normalizedFeature = String(feature || "").toLowerCase();
-  const creditReferenceUsd = 11.99 / 100;
-  const defaultCreditsPerMinute = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? (0.003 * 7) / creditReferenceUsd
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice") ? (0.05 * 7) / creditReferenceUsd : 0);
-  const configuredCreditsPerMinute = number("creditsPerMinute", defaultCreditsPerMinute, 10000);
-  // Migrate shipped 110%, 130%, and 300% markup defaults to the new 600% card,
-  // while preserving custom rates that differ from those known legacy defaults.
-  const legacyDefaultRate = normalizedFeature.includes("dictation") || normalizedFeature.includes("transcrib")
-    ? ([0.0788, 0.0862607826, 0.15001875234].some(rate => Math.abs(configuredCreditsPerMinute - rate) < 0.0000001) ? configuredCreditsPerMinute : null)
-    : (normalizedFeature.includes("camera") || normalizedFeature.includes("voice")
-      ? ([1.3127, 1.43767970996, 2.50031253907].some(rate => Math.abs(configuredCreditsPerMinute - rate) < 0.0000001) ? configuredCreditsPerMinute : null) : null);
-  const creditsPerMinute = legacyDefaultRate != null && Math.abs(configuredCreditsPerMinute - legacyDefaultRate) < 0.0000001
-    ? defaultCreditsPerMinute
-    : configuredCreditsPerMinute;
+  // Direct customer prices are configured in generationCostRules; no provider-cost markup fallback.
+  const creditsPerMinute = number("creditsPerMinute", 0, 10000);
   const defaultVoice = String(source.defaultVoice ?? previous.defaultVoice ?? "marin").toLowerCase();
   const allowedVoices = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"];
   return {
@@ -612,60 +596,11 @@ export function normalizeLivePricing(input = {}, existing = {}, feature = "live_
 
 /** Resolve live-media fallback rates from the website's canonical billing documents. */
 async function resolveCanonicalLivePricing(input = {}, existing = {}, feature = "live_voice") {
-  const [policyDoc, connectionDoc] = await Promise.all([
-    firestoreGet("config/usageBilling"),
-    firestoreGet("config/providerConnections")
-  ]);
-  let policy = policyDoc;
-  if (typeof policyDoc?.json === "string") {
-    try { policy = JSON.parse(policyDoc.json); } catch { policy = null; }
-  }
-  const connections = connectionDoc || {};
-  const rawUsdPerCredit = Number(policy?.usdPerCredit);
-  const rawMarkupPercent = Number(policy?.markupPercent);
-  const rawFeePercent = Number(policy?.feePercent);
-  const validPolicy = !!policy && Number.isFinite(rawUsdPerCredit) && rawUsdPerCredit > 0 &&
-    Number.isFinite(rawMarkupPercent) && rawMarkupPercent >= 0 && rawMarkupPercent <= 10000 &&
-    Number.isFinite(rawFeePercent) && rawFeePercent >= 0 && rawFeePercent <= 100;
-  const usdPerCredit = validPolicy ? rawUsdPerCredit : 0.1199;
-  const markupPercent = validPolicy ? rawMarkupPercent : 600;
-  const feePercent = validPolicy ? rawFeePercent : 0;
-  if (!validPolicy) {
-    console.warn("[BQ Billing] config/usageBilling missing or invalid; website defaults active.");
-    await recordBillingConfigWarning("config/usageBilling");
-  }
-  const key = String(feature || "").toLowerCase();
-  const rateKeys = key.includes("transcrib") || key.includes("dictation")
-    ? ["transcriptionUsdPerMinute", "transcribeUsdPerMinute"]
-    : key.includes("camera") ? ["liveCameraUsdPerMinute", "cameraUsdPerMinute"]
-    : ["liveVoiceUsdPerMinute", "voiceUsdPerMinute"];
-  const nestedRateKeys = key.includes("transcrib") || key.includes("dictation")
-    ? [["transcription", "usdPerMinute"], ["transcribe", "usdPerMinute"]]
-    : key.includes("camera")
-      ? [["liveCamera", "usdPerMinute"], ["camera", "usdPerMinute"]]
-      : [["liveVoice", "usdPerMinute"], ["voice", "usdPerMinute"]];
-  const configuredRates = [
-    ...rateKeys.map(k => connections[k]),
-    ...nestedRateKeys.map(([section, field]) => connections?.[section]?.[field])
-  ];
-  const configuredProviderRate = configuredRates.map(Number).find(v => Number.isFinite(v) && v >= 0);
-  const hasExplicitRate = input?.creditsPerMinute != null || existing?.creditsPerMinute != null;
-  // Match website CONNECTION_DEFAULTS when the shared config document or a
-  // feature rate has never been saved. An explicit admin override still wins.
-  const providerRate = configuredProviderRate ?? (
-    key.includes("transcrib") || key.includes("dictation") ? 0.003 :
-    key.includes("camera") ? 0.05 : 0.05
-  );
-  if (configuredProviderRate == null) {
-    console.warn("[BQ Billing] config/providerConnections rate missing; website feature default active.");
-    await recordBillingConfigWarning("config/providerConnections");
-  }
-  const fallbackRate = providerRate * (1 + markupPercent / 100) * (1 + feePercent / 100) / usdPerCredit;
-  const merged = !hasExplicitRate && fallbackRate != null
-    ? { ...input, creditsPerMinute: fallbackRate }
-    : input;
-  return normalizeLivePricing(merged, existing, feature);
+  // Legacy live-session settings are retained for voice/model preferences only.
+  // Customer charges are resolved from generationCostRules.
+  return normalizeLivePricing(input, existing, feature);
 }
+
 export async function settleLiveStartReservation(uid, reservation, commit, reverse, createSession) {
   try {
     const result = await createSession();
@@ -717,6 +652,40 @@ async function featurePrice(name) {
     safeError: "feature_temporarily_unavailable"
   });
 }
+
+async function activeGenerationRule(operation) {
+  const key = String(operation || "").trim().toLowerCase();
+  const rows = await firestoreQuery("generationCostRules", { limit: 200 }).catch(() => []);
+  const rule = (Array.isArray(rows) ? rows : []).find(row =>
+    String(row.operation || "").trim().toLowerCase() === key &&
+    String(row.status || "").toLowerCase() === "active"
+  );
+  const credits = Number(rule?.credits ?? 0);
+  const creditsPerUnit = Number(rule?.creditsPerUnit ?? 0);
+  const unit = String(rule?.unit || "none").toLowerCase();
+  if (!rule || !Number.isFinite(credits) || credits < 0 || !Number.isFinite(creditsPerUnit) || creditsPerUnit < 0 ||
+      !["none", "second", "minute", "page", "image"].includes(unit)) {
+    await logMissingPrice(key || "unknown");
+    throw Object.assign(new Error("generation_price_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
+  }
+  return { ...rule, credits, creditsPerUnit, unit };
+}
+
+function generationCreditsForSeconds(rule, seconds) {
+  const duration = Math.max(0, Number(seconds) || 0);
+  if (rule.unit === "second") return rule.creditsPerUnit * duration;
+  if (rule.unit === "minute") return rule.creditsPerUnit * duration / 60;
+  if (rule.creditsPerUnit === 0) return 0;
+  throw Object.assign(new Error("generation_price_unit_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+}
+
+function generationCreditsPerMinute(rule) {
+  if (rule.unit === "minute") return rule.creditsPerUnit;
+  if (rule.unit === "second") return rule.creditsPerUnit * 60;
+  if (rule.creditsPerUnit === 0) return 0;
+  throw Object.assign(new Error("generation_price_unit_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
+}
+
 
 async function seedAdminPricingDefaults() {
   for (const [name, price] of Object.entries(ADMIN_SEED_DEFAULTS)) {
@@ -2706,12 +2675,9 @@ export default {
         }
         const headerDuration = Number(request.headers.get("X-BQ-Audio-Duration-Seconds") || 0);
         const durationSeconds = Math.min(25, Math.max(1, Number.isFinite(headerDuration) && headerDuration > 0 ? headerDuration : Math.ceil((audioBytes.byteLength - 44) / 32000)));
-        const rate = Math.max(0, Number(pricing.creditsPerMinute || 0));
-        const startFee = Math.max(0, Number(pricing.startFeeCredits || 0));
-        // Bill transcription proportionally to the actual recorded duration;
-        // a short clip must not be rounded up to a whole minute.
-        const billedMinutes = durationSeconds / 60;
-        const chargeAmount = startFee + rate * billedMinutes;
+        const transcriptionRule = await activeGenerationRule("speech.transcribe");
+        // Bill only measured duration; short clips are not rounded up to whole minutes.
+        const chargeAmount = transcriptionRule.credits + generationCreditsForSeconds(transcriptionRule, durationSeconds);
         if (chargeAmount > 0 && !isSuperAdmin(user, env)) {
           const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
           const minimum = Math.max(Number(pricing.minimumBalanceToStart || 0), chargeAmount);
@@ -4295,6 +4261,7 @@ export default {
          if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
            throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403 });
          }
+         const liveRule = await activeGenerationRule(isCameraMode ? "live.camera" : "live.voice");
          let modelControl = await capability(user.uid, capabilityName);
          if (heartbeatBody.modelRegistryId) {
            const selected = await resolvePublishedModel(heartbeatBody.modelRegistryId, expectedFeature);
@@ -4302,10 +4269,6 @@ export default {
          } else if (modelControl.providerCostTrackingEnabled === true && modelControl.selectedRegistryModelId) {
            const selected = await resolvePublishedModel(modelControl.selectedRegistryModelId, expectedFeature);
            modelControl = { ...modelControl, ...selected, config: modelControl.config || {} };
-         }
-         let ratePerMinute = pricing.creditsPerMinute;
-         if ((heartbeatBody.modelRegistryId || modelControl.selectedRegistryModelId) && modelControl.creditsPerMinute != null) {
-           ratePerMinute = Math.max(0, Number(modelControl.creditsPerMinute));
          }
          // The server clock is authoritative. A client cannot choose its billable
          // duration; cap missed intervals at two minutes to bound a delayed request.
@@ -4318,7 +4281,7 @@ export default {
          const serverNow = Date.now();
          const lastBilledAt = new Date(liveSession.lastBilledAt || liveSession.startedAt || serverNow).getTime();
          const elapsedSeconds = Math.min(120, Math.max(0, Math.floor((serverNow - lastBilledAt) / 1000)));
-         const rate = ratePerMinute * elapsedSeconds / 60;
+         const rate = generationCreditsForSeconds(liveRule, elapsedSeconds);
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
            if (!balance || balance.total < rate) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
@@ -4383,15 +4346,16 @@ export default {
          if (!organization && (cfg.enabled === false || cfg.killSwitch === true || conf.enabled === false || conf.killSwitch === true)) {
            throw Object.assign(new Error(isCameraMode ? "live_camera_disabled" : "live_voice_disabled"), { httpStatus: 403, safeError: isCameraMode ? "live_camera_disabled" : "live_voice_disabled" });
          }
-         const requestedRate = Math.max(0, Number(conf.creditsPerMinute || 0));
-         const startFee = Math.max(0, Number(conf.startFeeCredits || 0));
+         const liveRule = await activeGenerationRule(isCameraMode ? "live.camera" : "live.voice");
+         const requestedRate = generationCreditsPerMinute(liveRule);
+         const startFee = liveRule.credits;
          const superAdmin = isSuperAdmin(u, env);
          let initialBalance = 0;
          if (!organization && !superAdmin && (requestedRate > 0 || startFee > 0)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(u.uid));
            initialBalance = Number(balance?.total || 0);
          }
-         const startPolicy = liveStartChargePolicy(conf, initialBalance, superAdmin);
+         const startPolicy = liveStartChargePolicy({ ...conf, creditsPerMinute: requestedRate, startFeeCredits: startFee, minimumBalanceToStart: Math.max(Number(conf.minimumBalanceToStart || 0), requestedRate, startFee) }, initialBalance, superAdmin);
          if (!organization && !startPolicy.allowed) {
            throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
          }
@@ -5128,13 +5092,19 @@ export default {
       if (url.pathname === "/live/pricing" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid);
-        const readPublicPricing = async (key) => {
+        const readPublicPricing = async (key, operation) => {
           const stored = await firestoreGet("adminAdvancedOptions/" + key) || {};
           const conf = await resolveCanonicalLivePricing(stored.config || stored, {}, key);
+          const rule = await activeGenerationRule(operation);
+          const creditsPerMinute = generationCreditsPerMinute(rule);
           const enabled = stored.enabled !== false && stored.killSwitch !== true && conf.enabled !== false && conf.killSwitch !== true;
-          return { enabled, free: enabled && conf.creditsPerMinute === 0 && conf.startFeeCredits === 0, creditsPerMinute: conf.creditsPerMinute, startFeeCredits: conf.startFeeCredits };
+          return { enabled, free: enabled && creditsPerMinute === 0 && rule.credits === 0, creditsPerMinute, startFeeCredits: rule.credits };
         };
-        return json({ liveVoice: await readPublicPricing("live_voice_pricing"), liveCamera: await readPublicPricing("live_camera_pricing"), dictation: await readPublicPricing("dictation_pricing") });
+        return json({
+          liveVoice: await readPublicPricing("live_voice_pricing", "live.voice"),
+          liveCamera: await readPublicPricing("live_camera_pricing", "live.camera"),
+          dictation: await readPublicPricing("dictation_pricing", "speech.transcribe")
+        });
       }
       
       if (url.pathname === "/admin/web-search-pricing" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await firestoreGet("adminAdvancedOptions/web_search_pricing")||{}); }
@@ -5840,11 +5810,8 @@ export default {
         const deepResearch = Boolean(body.deepResearch);
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
-        const configuredSearchCharge = deepResearch ? control.config?.creditsPerDeepResearch : control.config?.creditsPerSearch;
-        if (typeof configuredSearchCharge !== "number" || !Number.isFinite(configuredSearchCharge) || configuredSearchCharge < 0) {
-          throw Object.assign(new Error("search_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
-        }
-        const charge = configuredSearchCharge;
+        const searchRule = await activeGenerationRule(deepResearch ? "web.research" : "web.search");
+        const charge = searchRule.credits + (searchRule.unit === "none" ? 0 : searchRule.creditsPerUnit);
         // The search-provider fee is a separate, explicitly configured charge.
         // A configured zero fee must not fall through to the legacy capability price.
         const reservation = charge > 0
