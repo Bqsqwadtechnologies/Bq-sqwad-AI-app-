@@ -4179,8 +4179,8 @@ val composerShape = RoundedCornerShape(26.dp)
 
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .then(if (dictationUiActive) Modifier.widthIn(max = 420.dp).align(Alignment.CenterHorizontally) else Modifier)
+                    .fillMaxWidth()
                     .navigationBarsPadding()
                     .imePadding(),
                 horizontalAlignment = if (dictationUiActive) Alignment.CenterHorizontally else Alignment.End,
