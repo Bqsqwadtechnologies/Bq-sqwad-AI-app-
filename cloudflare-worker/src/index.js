@@ -13,7 +13,7 @@ import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { handlePlayRtdn, reaggregateRootEntitlement } from "./play-rtdn.js";
-import { appendVaultMessage, redactForVault } from "./business-vault-native.js";
+import { appendVaultMessage, exportBusinessVaultJsonl, redactForVault } from "./business-vault-native.js";
 import { COMMERCIAL_CATALOG, canonicalPlayMappings, mergeCommercialCatalog } from "./plan-catalog-native.js";
 import { runProvider, runProviderStream, callOpenAI, callTavily, providerSecretStatus, DEFAULT_MODELS } from "./providers.js";
 import { runWithFallback } from "./orchestrator-native.js";
@@ -1797,17 +1797,30 @@ async function appendBusinessVaultEntry(env, workspaceId, agentId, threadId, rol
     safeError: "business_vault_not_configured"
   });
   const segment = value => String(value || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80) || "default";
-  return appendVaultMessage({
+  const business = segment(workspaceId);
+  const agent = segment(agentId);
+  const thread = segment(threadId);
+  const result = await appendVaultMessage({
     dbSet: firestoreSet,
     dbGet: firestoreGet,
     encryptionKey,
-    businessId: segment(workspaceId),
-    agentId: segment(agentId),
-    threadId: segment(threadId),
+    businessId: business,
+    agentId: agent,
+    threadId: thread,
     role,
     text,
     caller: "worker"
   });
+  // Flat index lets the super-admin export discover threads without exposing
+  // the nested vault paths or ciphertext to client applications.
+  await firestoreSet("businessVaultThreadIndex/" + [business, agent, thread].join("__"), {
+    businessId: business,
+    agentId: agent,
+    threadId: thread,
+    messageCount: result.messageCount,
+    updatedAt: new Date().toISOString()
+  }, true);
+  return result;
 }
 
 async function enforceChatModelEligibility(uid, body, control, user) {
@@ -2788,6 +2801,7 @@ export default {
       if (url.pathname === "/admin/training-candidates/build" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await buildTrainingCandidates({ limit: 50 })); }
       if (url.pathname === "/admin/training-candidates/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); return json(await exportApprovedTrainingJsonl({ max: 500 })); }
       if (url.pathname === "/admin/business-conversations/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 }); return json(await exportBusinessConversationJsonl({ max: 500 })); }
+      if (url.pathname === "/admin/business-vault/export" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw Object.assign(new Error("Admin access required"), { httpStatus:403 }); return json(await exportBusinessVaultJsonl({ dbGet: firestoreGet, dbQuery: firestoreQuery, encryptionKey: env.BUSINESS_VAULT_ENCRYPTION_KEY, max: 500 })); }
       if (url.pathname === "/admin/training-candidates/status" && request.method === "POST") { const u = await verifyFirebaseUser(request); if (!isSuperAdmin(u, env)) throw new Error("Admin access required"); const b = await readBody(request); return json(await setTrainingCandidateStatus(String(b.id||""), String(b.status||""), u.uid)); }
       if (url.pathname === "/native/catalog" && request.method === "GET") {
         return json(await nativeCatalog());
