@@ -676,7 +676,7 @@ function capabilityPriceOperation(name) {
   return CAPABILITY_PRICE_OPERATIONS[key] || ("feature." + key.replace(/[^a-z0-9_.-]/g, "_"));
 }
 
-async function featurePrice(name) {
+async function featurePrice(name, model = "*") {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
@@ -701,7 +701,7 @@ async function featurePrice(name) {
       }, true);
     }
   }
-  const rule = await activeGenerationRule(operation);
+  const rule = await activeGenerationRule(operation, model);
   return rule.credits + (rule.unit === "none" ? 0 : rule.creditsPerUnit);
 }
 
@@ -771,17 +771,27 @@ async function migrateLegacyGenerationRule(operation, existingRows = []) {
   }, true);
 }
 
-async function activeGenerationRule(operation) {
+async function activeGenerationRule(operation, model = "*") {
   const key = String(operation || "").trim().toLowerCase();
+  const requestedModel = String(model || "*").trim().toLowerCase();
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   if (!(Array.isArray(rows) ? rows : []).some(row => String(row.operation || "").trim().toLowerCase() === key)) {
     await migrateLegacyGenerationRule(key, rows);
     rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   }
-  const rule = (Array.isArray(rows) ? rows : []).filter(row =>
+  const candidates = (Array.isArray(rows) ? rows : []).filter(row =>
     String(row.operation || "").trim().toLowerCase() === key &&
-    String(row.status || "").toLowerCase() === "active"
-  ).sort((a, b) => Number(b.version || 0) - Number(a.version || 0))[0];
+    String(row.status || "").toLowerCase() === "active" &&
+    (requestedModel === "*" ? (!row.model || String(row.model) === "*") :
+      (!row.model || String(row.model) === "*" || String(row.model).trim().toLowerCase() === requestedModel))
+  );
+  // A model-specific rule wins for that exact BQ model; otherwise the shared
+  // rule remains the safe fallback. Never let a rule for another model win.
+  const rule = candidates.sort((a, b) => {
+    const aExact = requestedModel !== "*" && String(a.model || "*").trim().toLowerCase() === requestedModel ? 1 : 0;
+    const bExact = requestedModel !== "*" && String(b.model || "*").trim().toLowerCase() === requestedModel ? 1 : 0;
+    return (bExact - aExact) || (Number(b.version || 0) - Number(a.version || 0));
+  })[0];
   const credits = Number(rule?.credits ?? 0);
   const creditsPerUnit = Number(rule?.creditsPerUnit ?? 0);
   const unit = String(rule?.unit || "none").toLowerCase();
@@ -862,7 +872,10 @@ async function capability(uid, name) {
     enabled: value.enabled !== false,
     providerId: value.providerId || d.providerId,
     modelId: value.modelId || d.modelId,
-    creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name),
+    // Use an explicitly configured capability model when present. BQ model
+    // IDs select their own generation rule; provider-specific media models
+    // naturally fall back to the shared operation rule.
+    creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name, value.billingModelId || value.modelId || d.modelId || "*"),
     config: {
       ...(value.config || {}),
       fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
