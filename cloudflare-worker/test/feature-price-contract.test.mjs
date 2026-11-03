@@ -23,6 +23,7 @@ test("image generation, image edit, and background upload read admin prices rath
   assert.match(source, /const backgroundCreditCost = await featurePrice\("chat_background_upload"\)/);
   assert.match(source, /const CAPABILITY_PRICE_OPERATIONS = Object\.freeze/);
   assert.match(source, /image_generation: "image\.generate"/);
+  assert.doesNotMatch(source, /configuredMediaProviderCost|canonicalUsageBillingPolicy|markupApplied|config\/usageBilling/);
   assert.doesNotMatch(source, /body\.creditCost = freeImage \? 0 : 2\.5/);
   assert.doesNotMatch(source, /body\.creditCost = 1\.5/);
 });

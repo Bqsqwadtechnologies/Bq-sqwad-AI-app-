@@ -1,71 +1,11 @@
 {
-  "version": 1,
-  "currency": "USD",
-  "rounding": "credits rounded to 5 decimal places",
-  "defaults": {
-    "markupPercent": 600,
-    "feePercent": 0,
-    "usdPerCredit": 0.1199,
-    "openAiInputUsdPerToken": 5e-8,
-    "openAiCachedInputUsdPerToken": 5e-9,
-    "openAiOutputUsdPerToken": 2.5e-7
-  },
+  "version": 2,
+  "currency": "credits",
+  "rounding": "fixed customer prices rounded to five decimal places",
   "cases": [
-    {
-      "id": "chat-short",
-      "kind": "tokens",
-      "uncachedInputTokens": 1000,
-      "cachedInputTokens": 0,
-      "outputTokens": 500,
-      "expectedCredits": 0.01022
-    },
-    {
-      "id": "chat-long",
-      "kind": "tokens",
-      "uncachedInputTokens": 8000,
-      "cachedInputTokens": 0,
-      "outputTokens": 1500,
-      "expectedCredits": 0.04525
-    },
-    {
-      "id": "chat-cached",
-      "kind": "tokens",
-      "uncachedInputTokens": 2000,
-      "cachedInputTokens": 1000,
-      "outputTokens": 300,
-      "expectedCredits": 0.01051
-    },
-    {
-      "id": "live-voice-minute",
-      "kind": "minute",
-      "providerCostUsd": 0.05,
-      "expectedCredits": 2.9191
-    },
-    {
-      "id": "live-camera-minute",
-      "kind": "minute",
-      "providerCostUsd": 0.05,
-      "expectedCredits": 2.9191
-    },
-    {
-      "id": "transcription-minute",
-      "kind": "minute",
-      "providerCostUsd": 0.003,
-      "expectedCredits": 0.17515
-    },
-    {
-      "id": "web-search-fixed",
-      "kind": "fixed",
-      "configuredCredits": 1.7,
-      "expectedCredits": 1.7
-    },
-    {
-      "id": "chat-cached-explicit",
-      "kind": "tokens",
-      "uncachedInputTokens": 1500,
-      "cachedInputTokens": 500,
-      "outputTokens": 250,
-      "expectedCredits": 0.00817
-    }
+    { "id": "image-generation", "kind": "fixed", "configuredCredits": 1.5, "expectedCredits": 1.5 },
+    { "id": "background-upload", "kind": "fixed", "configuredCredits": 2, "expectedCredits": 2 },
+    { "id": "team-message-free", "kind": "fixed", "configuredCredits": 0, "expectedCredits": 0 },
+    { "id": "fractional-feature", "kind": "fixed", "configuredCredits": 0.125678, "expectedCredits": 0.12568 }
   ]
 }

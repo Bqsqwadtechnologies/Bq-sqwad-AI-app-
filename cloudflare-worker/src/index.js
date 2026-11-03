@@ -7,7 +7,7 @@ const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_in
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
-import { computeFixedCredits, computeTokenCredits, loadBillingConfig } from "./billing-core.js";
+import { computeFixedCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
 import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
@@ -1083,9 +1083,9 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   // shared five-decimal rounding; measured token requests preserve fractional
   // pricing and keep a tiny reservation so they never fall through to a
   // legacy capability price (commonly 1 credit per chat).
-  let charge = options.allowFractional
-    ? Math.max(0.0000000001, Math.round(Number(amount) * 1e10) / 1e10)
-    : computeFixedCredits(amount);
+  const requestedCharge = Number(amount);
+  if (!Number.isFinite(requestedCharge) || requestedCharge < 0) throw Object.assign(new Error("invalid_credit_price"), { httpStatus: 409, safeError: "provider_unavailable" });
+  let charge = options.allowFractional ? Math.round((requestedCharge + Number.EPSILON) * 1e10) / 1e10 : computeFixedCredits(requestedCharge);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
@@ -1097,28 +1097,10 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   }
   // No trial-credit pool exists. Grant only the single daily free credit.
   await applyConfiguredDailyFreeCredits(uid);
-  if (!charge && !options.allowFractional && !TOKEN_METERED.has(String(capabilityName || ""))) {
-    const configured = await firestoreGet("adminAdvancedOptions/capability_" + String(capabilityName || ""));
-    charge = Math.max(0, Number(configured?.creditCost || 0));
-  }
   // Fixed feature prices are final customer prices. Markup belongs only in
   // the canonical measured token/minute pricing engine, never in this ledger layer.
   // Fractional and zero-credit configurations are valid; do not impose a floor.
-  if (!charge) {
-    const profile = await readCanonicalUserBalance(uid);
-    if (!profile) throw new Error("Account not found.");
-    const balance = canonicalUserBalance(profile);
-    const spendable = options.purchasedOnly
-      ? (balance?.permanent || 0) + (balance?.subscription || 0)
-      : (balance?.total || 0);
-    if (!balance || spendable <= 0) {
-      throw Object.assign(new Error(options.purchasedOnly ? "purchased_credits_required" : "out_of_credits"), {
-        httpStatus: 402,
-        safeError: options.purchasedOnly ? "purchased_credits_required" : "out_of_credits"
-      });
-    }
-    return { reservationId: null, amount: 0 };
-  }
+  if (!charge) return { reservationId: null, amount: 0, free: true };
 
   const reservationId = crypto.randomUUID();
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -1536,83 +1518,6 @@ const BQ_APP_KNOWLEDGE = [
   "BQ SUPPORT GUIDE: When a user reports an app or website error, sign-in problem, connector, upload, credit, plan, catalog, Live Voice or camera issue, guide them step by step. Ask whether they are using Android or the website when steps differ. Give numbered steps with one action each and say what success looks like. Start with safe reversible checks; ask for the visible safe error/reference code when needed. Never request passwords, one-time codes, API keys, access tokens, full payment details, or private screen contents. Never bypass provider consent or claim an admin changed the account. If the steps fail, direct them to Help & Support in the app or the website Help & Troubleshooting page and ask them to submit the reference code. Be honest about uncertainty and never claim a fix without user confirmation.",
   "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
 ].join("\n");
-
-let usageBillingPolicyCache = null;
-let usageBillingPolicyCacheUntil = 0;
-
-async function canonicalUsageBillingPolicy() {
-  if (usageBillingPolicyCache && Date.now() < usageBillingPolicyCacheUntil) return usageBillingPolicyCache;
-  const document = await firestoreGet("config/usageBilling");
-  let policy = document;
-  if (typeof document?.json === "string") {
-    try { policy = JSON.parse(document.json); } catch { policy = null; }
-  }
-  const validPolicy = !!policy &&
-    Number.isFinite(Number(policy.markupPercent)) && Number(policy.markupPercent) >= 0 && Number(policy.markupPercent) <= 10000 &&
-    Number.isFinite(Number(policy.feePercent)) && Number(policy.feePercent) >= 0 && Number(policy.feePercent) <= 100 &&
-    Number.isFinite(Number(policy.usdPerCredit)) && Number(policy.usdPerCredit) > 0;
-  if (!validPolicy) {
-    console.warn("[BQ Billing] config/usageBilling missing or invalid; website defaults active.");
-    await notifyAdminOfIssue(globalThis.__bqEnv, "billing", 0, "config/usageBilling_missing_or_invalid");
-  }
-  usageBillingPolicyCache = validPolicy
-    ? { markupPercent: Number(policy.markupPercent), feePercent: Number(policy.feePercent), usdPerCredit: Number(policy.usdPerCredit) }
-    : { markupPercent: 600, feePercent: 0, usdPerCredit: 0.1199 };
-  usageBillingPolicyCacheUntil = Date.now() + 60000;
-  return usageBillingPolicyCache;
-}
-
-async function configuredMediaProviderCost(control, units, expectedUnit, trackingOnly = false) {
-  if (trackingOnly ? control?.providerCostTrackingEnabled !== true : String(control?.billingMode || "fixed_credit") !== "provider_cost") return null;
-  const unit = String(control?.providerCostUnit || "");
-  const count = Number(units);
-  const unitPrice = Number(control?.priceUsd || 0);
-  if (unit !== expectedUnit || !Number.isFinite(count) || count <= 0 ||
-      !Number.isFinite(unitPrice) || unitPrice <= 0) {
-    throw Object.assign(new Error("media_provider_cost_not_configured"), { httpStatus: 409, safeError: "media_provider_cost_not_configured" });
-  }
-  const policy = await canonicalUsageBillingPolicy();
-  const providerCostUsd = unitPrice * count;
-  const calculation = computeTokenCredits(
-    { uncachedInputTokens: 1, cachedInputTokens: 0, outputTokens: 0 },
-    policy,
-    { inputUsdPerToken: providerCostUsd, cachedInputUsdPerToken: 0, outputUsdPerToken: 0 }
-  );
-  return {
-    units: count,
-    unit,
-    providerCostUsd,
-    creditValue: policy.usdPerCredit,
-    multiplier: 1 + policy.markupPercent / 100,
-    feePercent: policy.feePercent,
-    chargeCredits: calculation.credits,
-    providerCostCredits: providerCostUsd / policy.usdPerCredit
-  };
-}
-async function recordConfiguredMediaCost(uid, feature, control, result, cost, modality) {
-  if (!cost) return;
-  await recordTokenUsage({
-    uid, feature,
-    providerId: result?.providerId || control.providerId,
-    modelId: result?.modelId || control.modelId,
-    usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, reasoningTokens: 0 },
-    pricing: {
-      creditReferenceValueUsd: cost.creditValue,
-      customerMultiplier: cost.multiplier,
-      estimatedFeePercent: cost.feePercent
-    },
-    calculation: {
-      providerCostUsd: cost.providerCostUsd,
-      providerCostCredits: cost.providerCostCredits,
-      estimatedFeePercent: cost.feePercent
-    },
-    requestId: result?.generationId || result?.jobId || crypto.randomUUID(),
-    chargedCredits: Number(result?.creditsCharged || 0),
-    planCovered: false,
-    modality,
-    unitCount: cost.units
-  });
-}
 
 async function reserveMonthlyUsageCounter(collection,uid,monthKey,planId,limit,errorCode){const path=collection+"/"+uid+"_"+monthKey;for(let attempt=0;attempt<6;attempt++){const current=await firestoreGet(path);const count=Math.max(0,Number(current?.count||0));if(count>=limit)throw Object.assign(new Error(errorCode),{httpStatus:429,safeError:errorCode});const data={uid,monthKey,planId,count:count+1,updatedAt:new Date()};try{if(current)await firestoreCommit([{path,data,updateTime:current.__updateTime}]);else await firestoreCommit([{path,data,create:true}]);return path}catch(error){if(attempt===5)throw new Error("workspace_usage_reservation_failed")}}throw new Error("workspace_usage_reservation_failed")}
 async function releaseMonthlyUsageCounter(path){for(let attempt=0;attempt<5;attempt++){const current=await firestoreGet(path);if(!current||Number(current.count||0)<=0)return;try{await firestoreCommit([{path,data:{uid:current.uid,monthKey:current.monthKey,planId:current.planId,count:Math.max(0,Number(current.count||0)-1),updatedAt:new Date()},updateTime:current.__updateTime}]);return}catch{if(attempt===4)return}}}
@@ -2077,7 +1982,6 @@ async function ai(request, user, body) {
     : (control.creditCost || 0);
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
     allowFractional: tokenBilling,
-    markupApplied: tokenBilling,
     purchasedOnly: chatEligibility.purchasedOnly
   });
   let lifeUsageCounterPath = null;
@@ -2232,7 +2136,6 @@ async function vision(request, user, body) {
   });
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
     allowFractional: true,
-    markupApplied: true
   });
   try {
     const providerRoute = await buildProviderExecutionRoute(
@@ -2341,7 +2244,6 @@ async function stream(request, user, body) {
     : (control.creditCost || 0);
   const reservation = await chargeCredits(user.uid, reservationAmount, capabilityName, user, {
     allowFractional: tokenBilling,
-    markupApplied: tokenBilling,
     purchasedOnly: chatEligibility.purchasedOnly
   });
   try {
@@ -4124,60 +4026,41 @@ export default {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
         const features = await adminDiagnosticSnapshot();
-        const billingConfig = await loadBillingConfig(path => firestoreGet(path));
-        const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
-        const defaultChatRule = (Array.isArray(tokenRules) ? tokenRules : []).find(rule =>
-          String(rule.status || "inactive") === "active" &&
-          String(rule.provider || "").toLowerCase() === "openai" &&
-          ["*", "gpt-6-luna"].includes(String(rule.model || "*")) &&
-          (!Array.isArray(rule.features) || rule.features.length === 0 || rule.features.includes("chat") || rule.features.includes("text-chat"))
-        );
-        const rawUsageBilling = await firestoreGet("config/usageBilling").catch(() => null);
-        const rawProviderConnections = await firestoreGet("config/providerConnections").catch(() => null);
+        const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 500 }).catch(() => []);
+        const generationRules = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
         const rawPricing = await firestoreGet("config/pricing").catch(() => null);
         const rawAiModels = await firestoreGet("config/aiModels").catch(() => null);
-        const parseConfig = value => {
-          if (!value || typeof value !== "object") return null;
-          if (typeof value.json === "string") {
-            try { const parsed = JSON.parse(value.json); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null; }
-            catch { return null; }
-          }
-          return value;
-        };
-        const rawPolicy = parseConfig(rawUsageBilling);
-        const invalidUsageBilling = Boolean(rawUsageBilling) && (!rawPolicy ||
-          !Number.isFinite(Number(rawPolicy.markupPercent)) || Number(rawPolicy.markupPercent) < 0 || Number(rawPolicy.markupPercent) > 10000 ||
-          !Number.isFinite(Number(rawPolicy.feePercent)) || Number(rawPolicy.feePercent) < 0 || Number(rawPolicy.feePercent) > 100 ||
-          !Number.isFinite(Number(rawPolicy.usdPerCredit)) || Number(rawPolicy.usdPerCredit) <= 0);
-        const providerConnections = billingConfig.providerConnections || {};
-        const resolvedRate = (keys, fallback) => {
-          for (const key of keys) {
-            const value = Number(providerConnections[key]);
-            if (Number.isFinite(value) && value >= 0) return value;
-          }
-          return fallback;
-        };
+        const defaultChatRule = (Array.isArray(tokenRules) ? tokenRules : []).find(rule =>
+          String(rule.status || "inactive") === "active" &&
+          String(rule.model || "").toLowerCase() === "gpt-6-luna" &&
+          (!Array.isArray(rule.features) || rule.features.length === 0 || rule.features.includes("chat") || rule.features.includes("text-chat"))
+        );
+        const activeGenerationRules = (Array.isArray(generationRules) ? generationRules : [])
+          .filter(rule => String(rule.status || "").toLowerCase() === "active")
+          .map(rule => ({
+            operation: String(rule.operation || "").slice(0, 100),
+            credits: Number(rule.credits || 0),
+            creditsPerUnit: Number(rule.creditsPerUnit || 0),
+            unit: String(rule.unit || "none").slice(0, 20)
+          }));
         const billingConfigDoctor = {
           documents: {
-            "config/usageBilling": !rawUsageBilling ? "missing (default in use)" : invalidUsageBilling ? "invalid (default in use)" : "present",
-            "config/providerConnections": !rawProviderConnections ? "missing (feature defaults in use)" : "present",
-            "config/pricing": !rawPricing ? "missing (default in use)" : billingConfig.warnings.some(x => x.includes("config/pricing contains invalid JSON")) ? "invalid (default in use)" : "present",
-            "config/aiModels": !rawAiModels ? "missing (default in use)" : billingConfig.warnings.some(x => x.includes("config/aiModels contains invalid JSON")) ? "invalid (default in use)" : "present",
-            "tokenPricingRules": tokenRules.length ? "present" : "missing (OpenAI defaults in use)"
+            tokenPricingRules: defaultChatRule ? "active GPT-6 Luna rule present" : "active GPT-6 Luna rule missing",
+            generationCostRules: activeGenerationRules.length ? "present" : "missing",
+            "config/pricing": rawPricing ? "present" : "missing",
+            "config/aiModels": rawAiModels ? "present" : "missing"
           },
-          policy: billingConfig.usageBilling,
           defaultChatModel: "gpt-6-luna",
-          defaultChatRatesUsdPerToken: defaultChatRule ? {
-            input: Number(defaultChatRule.inputUsdPerToken ?? Number(defaultChatRule.inputUsdPerMillion || 0) / 1000000),
-            output: Number(defaultChatRule.outputUsdPerToken ?? Number(defaultChatRule.outputUsdPerMillion || 0) / 1000000),
-            cachedInput: Number(defaultChatRule.cachedInputUsdPerToken ?? Number(defaultChatRule.cachedInputUsdPerMillion ?? defaultChatRule.inputUsdPerMillion ?? 0) / 1000000)
-          } : { input: 0.00000005, output: 0.00000025, cachedInput: 0.000000005 },
-          connectionRatesUsdPerMinute: {
-            liveVoice: resolvedRate(["liveVoiceUsdPerMinute"], 0.05),
-            liveCamera: resolvedRate(["liveCameraUsdPerMinute"], 0.05),
-            transcription: resolvedRate(["transcriptionUsdPerMinute", "transcribeUsdPerMinute"], 0.003)
-          },
-          warnings: billingConfig.warnings.map(x => String(x).replace(/[^a-zA-Z0-9_./ -]/g, "").slice(0, 180))
+          defaultChatRatesCreditsPerToken: defaultChatRule ? {
+            input: Number(defaultChatRule.creditsPerInputToken ?? 0),
+            cachedInput: Number(defaultChatRule.creditsPerCachedInputToken ?? 0),
+            output: Number(defaultChatRule.creditsPerOutputToken ?? 0)
+          } : null,
+          generationRules: activeGenerationRules,
+          warnings: [
+            ...(!defaultChatRule ? ["active_gpt_6_luna_token_rule_missing"] : []),
+            ...(!activeGenerationRules.length ? ["active_generation_cost_rules_missing"] : [])
+          ]
         };
         const timeline = Object.values(features)
           .flat()
@@ -4389,7 +4272,6 @@ export default {
          const isCameraMode = heartbeatMode === "camera" || heartbeatMode === "screen";
          const capabilityName = isCameraMode ? "live_camera" : "live_voice";
          const expectedFeature = isCameraMode ? "live-camera" : "live-voice";
-         const expectedCostUnit = "second";
          const config = await firestoreGet("adminAdvancedOptions/" + (isCameraMode ? "live_camera_pricing" : "live_voice_pricing")) || {};
          const pricing = await resolveCanonicalLivePricing(config.config || config, {}, capabilityName);
          if (config.enabled === false || config.killSwitch === true || pricing.enabled === false || pricing.killSwitch === true) {
@@ -4433,16 +4315,6 @@ export default {
              uid: user.uid, mode: heartbeatMode, lastBilledAt: new Date(serverNow).toISOString(),
              updatedAt: new Date(serverNow).toISOString()
            }, true);
-         }
-         const trackedCost = await configuredMediaProviderCost(modelControl, elapsedSeconds, expectedCostUnit, true);
-         if (trackedCost) {
-           await recordConfiguredMediaCost(user.uid, capabilityName, modelControl, {
-             providerId: modelControl.providerId || "openai",
-             modelId: modelControl.modelId || pricing.modelId || DEFAULT_REALTIME_MODEL,
-             creditsCharged: Number(charge.amount || 0),
-             jobId: crypto.randomUUID()
-           }, trackedCost, isCameraMode ? "live_camera" : "live_voice").catch(() =>
-             notifyAdminOfIssue(env, "/realtime/heartbeat", 500, "live_media_cost_ledger_write_failed"));
          }
          const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
          return json({
@@ -4821,15 +4693,11 @@ export default {
           const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        const mediaCost = await configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
-        b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        b.creditCost = control.creditCost;
         b.model = control.modelId;
-        const result = await createVideoNative(env, u, b,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
+        const result = await createVideoNative(env, u, b,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id), b.creditCost);
-        if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
-          .catch(() => notifyAdminOfIssue(env, "/video/generate", 500, "media_cost_ledger_write_failed"));
         return json(result);
       }
       if (url.pathname.startsWith("/video/jobs/") && !url.pathname.endsWith("/content") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/video/jobs/".length)))); }
@@ -4867,7 +4735,6 @@ export default {
         body.model = imageModel?.modelId || control.modelId;
         body.size = body.size || imageModel?.size || control.config?.size;
         body.quality = body.quality || imageModel?.quality || control.config?.quality;
-        const mediaCost = await configuredMediaProviderCost(control, 1, "image");
         const account = await firestoreGet("users/" + u.uid);
         const createdAtRaw = account?.createdAt;
         const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
@@ -4884,19 +4751,17 @@ export default {
             }
           }
         }
-        body.creditCost = freeImage ? 0 : await featurePrice("image_generation");
+        body.creditCost = freeImage ? 0 : control.creditCost;
         try {
           const result = await generateImageNative(
             env, u, body,
             (uid, cost, name, user) => freeImage
               ? Promise.resolve({ reservationId: null, amount: 0, freeImage: true })
-              : chargeCredits(uid, cost, name, user, { markupApplied: true }),
+              : chargeCredits(uid, cost, name, user, {}),
             (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
             (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
             body.creditCost
           );
-          if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image")
-            .catch(() => notifyAdminOfIssue(env, "/ai/image", 500, "media_cost_ledger_write_failed"));
           return json({ ...result, freeImage });
         } catch (imageError) {
           if (freeImage) {
@@ -4916,17 +4781,13 @@ export default {
         body.model = imageModel?.modelId || control.modelId;
         body.size = body.size || imageModel?.size || control.config?.size;
         body.quality = body.quality || imageModel?.quality || control.config?.quality;
-        const mediaCost = await configuredMediaProviderCost(control, 1, "image");
-        body.creditCost = await featurePrice("image_edit");
+        body.creditCost = control.creditCost;
         const result = await editImageNative(
-          env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: true }),
+          env, u, body,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id),
           body.creditCost
         );
-        if (mediaCost) await recordConfiguredMediaCost(u.uid, "image_generation", control, result, mediaCost, "image_edit")
-          .catch(() => notifyAdminOfIssue(env, "/ai/image/edit", 500, "media_cost_ledger_write_failed"));
         return json(result);
       }
       if (url.pathname === "/ai/video" && request.method === "POST") {
@@ -4938,15 +4799,11 @@ export default {
           const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
           control = { ...control, ...selected, config: control.config || {} };
         }
-        const mediaCost = await configuredMediaProviderCost(control, Number(b.seconds || 0), "second");
-        b.creditCost = mediaCost ? mediaCost.chargeCredits : control.creditCost;
+        b.creditCost = control.creditCost;
         b.model = control.modelId;
-        const result = await createVideoNative(env, u, b,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, { markupApplied: Boolean(mediaCost) }),
+        const result = await createVideoNative(env, u, b,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id), b.creditCost);
-        if (mediaCost) await recordConfiguredMediaCost(u.uid, "video_generation", control, result, mediaCost, "video")
-          .catch(() => notifyAdminOfIssue(env, "/ai/video", 500, "media_cost_ledger_write_failed"));
         return json(result);
       }
       if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
