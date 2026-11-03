@@ -4382,7 +4382,7 @@ val composerShape = RoundedCornerShape(26.dp)
                             placeholder = {
                                 Text(
                                     "Message BQ Sqwad AI",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.DarkGray
                                 )
                             },
                             modifier = Modifier
