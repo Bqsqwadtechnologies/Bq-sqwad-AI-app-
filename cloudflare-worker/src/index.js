@@ -1910,13 +1910,16 @@ async function ai(request, user, body) {
       config: { ...(control.config || {}), fallbackProviderIds: [], fallbackModels: {} }
     };
   }
-  if (body.modelRegistryId && capabilityName === "chat") {
+  const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
+  const isDedicatedFeatureMode = capabilityName === "chat" && dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
+  if (isDedicatedFeatureMode) {
+    // A feature-mode request cannot inherit a published Codron/model-registry selection.
+    control = applyChatModelKey(control, { ...body, modelKey: "bq-7-star" });
+  } else if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   } else if (capabilityName === "chat") {
-    const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
-    const isDedicatedFeatureMode = dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
-    control = applyChatModelKey(control, isDedicatedFeatureMode ? { ...body, modelKey: "bq-7-star" } : body);
+    control = applyChatModelKey(control, body);
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
@@ -2175,13 +2178,16 @@ async function stream(request, user, body) {
   const redirect = await workspaceScopeRedirect(capabilityName, userMessage);
   if (redirect) return json({ ok: true, redirect });
   let control = await capability(user.uid, capabilityName);
-  if (body.modelRegistryId && capabilityName === "chat") {
+  const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
+  const isDedicatedFeatureMode = capabilityName === "chat" && dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
+  if (isDedicatedFeatureMode) {
+    // A feature-mode request cannot inherit a published Codron/model-registry selection.
+    control = applyChatModelKey(control, { ...body, modelKey: "bq-7-star" });
+  } else if (body.modelRegistryId && capabilityName === "chat") {
     const selected = await resolvePublishedModel(body.modelRegistryId, "text-chat");
     control = { ...control, ...selected, config: control.config || {} };
   } else if (capabilityName === "chat") {
-    const dedicatedFeatureModes = new Set(["learning", "companion", "truthguard", "frontier", "lifematters", "studio"]);
-    const isDedicatedFeatureMode = dedicatedFeatureModes.has(String(body.mode || "").trim().toLowerCase());
-    control = applyChatModelKey(control, isDedicatedFeatureMode ? { ...body, modelKey: "bq-7-star" } : body);
+    control = applyChatModelKey(control, body);
   }
   const chatEligibility = capabilityName === "chat"
     ? await enforceChatModelEligibility(user.uid, body, control, user)
