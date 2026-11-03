@@ -850,7 +850,7 @@ private fun AuthSurface(hideVideoControls: Boolean = false, content: @Composable
         }
         Surface(
             Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.62f)
+            color = MaterialTheme.colorScheme.background.copy(alpha = if (backgroundVideoUrl == null) 1f else 0.16f)
         ) {
             Column(
                 Modifier.fillMaxSize().imePadding().padding(24.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
