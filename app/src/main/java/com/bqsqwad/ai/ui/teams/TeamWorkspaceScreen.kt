@@ -227,7 +227,7 @@ fun TeamWorkspaceScreen(
                         else "Join to chat and ask the AI.",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    Button(
+                    if (memberStatus != "pending") Button(
                         onClick = {
                             scope.launch {
                                 busy = true
