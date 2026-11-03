@@ -216,26 +216,51 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
 
 export async function listAiModels({ admin = false } = {}) {
   const rows = await firestoreQuery("aiModelRegistry", { limit: 200 });
-  const models = rows.map(x => ({
-    id: String(x.id || String(x.__name || "").split("/").pop()),
-    name: String(x.name || ""),
-    providerId: String(x.providerId || ""),
-    modelId: String(x.modelId || ""),
-    feature: String(x.feature || "text-chat"),
-    description: String(x.description || ""),
-    active: x.active === true,
-    isDefault: x.isDefault === true,
-    published: x.published === true,
-    creditCost: (function(){ const n = Number(x.creditCost); return Number.isFinite(n) && n >= 0 ? Math.round(n*1e5)/1e5 : 1; })(),
-    priceUsd: Math.max(0, Number(x.priceUsd || 0)),
-    creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
-    validation: x.validation?.ok === true ? { ok: true, providerModelName: String(x.validation.providerModelName || x.modelId || ""), validatedAt: x.validation.validatedAt || null } : null,
-    providerStatus: String(x.providerStatus || "not_checked"),
-    providerStatusMessage: String(x.providerStatusMessage || ""),
-    providerCheckedAt: x.providerCheckedAt || null,
-    updatedAt: x.updatedAt || null
-  }));
-  return { models: models.filter(x => (x.providerId !== "openai" || isAllowedOpenAiModel(x.modelId, x.feature)) && (admin || (x.active && x.published))).sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
+  const visibleRows = rows.filter(x =>
+    (String(x.providerId || "") !== "openai" || isAllowedOpenAiModel(x.modelId, x.feature)) &&
+    (admin || (x.active === true && x.published === true))
+  );
+  const models = visibleRows.map(x => {
+    const id = String(x.id || String(x.__name || "").split("/").pop());
+    const modelId = String(x.modelId || "");
+    const feature = String(x.feature || "text-chat");
+    const bqDisplayName = modelId === "gpt-6-luna" ? "BQ-7-Star"
+      : modelId === "gpt-5.6-luna" ? "BQ-Codron"
+      : String(x.name || "");
+    if (!admin) {
+      // Public clients select by registry ID/model key. Provider IDs, provider
+      // names, provider status details, and all pricing remain server-side.
+      return {
+        id,
+        name: bqDisplayName,
+        feature,
+        description: String(x.description || ""),
+        active: x.active === true,
+        isDefault: x.isDefault === true,
+        published: x.published === true
+      };
+    }
+    return {
+      id,
+      name: String(x.name || bqDisplayName),
+      providerId: String(x.providerId || ""),
+      modelId,
+      feature,
+      description: String(x.description || ""),
+      active: x.active === true,
+      isDefault: x.isDefault === true,
+      published: x.published === true,
+      creditCost: (function(){ const n = Number(x.creditCost); return Number.isFinite(n) && n >= 0 ? Math.round(n*1e5)/1e5 : 1; })(),
+      priceUsd: Math.max(0, Number(x.priceUsd || 0)),
+      creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
+      validation: x.validation?.ok === true ? { ok: true, providerModelName: String(x.validation.providerModelName || modelId), validatedAt: x.validation.validatedAt || null } : null,
+      providerStatus: String(x.providerStatus || "not_checked"),
+      providerStatusMessage: String(x.providerStatusMessage || ""),
+      providerCheckedAt: x.providerCheckedAt || null,
+      updatedAt: x.updatedAt || null
+    };
+  });
+  return { models: models.sort((a,b) => a.name.localeCompare(b.name)), updatedAt: new Date().toISOString() };
 }
 
 export async function validateAiModel(env, raw) {
