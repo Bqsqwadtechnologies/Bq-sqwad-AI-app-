@@ -89,6 +89,10 @@ fun TeamsHubScreen(
                 usernameAvailable = res.optBoolean("available")
                 val arr = res.optJSONArray("suggestions")
                 usernameSuggestions = buildList { if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i)) }
+                if (!usernameEdited && usernameAvailable == false && usernameSuggestions.isNotEmpty()) {
+                    createUsername = usernameSuggestions.first()
+                    checkUsername(createUsername)
+                }
             } catch (_: Exception) {
                 usernameAvailable = null
                 usernameSuggestions = emptyList()
