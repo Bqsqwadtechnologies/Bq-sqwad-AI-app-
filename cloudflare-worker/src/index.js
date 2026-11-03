@@ -4939,6 +4939,7 @@ export default {
         await requireBusinessPlan(u.uid, w.workspaceId);
         const agentId = String(b.agentId || "default").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
         const assistant = agentId === "default" ? null : await firestoreGet("businessAssistants/" + agentId).catch(() => null);
+        if (agentId !== "default" && !assistant) throw Object.assign(new Error("business_assistant_not_found"), { httpStatus: 404, safeError: "business_assistant_not_found" });
         if (assistant && (String(assistant.workspaceId || "") !== w.workspaceId || String(assistant.ownerUid || "") !== String(w.ownerUid || u.uid))) {
           throw Object.assign(new Error("business_assistant_not_found"), { httpStatus: 404, safeError: "business_assistant_not_found" });
         }
