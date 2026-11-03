@@ -311,6 +311,9 @@ fun TeamsHubScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = createName, onValueChange = { value -> createName = value; if (!usernameEdited) { createUsername = value.lowercase().trim().replace(Regex("[^a-z0-9]+"), "_").trim("_").take(26); checkUsername(createUsername) } }, label = { Text("Team name") }, singleLine = true)
+                    usernameSuggestions.forEach { suggestion ->
+                        TextButton(onClick = { createUsername = suggestion; usernameEdited = true; checkUsername(suggestion) }) { Text("Try @$suggestion") }
+                    }
                     OutlinedTextField(
                         value = createUsername,
                         onValueChange = { value -> usernameEdited = true; createUsername = value.lowercase().replace(Regex("[^a-z0-9_]"), ""); checkUsername(createUsername) },
