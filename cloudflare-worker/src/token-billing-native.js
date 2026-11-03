@@ -182,8 +182,22 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
   const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
-  // Provider USD rates are not part of customer pricing or configuration.
-  const rates = {};
+  // Provider USD rates are private cost telemetry. Admin Live Credit Pricing
+  // stores them per million tokens; customer deductions still use the separate
+  // credits-per-token values in sharedCreditMetering below.
+  const providerInputUsdPerMillion = Number(tokenRule?.inputUsdPerMillion);
+  const providerOutputUsdPerMillion = Number(tokenRule?.outputUsdPerMillion);
+  const providerCachedUsdPerMillion = Number(tokenRule?.cachedInputUsdPerMillion);
+  const rates = Number.isFinite(providerInputUsdPerMillion) && providerInputUsdPerMillion >= 0 &&
+    Number.isFinite(providerOutputUsdPerMillion) && providerOutputUsdPerMillion >= 0
+    ? {
+        inputPriceUsdPerMillion: providerInputUsdPerMillion,
+        outputPriceUsdPerMillion: providerOutputUsdPerMillion,
+        cachedInputPriceUsdPerMillion: Number.isFinite(providerCachedUsdPerMillion) && providerCachedUsdPerMillion >= 0
+          ? providerCachedUsdPerMillion
+          : providerInputUsdPerMillion
+      }
+    : {};
   const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
   const customerMultiplier = 1;
   const estimatedFeePercent = 0;
