@@ -267,7 +267,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
   const featureKey = String(feature || "").toLowerCase();
-  const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "deep_research"].includes(featureKey);
+  const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
   // both website and Android. All three customer rates must be explicit.
   const customerInputCreditsPerToken = customerCreditsPerToken(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k");
