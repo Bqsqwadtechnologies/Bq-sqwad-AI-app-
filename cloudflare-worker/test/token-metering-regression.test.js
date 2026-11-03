@@ -7,7 +7,7 @@ const providerSource = await readFile(new URL("../src/providers.js", import.meta
 const tokenBillingSource = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 
 test("chat and attachment capability defaults are token-metered without a one-credit floor", () => {
-  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice"\]\)/);
+  assert.match(source, /const TOKEN_METERED = new Set\\(\\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"\\]\\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
   assert.match(source, /if \(!charge && !options\.allowFractional && !TOKEN_METERED\.has\(String\(capabilityName \|\| ""\)\)\)/);
 });
@@ -67,14 +67,10 @@ test("fixed-price shared-charge helper rejects token-metered capabilities", () =
   assert.match(helper, /token_metering_route_required/);
 });
 
-test("search fees require the explicit admin setting and cannot inherit the chat capability price", () => {
-  const start = source.indexOf('const configuredSearchCharge = deepResearch ?');
-  const end = source.indexOf('\n      }', start);
-  assert.ok(start >= 0 && end > start);
-  const block = source.slice(start, end);
-  assert.match(block, /control\.config\?\.creditsPerSearch/);
-  assert.match(block, /search_pricing_not_configured/);
-  assert.doesNotMatch(block, /Math\.max\([^\n]*control\.creditCost/);
+test("Tavily search and deep research use the shared direct generation credit rules", () => {
+  assert.match(source, /activeGenerationRule\(deepResearch \? "web\.research" : "web\.search"\)/);
+  assert.match(source, /const charge = searchRule\.credits/);
+  assert.doesNotMatch(source, /const configuredSearchCharge = deepResearch/);
 });
 
 test("website-owned token budgets cap native and connector-aware chat spend", () => {

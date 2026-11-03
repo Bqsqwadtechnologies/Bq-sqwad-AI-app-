@@ -118,7 +118,6 @@ function customerCreditsPerToken(rule, tokenField, legacyField) {
 }
 
 export async function resolveTokenPricing(providerId, modelId, feature, control = {}) {
-  const embedded = control.tokenPricing && typeof control.tokenPricing === "object" ? control.tokenPricing : {};
   let model = null;
   const registryId = String(control.selectedRegistryModelId || control.modelRegistryId || control.id || "");
   if (/^[a-z0-9][a-z0-9-]{1,79}$/i.test(registryId)) {
@@ -159,9 +158,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
-  const dynamicBilling = await firestoreGet("adminAdvancedOptions/dynamic_billing_config").catch(() => null)
-    || await firestoreGet("adminAdvancedOptions/dynamicBillingConfig").catch(() => null)
-    || {};
   const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
@@ -177,46 +173,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
   const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
-  const modelIdLower = String(modelId || "").toLowerCase();
-  // Canonical defaults are USD per token; legacy admin/registry prices are
-  // normalized to USD per million tokens for backwards compatibility. Provider
-  // rates must be explicitly configured; never invent provider costs in code.
-  const isOpenAi = String(providerId || "").toLowerCase() === "openai";
-  const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
-  // Exact model-specific OpenAI reference rates (USD per token). These are
-  // internal provider-cost telemetry only; customer charges still come from
-  // the active tokenPricingRules credit rates shared with the website.
-  const defaultOpenAiRates = {
-    "gpt-6-luna": { input: 0.0000001, cached: 0.00000001, output: 0.0000005 },
-    "gpt-5.6-luna": { input: 0.0000002, cached: 0.00000002, output: 0.0000012 }
-  };
-  const modelOpenAiDefaults = isOpenAi ? defaultOpenAiRates[modelIdLower] : undefined;
-  const fallbackInput = modelOpenAiDefaults?.input;
-  const fallbackOutput = modelOpenAiDefaults?.output;
-  const fallbackCached = modelOpenAiDefaults?.cached;
-  // The admin UI edits the per-million USD fields. Prefer those canonical
-  // fields over legacy derived per-token mirrors, which can be stale after a
-  // price edit. This makes saved Main Chat input/output/cache prices effective
-  // immediately without requiring an admin to recreate the rule.
-  const inputTokenRate = (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.inputUsdPerToken ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? (isOpenAi && Number(adminOpenAiRates.inputPriceUsdPerMillion) > 0 ? Number(adminOpenAiRates.inputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(model.inputPriceUsdPerToken) > 0 ? Number(model.inputPriceUsdPerToken) : Number(model.inputPriceUsdPerMillion) > 0 ? Number(model.inputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(config.inputPriceUsdPerToken) > 0 ? Number(config.inputPriceUsdPerToken) : Number(config.inputPriceUsdPerMillion) > 0 ? Number(config.inputPriceUsdPerMillion) / 1_000_000 : undefined) ?? fallbackInput;
-  const outputTokenRate = (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.outputUsdPerToken ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? (isOpenAi && Number(adminOpenAiRates.outputPriceUsdPerMillion) > 0 ? Number(adminOpenAiRates.outputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(model.outputPriceUsdPerToken) > 0 ? Number(model.outputPriceUsdPerToken) : Number(model.outputPriceUsdPerMillion) > 0 ? Number(model.outputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(config.outputPriceUsdPerToken) > 0 ? Number(config.outputPriceUsdPerToken) : Number(config.outputPriceUsdPerMillion) > 0 ? Number(config.outputPriceUsdPerMillion) / 1_000_000 : undefined) ?? fallbackOutput;
-  const cachedTokenRate = (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.cachedInputUsdPerToken ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? (isOpenAi && Number(adminOpenAiRates.cachedInputPriceUsdPerMillion) > 0 ? Number(adminOpenAiRates.cachedInputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(model.cachedInputPriceUsdPerToken) > 0 ? Number(model.cachedInputPriceUsdPerToken) : Number(model.cachedInputPriceUsdPerMillion) > 0 ? Number(model.cachedInputPriceUsdPerMillion) / 1_000_000 : undefined) ?? (Number(config.cachedInputPriceUsdPerToken) > 0 ? Number(config.cachedInputPriceUsdPerToken) : Number(config.cachedInputPriceUsdPerMillion) > 0 ? Number(config.cachedInputPriceUsdPerMillion) / 1_000_000 : undefined) ?? fallbackCached;
-  // Non-OpenAI providers must have explicit provider/model rates in the registry,
-  // tokenPricing, or provider-specific admin configuration. Never silently price
-  // Gemini or another provider using a shared/OpenAI fallback rate.
-  const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion;
-  const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion;
-  const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion;
-  const rates = {
-    inputPriceUsdPerToken: inputTokenRate == null ? fallbackInput : Number(inputTokenRate),
-    outputPriceUsdPerToken: outputTokenRate == null ? fallbackOutput : Number(outputTokenRate),
-    cachedInputPriceUsdPerToken: cachedTokenRate == null ? fallbackCached : Number(cachedTokenRate),
-    inputPriceUsdPerMillion: inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : Number(inputPerMillionLegacy ?? (fallbackInput == null ? undefined : fallbackInput * 1_000_000)),
-    outputPriceUsdPerMillion: outputTokenRate != null ? Number(outputTokenRate) * 1_000_000 : Number(outputPerMillionLegacy ?? (fallbackOutput == null ? undefined : fallbackOutput * 1_000_000)),
-    cachedInputPriceUsdPerMillion: cachedTokenRate != null ? Number(cachedTokenRate) * 1_000_000 : Number(cachedPerMillionLegacy ?? inputPerMillionLegacy ?? (inputTokenRate != null ? Number(inputTokenRate) * 1_000_000 : fallbackCached == null ? undefined : fallbackCached * 1_000_000))
-  };
-  // Convert provider USD cost into credits using the canonical $79.99 / 1,000-credit value.
-  // This is the fallback conversion value; the shared Firebase billing policy remains authoritative.
+  // Provider USD rates are not part of customer pricing or configuration.
+  const rates = {};
   const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
   const customerMultiplier = 1;
   const estimatedFeePercent = 0;
@@ -224,9 +182,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Sanity-check normalized USD-per-million rates. A per-million value
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
-  const usdRatesConfigured = Number.isFinite(rates.inputPriceUsdPerMillion) && rates.inputPriceUsdPerMillion >= 0 && rates.inputPriceUsdPerMillion <= 100 &&
-    Number.isFinite(rates.outputPriceUsdPerMillion) && rates.outputPriceUsdPerMillion >= 0 && rates.outputPriceUsdPerMillion <= 500 &&
-    Number.isFinite(rates.cachedInputPriceUsdPerMillion) && rates.cachedInputPriceUsdPerMillion >= 0 && rates.cachedInputPriceUsdPerMillion <= 100;
   const featureKey = String(feature || "").toLowerCase();
   const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
@@ -250,7 +205,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     conversionRate: 1
   } : null;
   return {
-    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier, profitMarkupPercent: 0,
+    ...rates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier,
     applyFeeToUsage, estimatedFeePercent, configured,
     sharedCreditMetering,
     sharedModelMultiplier: 1,
@@ -288,7 +243,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
   const creditsAfter = reservation ? Math.max(0, creditsBefore - actualChargedCredits) : 0;
   const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
   const grossUsageValueUsd = actualChargedCredits * creditValue;
-  const estimatedFeePercent = Math.min(100, Math.max(0, Number(calculation?.estimatedFeePercent ?? pricing?.estimatedFeePercent ?? 15)));
+  const estimatedFeePercent = Math.min(100, Math.max(0, Number(calculation?.estimatedFeePercent ?? pricing?.estimatedFeePercent ?? 0)));
   const estimatedFeeUsd = grossUsageValueUsd * estimatedFeePercent / 100;
   const estimatedGrossProfitUsd = grossUsageValueUsd - Number(calculation?.providerCostUsd || 0);
   const estimatedNetProfitUsd = estimatedGrossProfitUsd - estimatedFeeUsd;
