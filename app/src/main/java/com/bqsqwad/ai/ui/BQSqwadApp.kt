@@ -3803,9 +3803,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     modifier = Modifier.fillMaxSize().padding(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                if (messages.isEmpty()) {
-                    item {
-                        val advertisedFeature = advertisedFeatures[advertisedFeatureIndex]
+                item {
+                    val advertisedFeature = advertisedFeatures[advertisedFeatureIndex]
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -3822,8 +3821,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 Column(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                                     Text(advertisedFeature.first, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                     Text(advertisedFeature.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text("Try this feature", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -3833,7 +3833,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 Text("All features", style = MaterialTheme.typography.labelMedium)
                             }
                         }
-                    }
                 }
                 if (taskStartedAtMs != null) {
                     item {
