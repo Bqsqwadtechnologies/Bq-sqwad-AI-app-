@@ -13,7 +13,7 @@ const PROVIDERS = new Set(["openai", "gemini"]);
 
 const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-1-mini","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
 const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
-  "text-chat": new Set(["gpt-6-luna"]),
+  "text-chat": new Set(["gpt-6-luna", "gpt-5.6-luna"]),
   "device-commands": new Set(["gpt-6-luna"]),
   "image-generation": new Set(["gpt-image-1-mini"]),
   "live-camera": new Set(["gpt-realtime-2.1-mini"]),
@@ -120,9 +120,9 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     );
     let providerId = String(capability.providerId || definition.providerId).toLowerCase();
     if (definition.feature === "text-chat") {
-      // Main chat must use the explicitly allowed GPT-6 Luna model. Ignore stale
-      // provider/model overrides here so a blocked or more expensive model can
-      // never be selected by legacy adminAdvancedOptions.
+      // GPT-6 Luna remains the default chat model. GPT-5.6 Luna (BQ-Codron)
+      // is also an explicitly allowed selectable model; it is resolved from
+      // the selected BQ catalogue entry and must not replace the default.
       providerId = "openai";
       modelId = "gpt-6-luna";
     }
