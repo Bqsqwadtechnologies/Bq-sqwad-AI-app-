@@ -9,6 +9,7 @@
  */
 import {
   teamsCreate,
+  teamsCheckUsername,
   teamsSearch,
   teamsListMine,
   teamsGet,
@@ -38,6 +39,10 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
   }
 
   try {
+    if (path === "/native/teams/username/check" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsCheckUsername(u, await body()));
+    }
     if (path === "/native/teams/create" && method === "POST") {
       const u = await verifyFirebaseUser(request);
       return json(await teamsCreate(u, await body()));
