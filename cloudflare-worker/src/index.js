@@ -1897,12 +1897,14 @@ async function ai(request, user, body) {
   let control = await capability(user.uid, capabilityName);
   // All dedicated text workspaces use GPT-6 Luna. Only Main Chat may honour
   // the explicit BQ-7-Star / BQ-Codron model switch.
-  const GPT6_FEATURE_CAPABILITIES = new Set([
-    "frontier_lab", "life_matters", "learning_studio", "data_analysis_workspace",
-    "personal_intelligence", "organization_studio", "truth_guard", "companion",
-    "companion_checkin", "learning", "frontier", "truthguard"
+  // The generic AI endpoint is a text-generation route. Every capability
+  // here uses GPT-6 Luna except modality/search routes with their own dedicated
+  // APIs. Main Chat alone retains the explicit BQ-7-Star / BQ-Codron switch.
+  const SPECIALIZED_NON_TEXT_CAPABILITIES = new Set([
+    "image_generation", "image_edit", "video_generation", "live_camera",
+    "live_voice", "web_search"
   ]);
-  if (GPT6_FEATURE_CAPABILITIES.has(capabilityName)) {
+  if (capabilityName !== "chat" && !SPECIALIZED_NON_TEXT_CAPABILITIES.has(capabilityName)) {
     control = {
       ...control,
       providerId: "openai",
