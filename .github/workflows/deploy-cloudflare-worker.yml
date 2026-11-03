@@ -1,4 +1,4 @@
-name: Deploy Cloudflare Worker (manual)
+name: Deploy Cloudflare Worker (automatic)
 
 on:
   push:
@@ -6,15 +6,6 @@ on:
     paths:
       - 'cloudflare-worker/**'
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: "Choose DEPLOY only when you want to publish the Worker to production"
-        required: true
-        type: choice
-        options:
-          - CANCEL
-          - DEPLOY
-        default: CANCEL
 
 permissions:
   contents: read
@@ -52,7 +43,6 @@ jobs:
   deploy:
     name: Validate and deploy Worker to production
     needs: test
-    if: ${{ inputs.confirm == 'DEPLOY' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
