@@ -359,38 +359,30 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // rates must be explicitly configured; never invent provider costs in code.
   const isOpenAi = String(providerId || "").toLowerCase() === "openai";
   const adminOpenAiRates = dynamicBilling.openAiRates && typeof dynamicBilling.openAiRates === "object" ? dynamicBilling.openAiRates : {};
+  // Exact model-specific OpenAI reference rates (USD per token). These are
+  // internal provider-cost telemetry only; customer charges still come from
+  // the active tokenPricingRules credit rates shared with the website.
+  const defaultOpenAiRates = {
+    "gpt-6-luna": { input: 0.0000001, cached: 0.00000001, output: 0.0000005 },
+    "gpt-5.6-luna": { input: 0.0000002, cached: 0.00000002, output: 0.0000012 }
+  };
+  const modelOpenAiDefaults = isOpenAi ? defaultOpenAiRates[modelIdLower] : undefined;
+  const fallbackInput = modelOpenAiDefaults?.input;
+  const fallbackOutput = modelOpenAiDefaults?.output;
+  const fallbackCached = modelOpenAiDefaults?.cached;
   // The admin UI edits the per-million USD fields. Prefer those canonical
   // fields over legacy derived per-token mirrors, which can be stale after a
   // price edit. This makes saved Main Chat input/output/cache prices effective
   // immediately without requiring an admin to recreate the rule.
-  const inputTokenRate = (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.inputUsdPerToken ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? model.inputPriceUsdPerToken ?? config.inputPriceUsdPerToken;
-  const outputTokenRate = (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.outputUsdPerToken ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? model.outputPriceUsdPerToken ?? config.outputPriceUsdPerToken;
-  const cachedTokenRate = (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.cachedInputUsdPerToken ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? model.cachedInputPriceUsdPerToken ?? config.cachedInputPriceUsdPerToken;
+  const inputTokenRate = (tokenRule?.inputUsdPerMillion != null ? Number(tokenRule.inputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.inputUsdPerToken ?? embedded.inputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.inputPriceUsdPerToken : undefined) ?? (Number(model.inputPriceUsdPerToken) > 0 ? Number(model.inputPriceUsdPerToken) : undefined) ?? (Number(config.inputPriceUsdPerToken) > 0 ? Number(config.inputPriceUsdPerToken) : undefined) ?? fallbackInput;
+  const outputTokenRate = (tokenRule?.outputUsdPerMillion != null ? Number(tokenRule.outputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.outputUsdPerToken ?? embedded.outputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.outputPriceUsdPerToken : undefined) ?? (Number(model.outputPriceUsdPerToken) > 0 ? Number(model.outputPriceUsdPerToken) : undefined) ?? (Number(config.outputPriceUsdPerToken) > 0 ? Number(config.outputPriceUsdPerToken) : undefined) ?? fallbackOutput;
+  const cachedTokenRate = (tokenRule?.cachedInputUsdPerMillion != null ? Number(tokenRule.cachedInputUsdPerMillion) / 1_000_000 : undefined) ?? tokenRule?.cachedInputUsdPerToken ?? embedded.cachedInputPriceUsdPerToken ?? (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerToken : undefined) ?? (Number(model.cachedInputPriceUsdPerToken) > 0 ? Number(model.cachedInputPriceUsdPerToken) : undefined) ?? (Number(config.cachedInputPriceUsdPerToken) > 0 ? Number(config.cachedInputPriceUsdPerToken) : undefined) ?? fallbackCached;
   // Non-OpenAI providers must have explicit provider/model rates in the registry,
   // tokenPricing, or provider-specific admin configuration. Never silently price
   // Gemini or another provider using a shared/OpenAI fallback rate.
   const inputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.inputPriceUsdPerMillion : undefined) ?? model.inputPriceUsdPerMillion ?? config.inputPriceUsdPerMillion;
   const outputPerMillionLegacy = (isOpenAi ? adminOpenAiRates.outputPriceUsdPerMillion : undefined) ?? model.outputPriceUsdPerMillion ?? config.outputPriceUsdPerMillion;
   const cachedPerMillionLegacy = (isOpenAi ? adminOpenAiRates.cachedInputPriceUsdPerMillion : undefined) ?? model.cachedInputPriceUsdPerMillion ?? config.cachedInputPriceUsdPerMillion;
-  // Exact model-specific OpenAI reference rates (USD per token). These are
-  // internal provider-cost telemetry only; customer charges still come from
-  // the active tokenPricingRules credit rates shared with the website.
-  const defaultOpenAiRates = {
-    "gpt-6-luna": {
-      input: 0.0000001,
-      cached: 0.00000001,
-      output: 0.0000005
-    },
-    "gpt-5.6-luna": {
-      input: 0.0000002,
-      cached: 0.00000002,
-      output: 0.0000012
-    }
-  };
-  const modelOpenAiDefaults = isOpenAi ? defaultOpenAiRates[modelIdLower] : undefined;
-  const fallbackInput = modelOpenAiDefaults?.input;
-  const fallbackOutput = modelOpenAiDefaults?.output;
-  const fallbackCached = modelOpenAiDefaults?.cached;
   const rates = {
     inputPriceUsdPerToken: inputTokenRate == null ? fallbackInput : Number(inputTokenRate),
     outputPriceUsdPerToken: outputTokenRate == null ? fallbackOutput : Number(outputTokenRate),
