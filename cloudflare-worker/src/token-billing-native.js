@@ -148,8 +148,9 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     outputAudioTokens * Number(meter.creditsPerOutputAudioToken || 0) +
     inputImageTokens * Number(meter.creditsPerInputImageToken || 0) +
     outputImageTokens * Number(meter.creditsPerOutputImageToken || 0);
+  // No minimum deduction: only measured token usage and configured rates are charged.
   const roundedCredits = rawCredits > 0
-    ? Math.max(minimumCredits, Math.round((rawCredits * conversionRate + Number.EPSILON) * (10 ** precision)) / (10 ** precision))
+    ? Math.round((rawCredits * conversionRate + Number.EPSILON) * (10 ** precision)) / (10 ** precision)
     : 0;
   const creditValue = Number(creditReferenceValueUsd);
   const safeCreditValue = Number.isFinite(creditValue) && creditValue > 0 ? creditValue : DEFAULT_CREDIT_REFERENCE_USD;
