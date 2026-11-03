@@ -189,7 +189,7 @@ test("reservation refund rejects an amount larger than the original reservation"
 test("team chat and deep research are eligible for shared model token metering", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
-  assert.match(source, /"team_chat", "deep_research"/);
+  assert.match(source, /"team_chat"[^\]]*"deep_research"/s);
 });
 
 test("token pricing selects free and paid rules independently and prefers the exact class", async () => {
