@@ -68,7 +68,7 @@ test("website credit prices do not require USD telemetry rates to calculate cust
   assert.equal(result.providerCostUsd, 0);
 });
 
-test("native Main Chat applies configured model weight to per-token credits", () => {
+test("native Main Chat uses the model-specific direct token rates without a multiplier", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, outputTokens: 500 },
     pricing: {
@@ -88,7 +88,7 @@ test("native Main Chat applies configured model weight to per-token credits", ()
     creditReferenceValueUsd: 0.1,
     multiplier: 2,
   });
-  assert.equal(result.customerCredits, 0.45);
+  assert.equal(result.customerCredits, 0.15);
 });
 
 test("shared website meter applies minimum only to nonzero usage and never overrides token rates", () => {

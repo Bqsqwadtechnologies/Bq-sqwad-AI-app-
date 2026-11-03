@@ -205,7 +205,7 @@ test("live pricing has no provider-cost markup fallback and validates paid rates
   const defaults = normalizeLivePricing({}, {}, "live_voice_pricing");
   assert.equal(defaults.creditsPerMinute, 0);
   assert.equal(defaults.startFeeCredits, 0);
-  assert.equal(defaults.minimumBalanceToStart, expectedDefaultRate);
+  assert.equal(defaults.minimumBalanceToStart, 0);
   const paid = normalizeLivePricing({ creditsPerMinute: 1.5, startFeeCredits: 2, minimumBalanceToStart: 4 }, {}, "live_voice_pricing");
   assert.equal(paid.creditsPerMinute, 1.5);
   assert.equal(paid.startFeeCredits, 2);
