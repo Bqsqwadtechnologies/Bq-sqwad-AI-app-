@@ -2432,20 +2432,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val advertisedFeatures = remember {
-        listOf(
-            "AI Live Voice" to "Talk naturally with real-time AI voice",
-            "AI Live Camera" to "Ask questions about what your camera sees",
-            "AI Business" to "Plan, analyse and grow a business",
-            "Organization AI" to "Tools for churches and organizations",
-            "AI Life Matters" to "Get help thinking through life decisions",
-            "AI Learning" to "Explore subjects and learn step by step",
-            "AI Companions" to "Choose a helpful AI companion",
-            "TruthGuard AI" to "Check claims and understand information",
-            "Frontier Lab" to "Explore advanced AI capabilities",
-            "Video & Creative Studio" to "Create and edit visual content",
-            "Teams" to "Work with people in a shared AI space",
-            "Projects" to "Organize notes and working documents"
-        )
+        (Workspace.values()
+            .filter { it != Workspace.CHAT && it != Workspace.SEARCH }
+            .map { it.title to it.description } +
+            ADVANCED_APP_FEATURES.map { it.title to it.description })
+            .distinctBy { it.first }
     }
     var advertisedFeatureIndex by remember { mutableIntStateOf(0) }
     LaunchedEffect(advertisedFeatureIndex) {
