@@ -5064,8 +5064,8 @@ export default {
         body.quality = body.quality || imageModel?.quality || control.config?.quality || "medium";
         // Price is selected from the exact normalized size/quality sent to OpenAI.
         // Auto modes are normalized to the medium square default so the charge is deterministic.
-        if (String(body.size).toLowerCase() === "auto") body.size = "1024x1024";
-        if (String(body.quality).toLowerCase() === "auto") body.quality = "medium";
+        body.size = String(body.size).toLowerCase() === "auto" ? "1024x1024" : String(body.size).toLowerCase();
+        body.quality = String(body.quality).toLowerCase() === "auto" ? "medium" : String(body.quality).toLowerCase();
         const account = await firestoreGet("users/" + u.uid);
         const createdAtRaw = account?.createdAt;
         const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
@@ -5084,6 +5084,7 @@ export default {
         }
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
         body.creditCost = freeImage ? 0 : imagePrice.credits;
+        body.billingOperation = imagePrice.operation;
         try {
           const result = await generateImageNative(
             env, u, body,
