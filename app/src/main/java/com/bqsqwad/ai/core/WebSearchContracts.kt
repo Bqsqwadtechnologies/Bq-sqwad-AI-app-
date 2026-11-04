@@ -4,7 +4,7 @@ data class WebSearchPricing(
     val pricingId: String,
     val enabled: Boolean = true,
     val creditsPerSearch: Long = 1L,
-    val creditsPerDeepResearch: Long = 5L,
+    val creditsPerDeepResearch: Long = 7L,
     val creditsPerResultPage: Long = 0L,
     val maxResults: Int = 10,
     val dailyUserLimit: Long? = null,
