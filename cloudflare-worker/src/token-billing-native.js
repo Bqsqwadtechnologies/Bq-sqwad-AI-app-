@@ -179,6 +179,19 @@ function customerCreditsPerToken(rule, tokenField, legacyField) {
   return typeof legacy === "number" && Number.isFinite(legacy) ? legacy / 1000 : Number.NaN;
 }
 
+export function pricingFeatureAliases(feature) {
+  const aliases = new Set([String(feature || "")]);
+  // Main Chat historically appears as either "chat" or "text-chat".
+  if (aliases.has("chat")) aliases.add("text-chat");
+  if (aliases.has("text-chat")) aliases.add("chat");
+  // Team AI replies use the same Main Chat customer-credit price rules.
+  if (aliases.has("team_chat")) {
+    aliases.add("chat");
+    aliases.add("text-chat");
+  }
+  return aliases;
+}
+
 export async function resolveTokenPricing(providerId, modelId, feature, control = {}) {
   let model = null;
   const registryId = String(control.selectedRegistryModelId || control.modelRegistryId || control.id || "");
@@ -199,17 +212,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
   const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
-  const featureAliases = new Set([String(feature || "")]);
-  // The website's token-pricing engine uses "chat"; older model-registry and
-  // native callers may label the same Main Chat feature "text-chat". Treat
-  // those as aliases so a scoped website price rule is not silently skipped.
-  if (featureAliases.has("chat")) featureAliases.add("text-chat");
-  if (featureAliases.has("text-chat")) featureAliases.add("chat");
-  // Team AI replies share Main Chat's customer token-credit rates.
-  if (featureAliases.has("team_chat")) {
-    featureAliases.add("chat");
-    featureAliases.add("text-chat");
-  }
+  const featureAliases = pricingFeatureAliases(feature);
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
     if (!matchesCustomerClass(rule, control.customerClass || "paid")) return false;
