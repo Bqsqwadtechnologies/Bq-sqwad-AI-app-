@@ -204,6 +204,24 @@ async function debitTeamPoolForMember(team, member, uid, amount) {
   }
 }
 
+async function refundTeamPoolForMember(team, member, uid, amount) {
+  if (!(amount > 0)) return;
+  const ym = new Date().toISOString().slice(0, 7).replace("-", "");
+  const usagePath = "teams/" + team.id + "/usage/" + ym + "_" + uid;
+  await firestoreUpdateAtomic("teamCreditPools/" + team.creditPoolId, (current) => ({
+    ...(current || {}),
+    balance: Number((num(current?.balance) + amount).toFixed(7)),
+    lifetimeSpent: Math.max(0, Number((num(current?.lifetimeSpent) - amount).toFixed(7))),
+    updatedAt: now(),
+  }));
+  await firestoreUpdateAtomic(usagePath, (current) => ({
+    ...(current || {}),
+    credits: Math.max(0, Number((num(current?.credits) - amount).toFixed(7))),
+    tokens: num(current?.tokens),
+    updatedAt: now(),
+  }));
+}
+
 /* -------------------------------------------------------------------------- */
 /* Create                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -917,6 +935,121 @@ export async function teamsAskAi(user, body, env, billing = {}) {
       message: msg,
       noCredits: true,
     };
+  }
+
+  // Team AI can generate images directly in the team conversation. It uses
+  // the same shared image quality/size generationCostRules as Main Chat.
+  const asksForImage = /\b(generate|create|draw|make|design|render|produce)\b[\s\S]{0,80}\b(image|picture|photo|poster|logo|illustration|artwork)\b/i.test(text);
+  if (asksForImage) {
+    const quality = ["low", "medium", "high"].includes(String(body?.quality || "").toLowerCase())
+      ? String(body.quality).toLowerCase()
+      : /\b(low quality|draft)\b/i.test(text) ? "low"
+        : /\b(high quality|hd|4k|ultra)\b/i.test(text) ? "high" : "medium";
+    const size = String(body?.size || (/\b(portrait|vertical)\b/i.test(text) ? "1024x1536" : /\b(landscape|wide)\b/i.test(text) ? "1536x1024" : "1024x1024"));
+    const shape = /^(1536x1024|1024x1536)$/.test(size) ? "rectangle" : "square";
+    const operation = "image.generate." + quality + "." + shape;
+    let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+    let priceRule = (Array.isArray(rows) ? rows : []).find((row) =>
+      String(row.operation || "").trim().toLowerCase() === operation &&
+      row.status === "active" && (!row.model || row.model === "*")
+    );
+    if (!priceRule) {
+      const defaults = {
+        "image.generate.low.square": 0.292,
+        "image.generate.low.rectangle": 0.35,
+        "image.generate.medium.square": 0.642,
+        "image.generate.medium.rectangle": 0.875,
+        "image.generate.high.square": 2.1,
+        "image.generate.high.rectangle": 3.033,
+      };
+      await firestoreSet("generationCostRules/default-" + operation.replace(/[^a-z0-9-]/g, "-"), {
+        id: "default-" + operation.replace(/[^a-z0-9-]/g, "-"),
+        operation,
+        model: "*",
+        label: "Image generation & editing · " + quality + " · " + shape,
+        credits: defaults[operation],
+        creditsPerUnit: 0,
+        unit: "none",
+        status: "active",
+        version: 1,
+        updatedAt: now(),
+      }, false).catch(() => {});
+      rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+      priceRule = (Array.isArray(rows) ? rows : []).find((row) =>
+        String(row.operation || "").trim().toLowerCase() === operation &&
+        row.status === "active" && (!row.model || row.model === "*")
+      );
+    }
+    if (!priceRule || !Number.isFinite(Number(priceRule.credits)) || Number(priceRule.credits) < 0) {
+      throw Object.assign(new Error("Team image pricing is not configured. Ask an admin to check Live Credit Pricing."), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
+    }
+    const imageCost = Number(priceRule.credits);
+    const reservations = new Map();
+    try {
+      const { generateImageNative } = await import("./generation-native.js");
+      const generated = await generateImageNative(
+        env,
+        user,
+        { prompt: text, model: "gpt-image-1-mini", size, quality, billingOperation: operation },
+        async (uid, amount) => {
+          const reservationId = "team-image-" + crypto.randomUUID();
+          await debitTeamPoolForMember(team, member, uid, amount);
+          reservations.set(reservationId, amount);
+          return { reservationId, amount };
+        },
+        async (_uid, reservationId) => { reservations.delete(reservationId); },
+        async (uid, reservationId) => {
+          const amount = Number(reservations.get(reservationId) || 0);
+          reservations.delete(reservationId);
+          if (amount > 0) await refundTeamPoolForMember(team, member, uid, amount);
+        },
+        imageCost
+      );
+      const imageUrl = str(generated.imageUrl || "");
+      const aiId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      const attachment = imageUrl ? {
+        id: generated.generationId,
+        type: "image",
+        mediaType: "image",
+        mimeType: "image/png",
+        displayName: "BQ Sqwad AI generated image",
+        url: imageUrl,
+        storageUrl: imageUrl,
+        createdAt: now(),
+        generation: { modelId: generated.modelId, quality, size, billingOperation: operation },
+      } : null;
+      const message = "Generated your image.";
+      await firestoreSet(
+        "teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId,
+        {
+          authorUid: "ai",
+          authorName: "BQ Sqwad AI",
+          text: message,
+          attachments: attachment ? [attachment] : [],
+          generatedMedia: attachment ? [attachment] : [],
+          createdAt: now(),
+          credits: Number(generated.creditsCharged || imageCost),
+          billingOperation: operation,
+        },
+        false,
+      );
+      await firestoreSet("teams/" + teamId + "/projects/" + projectId, { lastMessageAt: now() }, true);
+      return {
+        kind: "ai",
+        creditsCharged: Number(generated.creditsCharged || imageCost),
+        message,
+        imageUrl,
+        imageBase64: generated.imageBase64,
+        noCredits: false,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Team image generation failed.";
+      const aiId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      await firestoreSet("teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId, {
+        authorUid: "ai", authorName: "BQ Sqwad AI", text: message, attachments: [], createdAt: now(), credits: 0,
+      }, false).catch(() => {});
+      throw error;
+    }
   }
 
   // Build roster + recent history for the model
