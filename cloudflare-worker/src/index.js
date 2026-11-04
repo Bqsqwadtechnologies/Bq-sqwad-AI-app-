@@ -1299,7 +1299,8 @@ async function applyConfiguredDailyFreeCredits(uid) {
   }
   let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
-  if (!everPaid && profile.dailyFreeCreditsEligibilityChecked !== true) {
+  let historyChecked = everPaid || profile.dailyFreeCreditsEligibilityChecked === true;
+  if (!everPaid && !historyChecked) {
     try {
       const [purchases, playPurchases] = await Promise.all([
         firestoreQuery("purchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 }),
@@ -1307,6 +1308,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
       ]);
       everPaid = purchases.some(p => p.status === "completed" && ["package", "subscription"].includes(String(p.kind || ""))) ||
         playPurchases.some(p => p.verified === true && ["inapp", "subs"].includes(String(p.productType || "")));
+      historyChecked = true;
     } catch { /* Current account purchase markers remain the fallback for legacy records. */ }
   }
   const now = new Date();
@@ -1319,7 +1321,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
   if (everPaid) {
     if (profile.hasEverPurchasedCredits !== true || Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
-      await firestoreCommit([{ path: "users/" + uid, data: { ...(everPaid ? { hasEverPurchasedCredits: true } : {}), dailyFreeCreditsEligibilityChecked: true, dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
+      await firestoreCommit([{ path: "users/" + uid, data: { ...(everPaid ? { hasEverPurchasedCredits: true } : {}), dailyFreeCreditsEligibilityChecked: historyChecked, dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
     }
     return;
   }
@@ -1328,7 +1330,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
   try {
     await firestoreCommit([
-      { path: "users/" + uid, data: { ...grant, dailyFreeCreditsEligibilityChecked: true, ...(everPaid ? { hasEverPurchasedCredits: true } : {}), updatedAt: now }, updateTime: profile.__updateTime },
+      { path: "users/" + uid, data: { ...grant, dailyFreeCreditsEligibilityChecked: historyChecked, ...(everPaid ? { hasEverPurchasedCredits: true } : {}), updatedAt: now }, updateTime: profile.__updateTime },
       { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, timeZone, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
       { path: "creditTransactions/daily_" + grantId, data: {
         uid, type: "grant", feature: "daily_free_credits", credits,
