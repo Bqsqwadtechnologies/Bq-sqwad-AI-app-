@@ -1402,7 +1402,11 @@ async function ensureFileBoxUploadCharged(user, uploadId) {
   } catch (error) {
     if (reservation?.reservationId) {
       const state = await firestoreGet("creditReservations/" + reservation.reservationId).catch(() => null);
-      if (state?.status !== "committed") await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+      if (state?.status === "committed") {
+        await firestoreSet(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "charged", reservationId: reservation.reservationId, creditsCharged: Number(state.amount || reservation.amount || 0), chargedAt: new Date() }, true).catch(() => {});
+        return Number(state.amount || reservation.amount || 0);
+      }
+      await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
     }
     await firestoreSet(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "failed", updatedAt: new Date() }, true).catch(() => {});
     throw error;
