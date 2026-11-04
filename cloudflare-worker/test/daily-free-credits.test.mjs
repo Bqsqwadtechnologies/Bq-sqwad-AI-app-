@@ -41,7 +41,8 @@ test("paid accounts receive the same single daily bucket", () => {
   };
   assert.equal(currentDailyFreeCredits(paidProfile, now), 0);
   const grant = dailyFreeCreditGrant(1, now, "Africa/Lagos");
-  assert.equal(grant.dailyFreeCredits, 1);
+  const updatedPaidProfile = { ...paidProfile, ...grant };
+  assert.equal(currentDailyFreeCredits(updatedPaidProfile, now), 1);
   assert.equal(grant.dailyFreeCreditsDate, "2026-01-02");
 });
 
