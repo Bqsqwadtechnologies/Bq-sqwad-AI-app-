@@ -1269,7 +1269,9 @@ function canonicalUserBalance(profile) {
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
   const trial = 0;
   const timeZone = String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  const daily = currentDailyFreeCredits(profile, new Date(), timeZone);
+  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
+    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
+  const daily = everPaid ? 0 : currentDailyFreeCredits(profile, new Date(), timeZone);
   return {
     permanent, subscription, trial, daily,
     dailyDate: String(profile.dailyFreeCreditsDate || ""),
@@ -1290,6 +1292,8 @@ async function applyConfiguredDailyFreeCredits(uid) {
   if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
+  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
+    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
   const now = new Date();
   // Keep the daily allowance date calculation identical to the website:
   // an account's persisted timezone/renewal settings take precedence over
@@ -1298,6 +1302,12 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const timeZone = String(config?.timeZone || profile.dailyFreeCreditsTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
   const renewalTime = String(config?.renewalTime || profile.dailyFreeCreditsRenewalTime || "00:00");
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
+  if (everPaid) {
+    if (Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
+      await firestoreCommit([{ path: "users/" + uid, data: { dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
+    }
+    return;
+  }
   if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
