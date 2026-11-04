@@ -676,7 +676,7 @@ function capabilityPriceOperation(name) {
   return CAPABILITY_PRICE_OPERATIONS[key] || ("feature." + key.replace(/[^a-z0-9_.-]/g, "_"));
 }
 
-async function featurePrice(name) {
+async function featurePrice(name, requestedModel = null) {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
   const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
@@ -684,7 +684,7 @@ async function featurePrice(name) {
   // whichever AI model later answers in that team conversation.
   const model = name === "team_member_message"
     ? "*"
-    : capabilityConfig?.billingModelId || capabilityConfig?.modelId || "*";
+    : String(requestedModel || capabilityConfig?.billingModelId || capabilityConfig?.modelId || "*");
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   let existing = (Array.isArray(rows) ? rows : []).find(row =>
     String(row.operation || "").trim().toLowerCase() === operation
@@ -3185,7 +3185,8 @@ export default {
         let reservation = null;
         try {
           const pdfControl = await capability(user.uid, "pdf");
-          reservation = await chargeCredits(user.uid, pdfControl.creditCost, "pdf", user);
+          const pdfCreditCost = await featurePrice("pdf", pdfControl.modelId);
+          reservation = await chargeCredits(user.uid, pdfCreditCost, "pdf", user);
           await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, {
@@ -4808,7 +4809,7 @@ export default {
             }
           }
         }
-        body.creditCost = freeImage ? 0 : control.creditCost;
+        body.creditCost = freeImage ? 0 : await featurePrice("image_generation", control.modelId);
         try {
           const result = await generateImageNative(
             env, u, body,
@@ -4838,7 +4839,7 @@ export default {
         body.model = imageModel?.modelId || control.modelId;
         body.size = body.size || imageModel?.size || control.config?.size;
         body.quality = body.quality || imageModel?.quality || control.config?.quality;
-        body.creditCost = control.creditCost;
+        body.creditCost = await featurePrice("image_edit", control.modelId);
         const result = await editImageNative(
           env, u, body,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
