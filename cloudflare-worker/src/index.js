@@ -1318,7 +1318,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const renewalTime = String(config?.renewalTime || profile.dailyFreeCreditsRenewalTime || "00:00");
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
   if (everPaid) {
-    if (Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
+    if (profile.hasEverPurchasedCredits !== true || Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
       await firestoreCommit([{ path: "users/" + uid, data: { ...(everPaid ? { hasEverPurchasedCredits: true } : {}), dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
     }
     return;
