@@ -599,6 +599,7 @@ class RealtimeVoiceSession(
         responseInProgress.set(false)
         suppressAudioUntilResponse.set(false)
         pendingVisualFrame.set(null)
+        pendingAudioResponse.set(false)
         playing.set(false)
         audioJob?.cancel()
         audioJob = null
