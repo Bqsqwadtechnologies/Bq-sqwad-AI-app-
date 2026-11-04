@@ -850,20 +850,50 @@ export async function teamsAskAi(user, body, env, billing = {}) {
   const billingSource = body?.billingSource === "personal" ? "personal" : "team";
   const balance = billingSource === "team" ? await getPoolBalance(team.creditPoolId) : Number.POSITIVE_INFINITY;
 
-  // Always store the user message first
+  // A member's prompt is still a member-authored team message. Charge its
+  // separately configured message price, then meter the AI reply at Main Chat
+  // token rates below.
+  const memberMessagePrice = typeof billing.price === "function"
+    ? Math.max(0, Number(await billing.price()) || 0)
+    : 0;
+  let memberMessageReservation = null;
+  if (memberMessagePrice > 0) {
+    if (typeof billing.reserve !== "function" || typeof billing.commit !== "function") {
+      const err = new Error("Team message billing is temporarily unavailable.");
+      err.httpStatus = 503;
+      err.safeError = "team_message_billing_unavailable";
+      throw err;
+    }
+    memberMessageReservation = await billing.reserve(user, memberMessagePrice);
+  }
+
+  // Always store the user message first; commit its message charge only after
+  // the write succeeds. Reverse the reservation if persistence fails.
   const userMsgId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
   const ts = now();
-  await firestoreSet(
-    "teams/" + teamId + "/projects/" + projectId + "/messages/" + userMsgId,
-    {
-      authorUid: user.uid,
-      authorName: member.displayName,
-      text,
-      attachments: [],
-      createdAt: ts,
-    },
-    false,
-  );
+  try {
+    await firestoreSet(
+      "teams/" + teamId + "/projects/" + projectId + "/messages/" + userMsgId,
+      {
+        authorUid: user.uid,
+        authorName: member.displayName,
+        text,
+        attachments: [],
+        createdAt: ts,
+        memberMessagePriceCredits: memberMessagePrice,
+        creditsCharged: Number(memberMessageReservation?.amount || 0),
+      },
+      false,
+    );
+    if (memberMessageReservation?.reservationId) {
+      await billing.commit(user.uid, memberMessageReservation.reservationId);
+    }
+  } catch (error) {
+    if (memberMessageReservation?.reservationId && typeof billing.reverse === "function") {
+      await billing.reverse(user.uid, memberMessageReservation.reservationId).catch(() => {});
+    }
+    throw error;
+  }
 
   if (balance <= 0) {
     const msg =
@@ -913,8 +943,8 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     "Current speaker: " + member.displayName + ".",
   ].join("\n");
 
-  // BQ Team AI uses the same GPT-6 model token card as Main Chat.
-  // Usage is normalized from the provider response before any team credits move.
+  // BQ Team AI is fixed to BQ-7-Star. Its response uses Main Chat's exact
+  // model-specific token-credit rates; it has no separate team-AI token price.
   let replyText = "";
   let inputTokens = 0;
   let cachedInputTokens = 0;
@@ -942,11 +972,19 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     cachedInputTokens = usage.cachedInputTokens;
     outputTokens = usage.outputTokens;
     if (inputTokens + outputTokens <= 0) throw new Error("provider_usage_unavailable");
+    const actualProvider = String(result.providerId || "openai").toLowerCase();
+    const actualModel = String(result.modelId || "gpt-6-luna");
+    if (actualProvider !== "openai" || actualModel !== "gpt-6-luna") {
+      throw new Error("team_ai_model_mismatch");
+    }
+    const chatPricingControl = typeof billing.chatPricingControl === "function"
+      ? await billing.chatPricingControl(user)
+      : { customerClass: "paid" };
     const pricing = await resolveTokenPricing(
-      result.providerId || "openai",
-      result.modelId || "gpt-6-luna",
-      "team_chat",
-      {}
+      "openai",
+      "gpt-6-luna",
+      "chat",
+      chatPricingControl
     );
     const calculation = calculateTokenCost({ usage, pricing });
     creditsCharged = num(calculation.customerCredits);
@@ -955,18 +993,6 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     settlementError = String(error?.message || "team_usage_settlement_failed");
   }
 
-  if (providerSucceeded && !settlementError && creditsCharged > 0) {
-    try {
-      if (billingSource === "personal") {
-        if (typeof billing.personalCharge !== "function") throw new Error("Personal billing is unavailable.");
-        await billing.personalCharge(user, creditsCharged);
-      } else {
-        await debitTeamPoolForMember(team, member, user.uid, creditsCharged);
-      }
-    } catch (error) {
-      settlementError = String(error?.message || "team_credit_settlement_failed");
-    }
-  }
   if (settlementError) {
     creditsCharged = 0;
     replyText = settlementError === "provider_usage_unavailable"
