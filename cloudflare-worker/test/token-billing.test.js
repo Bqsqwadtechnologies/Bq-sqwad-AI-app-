@@ -194,10 +194,11 @@ test("team AI resolves Main Chat token rules without using a separate team price
   assert.equal(pricingFeatureAliases("chat").has("team_chat"), false);
 });
 
-test("team chat and deep research are eligible for shared model token metering", async () => {
+test("team chat is token-metered while deep research remains fixed-price", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
-  assert.match(source, /"team_chat"[^\]]*"deep_research"/s);
+  assert.match(source, /"team_chat"/);
+  assert.doesNotMatch(source, /isTokenMeteredFeature = \[[^\]]*"deep_research"/s);
 });
 
 test("token pricing selects free and paid rules independently and prefers the exact class", async () => {
