@@ -932,6 +932,33 @@ async function imageGenerationCreditPrice(size, quality, model) {
   return { credits: Number(rule.credits), operation, ruleVersion: Number(rule.version || 1) };
 }
 
+const DEEP_RESEARCH_PRICE_MARKER = "adminAdvancedOptions/bq_deep_research_fixed_7_v2";
+async function ensureDeepResearchPrice() {
+  const marker = await firestoreGet(DEEP_RESEARCH_PRICE_MARKER).catch(() => null);
+  if (marker?.applied === true) return;
+  const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  const researchRows = (Array.isArray(rows) ? rows : []).filter(row =>
+    String(row.operation || "").trim().toLowerCase() === "web.research"
+  );
+  const existing = researchRows.find(row => !row.model || String(row.model).trim() === "*");
+  const id = String(existing?.id || String(existing?.__name || "").split("/").pop() || "default-web-research");
+  for (const duplicate of researchRows) {
+    const duplicateId = String(duplicate.id || String(duplicate.__name || "").split("/").pop() || "");
+    if (duplicateId && duplicateId !== id) await firestoreDelete("generationCostRules/" + duplicateId).catch(() => {});
+  }
+  const version = Math.max(1, Number(existing?.version || 0) + (existing ? 1 : 0));
+  await firestoreSet("generationCostRules/" + id, {
+    ...(existing || {}), id, operation: "web.research", model: "*", label: "Deep research",
+    credits: 7, creditsPerUnit: 0, unit: "none", status: "active", version,
+    updatedAt: new Date().toISOString()
+  }, true);
+  await firestoreSet("adminAdvancedOptions/capability_deep_research", {
+    name: "deep_research", creditCost: 7, pricingRuleId: id, pricingRuleVersion: version,
+    updatedAt: new Date().toISOString()
+  }, true);
+  await firestoreSet(DEEP_RESEARCH_PRICE_MARKER, { applied: true, version: 2, updatedAt: new Date().toISOString() }, true);
+}
+
 async function featurePrice(name, requestedModel = null) {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
