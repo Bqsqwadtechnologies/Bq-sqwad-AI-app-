@@ -872,20 +872,26 @@ async function ensureImageGenerationTierDefaults() {
   if (marker?.applied === true && Number(marker.version) >= 4) { imageTierSeeded = true; return; }
   const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   for (const item of IMAGE_GENERATION_TIER_DEFAULTS) {
-    const existing = (Array.isArray(rows) ? rows : []).find(row => String(row.operation || "").trim().toLowerCase() === item.operation && (!row.model || String(row.model).trim() === "*"));
+    const matching = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === item.operation);
+    const existing = matching.find(row => !row.model || String(row.model).trim() === "*");
+    let canonicalId;
     if (existing) {
+      canonicalId = String(existing.id || String(existing.__name || "").split("/").pop());
       if (existing.seededDefaultVersion && Number(existing.version || 1) <= 1) {
-        const existingId = String(existing.id || String(existing.__name || "").split("/").pop());
-        await firestoreSet("generationCostRules/" + existingId, {
+        await firestoreSet("generationCostRules/" + canonicalId, {
           ...existing, operation: item.operation, model: "*", label: item.label,
           credits: 0, creditsPerUnit: 0, unit: "none", status: "active",
           version: 2, seededDefaultVersion: 2, updatedAt: new Date().toISOString()
         }, true);
       }
-      continue;
+    } else {
+      canonicalId = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
+      await firestoreSet("generationCostRules/" + canonicalId, { id: canonicalId, operation: item.operation, model: "*", label: item.label, credits: 0, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 2, updatedAt: new Date().toISOString() }, true);
     }
-    const id = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
-    await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: 0, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 2, updatedAt: new Date().toISOString() }, true);
+    for (const duplicate of matching) {
+      const duplicateId = String(duplicate.id || String(duplicate.__name || "").split("/").pop() || "");
+      if (duplicateId && duplicateId !== canonicalId) await firestoreDelete("generationCostRules/" + duplicateId).catch(() => {});
+    }
   }
   const generationRows = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === "image.generate");
   const generationPrimary = generationRows.find(row => !row.model || String(row.model).trim() === "*");
