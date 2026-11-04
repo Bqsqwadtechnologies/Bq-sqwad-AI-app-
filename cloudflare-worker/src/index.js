@@ -5265,15 +5265,17 @@ export default {
         await applyConfiguredDailyFreeCredits(u.uid);
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
         body.creditCost = imagePrice.credits;
-        body.billingOperation = imagePrice.operation;
+        body.billingOperation = "image.generate";
+        const imageTokenPricing = await resolveTokenPricing("openai", body.model, "image_generation", control);
         const result = await generateImageNative(
           env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, {}),
+          (uid, cost, name, user) => chargeCredits(uid, Math.max(0.000001, cost), name, user, { allowFractional: true }),
           (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
           (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
-          body.creditCost
+          body.creditCost, imageTokenPricing,
+          (uid, id, amount, provider) => settleCreditReservation(uid, id, amount, provider)
         );
-        return json({ ...result, billingUnit: "image", billingOperation: imagePrice.operation });
+        return json({ ...result, billingUnit: "token", billingOperation: "image.generate" });
       }
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
@@ -5290,14 +5292,17 @@ export default {
         await applyConfiguredDailyFreeCredits(u.uid);
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
         body.creditCost = imagePrice.credits;
-        body.billingOperation = imagePrice.operation;
+        body.billingOperation = "image.edit";
+        const imageTokenPricing = await resolveTokenPricing("openai", body.model, "image_edit", control);
         const result = await editImageNative(
-          env, u, body,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
+          env, u, body,
+          (uid, cost, name, user) => chargeCredits(uid, Math.max(0.000001, cost), name, user, { allowFractional: true }),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id),
-          body.creditCost
+          body.creditCost, imageTokenPricing,
+          (uid, id, amount, provider) => settleCreditReservation(uid, id, amount, provider)
         );
-        return json({ ...result, billingUnit: "image", billingOperation: imagePrice.operation });
+        return json({ ...result, billingUnit: "token", billingOperation: "image.edit" });
       }
       if (url.pathname === "/ai/video" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
