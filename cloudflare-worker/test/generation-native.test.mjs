@@ -111,7 +111,7 @@ test("image editing ignores client-supplied credit prices and delegates pricing 
       async () => {}, async () => { reversed = true; }, 2.75
     ), /OpenAI HTTP 400/);
     assert.equal(chargeArgs[1], 2.75);
-    assert.equal(chargeArgs[2], "image_generation");
+    assert.equal(chargeArgs[2], "image_edit");
     assert.equal(reversed, true);
   } finally { globalThis.fetch = originalFetch; }
 });
