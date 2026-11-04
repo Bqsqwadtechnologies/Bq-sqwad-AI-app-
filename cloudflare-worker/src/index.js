@@ -5732,15 +5732,15 @@ export default {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
         const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
-        return json({ enabled: config == null ? true : config.enabled === true, credits: Math.max(0, Math.min(100000, Number(config?.credits ?? 5))), resetTimeZone: "UTC" });
+        return json({ enabled: config == null ? true : config.enabled === true, credits: Math.max(0, Math.min(1, Number(config?.credits ?? 1))), resetTimeZone: "UTC" });
       }
       if (url.pathname === "/admin/daily-free-credits" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
         const body = await readBody(request);
         const credits = Number(body.credits);
-        if (!Number.isInteger(credits) || credits < 0 || credits > 100000) {
-          return json({ error: "daily_free_credits_must_be_an_integer_between_0_and_100000" }, 400);
+        if (!Number.isInteger(credits) || credits < 0 || credits > 1) {
+          return json({ error: "daily_free_credits_must_be_0_or_1" }, 400);
         }
         const config = { id: "daily_free_credits_config", enabled: body.enabled === true, credits, updatedBy: user.uid, updatedAt: new Date(), resetTimeZone: "UTC" };
         await firestoreSet("adminAdvancedOptions/daily_free_credits_config", config, true);
