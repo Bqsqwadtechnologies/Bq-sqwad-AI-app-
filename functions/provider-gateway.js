@@ -9,8 +9,8 @@ const DEFAULT_MODELS = {
 const OPENAI_MODEL_BY_CAPABILITY = {
   chat: "gpt-6-luna",
   vision: "gpt-6-luna",
-  image_generation: "gpt-image-1-mini",
-  image_edit: "gpt-image-1-mini",
+  image_generation: "gpt-image-2.5-sunburst",
+  image_edit: "gpt-image-2.5-sunburst",
   live_camera: "gpt-realtime-2.1-mini",
   live_voice: "gpt-realtime-2.1-mini",
   device_commands: "gpt-6-luna",
