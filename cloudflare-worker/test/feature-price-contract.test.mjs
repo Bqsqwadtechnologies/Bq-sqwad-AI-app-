@@ -55,21 +55,15 @@ test("text capabilities are token-metered rather than charged as fixed feature p
 });
 
 
-test("image generation is priced by the exact requested size and quality tier", () => {
+test("image generation quality tiers are zero-priced preflight rules because actual provider tokens determine credits", () => {
   assert.match(source, /function imageGenerationPriceOperation\(size, quality\)/);
   assert.match(source, /image\.generate\." \+ normalizedQuality \+ "\." \+ shape/);
-  assert.ok(source.includes('"operation": "image.generate.low.square"'));
-  assert.ok(source.includes('"credits": 0.292'));
-  assert.ok(source.includes('"operation": "image.generate.low.rectangle"'));
-  assert.ok(source.includes('"credits": 0.35'));
-  assert.ok(source.includes('"operation": "image.generate.medium.square"'));
-  assert.ok(source.includes('"credits": 0.642'));
-  assert.ok(source.includes('"operation": "image.generate.medium.rectangle"'));
-  assert.ok(source.includes('"credits": 0.875'));
-  assert.ok(source.includes('"operation": "image.generate.high.square"'));
-  assert.ok(source.includes('"credits": 2.1'));
-  assert.ok(source.includes('"operation": "image.generate.high.rectangle"'));
-  assert.ok(source.includes('"credits": 3.033'));
+  for (const tier of ["low", "medium", "high"]) {
+    for (const shape of ["square", "rectangle"]) {
+      assert.ok(source.includes(`operation: "image.generate.${tier}.${shape}"`));
+    }
+  }
+  assert.match(source, /label: "Image generation · (?:Low|Medium|High) · token-metered", credits: 0, creditsPerUnit: 0, unit: "none"/);
   assert.match(source, /body\.size = String\(body\.size\)\.toLowerCase\(\) === "auto" \? "1024x1024"/);
   assert.match(source, /body\.quality = String\(body\.quality\)\.toLowerCase\(\) === "auto" \? "medium"/);
 });
