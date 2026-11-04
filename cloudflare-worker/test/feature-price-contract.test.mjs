@@ -28,8 +28,11 @@ test("shared generation defaults use baked customer credit prices and preserve e
 test("image generation, image edit, and background upload read admin prices rather than route literals", () => {
   assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
   assert.match(source, /body\.creditCost = imagePrice\.credits/);
-  assert.match(source, /body\.billingOperation = imagePrice\.operation/);
-  assert.match(source, /billingUnit: "image", billingOperation: imagePrice\.operation/);
+  assert.match(source, /body\.billingOperation = "image\.generate"/);
+  assert.match(source, /resolveTokenPricing\("openai", body\.model, "image_generation", control\)/);
+  assert.match(source, /resolveTokenPricing\("openai", body\.model, "image_edit", control\)/);
+  assert.match(source, /billingUnit: "token", billingOperation: "image\.generate"/);
+  assert.match(source, /billingUnit: "token", billingOperation: "image\.edit"/);
   assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
   assert.match(source, /body\.creditCost = imagePrice\.credits/);
   assert.match(source, /const pdfCreditCost = await featurePrice\("pdf", pdfControl\.modelId\)/);
