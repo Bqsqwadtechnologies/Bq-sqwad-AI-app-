@@ -65,6 +65,6 @@ test("image generation is priced by the exact requested size and quality tier", 
   assert.ok(source.includes('"credits": 2.1'));
   assert.ok(source.includes('"operation": "image.generate.high.rectangle"'));
   assert.ok(source.includes('"credits": 3.033'));
-  assert.match(source, /if \(String\(body\.size\)\.toLowerCase\(\) === "auto"\) body\.size = "1024x1024"/);
-  assert.match(source, /if \(String\(body\.quality\)\.toLowerCase\(\) === "auto"\) body\.quality = "medium"/);
+  assert.match(source, /body\.size = String\(body\.size\)\.toLowerCase\(\) === "auto" \? "1024x1024"/);
+  assert.match(source, /body\.quality = String\(body\.quality\)\.toLowerCase\(\) === "auto" \? "medium"/);
 });
