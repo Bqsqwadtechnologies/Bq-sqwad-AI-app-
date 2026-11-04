@@ -5066,43 +5066,17 @@ export default {
         // Auto modes are normalized to the medium square default so the charge is deterministic.
         body.size = String(body.size).toLowerCase() === "auto" ? "1024x1024" : String(body.size).toLowerCase();
         body.quality = String(body.quality).toLowerCase() === "auto" ? "medium" : String(body.quality).toLowerCase();
-        const account = await firestoreGet("users/" + u.uid);
-        const createdAtRaw = account?.createdAt;
-        const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
-        const isNewAccount = Number.isFinite(createdAt) && createdAt >= Date.parse("2026-10-25T00:00:00.000Z") && Date.now() >= createdAt;
-        const claimId = crypto.randomUUID();
-        let freeImage = false;
-        if (isNewAccount) {
-          try {
-            await firestoreCreate("freeImageClaims/" + u.uid, { uid: u.uid, requestId: claimId, claimedAt: new Date().toISOString(), source: "android" });
-            freeImage = true;
-          } catch (claimError) {
-            if (!/ALREADY_EXISTS|already exists|409/i.test(String(claimError?.message || claimError))) {
-              throw new Error("We couldn't verify your one-time free image. Please try again shortly.");
-            }
-          }
-        }
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
-        body.creditCost = freeImage ? 0 : imagePrice.credits;
+        body.creditCost = imagePrice.credits;
         body.billingOperation = imagePrice.operation;
-        try {
-          const result = await generateImageNative(
-            env, u, body,
-            (uid, cost, name, user) => freeImage
-              ? Promise.resolve({ reservationId: null, amount: 0, freeImage: true })
-              : chargeCredits(uid, cost, name, user, {}),
-            (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
-            (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
-            body.creditCost
-          );
-          return json({ ...result, freeImage, creditsCharged: freeImage ? 0 : imagePrice.credits, billingUnit: "image", billingOperation: imagePrice.operation });
-        } catch (imageError) {
-          if (freeImage) {
-            const claim = await firestoreGet("freeImageClaims/" + u.uid).catch(() => null);
-            if (claim?.requestId === claimId) await firestoreDelete("freeImageClaims/" + u.uid).catch(() => {});
-          }
-          throw imageError;
-        }
+        const result = await generateImageNative(
+          env, u, body,
+          (uid, cost, name, user) => chargeCredits(uid, cost, name, user, {}),
+          (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
+          (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
+          body.creditCost
+        );
+        return json({ ...result, billingUnit: "image", billingOperation: imagePrice.operation });
       }
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
