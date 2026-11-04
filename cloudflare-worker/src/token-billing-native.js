@@ -205,6 +205,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // those as aliases so a scoped website price rule is not silently skipped.
   if (featureAliases.has("chat")) featureAliases.add("text-chat");
   if (featureAliases.has("text-chat")) featureAliases.add("chat");
+  // Team AI replies share Main Chat's customer token-credit rates.
+  if (featureAliases.has("team_chat")) {
+    featureAliases.add("chat");
+    featureAliases.add("text-chat");
+  }
   const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
     if (!matchesCustomerClass(rule, control.customerClass || "paid")) return false;
