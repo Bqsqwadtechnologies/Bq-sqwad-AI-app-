@@ -5107,21 +5107,25 @@ export default {
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
-        let control = await capability(u.uid, "image_edit");
+        let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
         if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
         body.model = imageModel?.modelId || control.modelId;
-        body.size = body.size || imageModel?.size || control.config?.size;
-        body.quality = body.quality || imageModel?.quality || control.config?.quality;
-        body.creditCost = await featurePrice("image_edit", control.modelId);
+        body.size = body.size || imageModel?.size || control.config?.size || "1024x1024";
+        body.quality = body.quality || imageModel?.quality || control.config?.quality || "medium";
+        body.size = String(body.size).toLowerCase() === "auto" ? "1024x1024" : String(body.size).toLowerCase();
+        body.quality = String(body.quality).toLowerCase() === "auto" ? "medium" : String(body.quality).toLowerCase();
+        const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
+        body.creditCost = imagePrice.credits;
+        body.billingOperation = imagePrice.operation;
         const result = await editImageNative(
           env, u, body,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
           (uid, id, provider) => commitCredits(uid, id, provider),
           (uid, id) => reverseCredits(uid, id),
           body.creditCost
         );
-        return json(result);
+        return json({ ...result, billingUnit: "image", billingOperation: imagePrice.operation });
       }
       if (url.pathname === "/ai/video" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
