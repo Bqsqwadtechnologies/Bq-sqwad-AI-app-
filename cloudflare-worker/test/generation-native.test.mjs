@@ -74,7 +74,7 @@ test("generated image payload validation accepts PNG and rejects malformed bytes
 });
 
 
-test("image generation ignores client-supplied credit prices and delegates pricing to the Worker", async () => {
+test("image generation ignores client-supplied prices and uses only the tiny preflight reservation before token settlement", async () => {
   let chargeArgs = null;
   let reversed = false;
   const restoreFetch = installImageTestFetch(async () => new Response(JSON.stringify({ error: { message: "test-stop-before-provider" } }), { status: 400 }));
@@ -85,7 +85,7 @@ test("image generation ignores client-supplied credit prices and delegates prici
       async (...args) => { chargeArgs = args; return { reservationId: "test-reservation", amount: 3 }; },
       async () => {}, async () => { reversed = true; }
     ), /OpenAI HTTP 400/);
-    assert.equal(chargeArgs[1], 0);
+    assert.equal(chargeArgs[1], 0.00001);
     assert.equal(chargeArgs[2], "image_generation");
     assert.equal(reversed, true);
   } finally { restoreFetch(); }
