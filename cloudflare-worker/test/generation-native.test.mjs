@@ -87,12 +87,12 @@ test("image generation uses the website-selected allowed model, size, and qualit
   try {
     await assert.rejects(generateImageNative(
       { OPENAI_API_KEY: "test" }, { uid: "user-test" },
-      { prompt: "A blue bird", model: "gpt-image-1-mini", size: "1024x1536", quality: "high" },
+      { prompt: "A blue bird", model: "gpt-image-2.5-sunburst", size: "1024x1536", quality: "high" },
       async () => ({ reservationId: "test-reservation", amount: 3 }),
       async () => {}, async () => { reversed = true; }
     ), /OpenAI HTTP 400/);
     assert.deepEqual(providerPayload, {
-      model: "gpt-image-1-mini", prompt: "A blue bird", size: "1024x1536", quality: "high"
+      model: "gpt-image-2.5-sunburst", prompt: "A blue bird", size: "1024x1536", quality: "high"
     });
     assert.equal(reversed, true);
   } finally { globalThis.fetch = originalFetch; }
