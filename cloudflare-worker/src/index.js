@@ -1064,6 +1064,7 @@ async function migrateLegacyGenerationRule(operation, existingRows = []) {
 async function activeGenerationRule(operation, model = "*") {
   await seedAdminPricingDefaults();
   const key = String(operation || "").trim().toLowerCase();
+  if (key === "web.research") await ensureDeepResearchPrice();
   const requestedModel = String(model || "*").trim().toLowerCase();
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   if (!(Array.isArray(rows) ? rows : []).some(row => String(row.operation || "").trim().toLowerCase() === key)) {
