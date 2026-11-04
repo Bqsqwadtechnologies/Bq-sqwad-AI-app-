@@ -4141,39 +4141,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     confirmButton = { TextButton(onClick = { pastedTextPreview = null }) { Text("Close") } }
                 )
             }
-            if (!dictationUiActive && attachments.isNotEmpty()) {
-                LazyRow(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
-                ) {
-                    items(attachments.size) { index ->
-                        val attachment = attachments[index]
-                        val remove = { attachments = attachments.filterIndexed { itemIndex, _ -> itemIndex != index } }
-                        if (attachment.mimeType.startsWith("image/") && attachment.imageBase64 != null) {
-                            PendingImageThumbnail(attachment, remove)
-                        } else {
-                            InputChip(
-                                selected = true,
-                                onClick = {
-                                    if (attachment.name.startsWith("pasted-text-") && attachment.text != null) {
-                                        pastedTextPreviewName = attachment.name
-                                        pastedTextPreview = attachment.text
-                                    } else remove()
-                                },
-                                label = {
-                                    val lineCount = attachment.text?.count { it == '\n' }?.plus(1)
-                                    Text(
-                                        if (attachment.name.startsWith("pasted-text-") && lineCount != null) "${attachment.name} · ${lineCount} lines" else attachment.name,
-                                        maxLines = 1
-                                    )
-                                },
-                                trailingIcon = { Icon(Icons.Default.Close, "Remove attachment", Modifier.clickable(onClick = remove)) }
-                            )
-                        }
-                    }
-                }
-            }
 val composerShape = RoundedCornerShape(26.dp)
             val pulse by rememberInfiniteTransition(label = "composerPulse").animateFloat(
                 initialValue = 0f,
@@ -4195,38 +4162,46 @@ val composerShape = RoundedCornerShape(26.dp)
                 horizontalAlignment = if (dictationUiActive) Alignment.CenterHorizontally else Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                if (!dictationUiActive) Surface(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .border(
-                            2.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.75f + pulse * 0.25f),
-                            CircleShape
-                        ),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    shadowElevation = 18.dp
-                ) {
-                    IconButton(
-                        onClick = openFeatures,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Open AI Features",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(34.dp)
-                        )
-                    }
-                }
-
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().border(2.dp, composerBlue, composerShape),
                     shape = composerShape,
-                    color = Color.Transparent,
-                    shadowElevation = 0.dp
+                    color = Color.White,
+                    shadowElevation = 12.dp
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    if (!dictationUiActive && attachments.isNotEmpty()) {
+                        LazyRow(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
+                        ) {
+                            items(attachments.size) { index ->
+                                val attachment = attachments[index]
+                                val remove = { attachments = attachments.filterIndexed { itemIndex, _ -> itemIndex != index } }
+                                if (attachment.mimeType.startsWith("image/") && attachment.imageBase64 != null) {
+                                    PendingImageThumbnail(attachment, remove)
+                                } else {
+                                    InputChip(
+                                        selected = true,
+                                        onClick = {
+                                            if (attachment.name.startsWith("pasted-text-") && attachment.text != null) {
+                                                pastedTextPreviewName = attachment.name
+                                                pastedTextPreview = attachment.text
+                                            } else remove()
+                                        },
+                                        label = {
+                                            val lineCount = attachment.text?.count { it == '\n' }?.plus(1)
+                                            Text(
+                                                if (attachment.name.startsWith("pasted-text-") && lineCount != null) "${attachment.name} · ${lineCount} lines" else attachment.name,
+                                                maxLines = 1
+                                            )
+                                        },
+                                        trailingIcon = { Icon(Icons.Default.Close, "Remove attachment", Modifier.clickable(onClick = remove)) }
+                                    )
+                                }
+                            }
+                        }
+                    }
                         if (dictationRecording || isListening) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(
@@ -4333,140 +4308,161 @@ val composerShape = RoundedCornerShape(26.dp)
                                 .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
                         ) {
                         Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(composerShape)
-                                .background(Color.White)
-                                .border(1.dp, composerBlue, composerShape),
-                            verticalAlignment = Alignment.CenterVertically
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            IconButton(
-                                onClick = {
-                                    micError = null
-                                    when {
-                                        dictationRecording -> stopDictation()
-                                        isListening -> speechRecognizer?.stopListening()
-                                        else -> speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }
-                                },
-                                enabled = !busy && !dictationTranscribing,
-                                modifier = Modifier.size(36.dp)
+                            Column(
+                                modifier = Modifier.width(36.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Icon(
-                                    if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
-                                    contentDescription = when {
-                                        dictationRecording -> "Stop recording"
-                                        isListening -> "Stop phone speech recognition"
-                                        else -> "Start voice dictation"
+                                IconButton(
+                                    onClick = {
+                                        micError = null
+                                        when {
+                                            dictationRecording -> stopDictation()
+                                            isListening -> speechRecognizer?.stopListening()
+                                            else -> speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        }
                                     },
-                                    tint = MaterialTheme.colorScheme.primary
+                                    enabled = !busy && !dictationTranscribing,
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
+                                        contentDescription = when {
+                                            dictationRecording -> "Stop recording"
+                                            isListening -> "Stop phone speech recognition"
+                                            else -> "Start voice dictation"
+                                        },
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(21.dp)
+                                    )
+                                }
+                                PlusAttachmentButton(
+                                    enabled = true,
+                                    onAction = { action ->
+                                        when (action) {
+                                            PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
+                                                showAttachmentSourceDialog = true
+                                            else -> Unit
+                                        }
+                                    }
                                 )
                             }
-
-                        OutlinedTextField(
-                            value = message,
-                            onValueChange = { value ->
-                                micError = null
-                                val newLineCount = if (value.isBlank()) 0 else value.count { it == '\n' } + 1
-                                val oldLineCount = if (message.isBlank()) 0 else message.count { it == '\n' } + 1
-                                val looksLikePaste = newLineCount - oldLineCount >= 20 || value.length - message.length >= 1000
-                                if (newLineCount >= PASTE_TO_FILE_LINE_THRESHOLD && looksLikePaste) {
-                                    val bytes = value.toByteArray(Charsets.UTF_8)
-                                    attachments = attachments + PreparedChatAttachment(
-                                        name = "pasted-text-${System.currentTimeMillis()}.txt",
-                                        mimeType = "text/plain",
-                                        text = value,
-                                        fileBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Box(Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = message,
+                                        onValueChange = { value ->
+                                            micError = null
+                                            val newLineCount = if (value.isBlank()) 0 else value.count { it == '\n' } + 1
+                                            val oldLineCount = if (message.isBlank()) 0 else message.count { it == '\n' } + 1
+                                            val looksLikePaste = newLineCount - oldLineCount >= 20 || value.length - message.length >= 1000
+                                            if (newLineCount >= PASTE_TO_FILE_LINE_THRESHOLD && looksLikePaste) {
+                                                val bytes = value.toByteArray(Charsets.UTF_8)
+                                                attachments = attachments + PreparedChatAttachment(
+                                                    name = "pasted-text-\${System.currentTimeMillis()}.txt",
+                                                    mimeType = "text/plain",
+                                                    text = value,
+                                                    fileBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                                                )
+                                                message = ""
+                                            } else {
+                                                message = value
+                                            }
+                                        },
+                                        enabled = true,
+                                        placeholder = {
+                                            Text("Message BQ Sqwad AI", color = Color.DarkGray)
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 50.dp)
+                                            .padding(end = 34.dp)
+                                            .onFocusChanged { state ->
+                                                if (state.isFocused) keyboardController?.show()
+                                            },
+                                        minLines = 1,
+                                        maxLines = 6,
+                                        textStyle = LocalTextStyle.current.copy(
+                                            color = Color.Black,
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.Black,
+                                            unfocusedTextColor = Color.Black,
+                                            disabledTextColor = Color.Black,
+                                            focusedBorderColor = Color.Transparent,
+                                            unfocusedBorderColor = Color.Transparent,
+                                            disabledBorderColor = Color.Transparent,
+                                            errorBorderColor = Color.Transparent,
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                            disabledContainerColor = Color.Transparent
+                                        )
                                     )
-                                    message = ""
-                                } else {
-                                    message = value
-                                }
-                            },
-                            enabled = true,
-                            placeholder = {
-                                Text(
-                                    "Message BQ Sqwad AI",
-                                    color = Color.DarkGray
-                                )
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .onFocusChanged { state ->
-                                    if (state.isFocused) keyboardController?.show()
-                                },
-                            minLines = 1,
-                            maxLines = 6,
-                            textStyle = LocalTextStyle.current.copy(
-                                color = Color.Black,
-                                fontWeight = FontWeight.Medium
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                disabledTextColor = Color.Black,
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                disabledBorderColor = Color.Transparent,
-                                errorBorderColor = Color.Transparent,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent
-                            )
-                        )
-
-                        IconButton(
-                            enabled = busy || (message.isNotBlank() || attachments.isNotEmpty()),
-                            onClick = {
-                                if (busy) {
-                                    streamJob?.cancel()
-                                    return@IconButton
-                                }
-                                val text = message.trim()
-                                if (FirebaseAuth.getInstance().currentUser == null) {
-                                    showAuth = true
-                                    return@IconButton
-                                }
-                                sendAuthenticatedMessage(text)
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                if (busy) Icons.Default.Stop else Icons.Default.Send,
-                                contentDescription = if (busy) "Stop generating" else "Send",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(21.dp)
-                            )
-                        }
-                        }
-                        Row(
-                            Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp, bottom = 1.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            PlusAttachmentButton(
-                                enabled = true,
-                                onAction = { action ->
-                                    when (action) {
-                                        PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
-                                            showAttachmentSourceDialog = true
-                                        else -> Unit
+                                    IconButton(
+                                        onClick = openFeatures,
+                                        modifier = Modifier.align(Alignment.TopEnd).size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            contentDescription = "Open more AI features",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
                                     }
                                 }
-                            )
-                            ModelSelector(
-                                selectedKey = selectedModelKey,
-                                onSelect = { selectedModelKey = it.modelKey },
-                                onBuyCredits = { }
-                            )
-                            if (chatIncludedInPlan) {
-                                Text(
-                                    "Included in your plan",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Row(
+                                    Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    ModelSelector(
+                                        selectedKey = selectedModelKey,
+                                        onSelect = { selectedModelKey = it.modelKey },
+                                        onBuyCredits = { }
+                                    )
+                                    if (chatIncludedInPlan) {
+                                        Text(
+                                            "Included in your plan",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    IconButton(
+                                        enabled = busy || message.isNotBlank() || attachments.isNotEmpty(),
+                                        onClick = {
+                                            if (busy) {
+                                                streamJob?.cancel()
+                                                return@IconButton
+                                            }
+                                            val text = message.trim()
+                                            if (FirebaseAuth.getInstance().currentUser == null) {
+                                                showAuth = true
+                                                return@IconButton
+                                            }
+                                            sendAuthenticatedMessage(text)
+                                        },
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Icon(
+                                            if (busy) Icons.Default.Stop else Icons.Default.Send,
+                                            contentDescription = if (busy) "Stop generating" else "Send",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
                             }
+                        }
                         }
                         }
                     }
