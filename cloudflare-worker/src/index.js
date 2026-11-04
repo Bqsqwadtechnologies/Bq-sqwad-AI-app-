@@ -742,10 +742,10 @@ const ADMIN_SEED_DEFAULTS = [
   },
   {
     "operation": "web.search",
-    "label": "Web search",
-    "credits": 25.5,
-    "creditsPerUnit": 0,
-    "unit": "none"
+    "label": "Tavily search · per returned website",
+    "credits": 0,
+    "creditsPerUnit": 0.2,
+    "unit": "page"
   },
   {
     "operation": "web.research",
@@ -791,8 +791,8 @@ const ADMIN_SEED_DEFAULTS = [
   },
   {
     "operation": "feature.connector_action",
-    "label": "Connector action",
-    "credits": 2.189325,
+    "label": "Connector action · per call",
+    "credits": 0.4,
     "creditsPerUnit": 0,
     "unit": "none"
   },
@@ -804,7 +804,7 @@ const ADMIN_SEED_DEFAULTS = [
     "unit": "none"
   }
 ];
-const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v2";
+const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v3";
 const PRESERVE_EXISTING_DEFAULTS = new Set(["image.generate", "chat.background_upload", "team.member_message"]);
 let adminPricingSeeded = false;
 let adminPricingSeedAttemptedAt = 0;
@@ -1086,7 +1086,7 @@ async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 2) {
+  if (marker?.applied === true && Number(marker.version) >= 3) {
     adminPricingSeeded = true;
     return;
   }
@@ -1112,7 +1112,7 @@ async function seedAdminPricingDefaults() {
       unit: defaults.unit,
       status: "active",
       version: Math.max(1, Number(existing?.version || 0) + (existing ? 1 : 0)),
-      seededDefaultVersion: 2,
+      seededDefaultVersion: 3,
       updatedAt: new Date().toISOString()
     }, true);
   }
@@ -6076,14 +6076,22 @@ export default {
         const capabilityName = deepResearch ? "deep_research" : "web_search";
         const control = await capability(user.uid, capabilityName);
         const searchRule = await activeGenerationRule(deepResearch ? "web.research" : "web.search");
-        const charge = searchRule.credits + (searchRule.unit === "none" ? 0 : searchRule.creditsPerUnit);
-        // The search-provider fee is a separate, explicitly configured charge.
-        // A configured zero fee must not fall through to the legacy capability price.
-        const reservation = charge > 0
-          ? await chargeCredits(user.uid, charge, capabilityName, user)
-          : { reservationId: null, amount: 0 };
+        // Tavily usage is priced by unique returned websites: 0.2 credits each.
+        // Deep research keeps its existing fixed rule and is not altered here.
+        let reservation = { reservationId: null, amount: 0 };
         try {
           const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
+          const uniqueSites = new Set();
+          for (const source of result.sources || []) {
+            try {
+              const hostname = new URL(String(source.url || "")).hostname.toLowerCase().replace(/^www\\./, "");
+              if (hostname) uniqueSites.add(hostname);
+            } catch {}
+          }
+          const charge = deepResearch
+            ? searchRule.credits + (searchRule.unit === "none" ? 0 : searchRule.creditsPerUnit)
+            : searchRule.credits + searchRule.creditsPerUnit * uniqueSites.size;
+          if (charge > 0) reservation = await chargeCredits(user.uid, charge, capabilityName, user);
           let answer = null;
           if (deepResearch && result.sources?.length) {
             const sources = result.sources.map((s,i) => "[" + (i + 1) + "] " + String(s.title || "") + "\nURL: " + String(s.url || "") + "\n" + String(s.snippet || "")).join("\n\n");
