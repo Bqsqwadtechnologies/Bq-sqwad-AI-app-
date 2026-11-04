@@ -254,15 +254,35 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
       minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, updatedAt: new Date().toISOString()
     };
     if (existingRule) {
-      const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
-      if (Object.keys(patch).length) {
-        const existingId = String(existingRule.id || String(existingRule.__name || "").split("/").pop() || id);
-        await firestoreSet("tokenPricingRules/" + existingId, { ...patch, updatedAt: new Date().toISOString() }, true);
-        Object.assign(existingRule, patch);
+      const existingId = String(existingRule.id || String(existingRule.__name || "").split("/").pop() || id);
+      if (normalizedModelId === "gpt-image-2.5-sunburst") {
+        const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2";
+        const marker = await firestoreGet(markerPath).catch(() => null);
+        if (marker?.applied !== true) {
+          const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 2, version: Math.max(2, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
+          await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
+          Object.assign(existingRule, migrated);
+          await firestoreSet(markerPath, { applied: true, version: 2, source: "OpenAI standard Images API rates converted at 100 credits per 12 USD and multiplied by 7", updatedAt: new Date().toISOString() }, true);
+        } else {
+          const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
+          if (Object.keys(patch).length) {
+            await firestoreSet("tokenPricingRules/" + existingId, { ...patch, updatedAt: new Date().toISOString() }, true);
+            Object.assign(existingRule, patch);
+          }
+        }
+      } else {
+        const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
+        if (Object.keys(patch).length) {
+          await firestoreSet("tokenPricingRules/" + existingId, { ...patch, updatedAt: new Date().toISOString() }, true);
+          Object.assign(existingRule, patch);
+        }
       }
     } else {
-      await firestoreSet("tokenPricingRules/" + id, seeded, false);
+      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: normalizedModelId === "gpt-image-2.5-sunburst" ? 2 : 1 }, false);
       tokenRules = [...tokenRules, seeded];
+      if (normalizedModelId === "gpt-image-2.5-sunburst") {
+        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2", { applied: true, version: 2, source: "OpenAI standard Images API rates converted at 100 credits per 12 USD and multiplied by 7", updatedAt: new Date().toISOString() }, true);
+      }
     }
   }
   const featureAliases = pricingFeatureAliases(feature);
