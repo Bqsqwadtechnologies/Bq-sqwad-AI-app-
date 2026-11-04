@@ -1,8 +1,7 @@
 import { firestoreCreate, firestoreGet, firestoreQuery, firestoreSet } from "./firebase.js";
 
-// Customer conversion requested by BQ: $12 per 100 credits.
+// Reporting reference only. Customer token rates below are already fully calculated credits per token.
 const DEFAULT_CREDIT_REFERENCE_USD = 0.12;
-const CUSTOMER_COST_MULTIPLIER = 7;
 
 /**
  * Allocate a reservation refund back to the same balance buckets that funded it.
@@ -219,8 +218,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Admin Live Credit Pricing editor can subsequently change these canonical
   // Firestore values; Android and Worker always read the same records.
   const mainChatDefaults = {
-    "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5 },
-    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2 }
+    "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5, inputCredits: 0.000005833333333333333, cachedCredits: 0.0000005833333333333333, outputCredits: 0.000029166666666666667 },
+    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666666666666667, cachedCredits: 0.0000011666666666666667, outputCredits: 0.00007 }
   };
   const mainDefaults = String(providerId || "").toLowerCase() === "openai"
     ? mainChatDefaults[String(modelId || "").toLowerCase()]
@@ -230,19 +229,17 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     String(rule.model || "").toLowerCase() === String(modelId || "").toLowerCase() &&
     String(rule.customerClass || "all").toLowerCase() === "all"
   )) {
-    const usdPerToken = value => value / 1_000_000;
-    const creditsPerToken = value => usdPerToken(value) / DEFAULT_CREDIT_REFERENCE_USD * CUSTOMER_COST_MULTIPLIER;
     const id = String(modelId).toLowerCase() === "gpt-6-luna" ? "default-openai-gpt-6-luna" : "default-openai-gpt-5-6-luna";
     const seeded = {
       id, provider: "openai", model: String(modelId), customerClass: "all", status: "active",
       inputUsdPerMillion: mainDefaults.input, cachedInputUsdPerMillion: mainDefaults.cached, outputUsdPerMillion: mainDefaults.output,
-      inputUsdPerToken: usdPerToken(mainDefaults.input), cachedInputUsdPerToken: usdPerToken(mainDefaults.cached), outputUsdPerToken: usdPerToken(mainDefaults.output),
-      inputCreditsPerToken: creditsPerToken(mainDefaults.input),
-      cachedInputCreditsPerToken: creditsPerToken(mainDefaults.cached),
-      outputCreditsPerToken: creditsPerToken(mainDefaults.output),
-      inputCreditsPer1k: creditsPerToken(mainDefaults.input) * 1000,
-      cachedInputCreditsPer1k: creditsPerToken(mainDefaults.cached) * 1000,
-      outputCreditsPer1k: creditsPerToken(mainDefaults.output) * 1000,
+      inputUsdPerToken: mainDefaults.input / 1_000_000, cachedInputUsdPerToken: mainDefaults.cached / 1_000_000, outputUsdPerToken: mainDefaults.output / 1_000_000,
+      inputCreditsPerToken: mainDefaults.inputCredits,
+      cachedInputCreditsPerToken: mainDefaults.cachedCredits,
+      outputCreditsPerToken: mainDefaults.outputCredits,
+      inputCreditsPer1k: mainDefaults.inputCredits * 1000,
+      cachedInputCreditsPer1k: mainDefaults.cachedCredits * 1000,
+      outputCreditsPer1k: mainDefaults.outputCredits * 1000,
       minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, updatedAt: new Date().toISOString()
     };
     await firestoreSet("tokenPricingRules/" + id, seeded, false);
