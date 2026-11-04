@@ -109,7 +109,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const dailyFree = await enforceFreeDailyImageGeneration(user.uid);
   let reservation;
   try {
-    reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+    reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0.00001, Number(trustedCreditCost ?? 0)), "image_generation", user);
   } catch (error) {
     if (dailyFree && (error?.safeError === "out_of_credits" || Number(error?.httpStatus) === 402)) {
       throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), { httpStatus: 402, safeError: "daily_free_credit_used" });
@@ -175,7 +175,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   const dailyFree=await enforceFreeDailyImageGeneration(user.uid);
   let reservation;
   try {
-    reservation=await charge(user.uid,dailyFree?1:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
+    reservation=await charge(user.uid,dailyFree?1:Math.max(0.00001,Number(trustedCreditCost??0)),"image_edit",user);
   } catch (error) {
     if (dailyFree && (error?.safeError === "out_of_credits" || Number(error?.httpStatus) === 402)) {
       throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), { httpStatus: 402, safeError: "daily_free_credit_used" });
