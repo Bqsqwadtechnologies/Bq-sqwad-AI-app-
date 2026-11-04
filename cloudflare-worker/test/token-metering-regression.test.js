@@ -82,7 +82,7 @@ test("fixed-price shared-charge helper rejects token-metered capabilities", () =
 
 test("Tavily search and deep research use the shared direct generation credit rules", () => {
   assert.match(source, /activeGenerationRule\(deepResearch \? "web\.research" : "web\.search"\)/);
-  assert.match(source, /const charge = searchRule\.credits/);
+  assert.match(source, /const charge = deepResearch\s+\? searchRule\.credits/);
   assert.doesNotMatch(source, /const configuredSearchCharge = deepResearch/);
   assert.match(source, /activeGenerationRule\(isCameraMode \? "live.camera" : "live.voice"\)/);
   assert.match(source, /activeGenerationRule\("speech.transcribe"\)/);
