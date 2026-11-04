@@ -630,10 +630,10 @@ export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = fa
 const ADMIN_SEED_DEFAULTS = [
   {
     "operation": "image.generate",
-    "label": "Image generation",
+    "label": "Image generation · token-metered",
     "credits": 0,
-    "creditsPerUnit": 1,
-    "unit": "image"
+    "creditsPerUnit": 0,
+    "unit": "none"
   },
   {
     "operation": "image.edit",
