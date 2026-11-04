@@ -11,11 +11,11 @@ const FEATURE_CAPABILITIES = {
 
 const PROVIDERS = new Set(["openai", "gemini"]);
 
-const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-1-mini","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
+const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-2.5-sunburst","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
 const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
   "text-chat": new Set(["gpt-6-luna", "gpt-5.6-luna"]),
   "device-commands": new Set(["gpt-6-luna"]),
-  "image-generation": new Set(["gpt-image-1-mini"]),
+  "image-generation": new Set(["gpt-image-2.5-sunburst"]),
   "live-camera": new Set(["gpt-realtime-2.1-mini"]),
   "live-voice": new Set(["gpt-realtime-2.1-mini"]),
   "video-generation": new Set()
@@ -98,7 +98,7 @@ function normalizeModel(raw, actorUid) {
 export async function ensureCurrentModelRegistry(defaultModels = {}) {
   const definitions = [
     { feature: "text-chat", capability: "chat", providerId: "openai", modelId: defaultModels.openai || "gpt-6-luna", id: "current-text-chat", name: "BQ-7-Star" },
-    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-1-mini", id: "current-image-generation", name: "GPT Image 1 Mini" },
+    { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2.5-sunburst", id: "current-image-generation", name: "GPT Image 2.5 Sunburst" },
     { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-camera", name: "GPT Realtime 2.1 Mini — Live Camera" },
     { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-voice", name: "GPT Realtime 2.1 Mini — Live Voice" },
     { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
