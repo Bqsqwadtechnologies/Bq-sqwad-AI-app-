@@ -217,19 +217,23 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Seed exact Main Chat model rules once, from provider USD rates. The website
   // Admin Live Credit Pricing editor can subsequently change these canonical
   // Firestore values; Android and Worker always read the same records.
-  const mainChatDefaults = {
+  const openAiTokenDefaults = {
     "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5, inputCredits: 0.000005833333333333333, cachedCredits: 0.0000005833333333333333, outputCredits: 0.000029166666666666667 },
-    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666666666666667, cachedCredits: 0.0000011666666666666667, outputCredits: 0.00007 }
+    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666666666666667, cachedCredits: 0.0000011666666666666667, outputCredits: 0.00007 },
+    "gpt-image-2.5-sunburst": { input: 5, cached: 1.25, output: 0, inputCredits: 0.0002916666666666667, cachedCredits: 0.00007291666666666667, outputCredits: 0, inputImage: 8, outputImage: 30, inputImageCredits: 0.0004666666666666667, outputImageCredits: 0.00175 }
   };
   const mainDefaults = String(providerId || "").toLowerCase() === "openai"
-    ? mainChatDefaults[String(modelId || "").toLowerCase()]
+    ? openAiTokenDefaults[String(modelId || "").toLowerCase()]
     : null;
   if (mainDefaults && !tokenRules.some(rule =>
     String(rule.provider || "").toLowerCase() === "openai" &&
     String(rule.model || "").toLowerCase() === String(modelId || "").toLowerCase() &&
     String(rule.customerClass || "all").toLowerCase() === "all"
   )) {
-    const id = String(modelId).toLowerCase() === "gpt-6-luna" ? "default-openai-gpt-6-luna" : "default-openai-gpt-5-6-luna";
+    const normalizedModelId = String(modelId).toLowerCase();
+    const id = normalizedModelId === "gpt-6-luna" ? "default-openai-gpt-6-luna"
+      : normalizedModelId === "gpt-5.6-luna" ? "default-openai-gpt-5-6-luna"
+      : "default-openai-gpt-image-2-5-sunburst";
     const seeded = {
       id, provider: "openai", model: String(modelId), customerClass: "all", status: "active",
       inputUsdPerMillion: mainDefaults.input, cachedInputUsdPerMillion: mainDefaults.cached, outputUsdPerMillion: mainDefaults.output,
@@ -240,6 +244,14 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
       inputCreditsPer1k: mainDefaults.inputCredits * 1000,
       cachedInputCreditsPer1k: mainDefaults.cachedCredits * 1000,
       outputCreditsPer1k: mainDefaults.outputCredits * 1000,
+      ...(mainDefaults.inputImage != null ? {
+        inputImageUsdPerMillion: mainDefaults.inputImage,
+        outputImageUsdPerMillion: mainDefaults.outputImage,
+        inputImageUsdPerToken: mainDefaults.inputImage / 1_000_000,
+        outputImageUsdPerToken: mainDefaults.outputImage / 1_000_000,
+        inputImageCreditsPerToken: mainDefaults.inputImageCredits,
+        outputImageCreditsPerToken: mainDefaults.outputImageCredits
+      } : {}),
       minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, updatedAt: new Date().toISOString()
     };
     await firestoreSet("tokenPricingRules/" + id, seeded, false);
