@@ -13,7 +13,8 @@ async function enforceFreeDailyImageGeneration(uid) {
   const paidCredits = Math.max(0, Number(user.credits || 0));
   const subLive = user.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
   const subscriptionCredits = subLive ? Math.max(0, Number(user.subCredits || 0)) : 0;
-  return paidCredits + subscriptionCredits <= 0;
+  const dailyCredits = Math.max(0, Number(user.dailyFreeCredits || 0));
+  return dailyCredits >= 1 || paidCredits + subscriptionCredits <= 0;
 }
 
 function resolveAllowedOpenAIImageModel(requested) {
