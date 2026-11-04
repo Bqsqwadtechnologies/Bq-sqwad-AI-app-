@@ -75,7 +75,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           BUILD_ID="${GITHUB_SHA:0:12}"
-          npx --yes wrangler@4 deploy --dry-run --config wrangler.jsonc --var "BQ_BUILD_ID:$BUILD_ID"
+          BQ_BUILD_ID="$BUILD_ID" node -e 'const fs = require("node:fs"); const file = "wrangler.jsonc"; const config = JSON.parse(fs.readFileSync(file, "utf8")); config.vars = { ...(config.vars || {}), BQ_BUILD_ID: process.env.BQ_BUILD_ID }; fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");'
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.jsonc
 
       - name: Deploy Worker
         env:
@@ -83,7 +84,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           BUILD_ID="${GITHUB_SHA:0:12}"
-          npx --yes wrangler@4 deploy --config wrangler.jsonc --var "BQ_BUILD_ID:$BUILD_ID"
+          BQ_BUILD_ID="$BUILD_ID" node -e 'const fs = require("node:fs"); const file = "wrangler.jsonc"; const config = JSON.parse(fs.readFileSync(file, "utf8")); config.vars = { ...(config.vars || {}), BQ_BUILD_ID: process.env.BQ_BUILD_ID }; fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");'
+          npx --yes wrangler@4 deploy --config wrangler.jsonc
 
       - name: Smoke-test deployed health endpoint
         run: |
