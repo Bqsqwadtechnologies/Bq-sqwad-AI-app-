@@ -750,7 +750,7 @@ const ADMIN_SEED_DEFAULTS = [
   {
     "operation": "web.research",
     "label": "Deep research",
-    "credits": 75,
+    "credits": 7,
     "creditsPerUnit": 0,
     "unit": "none"
   },
@@ -961,6 +961,7 @@ async function ensureDeepResearchPrice() {
 
 async function featurePrice(name, requestedModel = null) {
   await seedAdminPricingDefaults();
+  if (String(name || "").trim().toLowerCase() === "deep_research") await ensureDeepResearchPrice();
   const operation = capabilityPriceOperation(name);
   const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
   // Member-authored team messages are priced per message, independently of
