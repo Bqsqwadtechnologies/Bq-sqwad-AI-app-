@@ -4711,7 +4711,6 @@ val composerShape = RoundedCornerShape(26.dp)
             }
         }
     }
-}
 
 
 @Composable
