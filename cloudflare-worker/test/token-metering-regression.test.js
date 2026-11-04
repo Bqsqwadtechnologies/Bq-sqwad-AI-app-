@@ -14,6 +14,17 @@ test("chat and attachment capability defaults are token-metered and zero prices 
   assert.doesNotMatch(source, /if \(!charge && !options\.allowFractional/);
 });
 
+test("deep research is fixed-price and its seven-credit rule is applied before Worker settlement", () => {
+  assert.doesNotMatch(source, /const TOKEN_METERED = new Set\(\[[^\]]*"deep_research"/s);
+  assert.match(source, /if \(key === "web\.research"\) await ensureDeepResearchPrice\(\)/);
+  assert.match(source, /credits: 7, creditsPerUnit: 0, unit: "none"/);
+});
+
+test("image editing uses shared image generation quality-tier rules", () => {
+  assert.match(source, /if \(key === "image\.edit"\) await ensureImageGenerationTierDefaults\(\)/);
+  assert.match(source, /imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
+});
+
 test("native token-metered features use canonical per-token customer credit rates", () => {
   assert.match(tokenBillingSource, /customerCreditsPerToken\(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k"\)/);
   assert.match(tokenBillingSource, /customerCreditsPerToken\(tokenRule, "cachedInputCreditsPerToken", "cachedInputCreditsPer1k"\)/);
