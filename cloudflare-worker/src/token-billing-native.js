@@ -189,6 +189,10 @@ export function pricingFeatureAliases(feature) {
     aliases.add("chat");
     aliases.add("text-chat");
   }
+  if (aliases.has("image_generation") || aliases.has("image_edit")) {
+    aliases.add("image_generation");
+    aliases.add("image_edit");
+  }
   return aliases;
 }
 
@@ -213,7 +217,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const config = control.config && typeof control.config === "object" ? control.config : {};
   const tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
   const featureAliases = pricingFeatureAliases(feature);
-  const tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
+  let tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
     if (!matchesCustomerClass(rule, control.customerClass || "paid")) return false;
     if (!((["gemini", "google", "google-gemini"].includes(String(providerId || "").toLowerCase()) && ["gemini", "google", "google-gemini"].includes(String(rule.provider || "").toLowerCase())) || (["lovable-gateway", "lovable", "gateway"].includes(String(providerId || "").toLowerCase()) && ["lovable-gateway", "lovable", "gateway"].includes(String(rule.provider || "").toLowerCase())) || (String(rule.provider || "").toLowerCase() === String(providerId || "").toLowerCase()))) return false;
@@ -231,6 +235,36 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
+  // GPT Image 2.5 default customer rates use the approved 7x markup and
+  // $0.12 per BQ credit. An administrator-saved tokenPricingRules entry
+  // takes precedence over these defaults.
+  if (!tokenRule && String(providerId || "").toLowerCase() === "openai" &&
+      String(modelId || "") === "gpt-image-2.5-sunburst") {
+    tokenRule = {
+      id: "builtin-gpt-image-2.5-sunburst",
+      version: 1,
+      status: "active",
+      provider: "openai",
+      model: "gpt-image-2.5-sunburst",
+      customerClass: "all",
+      inputUsdPerMillion: 5,
+      cachedInputUsdPerMillion: 1.25,
+      outputUsdPerMillion: 0,
+      inputImageUsdPerMillion: 8,
+      outputImageUsdPerMillion: 30,
+      inputCreditsPerToken: 0.0002916667,
+      cachedInputCreditsPerToken: 0.0000729167,
+      outputCreditsPerToken: 0,
+      inputImageCreditsPerToken: 0.0004666667,
+      outputImageCreditsPerToken: 0.00175,
+      inputCreditsPer1k: 0.2916667,
+      cachedInputCreditsPer1k: 0.0729167,
+      outputCreditsPer1k: 0,
+      features: [],
+      plans: [],
+      effectiveFrom: ""
+    };
+  }
   const applyFeeToUsage = false;
 
   // The website admin dashboard and the Android app share Firebase project
@@ -276,7 +310,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // accidentally entered into a per-token field otherwise becomes millions
   // of times larger and can drain a balance on a short prompt.
   const featureKey = String(feature || "").toLowerCase();
-  const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"].includes(featureKey);
+  const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research", "image_generation", "image_edit"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
   // both website and Android. All three customer rates must be explicit.
   const customerInputCreditsPerToken = customerCreditsPerToken(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k");
