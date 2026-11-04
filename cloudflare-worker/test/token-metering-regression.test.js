@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const providerSource = await readFile(new URL("../src/providers.js", import.meta.url), "utf8");
 const tokenBillingSource = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
+const teamSource = await readFile(new URL("../src/teams-sqwad-native.js", import.meta.url), "utf8");
 
 test("chat and attachment capability defaults are token-metered and zero prices stay free", () => {
   assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search"\]\)/);
@@ -12,6 +13,16 @@ test("chat and attachment capability defaults are token-metered and zero prices 
   assert.match(source, /const requestedCharge = Number\(amount\)/);
   assert.match(source, /if \(!charge\) return \{ reservationId: null, amount: 0, free: true \}/);
   assert.doesNotMatch(source, /if \(!charge && !options\.allowFractional/);
+});
+
+
+test("team image generation uses the same GPT Image token rule and settles the team pool by actual usage", () => {
+  assert.match(teamSource, /resolveTokenPricing\("openai", "gpt-image-2\.5-sunburst", "image_generation"/);
+  assert.match(teamSource, /imageTokenPricing/);
+  assert.match(teamSource, /async \(uid, reservationId, finalCredits\)/);
+  assert.match(teamSource, /debitTeamPoolForMember\(team, member, uid, difference\)/);
+  assert.match(teamSource, /refundTeamPoolForMember\(team, member, uid, -difference\)/);
+  assert.doesNotMatch(teamSource, /0\.292|0\.35|0\.642|0\.875|3\.033/);
 });
 
 test("deep research is fixed-price and its seven-credit rule is applied before Worker settlement", () => {
