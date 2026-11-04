@@ -627,7 +627,185 @@ export function liveStartChargePolicy(pricing = {}, balance = 0, superAdmin = fa
   };
 }
 
-const ADMIN_SEED_DEFAULTS = { image_generation: 1.5, image_edit: 1.5, chat_background_upload: 2, team_member_message: 0 };
+const ADMIN_SEED_DEFAULTS = [
+  {
+    "operation": "image.generate",
+    "label": "Image generation",
+    "credits": 0,
+    "creditsPerUnit": 1,
+    "unit": "image"
+  },
+  {
+    "operation": "image.edit",
+    "label": "Image editing",
+    "credits": 0,
+    "creditsPerUnit": 22.5,
+    "unit": "image"
+  },
+  {
+    "operation": "video.generate",
+    "label": "Video generation",
+    "credits": 0,
+    "creditsPerUnit": 87.573,
+    "unit": "second"
+  },
+  {
+    "operation": "music.generate",
+    "label": "Music generation",
+    "credits": 0,
+    "creditsPerUnit": 1.5,
+    "unit": "second"
+  },
+  {
+    "operation": "music.render",
+    "label": "Music rendering",
+    "credits": 0,
+    "creditsPerUnit": 0.3,
+    "unit": "second"
+  },
+  {
+    "operation": "file.pdf",
+    "label": "PDF files",
+    "credits": 0,
+    "creditsPerUnit": 0.3,
+    "unit": "page"
+  },
+  {
+    "operation": "file.docx",
+    "label": "Word (DOCX)",
+    "credits": 0,
+    "creditsPerUnit": 0.3,
+    "unit": "page"
+  },
+  {
+    "operation": "file.xlsx",
+    "label": "Excel (XLSX)",
+    "credits": 0,
+    "creditsPerUnit": 0.45,
+    "unit": "page"
+  },
+  {
+    "operation": "file.csv",
+    "label": "CSV",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.txt",
+    "label": "Text (TXT)",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.md",
+    "label": "Markdown (MD)",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.html",
+    "label": "HTML",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.json",
+    "label": "JSON",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.code",
+    "label": "Code files",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.xml",
+    "label": "XML",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "file.yaml",
+    "label": "YAML",
+    "credits": 0.15,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "web.search",
+    "label": "Web search",
+    "credits": 25.5,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "web.research",
+    "label": "Deep research",
+    "credits": 75,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "live.voice",
+    "label": "Live voice",
+    "credits": 0,
+    "creditsPerUnit": 0.34056155,
+    "unit": "second"
+  },
+  {
+    "operation": "live.camera",
+    "label": "Live camera / screen",
+    "credits": 0,
+    "creditsPerUnit": 0.72977475,
+    "unit": "second"
+  },
+  {
+    "operation": "speech.transcribe",
+    "label": "Transcription",
+    "credits": 0,
+    "creditsPerUnit": 0.0204337,
+    "unit": "second"
+  },
+  {
+    "operation": "chat.background_upload",
+    "label": "Chat background upload",
+    "credits": 2,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "team.member_message",
+    "label": "Team member message",
+    "credits": 0,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "feature.connector_action",
+    "label": "Connector action",
+    "credits": 2.189325,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "resume.generate",
+    "label": "Resume generation",
+    "credits": 0.75,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  }
+];
+const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v2";
+const PRESERVE_EXISTING_DEFAULTS = new Set(["image.generate", "chat.background_upload", "team.member_message"]);
 let adminPricingSeeded = false;
 let adminPricingSeedAttemptedAt = 0;
 
@@ -660,6 +838,8 @@ const CAPABILITY_PRICE_OPERATIONS = Object.freeze({
   file_yaml: "file.yaml",
   video_generation: "video.generate",
   music: "music.generate",
+  music_render: "music.render",
+  connector_action: "feature.connector_action",
   resume: "resume.generate",
   business: "feature.business",
   business_ai: "feature.business_ai",
@@ -778,6 +958,7 @@ async function migrateLegacyGenerationRule(operation, existingRows = []) {
 }
 
 async function activeGenerationRule(operation, model = "*") {
+  await seedAdminPricingDefaults();
   const key = String(operation || "").trim().toLowerCase();
   const requestedModel = String(model || "*").trim().toLowerCase();
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
@@ -828,31 +1009,43 @@ function generationCreditsPerMinute(rule) {
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
+  const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
+  if (marker?.applied === true && Number(marker.version) >= 2) {
+    adminPricingSeeded = true;
+    return;
+  }
   const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
-  const existingOperations = new Set((Array.isArray(rows) ? rows : []).map(row => String(row.operation || "").trim().toLowerCase()));
-  for (const [name, defaultPrice] of Object.entries(ADMIN_SEED_DEFAULTS)) {
-    const operation = capabilityPriceOperation(name);
-    if (existingOperations.has(operation)) continue;
-    const legacy = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
-    const legacyPrice = Number(legacy?.creditCost);
-    // Preserve an existing admin value during migration; use the shipped seed
-    // only when neither a generation rule nor a legacy price exists.
-    if (legacy && (legacy.creditCost == null || !Number.isFinite(legacyPrice) || legacyPrice < 0)) continue;
-    const price = legacy?.creditCost != null ? legacyPrice : defaultPrice;
-    const id = "capability-" + name.replace(/_/g, "-");
+  for (const defaults of ADMIN_SEED_DEFAULTS) {
+    const existing = (Array.isArray(rows) ? rows : []).find(row =>
+      String(row.operation || "").trim().toLowerCase() === defaults.operation &&
+      (!row.model || String(row.model).trim() === "*")
+    );
+    // Preserve the existing image-generation, background-upload and member-message
+    // prices exactly as requested. Missing entries still receive their defaults.
+    if (existing && PRESERVE_EXISTING_DEFAULTS.has(defaults.operation)) continue;
+    const id = String(existing?.id || String(existing?.__name || "").split("/").pop() ||
+      "default-" + defaults.operation.replace(/[^a-z0-9-]/g, "-"));
     await firestoreSet("generationCostRules/" + id, {
-      operation,
-      label: String(legacy?.name || name.replace(/_/g, " ")).slice(0, 160),
-      credits: price,
-      creditsPerUnit: 0,
-      unit: "none",
+      ...(existing || {}),
+      id,
+      operation: defaults.operation,
+      model: "*",
+      label: defaults.label,
+      credits: defaults.credits,
+      creditsPerUnit: defaults.creditsPerUnit,
+      unit: defaults.unit,
       status: "active",
-      version: 1,
-      seeded: legacy?.creditCost == null,
-      ...(legacy?.creditCost != null ? { migratedFrom: "adminAdvancedOptions/capability_" + name } : {}),
+      version: Math.max(1, Number(existing?.version || 0) + (existing ? 1 : 0)),
+      seededDefaultVersion: 2,
       updatedAt: new Date().toISOString()
     }, true);
   }
+  await firestoreSet(PRICING_DEFAULTS_MARKER, {
+    applied: true,
+    version: 2,
+    source: "Admin Live Credit Pricing defaults",
+    updatedAt: new Date().toISOString()
+  }, true);
   adminPricingSeeded = true;
 }
 
