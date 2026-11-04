@@ -29,7 +29,8 @@ test("image generation, image edit, and background upload read admin prices rath
   assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
   assert.match(source, /body\.creditCost = freeImage \? 0 : imagePrice\.credits/);
   assert.match(source, /creditsCharged: freeImage \? 0 : imagePrice\.credits/);
-  assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);\n  assert.match(source, /body\.creditCost = imagePrice\.credits/);
+  assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
+  assert.match(source, /body\.creditCost = imagePrice\.credits/);
   assert.match(source, /const pdfCreditCost = await featurePrice\("pdf", pdfControl\.modelId\)/);
   assert.match(source, /const backgroundCreditCost = await featurePrice\("chat_background_upload"\)/);
   assert.match(source, /const CAPABILITY_PRICE_OPERATIONS = Object\.freeze/);
