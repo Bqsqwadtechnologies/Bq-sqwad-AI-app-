@@ -940,6 +940,14 @@ export async function teamsAskAi(user, body, env, billing = {}) {
   // Team AI can generate images directly in the team conversation. It uses
   // the same shared image quality/size generationCostRules as Main Chat.
   const asksForImage = /\b(generate|create|draw|make|design|render|produce)\b[\s\S]{0,80}\b(image|picture|photo|poster|logo|illustration|artwork)\b/i.test(text);
+  if (asksForImage && billingSource === "personal") {
+    const message = "Team image generation currently uses the shared team credit pool. Switch this AI turn to team credits to generate the image.";
+    const aiId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+    await firestoreSet("teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId, {
+      authorUid: "ai", authorName: "BQ Sqwad AI", text: message, attachments: [], createdAt: now(), credits: 0,
+    }, false);
+    return { kind: "ai", creditsCharged: 0, message, noCredits: false };
+  }
   if (asksForImage) {
     const quality = ["low", "medium", "high"].includes(String(body?.quality || "").toLowerCase())
       ? String(body.quality).toLowerCase()
