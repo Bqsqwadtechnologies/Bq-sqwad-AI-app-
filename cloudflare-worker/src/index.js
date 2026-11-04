@@ -6084,7 +6084,7 @@ export default {
           const uniqueSites = new Set();
           for (const source of result.sources || []) {
             try {
-              const hostname = new URL(String(source.url || "")).hostname.toLowerCase().replace(/^www\\./, "");
+              const hostname = new URL(String(source.url || "")).hostname.toLowerCase().replace(/^www\./, "");
               if (hostname) uniqueSites.add(hostname);
             } catch {}
           }
