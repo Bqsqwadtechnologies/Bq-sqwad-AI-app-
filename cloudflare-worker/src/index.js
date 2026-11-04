@@ -1292,8 +1292,18 @@ async function applyConfiguredDailyFreeCredits(uid) {
   if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
-  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
+  let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
+  if (!everPaid) {
+    try {
+      const [purchases, playPurchases] = await Promise.all([
+        firestoreQuery("purchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 }),
+        firestoreQuery("playPurchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 })
+      ]);
+      everPaid = purchases.some(p => p.status === "completed" && ["package", "subscription"].includes(String(p.kind || ""))) ||
+        playPurchases.some(p => p.verified === true && ["inapp", "subs"].includes(String(p.productType || "")));
+    } catch { /* Current account purchase markers remain the fallback for legacy records. */ }
+  }
   const now = new Date();
   // Keep the daily allowance date calculation identical to the website:
   // an account's persisted timezone/renewal settings take precedence over
@@ -1304,7 +1314,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
   if (everPaid) {
     if (Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
-      await firestoreCommit([{ path: "users/" + uid, data: { dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
+      await firestoreCommit([{ path: "users/" + uid, data: { ...(everPaid ? { hasEverPurchasedCredits: true } : {}), dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
     }
     return;
   }
@@ -1313,7 +1323,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
   try {
     await firestoreCommit([
-      { path: "users/" + uid, data: { ...grant, updatedAt: now }, updateTime: profile.__updateTime },
+      { path: "users/" + uid, data: { ...grant, ...(everPaid ? { hasEverPurchasedCredits: true } : {}), updatedAt: now }, updateTime: profile.__updateTime },
       { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, timeZone, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
       { path: "creditTransactions/daily_" + grantId, data: {
         uid, type: "grant", feature: "daily_free_credits", credits,
