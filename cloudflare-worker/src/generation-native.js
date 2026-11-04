@@ -105,7 +105,15 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const size = resolveImageSize(b.size);
   const quality = resolveImageQuality(b.quality);
   const dailyFree = await enforceFreeDailyImageGeneration(user.uid);
-  const reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+  let reservation;
+  try {
+    reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+  } catch (error) {
+    if (dailyFree && (error?.safeError === "out_of_credits" || Number(error?.httpStatus) === 402)) {
+      throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), { httpStatus: 402, safeError: "daily_free_credit_used" });
+    }
+    throw error;
+  }
   try {
     const response = await openai(env, "/images/generations", {
       method: "POST",
@@ -149,7 +157,15 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
   const dailyFree=await enforceFreeDailyImageGeneration(user.uid);
-  const reservation=await charge(user.uid,dailyFree?1:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
+  let reservation;
+  try {
+    reservation=await charge(user.uid,dailyFree?1:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
+  } catch (error) {
+    if (dailyFree && (error?.safeError === "out_of_credits" || Number(error?.httpStatus) === 402)) {
+      throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), { httpStatus: 402, safeError: "daily_free_credit_used" });
+    }
+    throw error;
+  }
   try {
     const binary=atob(encoded);
     const bytes=new Uint8Array(binary.length);
