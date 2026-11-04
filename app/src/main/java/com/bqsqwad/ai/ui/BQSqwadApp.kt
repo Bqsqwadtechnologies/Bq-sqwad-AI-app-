@@ -3576,6 +3576,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 onMenu = openHub,
                 onNewChat = onNewChat,
                 onMore = { showChatActions = true },
+                onSecretChats = { showSecretChats = true },
                 logo = { size -> BqLogo(size) }
             )
             DropdownMenu(expanded = showChatActions, onDismissRequest = { showChatActions = false }) {
