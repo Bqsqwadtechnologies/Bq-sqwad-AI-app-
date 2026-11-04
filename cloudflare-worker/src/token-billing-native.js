@@ -1,9 +1,8 @@
 import { firestoreCreate, firestoreGet, firestoreQuery, firestoreSet } from "./firebase.js";
 
-// Canonical credit value: the 1,000-credit monthly plan is $79.99.
-const MONTHLY_PLAN_PRICE_USD = 79.99;
-const MONTHLY_PLAN_CREDITS = 1000;
-const DEFAULT_CREDIT_REFERENCE_USD = MONTHLY_PLAN_PRICE_USD / MONTHLY_PLAN_CREDITS;
+// Customer conversion requested by BQ: $12 per 100 credits.
+const DEFAULT_CREDIT_REFERENCE_USD = 0.12;
+const CUSTOMER_COST_MULTIPLIER = 7;
 
 /**
  * Allocate a reservation refund back to the same balance buckets that funded it.
