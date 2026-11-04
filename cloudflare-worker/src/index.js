@@ -326,7 +326,7 @@ async function adminReadinessSelfTest(env, adminUser) {
           session: {
             type: "realtime", model, output_modalities: ["audio"],
             audio: {
-              input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+              input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: false } },
               output: { format: { type: "audio/pcm", rate: 24000 }, voice: "marin" }
             }
           }
@@ -4828,7 +4828,7 @@ export default {
                session: {
                  type: "realtime", model: sessionModel, output_modalities: ["audio"],
                  audio: {
-                   input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
+                   input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: false } },
                    output: { format: { type: "audio/pcm", rate: 24000 }, voice }
                  }
                }
