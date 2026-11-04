@@ -96,6 +96,7 @@ class WorkspaceApiClient {
                 status == 401 || code in setOf("auth_required", "sign_in_required") -> "session_expired"
                 status == 403 && code.contains("consent") -> "consent_required"
                 status == 403 -> "permission_denied"
+                code == "daily_free_credit_used" -> "daily_free_credit_used"
                 status == 402 || code in setOf("out_of_credits", "insufficient_credits") -> "out_of_credits"
                 status == 429 && code != "provider_capacity" -> "rate_limited"
                 else -> code.ifBlank { "request_failed" }
@@ -137,6 +138,8 @@ class WorkspaceApiClient {
         if(status !in 200..299) {
             val serverError = body?.optString("error").orEmpty().lowercase()
             val friendly = when {
+                serverError == "daily_free_credit_used" ->
+                    "You’ve used your free credit for today. It refreshes tomorrow. Buy credits to continue."
                 serverError == "web_search_not_configured" ->
                     "Web Search is unavailable right now because the search provider is not configured."
                 serverError == "openai_provider_not_configured" ->
@@ -192,6 +195,8 @@ class WorkspaceApiClient {
                     "Your Business workspace role does not allow this action. Ask the workspace owner or an administrator to update your access."
                 serverError == "business_member_role_invalid" || serverError == "business_owner_role_immutable" ->
                     "That workspace role change is not allowed. The owner role cannot be reassigned, and only the owner can promote an administrator."
+                serverError == "daily_free_credit_used" ->
+                    "You’ve used your free credit for today. It refreshes tomorrow. Buy credits to continue."
                 serverError == "insufficient_credits" || status == 402 || serverError.contains("insufficient credits") || serverError == "out_of_credits" ->
                     "You are out of credits. Review Plans & Credits to continue."
                 serverError == "consent_required" || status == 403 && serverError.contains("consent") ->
