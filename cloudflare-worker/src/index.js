@@ -945,7 +945,7 @@ async function imageGenerationCreditPrice(size, quality, model) {
   return { credits: Number(rule.credits), operation, ruleVersion: Number(rule.version || 1) };
 }
 
-const DEEP_RESEARCH_PRICE_MARKER = "adminAdvancedOptions/bq_deep_research_fixed_7_v2";
+const DEEP_RESEARCH_PRICE_MARKER = "adminAdvancedOptions/bq_deep_research_fixed_7_v3";
 async function ensureDeepResearchPrice() {
   const marker = await firestoreGet(DEEP_RESEARCH_PRICE_MARKER).catch(() => null);
   if (marker?.applied === true) return;
@@ -969,7 +969,7 @@ async function ensureDeepResearchPrice() {
     name: "deep_research", creditCost: 7, pricingRuleId: id, pricingRuleVersion: version,
     updatedAt: new Date().toISOString()
   }, true);
-  await firestoreSet(DEEP_RESEARCH_PRICE_MARKER, { applied: true, version: 2, updatedAt: new Date().toISOString() }, true);
+  await firestoreSet(DEEP_RESEARCH_PRICE_MARKER, { applied: true, version: 3, updatedAt: new Date().toISOString() }, true);
 }
 
 async function featurePrice(name, requestedModel = null) {
