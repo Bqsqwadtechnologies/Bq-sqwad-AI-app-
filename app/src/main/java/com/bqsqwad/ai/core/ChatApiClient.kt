@@ -248,6 +248,9 @@ class ChatApiClient(
                             completed = true
                         }
                         "error" -> {
+                            // A late diagnostic can follow a completed provider response.
+                            // Do not turn a successfully delivered answer into a visible error.
+                            if (completed && textBuilder.isNotBlank()) return
                             val detail = json.optString("message").lowercase()
                             val friendly = when {
                                 detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your current usage allowance is unavailable for this request. Review plans and billing to continue."

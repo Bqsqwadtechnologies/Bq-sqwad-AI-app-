@@ -29,6 +29,7 @@ class DictationRecorder(context: Context) {
     private var recorder: AudioRecord? = null
     private var captureThread: Thread? = null
     private var noiseSuppressor: NoiseSuppressor? = null
+    @Volatile private var captureFailure: Throwable? = null
 
     fun start(onLevel: (Float) -> Unit, onLimitReached: () -> Unit) {
         if (!recording.compareAndSet(false, true)) return
@@ -53,6 +54,7 @@ class DictationRecorder(context: Context) {
             if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(audio.audioSessionId) else null
         }.getOrNull()
         synchronized(pcm) { pcm.reset() }
+        captureFailure = null
         try {
             audio.startRecording()
         } catch (t: Throwable) {
@@ -94,8 +96,9 @@ class DictationRecorder(context: Context) {
                         break
                     }
                 }
-            } catch (_: Throwable) {
-                // The caller receives an empty/short recording and can retry without audio logs.
+            } catch (failure: Throwable) {
+                // Preserve unexpected capture failures for the stop() caller without logging audio.
+                if (recording.get()) captureFailure = failure
             } finally {
                 mainHandler.post { onLevel(0f) }
             }
@@ -110,6 +113,10 @@ class DictationRecorder(context: Context) {
         captureThread = null
         release()
         val raw = synchronized(pcm) { pcm.toByteArray() }
+        captureFailure?.let { failure ->
+            captureFailure = null
+            throw IllegalStateException("Microphone recording was interrupted. Please record again.", failure)
+        }
         if (raw.isEmpty()) return ByteArray(0)
         return wavHeader(raw.size) + raw
     }

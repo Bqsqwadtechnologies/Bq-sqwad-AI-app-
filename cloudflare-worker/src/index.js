@@ -3222,7 +3222,7 @@ export default {
               method: "POST",
               headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY) },
               body: form,
-              signal: AbortSignal.timeout(25_000)
+              signal: AbortSignal.timeout(45_000)
             });
           };
           const configuredModel = String(configDocument.config?.transcriptionModel || configDocument.transcriptionModel || "whisper-1").trim();

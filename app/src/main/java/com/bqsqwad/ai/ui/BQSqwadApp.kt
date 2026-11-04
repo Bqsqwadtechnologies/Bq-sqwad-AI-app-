@@ -2048,7 +2048,9 @@ private data class ChatMessage(
     val attachments: List<ChatMessageAttachment> = emptyList(),
     val imageUrl: String? = null,
     val sources: List<SearchSource> = emptyList(),
-    val privateSession: Boolean = false
+    val privateSession: Boolean = false,
+    val webSearchAttempted: Boolean = false,
+    val webSearchInProgress: Boolean = false
 ) {
     val attachmentNames: List<String> get() = attachments.map { it.name }
 }
@@ -2063,6 +2065,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("prompt", message.prompt?.take(4000))
                 put("imageUrl", message.imageUrl)
                 put("privateSession", message.privateSession)
+                put("webSearchAttempted", message.webSearchAttempted)
+                put("webSearchInProgress", message.webSearchInProgress)
                 put("attachments", JSONArray().apply {
                     message.attachments.forEach { attachment ->
                         put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId).put("fileUri", attachment.fileUri))
@@ -2094,7 +2098,9 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                         prompt = item.optString("prompt").takeIf { it.isNotBlank() && it != "null" }?.take(4000),
                         attachments = attachments,
                         imageUrl = item.optString("imageUrl").takeIf { it.startsWith("https://", ignoreCase = true) },
-                        privateSession = item.optBoolean("privateSession", false)
+                        privateSession = item.optBoolean("privateSession", false),
+                        webSearchAttempted = item.optBoolean("webSearchAttempted", false),
+                        webSearchInProgress = item.optBoolean("webSearchInProgress", false)
                     )
                 }.getOrNull()?.let { add(it) }
             }
@@ -2992,6 +2998,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             try {
                 val wav = withContext(Dispatchers.IO) { recorder?.stop() ?: ByteArray(0) }
                 if (wav.isEmpty()) throw IllegalStateException("No speech was recorded. Try again.")
+                dictationSeconds = ((wav.size - 44 + 31999) / 32000).coerceIn(1, 25)
                 dictationReadyAudio = wav
                 dictationError = null
             } catch (failure: Throwable) {
@@ -3010,7 +3017,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         dictationTranscriptionJob?.cancel()
         dictationTranscriptionJob = scope.launch {
             try {
-                val transcript = withTimeout(25_000L) {
+                val transcript = withTimeout(55_000L) {
                     WorkspaceApiClient().transcribeAudioWav(wav, duration)
                 }
                 if (session != dictationSessionId) return@launch
@@ -3025,7 +3032,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 if (session != dictationSessionId) return@launch
                 val reason = failure.message.orEmpty()
                 dictationError = if (failure is TimeoutCancellationException)
-                    "Transcription took too long (25 seconds). Retry or discard the recording."
+                    "Transcription took too long (55 seconds). Retry or discard the recording."
                 else safeUserFacingIssue(failure, "Transcription could not be completed. Please retry.")
                 dictationNeedsCredits = reason.contains("need credits", ignoreCase = true) ||
                     reason.contains("credit balance", ignoreCase = true)
@@ -3035,6 +3042,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }
     }
     stopDictationAction.value = { stopDictation() }
+
+    LaunchedEffect(dictationReadyAudio) {
+        if (dictationReadyAudio != null && !dictationTranscribing) transcribeDictation()
+    }
 
     fun cancelDictation() {
         dictationSessionId += 1
@@ -3269,13 +3280,28 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (!webSearchEnabled) {
                         webSearchNotice = "Web Search is turned off. This answer may not include current information."
                     } else {
-                        withContext(Dispatchers.Main) { statusText = "Searching the web…" }
+                        withContext(Dispatchers.Main) {
+                            statusText = "Searching the web…"
+                            messages.getOrNull(aiIndex)?.let { current ->
+                                messages[aiIndex] = current.copy(webSearchAttempted = true, webSearchInProgress = true)
+                            }
+                        }
                         try {
                             val search = WorkspaceApiClient().search(text.trim(), false)
                             webSources = search.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(10)
                             if (webSources.isEmpty()) webSearchNotice = "Web Search is unavailable right now. No current sources were returned."
                         } catch (_: Throwable) {
                             webSearchNotice = "Web Search is unavailable right now. This answer may not include current information."
+                        } finally {
+                            withContext(Dispatchers.Main) {
+                                messages.getOrNull(aiIndex)?.let { current ->
+                                    messages[aiIndex] = current.copy(
+                                        sources = webSources,
+                                        webSearchAttempted = true,
+                                        webSearchInProgress = false
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -3361,9 +3387,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         messages[aiIndex] = current.copy(
                             text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + generatedPdfNotice,
                             attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
-                            sources = webSources
+                            sources = webSources,
+                            webSearchAttempted = shouldSearchWeb && webSearchEnabled,
+                            webSearchInProgress = false
                         )
                     }
+                    error = null
+                    taskStartedAtMs = null
                     busy = false
                     streamJob = null
                     statusText = "Done."
@@ -3385,6 +3415,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
                     message = text
+                    taskStartedAtMs = null
                     if (t !is kotlinx.coroutines.CancellationException) {
                         val detail = t.message.orEmpty().lowercase()
                         if (detail.contains("attachment_payload_too_large") || detail.contains("image_too_large")) {
@@ -3512,17 +3543,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         )
     }
     var replyFeedback by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var thinkingStage by remember { mutableStateOf("Thinking") }
-    LaunchedEffect(busy) {
-        val stages = listOf("Thinking", "Understanding", "Interpreting", "Analyzing", "Drafting")
-        var stageIndex = 0
-        thinkingStage = stages.first()
-        while (busy) {
-            delay(1600)
-            stageIndex = (stageIndex + 1) % stages.size
-            thinkingStage = stages[stageIndex]
-        }
-    }
+    var expandedWebSearchMessageIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val chatListState = rememberLazyListState()
     var followStream by remember { mutableStateOf(true) }
     val chatAtBottom by remember {
@@ -3896,17 +3917,67 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 }
                             }
                         }
-                        if (!m.mine && m.sources.isNotEmpty()) {
-                            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Sources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                                    items(m.sources) { source ->
-                                        WebSourceChip(source, onOpen = { url ->
-                                            if (Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
-                                                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                                                    .onFailure { error = "Could not open this source." }
+                        if (!m.mine && (m.webSearchAttempted || m.sources.isNotEmpty())) {
+                            val sourcesExpanded = m.id in expandedWebSearchMessageIds
+                            Column(
+                                Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 5.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        expandedWebSearchMessageIds = if (sourcesExpanded) {
+                                            expandedWebSearchMessageIds - m.id
+                                        } else {
+                                            expandedWebSearchMessageIds + m.id
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.82f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Search, contentDescription = "Web Search", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Text("Web Search", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+                                        Text(
+                                            when {
+                                                m.webSearchInProgress -> "Searching…"
+                                                m.sources.isNotEmpty() -> "${m.sources.size} sources"
+                                                else -> "No sources returned"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Icon(
+                                            if (sourcesExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = if (sourcesExpanded) "Hide sources" else "Show sources",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (sourcesExpanded) {
+                                    if (m.sources.isEmpty()) {
+                                        Text(
+                                            if (m.webSearchInProgress) "Searching for current sources…" else "No current sources were returned for this search.",
+                                            modifier = Modifier.padding(horizontal = 12.dp),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            m.sources.forEach { source ->
+                                                WebSourceChip(source, onOpen = { url ->
+                                                    if (Uri.parse(url).scheme.equals("https", ignoreCase = true)) {
+                                                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                                                            .onFailure { error = "Could not open this source." }
+                                                    }
+                                                })
                                             }
-                                        })
+                                        }
                                     }
                                 }
                             }
@@ -4063,7 +4134,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     ) {
                         BqSqwadLoadingIndicator(Modifier.size(24.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(thinkingStage, style = MaterialTheme.typography.labelMedium, color = Color.DarkGray)
                     }
                 }
                 error?.let { message ->
@@ -4282,7 +4352,10 @@ val composerShape = RoundedCornerShape(26.dp)
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(dictationMessage, color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }) { Text("Retry") }
+                                    TextButton(onClick = {
+                                        if (dictationReadyAudio != null) transcribeDictation()
+                                        else speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }) { Text(if (dictationReadyAudio != null) "Retry transcription" else "Record again") }
                                     TextButton(onClick = { startSpeechRecognition() }) { Text("Use phone speech") }
                                     if (dictationNeedsCredits) {
                                         Button(onClick = { openCredits() }) { Text("Buy credits") }
