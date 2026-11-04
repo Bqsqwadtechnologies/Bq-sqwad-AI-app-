@@ -8,6 +8,6 @@
   "triggers": { "crons": ["0 3 * * *"] },
   "vars": {
     "ALLOWED_ORIGINS": "https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev,https://bqsqwadai.com,https://www.bqsqwadai.com",
-    "BQ_BUILD_ID": "unknown"
+    "BQ_BUILD_ID": "set-by-deploy-workflow"
   }
 }
