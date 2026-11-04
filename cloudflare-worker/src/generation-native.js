@@ -6,33 +6,14 @@ const ALLOWED_IMAGE_QUALITIES = new Set(["low", "medium", "high", "auto"]);
 
 async function enforceFreeDailyImageGeneration(uid) {
   const user = await firestoreGet("users/" + String(uid));
-  const paidCredits = Math.max(0, Number(user?.credits || 0));
-  const subLive = user?.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
-  const subscriptionCredits = subLive ? Math.max(0, Number(user?.subCredits || 0)) : 0;
-  if (paidCredits + subscriptionCredits > 0) return false;
-  const date = new Date().toISOString().slice(0, 10);
-  const path = "dailyUsage/" + String(uid) + "_" + date;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const current = await firestoreGet(path);
-    const used = Math.max(0, Number(current?.imageGenerations || 0));
-    if (used >= 1) {
-      throw Object.assign(new Error("You’ve used your image generation for today. Your free allowance refreshes tomorrow. Add credits to continue."), {
-        httpStatus: 402, safeError: "daily_image_generation_used"
-      });
-    }
-    try {
-      if (current) await firestoreCommit([{ path, updateTime: current.__updateTime, data: {
-        uid: String(uid), date, imageGenerations: used + 1, updatedAt: new Date()
-      }}]);
-      else await firestoreCommit([{ path, create: true, data: {
-        uid: String(uid), date, imageGenerations: 1, updatedAt: new Date()
-      }}]);
-      return true;
-    } catch (error) {
-      if (attempt === 3) throw error;
-    }
-  }
-  throw new Error("daily_image_generation_check_failed");
+  if (!user) throw new Error("Account not found.");
+  const everPaid = user.hasEverPurchasedCredits === true || user.hasEverSubscribed === true ||
+    (String(user.subscriptionPlan || "free").toLowerCase() !== "free" && String(user.subscriptionPlan || "").length > 0);
+  if (everPaid) return false;
+  const paidCredits = Math.max(0, Number(user.credits || 0));
+  const subLive = user.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
+  const subscriptionCredits = subLive ? Math.max(0, Number(user.subCredits || 0)) : 0;
+  return paidCredits + subscriptionCredits <= 0;
 }
 
 function resolveAllowedOpenAIImageModel(requested) {
@@ -124,7 +105,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const size = resolveImageSize(b.size);
   const quality = resolveImageQuality(b.quality);
   const dailyFree = await enforceFreeDailyImageGeneration(user.uid);
-  const reservation = await charge(user.uid, dailyFree ? 0 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+  const reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
   try {
     const response = await openai(env, "/images/generations", {
       method: "POST",
@@ -168,7 +149,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
   const dailyFree=await enforceFreeDailyImageGeneration(user.uid);
-  const reservation=await charge(user.uid,dailyFree?0:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
+  const reservation=await charge(user.uid,dailyFree?1:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
   try {
     const binary=atob(encoded);
     const bytes=new Uint8Array(binary.length);
