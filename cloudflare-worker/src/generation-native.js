@@ -1,12 +1,12 @@
 import { firestoreGet, firestoreCreate, uploadFirebaseStorageObject } from "./firebase.js";
 
-const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-1-mini"]);
+const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
 const ALLOWED_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
 const ALLOWED_IMAGE_QUALITIES = new Set(["low", "medium", "high", "auto"]);
 
 function resolveAllowedOpenAIImageModel(requested) {
   const model = String(requested || "").trim();
-  return ALLOWED_OPENAI_IMAGE_MODELS.has(model) ? model : "gpt-image-1-mini";
+  return ALLOWED_OPENAI_IMAGE_MODELS.has(model) ? model : "gpt-image-2.5-sunburst";
 }
 
 function resolveImageSize(value) {
@@ -18,6 +18,20 @@ function resolveImageQuality(value) {
   const quality = String(value || "medium").trim().toLowerCase();
   return ALLOWED_IMAGE_QUALITIES.has(quality) ? quality : "medium";
 }
+function normalizeImageUsage(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const inputDetails = raw.input_tokens_details || {};
+  const outputDetails = raw.output_tokens_details || {};
+  const inputTokens = Number(raw.input_tokens || 0);
+  const outputTokens = Number(raw.output_tokens || 0);
+  const inputImageTokens = Number(inputDetails.image_tokens || 0);
+  const outputImageTokens = Number(outputDetails.image_tokens || outputTokens || 0);
+  const inputTextTokens = Number(inputDetails.text_tokens || Math.max(0, inputTokens - inputImageTokens));
+  if (![inputTokens, outputTokens, inputImageTokens, outputImageTokens, inputTextTokens].every(Number.isFinite)) return null;
+  if (inputTokens + outputTokens <= 0) return null;
+  return { inputTokens, inputImageTokens, inputTextTokens, outputTokens, outputImageTokens };
+}
+
 export function validateGeneratedImageBase64(encoded) {
   const value = String(encoded || "");
   if (!value || value.length > 28 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
@@ -86,6 +100,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       body: JSON.stringify({ model, prompt, size, quality })
     });
     const image = response.data?.[0];
+    const usage = normalizeImageUsage(response.usage);
     if (!image?.b64_json) throw new Error("image_generation_returned_no_image");
     validateGeneratedImageBase64(image.b64_json);
     const id = crypto.randomUUID();
@@ -99,7 +114,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     await commit(user.uid, reservation.reservationId, "openai");
     return {
       providerId: "openai", modelId: model, imageBase64: image.b64_json,
-      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: reservation.amount
+      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: reservation.amount, ...(usage ? { usage } : {})
     };
   } catch (error) {
     await reverse(user.uid, reservation.reservationId);
@@ -133,13 +148,14 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     form.append("image",new Blob([bytes],{type:mimeType}),"bq-sqwad-ai-image."+extensions[mimeType]);
     const z=await openai(env,"/images/edits",{method:"POST",body:form});
     const x=z.data?.[0];
+    const usage = normalizeImageUsage(z.usage);
     if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
     validateGeneratedImageBase64(x.b64_json);
     const id=crypto.randomUUID();
     const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
     await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
     await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount};
+    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount,...(usage?{usage}:{})};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
 export async function createVideoNative() {
