@@ -20,7 +20,7 @@ The Cloudflare Worker and website read the same Firestore `generationCostRules` 
 | Live camera/screen | `live.camera` |
 | Transcription | `speech.transcribe` |
 
-Other fixed-price capabilities use `feature.<capability>`. Legacy `adminAdvancedOptions/capability_*` prices are migrated into `generationCostRules` without replacing an existing rule. Default image/background/team-message prices are seeded only when neither a shared rule nor a valid legacy value exists.
+Other fixed-price capabilities use `feature.<capability>`. Legacy `adminAdvancedOptions/capability_*` prices are migrated into `generationCostRules` without replacing an existing rule. Versioned Admin Live Credit Pricing defaults are seeded once into shared generationCostRules. The seed uses baked customer-credit amounts (no runtime 7x/15x multiplier), preserves the existing image-generation, background-upload and team-message prices, and leaves later administrator edits intact.
 
 ## Production verification
 
