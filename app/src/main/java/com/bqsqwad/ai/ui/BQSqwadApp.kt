@@ -3426,14 +3426,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             error = "One selected image format is not supported. Choose a JPEG, PNG, or WebP image and try again."
                         } else if (detail.contains("attachment_count_invalid") || detail.contains("image_count_invalid")) {
                             error = "Attach up to four images and four PDF files per message."
-                        } else if (detail.contains("insufficient credit") || detail.contains("credit balance is too low") || detail.contains("run out of") || detail.contains("out of credits")) {
+                        } else if (
+                            detail.contains("insufficient") && detail.contains("credit") ||
+                            detail.contains("credit balance") && (detail.contains("low") || detail.contains("not enough")) ||
+                            detail.contains("run out of") || detail.contains("out of credits") ||
+                            detail.contains("no credits remaining") || detail.contains("credits_exhausted") ||
+                            detail.contains("insufficient_credits") || detail.contains("payment required") && detail.contains("credit")
+                        ) {
                             creditsExhausted = true
-                            if (!creditNoticeDismissed) {
-                                creditNotice = "You need more credits to continue. Choose Buy credits to add credits."
-                                error = creditNotice
-                            } else {
-                                error = null
-                            }
+                            creditNotice = "You’re out of credits. Please buy credits to continue using BQ Sqwad AI."
+                            error = creditNotice
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
                                 scope.launch(Dispatchers.IO) {
@@ -4151,7 +4153,26 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                 BqLogo(34.dp)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text("BQ Sqwad AI", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                    Text(message, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        if (creditsExhausted) "You’re out of credits. Please buy credits to continue using BQ Sqwad AI."
+                                        else message,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (creditsExhausted) {
+                                        Button(
+                                            onClick = {
+                                                error = null
+                                                creditNotice = null
+                                                openCredits()
+                                            },
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.ShoppingCart, contentDescription = null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Buy credits")
+                                        }
+                                    }
                                     if (!failedImagePrompt.isNullOrBlank()) {
                                         TextButton(
                                             onClick = {
