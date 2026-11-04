@@ -185,7 +185,10 @@ class RealtimeVoiceSession(
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
-                            put("create_response", true)
+                            // Responses are requested explicitly on speech_stopped below.
+                            // This avoids relying on automatic VAD response creation across
+                            // Realtime server/client session-update variants.
+                            put("create_response", false)
                         })
                     })
                 })
@@ -275,7 +278,20 @@ class RealtimeVoiceSession(
                 }
                 onState("listening")
             }
-            "input_audio_buffer.speech_stopped" -> onState("thinking")
+            "input_audio_buffer.speech_stopped" -> {
+                onState("thinking")
+                // Explicitly request exactly one answer after the server confirms the
+                // user's turn ended. The server VAD still performs segmentation/commit.
+                if (responseInProgress.compareAndSet(false, true)) {
+                    val sent = ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
+                        put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))
+                    }).toString())
+                    if (!sent) {
+                        responseInProgress.set(false)
+                        onError("Your voice message could not be sent for a reply. Please try again.")
+                    }
+                }
+            }
             "conversation.item.input_audio_transcription.delta", "input_audio_transcription.delta" -> {
                 val delta = event.optString("delta")
                 if (delta.isNotBlank()) inputTranscript.append(delta)
