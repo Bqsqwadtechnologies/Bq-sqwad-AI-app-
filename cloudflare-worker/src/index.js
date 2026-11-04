@@ -857,61 +857,35 @@ function capabilityPriceOperation(name) {
 }
 
 const IMAGE_GENERATION_TIER_DEFAULTS = [
-  {
-    "operation": "image.generate.low.square",
-    "label": "Image generation · Low · Square",
-    "credits": 0.292,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  },
-  {
-    "operation": "image.generate.low.rectangle",
-    "label": "Image generation · Low · Portrait / landscape",
-    "credits": 0.35,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  },
-  {
-    "operation": "image.generate.medium.square",
-    "label": "Image generation · Medium · Square",
-    "credits": 0.642,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  },
-  {
-    "operation": "image.generate.medium.rectangle",
-    "label": "Image generation · Medium · Portrait / landscape",
-    "credits": 0.875,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  },
-  {
-    "operation": "image.generate.high.square",
-    "label": "Image generation · High · Square",
-    "credits": 2.1,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  },
-  {
-    "operation": "image.generate.high.rectangle",
-    "label": "Image generation · High · Portrait / landscape",
-    "credits": 3.033,
-    "creditsPerUnit": 0,
-    "unit": "none"
-  }
+  { operation: "image.generate.low.square", label: "Image generation · Low · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
+  { operation: "image.generate.low.rectangle", label: "Image generation · Low · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
+  { operation: "image.generate.medium.square", label: "Image generation · Medium · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
+  { operation: "image.generate.medium.rectangle", label: "Image generation · Medium · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
+  { operation: "image.generate.high.square", label: "Image generation · High · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
+  { operation: "image.generate.high.rectangle", label: "Image generation · High · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" }
 ];
-const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v2";
+const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v3";
 let imageTierSeeded = false;
 async function ensureImageGenerationTierDefaults() {
   if (imageTierSeeded) return;
   const marker = await firestoreGet(IMAGE_GENERATION_TIER_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 2) { imageTierSeeded = true; return; }
+  if (marker?.applied === true && Number(marker.version) >= 3) { imageTierSeeded = true; return; }
   const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   for (const item of IMAGE_GENERATION_TIER_DEFAULTS) {
     const existing = (Array.isArray(rows) ? rows : []).find(row => String(row.operation || "").trim().toLowerCase() === item.operation && (!row.model || String(row.model).trim() === "*"));
-    if (existing) continue;
+    if (existing) {
+      if (existing.seededDefaultVersion && Number(existing.version || 1) <= 1) {
+        const existingId = String(existing.id || String(existing.__name || "").split("/").pop());
+        await firestoreSet("generationCostRules/" + existingId, {
+          ...existing, operation: item.operation, model: "*", label: item.label,
+          credits: 0, creditsPerUnit: 0, unit: "none", status: "active",
+          version: 2, seededDefaultVersion: 2, updatedAt: new Date().toISOString()
+        }, true);
+      }
+      continue;
+    }
     const id = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
-    await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: item.credits, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 1, updatedAt: new Date().toISOString() }, true);
+    await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: 0, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 2, updatedAt: new Date().toISOString() }, true);
   }
   const editRows = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === "image.edit");
   const editPrimary = editRows.find(row => !row.model || String(row.model).trim() === "*");
@@ -929,7 +903,7 @@ async function ensureImageGenerationTierDefaults() {
   await firestoreSet("adminAdvancedOptions/capability_image_edit", {
     name: "image_edit", creditCost: 0, sharedPricingOperation: "image.generate", updatedAt: new Date().toISOString()
   }, true);
-  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 2, updatedAt: new Date().toISOString() }, true);
+  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 3, updatedAt: new Date().toISOString() }, true);
   imageTierSeeded = true;
 }
 function imageGenerationPriceOperation(size, quality) {
