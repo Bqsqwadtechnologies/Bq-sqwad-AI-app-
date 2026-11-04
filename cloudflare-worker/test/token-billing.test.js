@@ -201,6 +201,15 @@ test("team chat is token-metered while deep research remains fixed-price", async
   assert.doesNotMatch(source, /isTokenMeteredFeature = \[[^\]]*"deep_research"/s);
 });
 
+test("Main Chat and GPT Image defaults contain precomputed per-token credit rates, not a runtime seven-times multiplier", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
+  assert.match(source, /"gpt-6-luna": \{[^}]*inputCredits: 0\.000005833333333333333/s);
+  assert.match(source, /"gpt-5\.6-luna": \{[^}]*outputCredits: 0\.00007/s);
+  assert.match(source, /"gpt-image-2\.5-sunburst": \{[^}]*inputImageCredits: 0\.0004666666666666667/s);
+  assert.doesNotMatch(source, /CUSTOMER_COST_MULTIPLIER/);
+});
+
 test("token pricing selects free and paid rules independently and prefers the exact class", async () => {
   const { matchesCustomerClass } = await import("../src/token-billing-native.js");
   assert.equal(matchesCustomerClass({ customerClass: "free" }, "free"), true);
