@@ -211,7 +211,7 @@ const CONFIG_DEFAULTS = {
   auditRequired: true,
   planOverrides: {},
   creditsPerSearch: 1,
-  creditsPerDeepResearch: 5,
+  creditsPerDeepResearch: 7,
   creditsPerResultPage: 0,
   maxResults: 10,
   dailyUserLimit: null
