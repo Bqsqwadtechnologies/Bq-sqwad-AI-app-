@@ -370,9 +370,9 @@ async function adminReadinessSelfTest(env, adminUser) {
         : !supportedForFeature || !providerSecret
           ? { status: "unsupported_provider", reachable: false }
           : await probeProvider(provider);
-      const configuredModel = String(config?.modelId || (feature === "image" ? "gpt-image-1-mini" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
+      const configuredModel = String(config?.modelId || (feature === "image" ? "gpt-image-2.5-sunburst" : DEFAULT_MODELS[provider] || "")).slice(0, 80);
       const model = provider === "openai"
-        ? (feature === "image" ? "gpt-image-1-mini" : "gpt-6-luna")
+        ? (feature === "image" ? "gpt-image-2.5-sunburst" : "gpt-6-luna")
         : configuredModel;
       const modelProbe = ["chat", "image", "vision"].includes(feature) && !disabled && supportedForFeature && env?.[providerSecret]
         ? await probeConfiguredModel(provider, model)
@@ -1131,8 +1131,8 @@ async function capability(uid, name) {
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
     chat: { providerId: "openai", modelId: DEFAULT_MODELS.openai, fallbackProviderIds: ["gemini"] },
-    image_generation: { providerId: "openai", modelId: "gpt-image-1-mini", fallbackProviderIds: [] },
-    image_edit: { providerId: "openai", modelId: "gpt-image-1-mini", fallbackProviderIds: [] },
+    image_generation: { providerId: "openai", modelId: "gpt-image-2.5-sunburst", fallbackProviderIds: [] },
+    image_edit: { providerId: "openai", modelId: "gpt-image-2.5-sunburst", fallbackProviderIds: [] },
     live_camera: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     live_voice: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     video_generation: { providerId: "openai", modelId: null, enabled: false, killSwitch: true, fallbackProviderIds: [] },
