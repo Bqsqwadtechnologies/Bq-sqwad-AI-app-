@@ -92,7 +92,9 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     const imageUrl = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
     await firestoreCreate("imageGenerationJobs/" + id, {
       uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
-      prompt, size, quality, createdAt: new Date(), updatedAt: new Date(), ...(imageUrl ? { imageUrl } : {})
+      prompt, size, quality, creditsCharged: Number(reservation.amount || 0),
+      billingUnit: "image", billingOperation: String(b.billingOperation || "image.generate"),
+      createdAt: new Date(), updatedAt: new Date(), ...(imageUrl ? { imageUrl } : {})
     });
     await commit(user.uid, reservation.reservationId, "openai");
     return {
