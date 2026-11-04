@@ -1269,9 +1269,10 @@ function canonicalUserBalance(profile) {
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
   const trial = 0;
   const timeZone = String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
-    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
-  const daily = everPaid ? 0 : currentDailyFreeCredits(profile, new Date(), timeZone);
+  // The daily allowance is universal: paid, free and previously paid accounts
+  // all receive the same one-credit daily bucket. It is separate from paid
+  // balances and expires at the next configured renewal boundary.
+  const daily = currentDailyFreeCredits(profile, new Date(), timeZone);
   return {
     permanent, subscription, trial, daily,
     dailyDate: String(profile.dailyFreeCreditsDate || ""),
@@ -1300,7 +1301,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
   let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
   let historyChecked = everPaid || profile.dailyFreeCreditsEligibilityChecked === true;
-  if (!everPaid && !historyChecked) {
+  if (!historyChecked) {
     try {
       const [purchases, playPurchases] = await Promise.all([
         firestoreQuery("purchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 }),
@@ -1319,15 +1320,13 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const timeZone = String(config?.timeZone || profile.dailyFreeCreditsTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
   const renewalTime = String(config?.renewalTime || profile.dailyFreeCreditsRenewalTime || "00:00");
   const today = dailyCreditDateKey(now, timeZone, renewalTime);
-  if (everPaid) {
-    if (profile.hasEverPurchasedCredits !== true || Number(profile.dailyFreeCredits || 0) !== 0 || String(profile.dailyFreeCreditsDate || "") !== today || String(profile.dailyFreeCreditsTimeZone || "") !== timeZone) {
-      await firestoreCommit([{ path: "users/" + uid, data: { ...(everPaid ? { hasEverPurchasedCredits: true } : {}), dailyFreeCreditsEligibilityChecked: historyChecked, dailyFreeCredits: 0, dailyFreeCreditsDate: today, dailyFreeCreditsTimeZone: timeZone, dailyFreeCreditsRenewalTime: renewalTime, updatedAt: now }, updateTime: profile.__updateTime }]).catch(() => {});
-    }
-    return;
-  }
   if (!historyChecked) return;
-  if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
+  // Use the per-account/per-day receipt as the idempotency authority. The
+  // profile date alone is not enough: legacy paid-account records may already
+  // contain today's date with a zero balance but no actual grant receipt.
+  const existingGrant = await firestoreGet("dailyFreeCreditGrants/" + grantId).catch(() => null);
+  if (existingGrant && String(existingGrant.uid || "") === uid) return;
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
   try {
     await firestoreCommit([
