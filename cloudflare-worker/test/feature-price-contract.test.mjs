@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 
 test("fixed-price features fail closed when the direct generation rule is missing", () => {
-  assert.match(source, /async function featurePrice\(name\)/);
-  assert.match(source, /const rule = await activeGenerationRule\(operation\)/);
+  assert.match(source, /async function featurePrice\(name, requestedModel = null\)/);
+  assert.match(source, /const rule = await activeGenerationRule\(operation, model\)/);
   assert.match(source, /await logMissingPrice\(key \|\| "unknown"\);[\s\S]*?httpStatus: 503[\s\S]*?safeError: "feature_temporarily_unavailable"/);
   assert.doesNotMatch(source, /Math\.max\(1, Number\(value\.creditCost == null/);
 });
@@ -19,7 +19,7 @@ test("media price seeds migrate to generation rules and preserve later administr
 
 test("image generation, image edit, and background upload read admin prices rather than route literals", () => {
   assert.match(source, /body\.creditCost = freeImage \? 0 : control\.creditCost/);
-  assert.match(source, /body\.creditCost = control\.creditCost/);
+  assert.match(source, /body\.creditCost = await featurePrice\("image_edit", control\.modelId\)/);
   assert.match(source, /const backgroundCreditCost = await featurePrice\("chat_background_upload"\)/);
   assert.match(source, /const CAPABILITY_PRICE_OPERATIONS = Object\.freeze/);
   assert.match(source, /image_generation: "image\.generate"/);
