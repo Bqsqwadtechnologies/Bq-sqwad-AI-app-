@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +37,7 @@ fun BqChatHeader(
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onMore: () -> Unit = {},
+    onSecretChats: (() -> Unit)? = null,
     logo: @Composable (size: androidx.compose.ui.unit.Dp) -> Unit
 ) {
     var showTitle by remember { mutableStateOf(false) }
@@ -75,6 +77,11 @@ fun BqChatHeader(
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        if (onSecretChats != null) {
+            IconButton(onClick = onSecretChats, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Default.Lock, contentDescription = "Open Secret Chats", tint = MaterialTheme.colorScheme.primary)
+            }
         }
         IconButton(onClick = onMore, modifier = Modifier.size(40.dp)) {
             Icon(Icons.Default.MoreVert, contentDescription = "Chat options", tint = MaterialTheme.colorScheme.onSurface)
