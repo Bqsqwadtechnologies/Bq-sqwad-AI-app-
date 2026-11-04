@@ -4168,7 +4168,7 @@ val composerShape = RoundedCornerShape(26.dp)
                     color = Color.White,
                     shadowElevation = 12.dp
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
                     if (!dictationUiActive && attachments.isNotEmpty()) {
                         LazyRow(
                             Modifier.fillMaxWidth(),
@@ -4327,7 +4327,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         }
                                     },
                                     enabled = !busy && !dictationTranscribing,
-                                    modifier = Modifier.size(34.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
                                     Icon(
                                         if (dictationRecording || isListening) Icons.Default.Stop else Icons.Default.Mic,
@@ -4337,7 +4337,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                             else -> "Start voice dictation"
                                         },
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(21.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                                 PlusAttachmentButton(
@@ -4382,7 +4382,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .heightIn(min = 50.dp)
+                                            .heightIn(min = 44.dp)
                                             .padding(end = 34.dp)
                                             .onFocusChanged { state ->
                                                 if (state.isFocused) keyboardController?.show()
@@ -4408,13 +4408,13 @@ val composerShape = RoundedCornerShape(26.dp)
                                     )
                                     IconButton(
                                         onClick = openFeatures,
-                                        modifier = Modifier.align(Alignment.TopEnd).size(32.dp)
+                                        modifier = Modifier.align(Alignment.TopEnd).size(28.dp)
                                     ) {
                                         Icon(
                                             Icons.Default.Add,
                                             contentDescription = "Open more AI features",
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -4451,13 +4451,13 @@ val composerShape = RoundedCornerShape(26.dp)
                                             }
                                             sendAuthenticatedMessage(text)
                                         },
-                                        modifier = Modifier.size(34.dp)
+                                        modifier = Modifier.size(30.dp)
                                     ) {
                                         Icon(
                                             if (busy) Icons.Default.Stop else Icons.Default.Send,
                                             contentDescription = if (busy) "Stop generating" else "Send",
                                             tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
