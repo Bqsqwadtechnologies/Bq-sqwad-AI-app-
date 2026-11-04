@@ -1664,9 +1664,53 @@ async function settleCreditReservation(uid, reservationId, finalAmount, provider
     if (!reservation || reservation.uid !== uid || reservation.status !== "reserved") {
       throw new Error("credit_reservation_not_settleable");
     }
-    const reservedAmount = Math.max(0, Number(reservation.amount || 0));
+    let reservedAmount = Math.max(0, Number(reservation.amount || 0));
     if (targetAmount > reservedAmount + 0.000000001) {
-      throw Object.assign(new Error("token_usage_exceeds_reserved_credits"), { httpStatus: 402, safeError: "insufficient_credits" });
+      const profile = await readCanonicalUserBalance(uid);
+      const balance = canonicalUserBalance(profile);
+      if (!profile || !balance) throw new Error("credit_balance_missing");
+      const additional = targetAmount - reservedAmount;
+      const split = splitCreditBuckets({
+        daily: balance.daily,
+        subscription: balance.subscription,
+        permanent: balance.permanent,
+        amount: additional
+      });
+      if (!split.ok) {
+        throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
+      }
+      try {
+        await firestoreCommit([
+          {
+            path: "users/" + uid,
+            data: {
+              credits: Math.max(0, balance.permanent - split.fromPermanent),
+              subCredits: Math.max(0, balance.subscription - split.fromSubscription),
+              trialCredits: Math.max(0, balance.trial),
+              dailyFreeCredits: Math.max(0, balance.daily - split.fromDaily),
+              updatedAt: new Date()
+            },
+            updateTime: profile.__updateTime
+          },
+          {
+            path: "creditReservations/" + reservationId,
+            data: {
+              ...reservation,
+              amount: targetAmount,
+              fromPermanent: Math.max(0, Number(reservation.fromPermanent || 0)) + split.fromPermanent,
+              fromSubscription: Math.max(0, Number(reservation.fromSubscription || 0)) + split.fromSubscription,
+              fromDaily: Math.max(0, Number(reservation.fromDaily || 0)) + split.fromDaily,
+              fromTrial: Math.max(0, Number(reservation.fromTrial || 0)),
+              toppedUpAt: new Date()
+            },
+            updateTime: reservation.__updateTime
+          }
+        ]);
+        reservedAmount = targetAmount;
+      } catch (error) {
+        if (attempt === 4) throw error;
+        continue;
+      }
     }
     const refundNeeded = Math.max(0, reservedAmount - targetAmount);
     if (refundNeeded <= 0.000000001) break;
