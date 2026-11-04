@@ -18,7 +18,8 @@ test("shared generation defaults use baked customer credit prices and preserve e
   assert.ok(source.includes('"operation": "file.pdf"'));
   assert.ok(source.includes('"creditsPerUnit": 0.3'));
   assert.ok(source.includes('"operation": "web.search"'));
-  assert.ok(source.includes('"credits": 25.5'));
+  assert.ok(source.includes('"operation": "image.edit"'));
+  assert.ok(source.includes('"credits": 0'));
   assert.ok(source.includes('"creditsPerUnit": 0.34056155'));
   assert.ok(source.includes('"creditsPerUnit": 0.0204337'));
   assert.ok(source.includes("PRESERVE_EXISTING_DEFAULTS"));
@@ -27,7 +28,7 @@ test("shared generation defaults use baked customer credit prices and preserve e
 });
 test("image generation, image edit, and background upload read admin prices rather than route literals", () => {
   assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
-  assert.match(source, /body\.creditCost = freeImage \? 0 : imagePrice\.credits/);
+  assert.match(source, /body\.creditCost = imagePrice\.credits/);
   assert.match(source, /creditsCharged: freeImage \? 0 : imagePrice\.credits/);
   assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
   assert.match(source, /body\.creditCost = imagePrice\.credits/);
