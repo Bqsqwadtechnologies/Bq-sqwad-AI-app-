@@ -1362,8 +1362,8 @@ async function resolveDailyFreeCreditPrice(uid, paidPrice, operationLabel) {
   if (!profile || !balance) throw new Error("Account not found.");
   const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
+  if (!everPaid && balance.daily >= 1) return 1;
   if (everPaid || balance.permanent + balance.subscription > 0) return Math.max(0, Number(paidPrice) || 0);
-  if (balance.daily >= 1) return 1;
   throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), {
     httpStatus: 402, safeError: "daily_free_credit_used"
   });
@@ -5173,6 +5173,7 @@ export default {
         // Auto modes are normalized to the medium square default so the charge is deterministic.
         body.size = String(body.size).toLowerCase() === "auto" ? "1024x1024" : String(body.size).toLowerCase();
         body.quality = String(body.quality).toLowerCase() === "auto" ? "medium" : String(body.quality).toLowerCase();
+        await applyConfiguredDailyFreeCredits(u.uid);
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
         body.creditCost = imagePrice.credits;
         body.billingOperation = imagePrice.operation;
@@ -5197,6 +5198,7 @@ export default {
         body.quality = body.quality || imageModel?.quality || control.config?.quality || "medium";
         body.size = String(body.size).toLowerCase() === "auto" ? "1024x1024" : String(body.size).toLowerCase();
         body.quality = String(body.quality).toLowerCase() === "auto" ? "medium" : String(body.quality).toLowerCase();
+        await applyConfiguredDailyFreeCredits(u.uid);
         const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
         body.creditCost = imagePrice.credits;
         body.billingOperation = imagePrice.operation;
