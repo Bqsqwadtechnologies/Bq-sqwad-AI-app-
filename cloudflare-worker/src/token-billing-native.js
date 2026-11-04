@@ -227,7 +227,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     : null;
   if (mainDefaults && !tokenRules.some(rule =>
     String(rule.provider || "").toLowerCase() === "openai" &&
-    String(rule.model || "").toLowerCase() === String(modelId || "").toLowerCase() &&\n    String(rule.customerClass || "all").toLowerCase() === "all"
+    String(rule.model || "").toLowerCase() === String(modelId || "").toLowerCase() &&
+    String(rule.customerClass || "all").toLowerCase() === "all"
   )) {
     const usdPerToken = value => value / 1_000_000;
     const creditsPerToken = value => usdPerToken(value) / DEFAULT_CREDIT_REFERENCE_USD * CUSTOMER_COST_MULTIPLIER;
