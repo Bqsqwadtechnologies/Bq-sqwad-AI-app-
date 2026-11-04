@@ -3625,7 +3625,16 @@ export default {
         }
         const object = await inspectTrainingAssetObject(String(pending.objectPath || ""));
         if (!object || Number(object.size) !== Number(pending.size)) return json({ error: "file_upload_not_complete" }, 409);
-        const uploadCreditsCharged = await ensureFileBoxUploadCharged(user, id);
+        let uploadCreditsCharged = 0;
+        try {
+          uploadCreditsCharged = await ensureFileBoxUploadCharged(user, id);
+        } catch (error) {
+          if (Number(error?.httpStatus) === 402) {
+            await deleteTrainingAssetObject(String(pending.objectPath || "")).catch(() => {});
+            await firestoreSet("fileBoxUploads/" + id, { ...pending, uploadPending: false, rejectedForInsufficientCredits: true, rejectedAt: new Date() }, true).catch(() => {});
+          }
+          throw error;
+        }
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
         let lastConflict = null;
