@@ -1844,13 +1844,13 @@ export const bqSqwadApi = onRequest(
         const pricingDoc = await db.collection("adminAdvancedOptions").doc("web_search_pricing").get();
         const pricing = pricingDoc.exists
           ? (pricingDoc.data()?.config || {})
-          : { creditsPerSearch: 1, creditsPerDeepResearch: 5, maxResults: 10, dailyUserLimit: null };
+          : { creditsPerSearch: 1, creditsPerDeepResearch: 7, maxResults: 10, dailyUserLimit: null };
         if (pricingDoc.exists && pricingDoc.data()?.enabled === false) return send(res, 403, { error: "web_search_disabled" });
         const deepResearch = Boolean(body.deepResearch);
-        const charge = deepResearch ? Number(pricing.creditsPerDeepResearch ?? 5) : Number(pricing.creditsPerSearch ?? 1);
+        const charge = deepResearch ? 7 : Number(pricing.creditsPerSearch ?? 1);
         const capability = deepResearch ? "deep_research" : "web_search";
         const gate = await authorizeCapability(user.uid, "capability_" + capability);
-        const effectiveCharge = Math.max(charge, gate.creditCost);
+        const effectiveCharge = deepResearch ? 7 : Math.max(charge, gate.creditCost);
         const reservation = await reserveCredits(user.uid, effectiveCharge, capability);
         try {
           const result = await callTavily({
