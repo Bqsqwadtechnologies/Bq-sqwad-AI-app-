@@ -1287,17 +1287,11 @@ function canonicalUserBalance(profile) {
 
 async function applyConfiguredDailyFreeCredits(uid) {
   const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
-  const enabled = config == null ? true : config.enabled === true;
-  const configuredCredits = Number(config?.credits ?? 1);
-  const credits = Number.isFinite(configuredCredits) ? Math.min(1, Math.max(0, configuredCredits)) : 1;
+  // The daily allowance is a product-wide entitlement, not a paid-plan perk
+  // or a configurable top-up. Every account receives exactly one credit.
+  const credits = 1;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
-  if (!enabled || credits <= 0) {
-    if (Number(profile.dailyFreeCredits || 0) !== 0) {
-      await firestoreCommit([{ path: "users/" + uid, data: { dailyFreeCredits: 0, updatedAt: new Date() }, updateTime: profile.__updateTime }]).catch(() => {});
-    }
-    return;
-  }
   let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
   let historyChecked = everPaid || profile.dailyFreeCreditsEligibilityChecked === true;
