@@ -32,7 +32,7 @@ test("deep research is fixed-price and its seven-credit rule is applied before W
 });
 
 test("image editing uses shared image generation quality-tier rules", () => {
-  assert.match(source, /if \(key === "image\.edit"\) await ensureImageGenerationTierDefaults\(\)/);
+  assert.match(source, /if \(key === "image\.generate" \|\| key === "image\.edit"\) await ensureImageGenerationTierDefaults\(\)/);
   assert.match(source, /imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
 });
 
