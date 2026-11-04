@@ -126,8 +126,9 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     const usage = normalizeImageUsage(response.usage);
     if (!image?.b64_json) throw new Error("image_generation_returned_no_image");
     validateGeneratedImageBase64(image.b64_json);
-    let finalCredits = Number(reservation.amount || 0);
-    if (!dailyFree) {
+    const chargeCovered = reservation?.planCovered === true || reservation?.adminUnlimited === true || !reservation?.reservationId;
+    let finalCredits = dailyFree ? Number(reservation.amount || 0) : 0;
+    if (!dailyFree && !chargeCovered) {
       if (!usage || !tokenPricing) throw Object.assign(new Error("image_token_usage_unavailable"), { httpStatus: 503, safeError: "provider_unavailable" });
       const priced = calculateTokenCost({
         usage: {
@@ -196,8 +197,9 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     const usage = normalizeImageUsage(z.usage);
     if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
     validateGeneratedImageBase64(x.b64_json);
-    let finalCredits=Number(reservation.amount||0);
-    if(!dailyFree){
+    const chargeCovered=reservation?.planCovered===true||reservation?.adminUnlimited===true||!reservation?.reservationId;
+    let finalCredits=dailyFree?Number(reservation.amount||0):0;
+    if(!dailyFree&&!chargeCovered){
       if(!usage||!tokenPricing)throw Object.assign(new Error("image_token_usage_unavailable"),{httpStatus:503,safeError:"provider_unavailable"});
       const priced=calculateTokenCost({usage:{inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,inputImageTokens:usage.inputImageTokens,outputImageTokens:usage.outputImageTokens},pricing:tokenPricing});
       finalCredits=Number(priced.customerCredits||0);
