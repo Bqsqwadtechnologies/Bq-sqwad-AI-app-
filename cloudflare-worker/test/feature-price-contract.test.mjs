@@ -49,7 +49,7 @@ test("a missing capability document reaches the price logger instead of escaping
 });
 
 test("text capabilities are token-metered rather than charged as fixed feature prices", () => {
-  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search"\]\)/);
+  assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"\]\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\) \? 0 : await featurePrice\(name\)/);
   assert.doesNotMatch(source, /Math\.max\(1,\s*Number\(value\.creditCost == null/);
 });
