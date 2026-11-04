@@ -10,10 +10,7 @@ async function enforceFreeDailyImageGeneration(uid) {
   const subLive = user?.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
   const subscriptionCredits = subLive ? Math.max(0, Number(user?.subCredits || 0)) : 0;
   if (paidCredits + subscriptionCredits > 0) return;
-  const date = new Intl.DateTimeFormat("en-CA", {
-    timeZone: String(user?.dailyFreeCreditsTimeZone || "Africa/Lagos"),
-    year: "numeric", month: "2-digit", day: "2-digit"
-  }).format(new Date());
+  const date = new Date().toISOString().slice(0, 10);
   const path = "dailyUsage/" + String(uid) + "_" + date;
   for (let attempt = 0; attempt < 4; attempt++) {
     const current = await firestoreGet(path);
