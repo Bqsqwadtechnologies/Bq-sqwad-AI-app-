@@ -327,6 +327,9 @@ export async function verifyPlayPurchase(env, firestore, input) {
         ...profile,
         uid,
         subscriptionPlan: String(mapping.planId || productId),
+        hasEverPurchasedCredits: true,
+        hasEverSubscribed: true,
+        dailyFreeCredits: 0,
         subscriptionPeriod: period,
         ...(expiryTime ? { subExpiresAt: expiryTime } : {}),
         updatedAt: new Date()
@@ -347,6 +350,9 @@ export async function verifyPlayPurchase(env, firestore, input) {
         uid,
         credits: nextPermanent,
         subCredits: nextSubCredits,
+        hasEverPurchasedCredits: true,
+        ...(isSubscription ? { hasEverSubscribed: true } : {}),
+        dailyFreeCredits: 0,
         ...(isSubscription ? {
           subscriptionPlan: String(mapping.planId || productId),
           subscriptionPeriod: period,
