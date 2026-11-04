@@ -637,10 +637,10 @@ const ADMIN_SEED_DEFAULTS = [
   },
   {
     "operation": "image.edit",
-    "label": "Image editing",
+    "label": "Image editing uses image generation quality tiers",
     "credits": 0,
-    "creditsPerUnit": 22.5,
-    "unit": "image"
+    "creditsPerUnit": 0,
+    "unit": "none"
   },
   {
     "operation": "video.generate",
@@ -900,12 +900,12 @@ const IMAGE_GENERATION_TIER_DEFAULTS = [
     "unit": "none"
   }
 ];
-const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v1";
+const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v2";
 let imageTierSeeded = false;
 async function ensureImageGenerationTierDefaults() {
   if (imageTierSeeded) return;
   const marker = await firestoreGet(IMAGE_GENERATION_TIER_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 1) { imageTierSeeded = true; return; }
+  if (marker?.applied === true && Number(marker.version) >= 2) { imageTierSeeded = true; return; }
   const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   for (const item of IMAGE_GENERATION_TIER_DEFAULTS) {
     const existing = (Array.isArray(rows) ? rows : []).find(row => String(row.operation || "").trim().toLowerCase() === item.operation && (!row.model || String(row.model).trim() === "*"));
@@ -913,7 +913,23 @@ async function ensureImageGenerationTierDefaults() {
     const id = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
     await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: item.credits, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 1, updatedAt: new Date().toISOString() }, true);
   }
-  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+  const editRows = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === "image.edit");
+  const editPrimary = editRows.find(row => !row.model || String(row.model).trim() === "*");
+  const editId = String(editPrimary?.id || String(editPrimary?.__name || "").split("/").pop() || "default-image-edit-shared");
+  await firestoreSet("generationCostRules/" + editId, {
+    ...(editPrimary || {}), id: editId, operation: "image.edit", model: "*",
+    label: "Image editing uses image generation quality tiers",
+    credits: 0, creditsPerUnit: 0, unit: "none", status: "active",
+    version: Math.max(1, Number(editPrimary?.version || 0) + (editPrimary ? 1 : 0)), updatedAt: new Date().toISOString()
+  }, true);
+  for (const duplicate of editRows) {
+    const duplicateId = String(duplicate.id || String(duplicate.__name || "").split("/").pop() || "");
+    if (duplicateId && duplicateId !== editId) await firestoreDelete("generationCostRules/" + duplicateId).catch(() => {});
+  }
+  await firestoreSet("adminAdvancedOptions/capability_image_edit", {
+    name: "image_edit", creditCost: 0, sharedPricingOperation: "image.generate", updatedAt: new Date().toISOString()
+  }, true);
+  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 2, updatedAt: new Date().toISOString() }, true);
   imageTierSeeded = true;
 }
 function imageGenerationPriceOperation(size, quality) {
