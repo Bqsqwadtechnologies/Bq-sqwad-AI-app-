@@ -2445,7 +2445,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         kotlinx.coroutines.delay(5_000L)
         advertisedFeatureIndex = (advertisedFeatureIndex + 1) % advertisedFeatures.size
     }
-    val prefs = remember { accountPreferences(context, "bq_ui") }
+    val prefs = remember(FirebaseAuth.getInstance().currentUser?.uid) { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
     var birthdayCardOpen by remember { mutableStateOf(false) }
     val aiBirthTimestamp = remember(FirebaseAuth.getInstance().currentUser?.uid) {
@@ -7734,7 +7734,7 @@ private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenSign
                         Tasks.await(objectRef.downloadUrl).toString()
                     }
                     val result = WorkspaceApiClient().saveChatBackground(uploadId, downloadUrl, customChatBackgroundBrightness)
-                    val charged = result.optDouble("creditsCharged", 2.0).coerceAtLeast(0.0)
+                    val charged = result.optDouble("creditsCharged", 0.0).coerceAtLeast(0.0)
                     chatBackgroundPrefs.edit()
                         .putString("chat_background_uri", downloadUrl)
                         .putFloat("chat_background_brightness", customChatBackgroundBrightness)
@@ -8115,7 +8115,7 @@ item { SettingsSectionTitle("Appearance", "Theme, color and text size") }
                     Button(enabled = !changingChatBackground, onClick = { chatBackgroundPicker.launch(arrayOf("image/*")) }) {
                         Icon(Icons.Default.Image, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (changingChatBackground) "Applying…" else "Choose picture · 2 credits")
+                        Text(if (changingChatBackground) "Uploading…" else "Choose picture · configured price")
                     }
                     if (customChatBackgroundUri != null) {
                         OutlinedButton(enabled = !changingChatBackground, onClick = {
