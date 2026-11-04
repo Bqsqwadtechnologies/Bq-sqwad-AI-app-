@@ -1289,9 +1289,14 @@ async function applyConfiguredDailyFreeCredits(uid) {
   const enabled = config == null ? true : config.enabled === true;
   const configuredCredits = Number(config?.credits ?? 1);
   const credits = Number.isFinite(configuredCredits) ? Math.min(1, Math.max(0, configuredCredits)) : 1;
-  if (!enabled || credits <= 0) return;
   const profile = await firestoreGet("users/" + uid);
   if (!profile) return;
+  if (!enabled || credits <= 0) {
+    if (Number(profile.dailyFreeCredits || 0) !== 0) {
+      await firestoreCommit([{ path: "users/" + uid, data: { dailyFreeCredits: 0, updatedAt: new Date() }, updateTime: profile.__updateTime }]).catch(() => {});
+    }
+    return;
+  }
   let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
     (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
   if (!everPaid) {
