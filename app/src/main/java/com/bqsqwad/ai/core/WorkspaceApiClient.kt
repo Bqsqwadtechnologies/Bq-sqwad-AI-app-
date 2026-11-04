@@ -116,6 +116,7 @@ class WorkspaceApiClient {
                 requestMethod=method; connectTimeout=if (path.startsWith("/file-box")) 15000 else 6500; readTimeout=if (path == "/ai" || path == "/ai/stream" || path == "/ai/vision" || path == "/web-search") 120000 else if (path.startsWith("/file-box")) 45000 else 10000; doInput=true
                 if(method!="GET"){doOutput=true;setRequestProperty("Content-Type","application/json")}
                 setRequestProperty("Authorization","Bearer $token")
+                if (path == "/chat-background") setRequestProperty("Cache-Control", "no-cache")
             }
             try {
                 if(method!="GET") c.outputStream.use{it.write(payload.toString().toByteArray())}
