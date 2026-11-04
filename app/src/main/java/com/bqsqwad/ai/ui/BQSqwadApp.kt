@@ -2191,9 +2191,11 @@ internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
         label = "bqLogoRotation"
     )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Image(
-            painter = painterResource(R.drawable.bq_sqwad_logo),
-            contentDescription = "BQ Sqwad AI loading",
+        // Reuse the theme-aware transparent logo processor instead of the
+        // legacy JPEG drawable, whose dark matte appeared as a black tile
+        // in small loading indicators.
+        BqLogo(
+            size = 48.dp,
             modifier = Modifier.fillMaxSize().graphicsLayer {
                 alpha = pulse
                 scaleX = 0.92f + 0.08f * pulse
