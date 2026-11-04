@@ -1618,8 +1618,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onWorkspace = { selected ->
                     featureHub = false
                     openWorkspace(selected)
-                },
-                onAdvancedFeature = { selected -> featureHub = false; advancedFeature = selected }
+                }
             )
             featureSettings != null -> FeatureSettingsScreen(featureSettings!!) { featureSettings = null }
             advancedFeature != null -> AdvancedFeatureScreen(
@@ -2433,18 +2432,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     val keyboardController = LocalSoftwareKeyboardController.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    val advertisedFeatures = remember {
-        (Workspace.values()
-            .filter { it != Workspace.CHAT && it != Workspace.SEARCH }
-            .map { it.title to it.description } +
-            ADVANCED_APP_FEATURES.map { it.title to it.description })
-            .distinctBy { it.first }
-    }
-    var advertisedFeatureIndex by remember { mutableIntStateOf(0) }
-    LaunchedEffect(advertisedFeatureIndex) {
-        kotlinx.coroutines.delay(5_000L)
-        advertisedFeatureIndex = (advertisedFeatureIndex + 1) % advertisedFeatures.size
-    }
     val prefs = remember(FirebaseAuth.getInstance().currentUser?.uid) { accountPreferences(context, "bq_ui") }
     val settingsPrefs = remember { accountPreferences(context) }
     var birthdayCardOpen by remember { mutableStateOf(false) }
@@ -3797,35 +3784,33 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                 item {
-                    val advertisedFeature = advertisedFeatures[advertisedFeatureIndex]
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        FloatingLogo(Modifier)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).clickable(onClick = openFeatures),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            tonalElevation = 2.dp
                         ) {
-                            FloatingLogo(Modifier)
-                            Surface(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).clickable(onClick = openFeatures),
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainer,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                tonalElevation = 2.dp
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Text(advertisedFeature.first, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                    Text(advertisedFeature.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("Try this feature", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text("More AI features, at your fingertips", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Explore the tools built into BQ Sqwad AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                TextButton(onClick = openFeatures) {
+                                    Text("Explore AI features", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
-                            TextButton(onClick = openFeatures) {
-                                Text("All features", style = MaterialTheme.typography.labelMedium)
-                            }
                         }
+                    }
                 }
                 if (taskStartedAtMs != null) {
                     item {
@@ -5031,8 +5016,7 @@ private fun FeatureHub(
     onBack: () -> Unit,
     onPlans: () -> Unit,
     onHistory: () -> Unit,
-    onWorkspace: (Workspace) -> Unit,
-    onAdvancedFeature: (AppFeature) -> Unit
+    onWorkspace: (Workspace) -> Unit
 ) {
     val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
     val primary = listOf(
@@ -5047,7 +5031,6 @@ private fun FeatureHub(
         Workspace.DATA_ANALYSIS
     ).filter { visibleWorkspaces.contains(it) }
     val more = visibleWorkspaces.filter { it !in primary }
-    val advancedFeatures = ADVANCED_APP_FEATURES
 
     fun iconFor(w: Workspace) = when (w) {
         Workspace.LEARNING -> Icons.Default.School
@@ -5179,47 +5162,6 @@ private fun FeatureHub(
                                     Icon(Icons.Default.ChevronRight, null)
                                 }
                             }
-                        }
-                    }
-                }
-            }
-
-            if (advancedFeatures.isNotEmpty()) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("Advanced AI capabilities", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Browse registered capabilities. Actual availability depends on server configuration, plan access and provider support; this directory does not promise every capability is live.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                items(advancedFeatures, key = { it.id }) { feature ->
-                    Card(
-                        onClick = { onAdvancedFeature(feature) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(15.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.size(42.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                                }
-                            }
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(feature.title, fontWeight = FontWeight.SemiBold)
-                                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Explore ${feature.title}")
                         }
                     }
                 }
