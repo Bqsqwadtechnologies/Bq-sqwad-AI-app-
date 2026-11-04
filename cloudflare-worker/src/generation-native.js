@@ -1,8 +1,42 @@
-import { firestoreGet, firestoreCreate, uploadFirebaseStorageObject } from "./firebase.js";
+import { firestoreGet, firestoreCreate, firestoreCommit, uploadFirebaseStorageObject } from "./firebase.js";
 
 const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
 const ALLOWED_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
 const ALLOWED_IMAGE_QUALITIES = new Set(["low", "medium", "high", "auto"]);
+
+async function enforceFreeDailyImageGeneration(uid) {
+  const user = await firestoreGet("users/" + String(uid));
+  const paidCredits = Math.max(0, Number(user?.credits || 0));
+  const subLive = user?.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
+  const subscriptionCredits = subLive ? Math.max(0, Number(user?.subCredits || 0)) : 0;
+  if (paidCredits + subscriptionCredits > 0) return;
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: String(user?.dailyFreeCreditsTimeZone || "Africa/Lagos"),
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
+  const path = "dailyUsage/" + String(uid) + "_" + date;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const current = await firestoreGet(path);
+    const used = Math.max(0, Number(current?.imageGenerations || 0));
+    if (used >= 1) {
+      throw Object.assign(new Error("You’ve used your image generation for today. Your free allowance refreshes tomorrow. Add credits to continue."), {
+        httpStatus: 402, safeError: "daily_image_generation_used"
+      });
+    }
+    try {
+      if (current) await firestoreCommit([{ path, updateTime: current.__updateTime, data: {
+        uid: String(uid), date, imageGenerations: used + 1, updatedAt: new Date()
+      }}]);
+      else await firestoreCommit([{ path, create: true, data: {
+        uid: String(uid), date, imageGenerations: 1, updatedAt: new Date()
+      }}]);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
+  throw new Error("daily_image_generation_check_failed");
+}
 
 function resolveAllowedOpenAIImageModel(requested) {
   const model = String(requested || "").trim();
@@ -92,6 +126,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const model = resolveAllowedOpenAIImageModel(b.model);
   const size = resolveImageSize(b.size);
   const quality = resolveImageQuality(b.quality);
+  await enforceFreeDailyImageGeneration(user.uid);
   const reservation = await charge(user.uid, Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
   try {
     const response = await openai(env, "/images/generations", {
@@ -135,6 +170,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   if(!extensions[mimeType]) throw Object.assign(new Error("image_edit_type_unsupported"), { httpStatus: 415 });
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
+  await enforceFreeDailyImageGeneration(user.uid);
   const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
   try {
     const binary=atob(encoded);
