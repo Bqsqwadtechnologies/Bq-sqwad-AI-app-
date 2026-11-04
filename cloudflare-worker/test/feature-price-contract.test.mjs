@@ -26,7 +26,9 @@ test("shared generation defaults use baked customer credit prices and preserve e
   assert.match(source, /await seedAdminPricingDefaults\(\);[\s\S]*?const key = String\(operation/);
 });
 test("image generation, image edit, and background upload read admin prices rather than route literals", () => {
-  assert.match(source, /body\.creditCost = freeImage \? 0 : await featurePrice\("image_generation", control\.modelId\)/);
+  assert.match(source, /const imagePrice = await imageGenerationCreditPrice\(body\.size, body\.quality, control\.modelId\)/);
+  assert.match(source, /body\.creditCost = freeImage \? 0 : imagePrice\.credits/);
+  assert.match(source, /creditsCharged: freeImage \? 0 : imagePrice\.credits/);
   assert.match(source, /body\.creditCost = await featurePrice\("image_edit", control\.modelId\)/);
   assert.match(source, /const pdfCreditCost = await featurePrice\("pdf", pdfControl\.modelId\)/);
   assert.match(source, /const backgroundCreditCost = await featurePrice\("chat_background_upload"\)/);
@@ -45,4 +47,24 @@ test("text capabilities are token-metered rather than charged as fixed feature p
   assert.match(source, /const TOKEN_METERED = new Set\(\["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "deep_research"\]\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\) \? 0 : await featurePrice\(name\)/);
   assert.doesNotMatch(source, /Math\.max\(1,\s*Number\(value\.creditCost == null/);
+});
+
+
+test("image generation is priced by the exact requested size and quality tier", () => {
+  assert.match(source, /function imageGenerationPriceOperation\(size, quality\)/);
+  assert.match(source, /image\.generate\." \+ normalizedQuality \+ "\." \+ shape/);
+  assert.ok(source.includes('"operation": "image.generate.low.square"'));
+  assert.ok(source.includes('"credits": 0.292'));
+  assert.ok(source.includes('"operation": "image.generate.low.rectangle"'));
+  assert.ok(source.includes('"credits": 0.35'));
+  assert.ok(source.includes('"operation": "image.generate.medium.square"'));
+  assert.ok(source.includes('"credits": 0.642'));
+  assert.ok(source.includes('"operation": "image.generate.medium.rectangle"'));
+  assert.ok(source.includes('"credits": 0.875'));
+  assert.ok(source.includes('"operation": "image.generate.high.square"'));
+  assert.ok(source.includes('"credits": 2.1'));
+  assert.ok(source.includes('"operation": "image.generate.high.rectangle"'));
+  assert.ok(source.includes('"credits": 3.033'));
+  assert.match(source, /if \(String\(body\.size\)\.toLowerCase\(\) === "auto"\) body\.size = "1024x1024"/);
+  assert.match(source, /if \(String\(body\.quality\)\.toLowerCase\(\) === "auto"\) body\.quality = "medium"/);
 });
