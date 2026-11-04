@@ -680,7 +680,11 @@ async function featurePrice(name) {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
   const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
-  const model = capabilityConfig?.billingModelId || capabilityConfig?.modelId || "*";
+  // Member-authored team messages are priced per message, independently of
+  // whichever AI model later answers in that team conversation.
+  const model = name === "team_member_message"
+    ? "*"
+    : capabilityConfig?.billingModelId || capabilityConfig?.modelId || "*";
   let rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   let existing = (Array.isArray(rows) ? rows : []).find(row =>
     String(row.operation || "").trim().toLowerCase() === operation
