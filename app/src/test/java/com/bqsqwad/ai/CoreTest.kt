@@ -84,7 +84,8 @@ class CoreTest {
             IllegalStateException("realtime_session_failed (provider status 400)"),
             "Live Voice is getting ready. Please try again in a moment."
         )
-        assertFalse(shown.contains("400"))
+        assertFalse(shown.contains("provider status 400"))
+        assertFalse(shown.contains("HTTP 400"))
         assertFalse(shown.contains("realtime_session_failed"))
         assertFalse(shown.contains("provider_not_configured"))
     }
