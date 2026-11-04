@@ -63,6 +63,13 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    // Keep the root chat visible when Android Back is pressed.
+    @Deprecated("Deprecated in Android API; retained for the platform Back dispatcher contract.")
+    override fun onBackPressed() {
+        if (!isTaskRoot) super.onBackPressed()
+        // Nested Compose destinations continue to handle Back themselves.
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
