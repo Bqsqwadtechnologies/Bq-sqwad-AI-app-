@@ -856,6 +856,82 @@ function capabilityPriceOperation(name) {
   return CAPABILITY_PRICE_OPERATIONS[key] || ("feature." + key.replace(/[^a-z0-9_.-]/g, "_"));
 }
 
+const IMAGE_GENERATION_TIER_DEFAULTS = [
+  {
+    "operation": "image.generate.low.square",
+    "label": "Image generation · Low · Square",
+    "credits": 0.292,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "image.generate.low.rectangle",
+    "label": "Image generation · Low · Portrait / landscape",
+    "credits": 0.35,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "image.generate.medium.square",
+    "label": "Image generation · Medium · Square",
+    "credits": 0.642,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "image.generate.medium.rectangle",
+    "label": "Image generation · Medium · Portrait / landscape",
+    "credits": 0.875,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "image.generate.high.square",
+    "label": "Image generation · High · Square",
+    "credits": 2.1,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  },
+  {
+    "operation": "image.generate.high.rectangle",
+    "label": "Image generation · High · Portrait / landscape",
+    "credits": 3.033,
+    "creditsPerUnit": 0,
+    "unit": "none"
+  }
+];
+const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v1";
+let imageTierSeeded = false;
+async function ensureImageGenerationTierDefaults() {
+  if (imageTierSeeded) return;
+  const marker = await firestoreGet(IMAGE_GENERATION_TIER_MARKER).catch(() => null);
+  if (marker?.applied === true && Number(marker.version) >= 1) { imageTierSeeded = true; return; }
+  const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  for (const item of IMAGE_GENERATION_TIER_DEFAULTS) {
+    const existing = (Array.isArray(rows) ? rows : []).find(row => String(row.operation || "").trim().toLowerCase() === item.operation && (!row.model || String(row.model).trim() === "*"));
+    if (existing) continue;
+    const id = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
+    await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: item.credits, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 1, updatedAt: new Date().toISOString() }, true);
+  }
+  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+  imageTierSeeded = true;
+}
+function imageGenerationPriceOperation(size, quality) {
+  const normalizedSize = String(size || "1024x1024").toLowerCase();
+  const normalizedQuality = String(quality || "medium").toLowerCase();
+  if (!["low", "medium", "high"].includes(normalizedQuality)) throw Object.assign(new Error("image_generation_quality_invalid"), { httpStatus: 400 });
+  if (!["1024x1024", "1024x1536", "1536x1024"].includes(normalizedSize)) throw Object.assign(new Error("image_generation_size_invalid"), { httpStatus: 400 });
+  const shape = normalizedSize === "1024x1024" ? "square" : "rectangle";
+  return "image.generate." + normalizedQuality + "." + shape;
+}
+async function imageGenerationCreditPrice(size, quality, model) {
+  await ensureImageGenerationTierDefaults();
+  const operation = imageGenerationPriceOperation(size, quality);
+  const rule = await activeGenerationRule(operation, model || "*");
+  if (rule.unit !== "none") throw Object.assign(new Error("image_generation_price_rule_invalid"), { httpStatus: 503 });
+  return { credits: Number(rule.credits), operation, ruleVersion: Number(rule.version || 1) };
+}
+
 async function featurePrice(name, requestedModel = null) {
   await seedAdminPricingDefaults();
   const operation = capabilityPriceOperation(name);
@@ -4984,8 +5060,12 @@ export default {
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
         if (imageModel) control = { ...control, ...imageModel, config: control.config || {} };
         body.model = imageModel?.modelId || control.modelId;
-        body.size = body.size || imageModel?.size || control.config?.size;
-        body.quality = body.quality || imageModel?.quality || control.config?.quality;
+        body.size = body.size || imageModel?.size || control.config?.size || "1024x1024";
+        body.quality = body.quality || imageModel?.quality || control.config?.quality || "medium";
+        // Price is selected from the exact normalized size/quality sent to OpenAI.
+        // Auto modes are normalized to the medium square default so the charge is deterministic.
+        if (String(body.size).toLowerCase() === "auto") body.size = "1024x1024";
+        if (String(body.quality).toLowerCase() === "auto") body.quality = "medium";
         const account = await firestoreGet("users/" + u.uid);
         const createdAtRaw = account?.createdAt;
         const createdAt = typeof createdAtRaw === "string" ? Date.parse(createdAtRaw) : (createdAtRaw instanceof Date ? createdAtRaw.getTime() : NaN);
@@ -5002,7 +5082,8 @@ export default {
             }
           }
         }
-        body.creditCost = freeImage ? 0 : await featurePrice("image_generation", control.modelId);
+        const imagePrice = await imageGenerationCreditPrice(body.size, body.quality, control.modelId);
+        body.creditCost = freeImage ? 0 : imagePrice.credits;
         try {
           const result = await generateImageNative(
             env, u, body,
@@ -5013,7 +5094,7 @@ export default {
             (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
             body.creditCost
           );
-          return json({ ...result, freeImage });
+          return json({ ...result, freeImage, creditsCharged: freeImage ? 0 : imagePrice.credits, billingUnit: "image", billingOperation: imagePrice.operation });
         } catch (imageError) {
           if (freeImage) {
             const claim = await firestoreGet("freeImageClaims/" + u.uid).catch(() => null);
