@@ -49,7 +49,7 @@ async function signedStorageUrl(buffer, contentType, storagePath, expiresMs = 7 
 
 export async function generateImage(uid, prompt, options = {}) {
   const route = await getRoute("image_generation");
-  const model = "gpt-image-1-mini";
+  const model = "gpt-image-2.5-sunburst";
   const body = {
     model,
     prompt: String(prompt || "").trim().slice(0, 12000),
