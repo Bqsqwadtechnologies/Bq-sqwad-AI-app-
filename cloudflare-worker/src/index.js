@@ -4720,6 +4720,9 @@ export default {
          }
          // The server clock is authoritative. A client cannot choose its billable
          // duration; cap missed intervals at two minutes to bound a delayed request.
+         // Refresh today's one-credit allowance before checking the live
+         // session's per-second debit against the canonical account balance.
+         await applyConfiguredDailyFreeCredits(user.uid);
          const liveSessionPath = "liveSessions/" + user.uid + "_" + capabilityName;
          const liveSession = await firestoreGet(liveSessionPath);
          if (!liveSession || String(liveSession.uid || "") !== String(user.uid) ||
@@ -4790,6 +4793,9 @@ export default {
          const superAdmin = isSuperAdmin(u, env);
          let initialBalance = 0;
          if (!organization && !superAdmin && (requestedRate > 0 || startFee > 0)) {
+           // Make the universal daily allowance available before the live-session
+           // balance gate, just as it is for ordinary metered AI features.
+           await applyConfiguredDailyFreeCredits(u.uid);
            const balance = canonicalUserBalance(await readCanonicalUserBalance(u.uid));
            initialBalance = Number(balance?.total || 0);
          }
