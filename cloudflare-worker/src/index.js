@@ -1337,6 +1337,20 @@ async function applyConfiguredDailyFreeCredits(uid) {
   }
 }
 
+async function resolveDailyFreeCreditPrice(uid, paidPrice, operationLabel) {
+  await applyConfiguredDailyFreeCredits(uid);
+  const profile = await readCanonicalUserBalance(uid);
+  const balance = canonicalUserBalance(profile);
+  if (!profile || !balance) throw new Error("Account not found.");
+  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
+    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
+  if (everPaid || balance.permanent + balance.subscription > 0) return Math.max(0, Number(paidPrice) || 0);
+  if (balance.daily >= 1) return 1;
+  throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), {
+    httpStatus: 402, safeError: "daily_free_credit_used"
+  });
+}
+
 async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
@@ -3414,7 +3428,8 @@ export default {
         try {
           await capability(user.uid, "chat_background_upload");
           const backgroundCreditCost = await featurePrice("chat_background_upload");
-          reservation = await chargeCredits(user.uid, backgroundCreditCost, "chat_background_upload", user);
+          const payableUploadCost = await resolveDailyFreeCreditPrice(user.uid, backgroundCreditCost, "file upload");
+          reservation = await chargeCredits(user.uid, payableUploadCost, "chat_background_upload", user);
           await saveBackgroundToProfile();
           await commitCredits(user.uid, reservation.reservationId, "chat_background_upload");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
@@ -3465,7 +3480,8 @@ export default {
         try {
           const pdfControl = await capability(user.uid, "pdf");
           const pdfCreditCost = await featurePrice("pdf", pdfControl.modelId);
-          reservation = await chargeCredits(user.uid, pdfCreditCost, "pdf", user);
+          const payablePdfCost = await resolveDailyFreeCreditPrice(user.uid, pdfCreditCost, "PDF generation");
+          reservation = await chargeCredits(user.uid, payablePdfCost, "pdf", user);
           await commitCredits(user.uid, reservation.reservationId, "main_chat_pdf");
           const creditsCharged = Math.max(0, Number(reservation.amount || 0));
           await firestoreSet(receiptPath, {
@@ -5054,7 +5070,8 @@ export default {
         let reservation = null;
         try {
           const pdfControl = await capability(u.uid, "pdf");
-          reservation = await chargeCredits(u.uid, pdfControl.creditCost, "pdf", u);
+          const payablePdfCost = await resolveDailyFreeCreditPrice(u.uid, pdfControl.creditCost, "PDF generation");
+          reservation = await chargeCredits(u.uid, payablePdfCost, "pdf", u);
           await commitCredits(u.uid, reservation.reservationId, "pdf");
           return json({ ok: true, creditsCharged: Math.max(0, Number(reservation.amount ?? 0)) });
         } catch (error) {
