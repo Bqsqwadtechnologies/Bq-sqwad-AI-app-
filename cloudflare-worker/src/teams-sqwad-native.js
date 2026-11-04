@@ -1043,12 +1043,15 @@ export async function teamsAskAi(user, body, env, billing = {}) {
         noCredits: false,
       };
     } catch (error) {
+      const amount = Number(reservations.get(activeReservationId) || 0);
+      reservations.delete(activeReservationId);
+      if (amount > 0) await refundTeamPoolForMember(team, member, user.uid, amount).catch(() => {});
       const message = error instanceof Error ? error.message : "Team image generation failed.";
       const aiId = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
       await firestoreSet("teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId, {
         authorUid: "ai", authorName: "BQ Sqwad AI", text: message, attachments: [], createdAt: now(), credits: 0,
       }, false).catch(() => {});
-      throw error;
+      return { kind: "ai", creditsCharged: 0, message, noCredits: false };
     }
   }
 
