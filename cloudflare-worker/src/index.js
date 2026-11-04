@@ -1361,6 +1361,54 @@ async function resolveDailyFreeCreditPrice(uid, paidPrice, operationLabel) {
   });
 }
 
+async function ensureFileBoxUploadCharged(user, uploadId) {
+  const receiptPath = "fileBoxUploadCharges/" + String(user.uid) + "_" + String(uploadId);
+  let receipt = await firestoreGet(receiptPath);
+  if (receipt?.status === "charged") return Number(receipt.creditsCharged || 0);
+  if (receipt?.reservationId) {
+    const existingReservation = await firestoreGet("creditReservations/" + String(receipt.reservationId));
+    if (existingReservation?.status === "committed") {
+      await firestoreSet(receiptPath, { ...receipt, status: "charged", creditsCharged: Number(existingReservation.amount || 0), chargedAt: new Date() }, true);
+      return Number(existingReservation.amount || 0);
+    }
+    if (existingReservation?.status === "reserved") {
+      await commitCredits(user.uid, String(receipt.reservationId), "file_box_upload");
+      await firestoreSet(receiptPath, { ...receipt, status: "charged", creditsCharged: Number(existingReservation.amount || 0), chargedAt: new Date() }, true);
+      return Number(existingReservation.amount || 0);
+    }
+  }
+  if (receipt?.status === "pending") {
+    throw Object.assign(new Error("file_upload_charge_in_progress"), { httpStatus: 409, safeError: "file_upload_charge_in_progress" });
+  }
+  if (!receipt) {
+    try {
+      await firestoreCreate(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "pending", createdAt: new Date() });
+    } catch {
+      receipt = await firestoreGet(receiptPath);
+      if (receipt?.status === "charged") return Number(receipt.creditsCharged || 0);
+      throw Object.assign(new Error("file_upload_charge_in_progress"), { httpStatus: 409, safeError: "file_upload_charge_in_progress" });
+    }
+  }
+  let reservation = null;
+  try {
+    await capability(user.uid, "chat_background_upload");
+    const configuredCost = await featurePrice("chat_background_upload");
+    const payableCost = await resolveDailyFreeCreditPrice(user.uid, configuredCost, "file upload");
+    reservation = await chargeCredits(user.uid, payableCost, "file_box_upload", user);
+    await firestoreSet(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "reserved", reservationId: reservation.reservationId, creditsCharged: reservation.amount, updatedAt: new Date() }, true);
+    await commitCredits(user.uid, reservation.reservationId, "file_box_upload");
+    await firestoreSet(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "charged", reservationId: reservation.reservationId, creditsCharged: reservation.amount, chargedAt: new Date() }, true);
+    return Number(reservation.amount || 0);
+  } catch (error) {
+    if (reservation?.reservationId) {
+      const state = await firestoreGet("creditReservations/" + reservation.reservationId).catch(() => null);
+      if (state?.status !== "committed") await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+    }
+    await firestoreSet(receiptPath, { uid: user.uid, uploadId: String(uploadId), status: "failed", updatedAt: new Date() }, true).catch(() => {});
+    throw error;
+  }
+}
+
 async function readCanonicalUserBalance(uid) {
   return firestoreGet("users/" + uid);
 }
@@ -3566,6 +3614,7 @@ export default {
         }
         const object = await inspectTrainingAssetObject(String(pending.objectPath || ""));
         if (!object || Number(object.size) !== Number(pending.size)) return json({ error: "file_upload_not_complete" }, 409);
+        const uploadCreditsCharged = await ensureFileBoxUploadCharged(user, id);
         const globalRetention = await firestoreGet("adminAdvancedOptions/fileBoxRetention") || {};
         const defaultRetention = [7,14,30,90].includes(Number(globalRetention.defaultRetentionDays)) ? Number(globalRetention.defaultRetentionDays) : 30;
         let lastConflict = null;
@@ -3608,7 +3657,7 @@ export default {
                 await deleteTrainingAssetObject(String(oldItem.objectPath)).catch(() => {});
               }
             }
-            return json({ ok: true, item: { ...item, content: undefined }, count: retainedItems.length });
+            return json({ ok: true, item: { ...item, content: undefined }, count: retainedItems.length, creditsCharged: uploadCreditsCharged });
           } catch (error) {
             lastConflict = error;
             const latestUpload = await firestoreGet("fileBoxUploads/" + id).catch(() => null);
