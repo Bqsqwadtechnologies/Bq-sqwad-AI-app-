@@ -998,7 +998,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
       const generated = await generateImageNative(
         env,
         user,
-        { prompt: text, model: "gpt-image-1-mini", size, quality, billingOperation: operation },
+        { prompt: text, model: "gpt-image-2.5-sunburst", size, quality, billingOperation: operation },
         async (uid, amount) => {
           const reservationId = "team-image-" + crypto.randomUUID();
           await debitTeamPoolForMember(team, member, uid, amount);
