@@ -1,4 +1,5 @@
 import { firestoreGet, firestoreCreate, firestoreCommit, uploadFirebaseStorageObject } from "./firebase.js";
+import { calculateTokenCost } from "./token-billing-native.js";
 
 const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
 const ALLOWED_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
@@ -99,7 +100,7 @@ async function openai(env,path,init={}) {
   }
   return body;
 }
-export async function generateImageNative(env, user, b, charge, commit, reverse, trustedCreditCost = null) {
+export async function generateImageNative(env, user, b, charge, commit, reverse, trustedCreditCost = null, tokenPricing = null, settle = null) {
   const prompt = String(b.prompt || b.message || "").trim().slice(0, 12_000);
   if (!prompt) throw new Error("image_prompt_required");
   const model = resolveAllowedOpenAIImageModel(b.model);
@@ -125,25 +126,38 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     const usage = normalizeImageUsage(response.usage);
     if (!image?.b64_json) throw new Error("image_generation_returned_no_image");
     validateGeneratedImageBase64(image.b64_json);
+    let finalCredits = Number(reservation.amount || 0);
+    if (!dailyFree) {
+      if (!usage || !tokenPricing) throw Object.assign(new Error("image_token_usage_unavailable"), { httpStatus: 503, safeError: "provider_unavailable" });
+      const priced = calculateTokenCost({
+        usage: {
+          inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+          inputImageTokens: usage.inputImageTokens, outputImageTokens: usage.outputImageTokens
+        },
+        pricing: tokenPricing
+      });
+      finalCredits = Number(priced.customerCredits || 0);
+    }
     const id = crypto.randomUUID();
     const imageUrl = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
     await firestoreCreate("imageGenerationJobs/" + id, {
       uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
-      prompt, size, quality, creditsCharged: Number(reservation.amount || 0),
+      prompt, size, quality, creditsCharged: finalCredits,
       billingUnit: "image", billingOperation: String(b.billingOperation || "image.generate"),
       createdAt: new Date(), updatedAt: new Date(), ...(imageUrl ? { imageUrl } : {})
     });
-    await commit(user.uid, reservation.reservationId, "openai");
+    if (typeof settle === "function") await settle(user.uid, reservation.reservationId, finalCredits, "openai");
+    else await commit(user.uid, reservation.reservationId, "openai");
     return {
       providerId: "openai", modelId: model, imageBase64: image.b64_json,
-      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: reservation.amount, ...(usage ? { usage } : {})
+      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
   } catch (error) {
     await reverse(user.uid, reservation.reservationId);
     throw error;
   }
 }
-export async function editImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null){
+export async function editImageNative(env,user,b,charge,commit,reverse,trustedCreditCost=null,tokenPricing=null,settle=null){
   const prompt=String(b.prompt||"").trim().slice(0,12000);
   const encoded=String(b.imageBase64||"").trim();
   const requestedMime=String(b.mimeType||"image/png").trim().toLowerCase();
@@ -182,11 +196,18 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     const usage = normalizeImageUsage(z.usage);
     if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
     validateGeneratedImageBase64(x.b64_json);
+    let finalCredits=Number(reservation.amount||0);
+    if(!dailyFree){
+      if(!usage||!tokenPricing)throw Object.assign(new Error("image_token_usage_unavailable"),{httpStatus:503,safeError:"provider_unavailable"});
+      const priced=calculateTokenCost({usage:{inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,inputImageTokens:usage.inputImageTokens,outputImageTokens:usage.outputImageTokens},pricing:tokenPricing});
+      finalCredits=Number(priced.customerCredits||0);
+    }
     const id=crypto.randomUUID();
     const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
-    await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:reservation.amount,...(usage?{usage}:{})};
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
+    if(typeof settle==="function")await settle(user.uid,reservation.reservationId,finalCredits,"openai");
+    else await commit(user.uid,reservation.reservationId,"openai");
+    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:finalCredits,...(usage?{usage}:{})};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
 export async function createVideoNative() {
