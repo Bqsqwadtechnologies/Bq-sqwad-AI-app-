@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateTokenCost, allocateReservationRefund, normalizeProviderUsage } from "../src/token-billing-native.js";
+import { calculateTokenCost, allocateReservationRefund, normalizeProviderUsage, pricingFeatureAliases } from "../src/token-billing-native.js";
 
 test("token billing charges direct input, cached and output credit rates", () => {
   const result = calculateTokenCost({
@@ -185,6 +185,14 @@ test("reservation refund rejects an amount larger than the original reservation"
   );
 });
 
+
+test("team AI resolves Main Chat token rules without using a separate team price", () => {
+  const aliases = pricingFeatureAliases("team_chat");
+  assert.equal(aliases.has("team_chat"), true);
+  assert.equal(aliases.has("chat"), true);
+  assert.equal(aliases.has("text-chat"), true);
+  assert.equal(pricingFeatureAliases("chat").has("team_chat"), false);
+});
 
 test("team chat and deep research are eligible for shared model token metering", async () => {
   const { readFile } = await import("node:fs/promises");
