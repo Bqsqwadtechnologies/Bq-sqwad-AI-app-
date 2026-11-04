@@ -2861,6 +2861,17 @@ export default {
               throw error;
             }
           },
+          chatPricingControl: async (user) => {
+            const chatControl = await capability(user.uid, "chat");
+            const profile = await readCanonicalUserBalance(user.uid);
+            const balance = canonicalUserBalance(profile);
+            const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
+            const persistedClass = String(profile?.customerClass || "").toLowerCase();
+            const customerClass = persistedClass === "paid" || purchasedBalance > 0 || Boolean(balance?.subscriptionExpiresAt)
+              ? "paid"
+              : "free";
+            return { planId: chatControl.planId || null, customerClass };
+          },
         });
         if (teamsResp) return teamsResp;
       }
