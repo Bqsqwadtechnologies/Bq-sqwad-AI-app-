@@ -11,12 +11,17 @@ test("fixed-price features fail closed when the direct generation rule is missin
   assert.doesNotMatch(source, /Math\.max\(1, Number\(value\.creditCost == null/);
 });
 
-test("media price seeds migrate to generation rules and preserve later administrator edits", () => {
-  assert.match(source, /const ADMIN_SEED_DEFAULTS = \{ image_generation: 1\.5, image_edit: 1\.5, chat_background_upload: 2, team_member_message: 0 \}/);
-  assert.match(source, /firestoreSet\("generationCostRules\/" \+ id, \{[\s\S]*?credits: price/);
-  assert.match(source, /await seedAdminPricingDefaults\(\)/);
+test("shared generation defaults use baked customer credit prices and preserve excluded prices", () => {
+  assert.match(source, /const ADMIN_SEED_DEFAULTS = \\[\\{/);
+  assert.match(source, /operation: "video\\.generate",[\\s\\S]*?creditsPerUnit: 87\\.573/);
+  assert.match(source, /operation: "file\\.pdf",[\\s\\S]*?creditsPerUnit: 0\\.3/);
+  assert.match(source, /operation: "web\\.search",[\\s\\S]*?credits: 25\\.5/);
+  assert.match(source, /operation: "live\\.voice",[\\s\\S]*?creditsPerUnit: 0\\.34056155/);
+  assert.match(source, /operation: "speech\\.transcribe",[\\s\\S]*?creditsPerUnit: 0\\.0204337/);
+  assert.match(source, /PRESERVE_EXISTING_DEFAULTS/);
+  assert.match(source, /PRICING_DEFAULTS_MARKER/);
+  assert.match(source, /await seedAdminPricingDefaults\\(\\);[\\s\\S]*?const key = String\\(operation/);
 });
-
 test("image generation, image edit, and background upload read admin prices rather than route literals", () => {
   assert.match(source, /body\.creditCost = freeImage \? 0 : await featurePrice\("image_generation", control\.modelId\)/);
   assert.match(source, /body\.creditCost = await featurePrice\("image_edit", control\.modelId\)/);
