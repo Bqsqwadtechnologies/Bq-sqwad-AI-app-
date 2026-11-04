@@ -9,7 +9,7 @@ async function enforceFreeDailyImageGeneration(uid) {
   const paidCredits = Math.max(0, Number(user?.credits || 0));
   const subLive = user?.subExpiresAt && Date.parse(String(user.subExpiresAt)) > Date.now();
   const subscriptionCredits = subLive ? Math.max(0, Number(user?.subCredits || 0)) : 0;
-  if (paidCredits + subscriptionCredits > 0) return;
+  if (paidCredits + subscriptionCredits > 0) return false;
   const date = new Date().toISOString().slice(0, 10);
   const path = "dailyUsage/" + String(uid) + "_" + date;
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -27,7 +27,7 @@ async function enforceFreeDailyImageGeneration(uid) {
       else await firestoreCommit([{ path, create: true, data: {
         uid: String(uid), date, imageGenerations: 1, updatedAt: new Date()
       }}]);
-      return;
+      return true;
     } catch (error) {
       if (attempt === 3) throw error;
     }
@@ -123,8 +123,8 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const model = resolveAllowedOpenAIImageModel(b.model);
   const size = resolveImageSize(b.size);
   const quality = resolveImageQuality(b.quality);
-  await enforceFreeDailyImageGeneration(user.uid);
-  const reservation = await charge(user.uid, Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
+  const dailyFree = await enforceFreeDailyImageGeneration(user.uid);
+  const reservation = await charge(user.uid, dailyFree ? 0 : Math.max(0, Number(trustedCreditCost ?? 0)), "image_generation", user);
   try {
     const response = await openai(env, "/images/generations", {
       method: "POST",
@@ -167,8 +167,8 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   if(!extensions[mimeType]) throw Object.assign(new Error("image_edit_type_unsupported"), { httpStatus: 415 });
   // Bound decoded-image memory use before allocating the binary buffer.
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
-  await enforceFreeDailyImageGeneration(user.uid);
-  const reservation=await charge(user.uid,Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
+  const dailyFree=await enforceFreeDailyImageGeneration(user.uid);
+  const reservation=await charge(user.uid,dailyFree?0:Math.max(0,Number(trustedCreditCost??0)),"image_edit",user);
   try {
     const binary=atob(encoded);
     const bytes=new Uint8Array(binary.length);
