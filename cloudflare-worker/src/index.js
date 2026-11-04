@@ -864,12 +864,12 @@ const IMAGE_GENERATION_TIER_DEFAULTS = [
   { operation: "image.generate.high.square", label: "Image generation · High · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" },
   { operation: "image.generate.high.rectangle", label: "Image generation · High · token-metered", credits: 0, creditsPerUnit: 0, unit: "none" }
 ];
-const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v3";
+const IMAGE_GENERATION_TIER_MARKER = "adminAdvancedOptions/bq_image_generation_tiers_v4";
 let imageTierSeeded = false;
 async function ensureImageGenerationTierDefaults() {
   if (imageTierSeeded) return;
   const marker = await firestoreGet(IMAGE_GENERATION_TIER_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 3) { imageTierSeeded = true; return; }
+  if (marker?.applied === true && Number(marker.version) >= 4) { imageTierSeeded = true; return; }
   const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
   for (const item of IMAGE_GENERATION_TIER_DEFAULTS) {
     const existing = (Array.isArray(rows) ? rows : []).find(row => String(row.operation || "").trim().toLowerCase() === item.operation && (!row.model || String(row.model).trim() === "*"));
@@ -887,6 +887,20 @@ async function ensureImageGenerationTierDefaults() {
     const id = "default-" + item.operation.replace(/[^a-z0-9-]/g, "-");
     await firestoreSet("generationCostRules/" + id, { id, operation: item.operation, model: "*", label: item.label, credits: 0, creditsPerUnit: 0, unit: "none", status: "active", version: 1, seededDefaultVersion: 2, updatedAt: new Date().toISOString() }, true);
   }
+  const generationRows = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === "image.generate");
+  const generationPrimary = generationRows.find(row => !row.model || String(row.model).trim() === "*");
+  const generationId = String(generationPrimary?.id || String(generationPrimary?.__name || "").split("/").pop() || "default-image-generate");
+  await firestoreSet("generationCostRules/" + generationId, {
+    ...(generationPrimary || {}), id: generationId, operation: "image.generate", model: "*",
+    label: "Image generation · token-metered",
+    credits: 0, creditsPerUnit: 0, unit: "none", status: "active",
+    version: Math.max(1, Number(generationPrimary?.version || 0) + (generationPrimary ? 1 : 0)),
+    seededDefaultVersion: 4, updatedAt: new Date().toISOString()
+  }, true);
+  for (const duplicate of generationRows) {
+    const duplicateId = String(duplicate.id || String(duplicate.__name || "").split("/").pop() || "");
+    if (duplicateId && duplicateId !== generationId) await firestoreDelete("generationCostRules/" + duplicateId).catch(() => {});
+  }
   const editRows = (Array.isArray(rows) ? rows : []).filter(row => String(row.operation || "").trim().toLowerCase() === "image.edit");
   const editPrimary = editRows.find(row => !row.model || String(row.model).trim() === "*");
   const editId = String(editPrimary?.id || String(editPrimary?.__name || "").split("/").pop() || "default-image-edit-shared");
@@ -900,10 +914,13 @@ async function ensureImageGenerationTierDefaults() {
     const duplicateId = String(duplicate.id || String(duplicate.__name || "").split("/").pop() || "");
     if (duplicateId && duplicateId !== editId) await firestoreDelete("generationCostRules/" + duplicateId).catch(() => {});
   }
-  await firestoreSet("adminAdvancedOptions/capability_image_edit", {
-    name: "image_edit", creditCost: 0, sharedPricingOperation: "image.generate", updatedAt: new Date().toISOString()
+  await firestoreSet("adminAdvancedOptions/capability_image_generation", {
+    name: "image_generation", creditCost: 0, billingMode: "token", sharedPricingOperation: "gpt-image-2.5-sunburst", updatedAt: new Date().toISOString()
   }, true);
-  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 3, updatedAt: new Date().toISOString() }, true);
+  await firestoreSet("adminAdvancedOptions/capability_image_edit", {
+    name: "image_edit", creditCost: 0, billingMode: "token", sharedPricingOperation: "gpt-image-2.5-sunburst", updatedAt: new Date().toISOString()
+  }, true);
+  await firestoreSet(IMAGE_GENERATION_TIER_MARKER, { applied: true, version: 4, updatedAt: new Date().toISOString() }, true);
   imageTierSeeded = true;
 }
 function imageGenerationPriceOperation(size, quality) {
