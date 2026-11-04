@@ -1325,6 +1325,7 @@ async function applyConfiguredDailyFreeCredits(uid) {
     }
     return;
   }
+  if (!historyChecked) return;
   if (String(profile.dailyFreeCreditsDate || "") === today && String(profile.dailyFreeCreditsTimeZone || "") === timeZone) return;
   const grantId = uid + "_" + today;
   const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
