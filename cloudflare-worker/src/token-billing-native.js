@@ -1,7 +1,6 @@
 import { firestoreCreate, firestoreGet, firestoreQuery, firestoreSet } from "./firebase.js";
 
 // Reporting reference only. Customer token rates below are already fully calculated credits per token.
-const DEFAULT_CREDIT_REFERENCE_USD = 0.12;
 
 /**
  * Allocate a reservation refund back to the same balance buckets that funded it.
@@ -90,7 +89,7 @@ export function normalizeProviderUsage(providerId, raw = {}) {
   };
 }
 
-export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD }) {
+export function calculateTokenCost({ usage, pricing }) {
   const inputTokens = Math.max(0, Number(usage?.inputTokens || 0));
   const outputTokens = Math.max(0, Number(usage?.outputTokens || 0));
   const inputAudioTokens = Math.max(0, Number(usage?.inputAudioTokens || 0));
@@ -117,9 +116,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const inputCreditRate = Number(meter.creditsPerInputToken);
   const cachedCreditRate = Number(meter.creditsPerCachedInputToken);
   const outputCreditRate = Number(meter.creditsPerOutputToken);
-  const conversionRate = 1;
-  const minimumCredits = Number(meter.minimumCredits ?? 0);
-  const precision = Number(meter.precision ?? 7);
+  const precision = 15;
   const modalityRates = [
     ["input audio", inputAudioTokens - cachedInputAudioTokens, meter.creditsPerInputAudioToken],
     ["cached input audio", cachedInputAudioTokens, meter.creditsPerCachedInputAudioToken],
@@ -133,9 +130,9 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
       throw Object.assign(new Error("modality_token_pricing_not_configured:" + label), { httpStatus: 409, safeError: "provider_unavailable" });
     }
   }
-  const values = [inputCreditRate, cachedCreditRate, outputCreditRate, conversionRate, minimumCredits, precision];
+  const values = [inputCreditRate, cachedCreditRate, outputCreditRate, precision];
   if (!values.every(Number.isFinite) || inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
-      conversionRate < 0 || minimumCredits < 0 || !Number.isInteger(precision) || precision < 0 || precision > 8) {
+      !Number.isInteger(precision) || precision < 0 || precision > 15) {
     throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const rawCredits =
@@ -152,15 +149,13 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const roundedCredits = rawCredits > 0
     ? Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision)
     : 0;
-  const creditValue = Number(creditReferenceValueUsd);
-  const safeCreditValue = Number.isFinite(creditValue) && creditValue > 0 ? creditValue : DEFAULT_CREDIT_REFERENCE_USD;
-  const grossUsageValueUsd = roundedCredits * safeCreditValue;
+  const grossUsageValueUsd = 0;
   const providerCostCredits = 0;
-  const estimatedGrossProfitUsd = grossUsageValueUsd;
+  const estimatedGrossProfitUsd = 0;
   return {
     inputTokens, outputTokens, cachedInputTokens, inputAudioTokens, outputAudioTokens, inputImageTokens, outputImageTokens,
     inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
-    creditReferenceValueUsd: safeCreditValue, customerMultiplier: 1, estimatedFeePercent: 0, estimatedFeeUsd: 0,
+    creditReferenceValueUsd: 0, customerMultiplier: 1, estimatedFeePercent: 0, estimatedFeeUsd: 0,
     providerCostCredits, customerCredits: roundedCredits, grossUsageValueUsd, estimatedGrossProfitUsd,
     estimatedNetProfitUsd: estimatedGrossProfitUsd
   };
@@ -248,28 +243,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
   const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
-  const providerInputUsdPerMillion = Number(tokenRule?.inputUsdPerMillion);
-  const providerOutputUsdPerMillion = Number(tokenRule?.outputUsdPerMillion);
-  const providerCachedUsdPerMillion = Number(tokenRule?.cachedInputUsdPerMillion);
-  const rates = Number.isFinite(providerInputUsdPerMillion) && providerInputUsdPerMillion >= 0 &&
-    Number.isFinite(providerOutputUsdPerMillion) && providerOutputUsdPerMillion >= 0
-    ? {
-        inputPriceUsdPerMillion: providerInputUsdPerMillion,
-        outputPriceUsdPerMillion: providerOutputUsdPerMillion,
-        cachedInputPriceUsdPerMillion: Number.isFinite(providerCachedUsdPerMillion) && providerCachedUsdPerMillion >= 0
-          ? providerCachedUsdPerMillion
-          : providerInputUsdPerMillion
-      }
-    : {};
-  const modalityProviderRates = {
-    inputAudioPriceUsdPerMillion: Number(tokenRule?.inputAudioUsdPerMillion || 0),
-    outputAudioPriceUsdPerMillion: Number(tokenRule?.outputAudioUsdPerMillion || 0),
-    inputImagePriceUsdPerMillion: Number(tokenRule?.inputImageUsdPerMillion || 0),
-    outputImagePriceUsdPerMillion: Number(tokenRule?.outputImageUsdPerMillion || 0)
-  };
-  const creditReferenceValueUsd = DEFAULT_CREDIT_REFERENCE_USD;
-  const customerMultiplier = 1;
-  const estimatedFeePercent = 0;
   // Input/output ceilings are enforced by the shared website-admin token budget.
   const featureKey = String(feature || "").toLowerCase();
   const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"].includes(featureKey);
@@ -294,16 +267,13 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     creditsPerInputImageToken: typeof tokenRule.inputImageCreditsPerToken === "number" ? tokenRule.inputImageCreditsPerToken : null,
     creditsPerCachedInputImageToken: typeof tokenRule.cachedInputImageCreditsPerToken === "number" ? tokenRule.cachedInputImageCreditsPerToken : null,
     creditsPerOutputImageToken: typeof tokenRule.outputImageCreditsPerToken === "number" ? tokenRule.outputImageCreditsPerToken : null,
-    minimumCredits: Math.max(0, Number(tokenRule.minimumCredits ?? 0)),
+    minimumCredits: 0,
     fallbackCredits: 0,
-    precision: 7,
-    conversionRate: 1
+    precision: 15
   } : null;
   return {
-    ...rates, ...modalityProviderRates, maxRequestTokens, maxOutputTokens, creditReferenceValueUsd, customerMultiplier,
-    applyFeeToUsage, estimatedFeePercent, configured,
+    maxRequestTokens, maxOutputTokens, configured,
     sharedCreditMetering,
-    sharedModelMultiplier: 1,
     billingMode: isTokenMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
   };
@@ -316,8 +286,6 @@ export function estimateTokenReservation({ message, system, pricing }) {
   const estimated = calculateTokenCost({
     usage: { inputTokens, outputTokens, cachedInputTokens: 0 },
     pricing,
-    creditReferenceValueUsd: pricing.creditReferenceValueUsd,
-    multiplier: pricing.customerMultiplier
   });
   // Reserve a safety margin for tokenizer differences, then settle to exact
   // provider-reported usage after the request completes.
