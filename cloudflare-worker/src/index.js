@@ -53,6 +53,7 @@ import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runti
 import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 import { computeHold, computeSettlement, splitCreditBuckets } from "./billing-hold.js";
+import { calculateLiveHeartbeatCharge } from "./live-billing.js";
 import { recoverStreamFailure } from "./stream-delivery.js";
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
@@ -4967,11 +4968,10 @@ export default {
          const serverNow = Date.now();
          const lastBilledAt = new Date(liveSession.lastBilledAt || liveSession.startedAt || serverNow).getTime();
          const elapsedSeconds = Math.min(120, Math.max(0, Math.floor((serverNow - lastBilledAt) / 1000)));
-         let rate = generationCreditsForSeconds(liveRule, elapsedSeconds);
-          if (heartbeatBody.smart === true) {
-            const smartTranscribeRule = await activeGenerationRule("speech.transcribe");
-            rate += generationCreditsForSeconds(smartTranscribeRule, elapsedSeconds);
-          }
+         const smartTranscribeRule = heartbeatBody.smart === true
+           ? await activeGenerationRule("speech.transcribe")
+           : null;
+         const rate = calculateLiveHeartbeatCharge(liveRule, smartTranscribeRule, elapsedSeconds, heartbeatBody.smart === true);
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
            if (!balance || balance.total < rate) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
