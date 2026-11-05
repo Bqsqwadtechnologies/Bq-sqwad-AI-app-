@@ -1212,6 +1212,26 @@ async function stripProviderUsdFieldsOnce() {
 }
 
 
+const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_cleanup_v1";
+async function stripLegacyAiModelCostFieldsOnce() {
+  const marker = await firestoreGet(AI_MODEL_COST_CLEANUP_MARKER).catch(() => null);
+  if (marker?.applied === true) return;
+  const current = await firestoreGet("config/aiModels").catch(() => null);
+  if (current && typeof current === "object") {
+    const clean = { ...current };
+    delete clean.usdPerMillionInputTokens;
+    delete clean.usdPerMillionOutputTokens;
+    if (clean.metering && typeof clean.metering === "object") {
+      const metering = { ...clean.metering };
+      delete metering.usdPerMillionInputTokens;
+      delete metering.usdPerMillionOutputTokens;
+      clean.metering = metering;
+    }
+    await firestoreSet("config/aiModels", clean, false);
+  }
+  await firestoreSet(AI_MODEL_COST_CLEANUP_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+}
+
 async function ensureLivePricingLegacyValuesOnce() {
   const markerPath = "adminAdvancedOptions/bq_live_minimum_balance_defaults_v1";
   const marker = await firestoreGet(markerPath).catch(() => null);
@@ -1280,6 +1300,7 @@ async function seedAdminPricingDefaults() {
   await ensureLivePricingLegacyValuesOnce().catch(() => {});
   await dedupeLivePricingRulesOnce().catch(() => {});
   await stripProviderUsdFieldsOnce().catch(() => {});
+  await stripLegacyAiModelCostFieldsOnce().catch(() => {});
   await dedupeLivePricingRulesOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
   if (marker?.applied === true && Number(marker.version) >= 5) {

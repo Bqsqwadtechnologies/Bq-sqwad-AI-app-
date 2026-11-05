@@ -5962,6 +5962,20 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
     var streamEndpoint by remember { mutableStateOf("") }
     var streamOnline by remember { mutableStateOf(false) }
     var streamError by remember { mutableStateOf<String?>(null) }
+    var liveCameraPriceLabel by remember { mutableStateOf("Loading current price…") }
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().livePricing() }
+            .onSuccess { pricing ->
+                val cameraRate = pricing.optJSONObject("liveCamera")?.optDouble("creditsPerMinute", Double.NaN) ?: Double.NaN
+                val dictationRate = pricing.optJSONObject("dictation")?.optDouble("creditsPerMinute", Double.NaN) ?: Double.NaN
+                liveCameraPriceLabel = if (cameraRate.isFinite()) {
+                    val normal = String.format(java.util.Locale.US, "%.6f", cameraRate)
+                    val smart = if (dictationRate.isFinite()) String.format(java.util.Locale.US, "%.6f", cameraRate + dictationRate) else "unavailable"
+                    "Live Camera / Share Screen: $normal credits/min · Smart: $smart credits/min"
+                } else "Live Camera price unavailable"
+            }
+            .onFailure { liveCameraPriceLabel = "Live Camera price unavailable" }
+    }
     LaunchedEffect(granted, previewEnabled) {
         if (granted && previewEnabled && !streamOnline && !screenActive) {
             fullScreenPreview = true
@@ -6232,6 +6246,7 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(liveCameraPriceLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -6953,6 +6968,20 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
     var permissionExplanation by remember { mutableStateOf(false) }
     var smartMode by remember { mutableStateOf(false) }
     var smartPanelVisible by remember { mutableStateOf(true) }
+    var liveVoicePriceLabel by remember { mutableStateOf("Loading current price…") }
+    LaunchedEffect(Unit) {
+        runCatching { WorkspaceApiClient().livePricing() }
+            .onSuccess { pricing ->
+                val voiceRate = pricing.optJSONObject("liveVoice")?.optDouble("creditsPerMinute", Double.NaN) ?: Double.NaN
+                val dictationRate = pricing.optJSONObject("dictation")?.optDouble("creditsPerMinute", Double.NaN) ?: Double.NaN
+                liveVoicePriceLabel = if (voiceRate.isFinite()) {
+                    val normal = String.format(java.util.Locale.US, "%.6f", voiceRate)
+                    val smart = if (dictationRate.isFinite()) String.format(java.util.Locale.US, "%.6f", voiceRate + dictationRate) else "unavailable"
+                    "Live Voice: $normal credits/min · Smart Practice: $smart credits/min"
+                } else "Live Voice price unavailable"
+            }
+            .onFailure { liveVoicePriceLabel = "Live Voice price unavailable" }
+    }
 
     fun startVoice() {
         // Raise the media stream before opening the realtime session so remote
@@ -7012,6 +7041,7 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             active = active,
             audioLevel = liveUiState.audioLevel
         )
+        Text(liveVoicePriceLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
