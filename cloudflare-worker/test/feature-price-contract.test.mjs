@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+const seedGuard = await readFile(new URL("../src/pricing-seed-native.js", import.meta.url), "utf8");
 
 test("fixed-price features fail closed when the direct generation rule is missing", () => {
   assert.match(source, /async function featurePrice\(name, requestedModel = null\)/);
@@ -25,7 +26,8 @@ test("shared generation defaults use baked customer credit prices and preserve e
   assert.ok(source.includes('"operation": "speech.synthesize"'));
   assert.ok(source.includes('"creditsPerUnit": 0.0145833'));
   assert.ok(source.includes('bq_live_credit_pricing_defaults_v5'));
-  assert.match(source, /Number\(marker\.version\) >= 5/);
+  assert.match(source, /shouldSeedPricingDefaults\(marker, 5\)/);
+  assert.match(seedGuard, /Number\(marker\?\.version\) >= requiredVersion/);
   assert.ok(source.includes("PRESERVE_EXISTING_DEFAULTS"));
   assert.ok(source.includes("PRICING_DEFAULTS_MARKER"));
   assert.match(source, /await seedAdminPricingDefaults\(\);[\s\S]*?const key = String\(operation/);
