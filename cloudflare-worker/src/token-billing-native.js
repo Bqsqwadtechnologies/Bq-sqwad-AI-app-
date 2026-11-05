@@ -105,21 +105,10 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const textInputTokens = inputTokens - inputAudioTokens - inputImageTokens;
   const textOutputTokens = outputTokens - outputAudioTokens - outputImageTokens;
   const cachedInputTokens = Math.min(textInputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
-  const inputRate = pricing?.inputPriceUsdPerToken != null ? Number(pricing.inputPriceUsdPerToken) * 1_000_000 : Number(pricing?.inputPriceUsdPerMillion);
-  const outputRate = pricing?.outputPriceUsdPerToken != null ? Number(pricing.outputPriceUsdPerToken) * 1_000_000 : Number(pricing?.outputPriceUsdPerMillion);
-  const cachedRate = pricing?.cachedInputPriceUsdPerToken != null ? Number(pricing.cachedInputPriceUsdPerToken) * 1_000_000
-    : pricing?.cachedInputPriceUsdPerMillion == null ? inputRate : Number(pricing.cachedInputPriceUsdPerMillion);
-  const providerRatesConfigured = [inputRate, outputRate, cachedRate].every(x => Number.isFinite(x) && x >= 0);
-  const uncachedInputTokens = Math.max(0, textInputTokens - cachedInputTokens);
-  const inputCostUsd = providerRatesConfigured ? (uncachedInputTokens / 1_000_000) * inputRate : 0;
-  const cachedInputCostUsd = providerRatesConfigured ? (cachedInputTokens / 1_000_000) * cachedRate : 0;
-  const outputCostUsd = providerRatesConfigured ? (textOutputTokens / 1_000_000) * outputRate : 0;
-  const providerCostUsd =
-    inputCostUsd + cachedInputCostUsd + outputCostUsd +
-    (inputAudioTokens / 1_000_000) * Math.max(0, Number(pricing?.inputAudioPriceUsdPerMillion || 0)) +
-    (outputAudioTokens / 1_000_000) * Math.max(0, Number(pricing?.outputAudioPriceUsdPerMillion || 0)) +
-    (inputImageTokens / 1_000_000) * Math.max(0, Number(pricing?.inputImagePriceUsdPerMillion || 0)) +
-    (outputImageTokens / 1_000_000) * Math.max(0, Number(pricing?.outputImagePriceUsdPerMillion || 0));
+  const providerCostUsd = 0;
+  const inputCostUsd = 0;
+  const cachedInputCostUsd = 0;
+  const outputCostUsd = 0;
   const meter = pricing?.sharedCreditMetering;
   if (!meter || typeof meter !== "object") {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
@@ -127,7 +116,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const inputCreditRate = Number(meter.creditsPerInputToken);
   const cachedCreditRate = Number(meter.creditsPerCachedInputToken);
   const outputCreditRate = Number(meter.creditsPerOutputToken);
-  const conversionRate = Number(meter.conversionRate ?? 1);
+  const conversionRate = 1;
   const minimumCredits = Number(meter.minimumCredits ?? 0);
   const precision = Number(meter.precision ?? 7);
   const modalityRates = [
@@ -160,13 +149,13 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     outputImageTokens * Number(meter.creditsPerOutputImageToken || 0);
   // No minimum deduction: only measured token usage and configured rates are charged.
   const roundedCredits = rawCredits > 0
-    ? Math.round((rawCredits * conversionRate + Number.EPSILON) * (10 ** precision)) / (10 ** precision)
+    ? Math.round((rawCredits + Number.EPSILON) * (10 ** precision)) / (10 ** precision)
     : 0;
   const creditValue = Number(creditReferenceValueUsd);
   const safeCreditValue = Number.isFinite(creditValue) && creditValue > 0 ? creditValue : DEFAULT_CREDIT_REFERENCE_USD;
   const grossUsageValueUsd = roundedCredits * safeCreditValue;
-  const providerCostCredits = providerCostUsd / safeCreditValue;
-  const estimatedGrossProfitUsd = grossUsageValueUsd - providerCostUsd;
+  const providerCostCredits = 0;
+  const estimatedGrossProfitUsd = grossUsageValueUsd;
   return {
     inputTokens, outputTokens, cachedInputTokens, inputAudioTokens, outputAudioTokens, inputImageTokens, outputImageTokens,
     inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
