@@ -2767,6 +2767,14 @@ async function stream(request, user, body) {
         emitTaskEvent("taskStarted", { taskId, startedAt });
         emitTaskEvent("phase", { taskId, label: "Streaming response", at: Date.now() });
         let usageRaw = provider.usage || {};
+        let deliveredChars = 0;
+        let streamedText = "";
+        const emitDelta = (text) => {
+          if (!text) return;
+          deliveredChars += text.length;
+          streamedText += text;
+          emit({ type: "delta", text });
+        };
         try {
           if (provider.streamed) {
             activeReader = provider.response.body.getReader();
@@ -2785,10 +2793,17 @@ async function stream(request, user, body) {
                 if (!data || data === "[DONE]") continue;
                 let parsed; try { parsed = JSON.parse(data); } catch { continue; }
                 if (parsed.type === "response.output_text.delta" && parsed.delta) {
-                  emit({ type: "delta", text: parsed.delta });
+                  emitDelta(parsed.delta);
                 } else if (parsed.type === "response.completed") {
                   completed = true;
                   usageRaw = parsed.response?.usage || parsed.usage || usageRaw;
+                  const finalText = parsed.response?.output_text ||
+                    (parsed.response?.output || []).flatMap(o => o.content || []).map(c => c.text || "").join("");
+                  if (finalText && finalText !== streamedText) {
+                    streamedText = finalText;
+                    deliveredChars = Math.max(deliveredChars, finalText.length);
+                    emit({ type: "replace", text: finalText });
+                  }
                 } else if (parsed.type === "error") {
                   throw new Error(parsed.error?.message || "Streaming failed");
                 }
@@ -2796,7 +2811,7 @@ async function stream(request, user, body) {
             }
             if (!completed) throw new Error("stream_incomplete");
           } else {
-            emit({ type: "delta", text: provider.text });
+            emitDelta(provider.text);
           }
           emitTaskEvent("phase", { taskId, label: "Settling provider usage", at: Date.now() });
           let creditsCharged = Number(reservation.amount || 0);
@@ -2842,11 +2857,19 @@ async function stream(request, user, body) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
-          await reverseCredits(user.uid, reservation.reservationId);
-          await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed");
-          endTask("failed");
+          await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
+          await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed").catch(() => {});
           request.signal.removeEventListener("abort", onClientAbort);
-          emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
+          if (deliveredChars > 0) {
+            endTask("completed");
+            emit({
+              type: "completed", providerId: provider.providerId, modelId: provider.modelId,
+              creditsCharged: 0, settlement: "failed_after_delivery"
+            });
+          } else {
+            endTask("failed");
+            emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
+          }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
