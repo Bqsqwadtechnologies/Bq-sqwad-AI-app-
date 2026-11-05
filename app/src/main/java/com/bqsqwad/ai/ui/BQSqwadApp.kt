@@ -1409,7 +1409,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                                     shellScope.launch {
                                         runCatching { HistoryApiClient().load(historyItem.id) }
                                             .onSuccess { messages ->
-                                                restoredChat = historyItem.title to messages
+                                                restoredChat = historyItem.title to messages.map { item ->
+                                                    item.copy(text = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(item.text))
+                                                }
                                                 history = false; settings = false; connectorsOpen = false; helpOpen = false; plans = false; featureHub = false; workspace = null; fileBoxOpen = false
                                                 chatSessionNonce += 1
                                                 drawerState.close()
