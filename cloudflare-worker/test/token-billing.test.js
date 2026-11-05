@@ -2,33 +2,29 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateTokenCost, allocateReservationRefund, normalizeProviderUsage, pricingFeatureAliases } from "../src/token-billing-native.js";
 
-test("token billing charges direct input, cached and output credit rates", () => {
+test("token billing charges direct BQ input, cached and output credit rates", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
     pricing: {
-      inputPriceUsdPerMillion: 1, cachedInputPriceUsdPerMillion: 0.25, outputPriceUsdPerMillion: 2,
       sharedCreditMetering: {
         creditsPerInputToken: 0.0001, creditsPerCachedInputToken: 0.000025, creditsPerOutputToken: 0.0002,
         minimumCredits: 0, precision: 7, conversionRate: 1,
       },
     },
   });
-  assert.equal(result.inputCostUsd, 0.0006);
-  assert.equal(result.cachedInputCostUsd, 0.0001);
-  assert.equal(result.outputCostUsd, 0.001);
-  assert.ok(Math.abs(result.providerCostUsd - 0.0017) < 1e-12);
+  assert.equal(result.inputCostUsd, 0);
+  assert.equal(result.cachedInputCostUsd, 0);
+  assert.equal(result.outputCostUsd, 0);
+  assert.equal(result.providerCostUsd, 0);
   assert.equal(result.customerCredits, 0.17);
   assert.equal(result.customerMultiplier, 1);
   assert.equal(result.estimatedFeePercent, 0);
 });
 
-test("native Main Chat follows website per-token metering instead of stale USD conversion", () => {
+test("native Main Chat follows website per-token metering without legacy cost inputs", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
     pricing: {
-      inputPriceUsdPerMillion: 1,
-      cachedInputPriceUsdPerMillion: 0.25,
-      outputPriceUsdPerMillion: 2,
       sharedCreditMetering: {
         creditsPerInputToken: 0.00003,
         creditsPerOutputToken: 0.00024,
@@ -48,7 +44,7 @@ test("native Main Chat follows website per-token metering instead of stale USD c
   assert.equal(result.customerCredits, 0.1392);
 });
 
-test("website credit prices do not require USD telemetry rates to calculate customer credits", () => {
+test("website BQ credit prices calculate customer charges without cost telemetry", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, cachedInputTokens: 400, outputTokens: 500 },
     pricing: {
@@ -72,8 +68,6 @@ test("native Main Chat uses the model-specific direct token rates without a mult
   const result = calculateTokenCost({
     usage: { inputTokens: 1000, outputTokens: 500 },
     pricing: {
-      inputPriceUsdPerMillion: 1,
-      outputPriceUsdPerMillion: 2,
       sharedCreditMetering: {
         creditsPerInputToken: 0.00003,
         creditsPerOutputToken: 0.00024,
@@ -93,9 +87,6 @@ test("native Main Chat uses the model-specific direct token rates without a mult
 
 test("shared website meter never applies a minimum charge", () => {
   const pricing = {
-    inputPriceUsdPerMillion: 1,
-    outputPriceUsdPerMillion: 2,
-    cachedInputPriceUsdPerMillion: 0.25,
     sharedCreditMetering: {
       creditsPerInputToken: 0.00003,
       creditsPerCachedInputToken: 0.000003,
@@ -128,8 +119,6 @@ test("shared website meter rejects invalid admin metering instead of charging un
     () => calculateTokenCost({
       usage: { inputTokens: 100, cachedInputTokens: 0, outputTokens: 100 },
       pricing: {
-        inputPriceUsdPerMillion: 1,
-        outputPriceUsdPerMillion: 2,
         sharedCreditMetering: {
           creditsPerInputToken: -1,
           creditsPerCachedInputToken: 0,
