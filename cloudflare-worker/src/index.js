@@ -776,14 +776,14 @@ const ADMIN_SEED_DEFAULTS = [
     "operation": "live.voice",
     "label": "Live voice",
     "credits": 0,
-    "creditsPerUnit": 0.34056155,
+    "creditsPerUnit": 0.045,
     "unit": "second"
   },
   {
     "operation": "live.camera",
     "label": "Live camera / screen",
     "credits": 0,
-    "creditsPerUnit": 0.72977475,
+    "creditsPerUnit": 0.09,
     "unit": "second"
   },
   {
@@ -791,6 +791,13 @@ const ADMIN_SEED_DEFAULTS = [
     "label": "Transcription",
     "credits": 0,
     "creditsPerUnit": 0.0204337,
+    "unit": "second"
+  },
+  {
+    "operation": "speech.synthesize",
+    "label": "Text to speech",
+    "credits": 0,
+    "creditsPerUnit": 0.0145833,
     "unit": "second"
   },
   {
@@ -822,7 +829,7 @@ const ADMIN_SEED_DEFAULTS = [
     "unit": "none"
   }
 ];
-const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v3";
+const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v5";
 const PRESERVE_EXISTING_DEFAULTS = new Set(["image.generate", "chat.background_upload", "team.member_message"]);
 let adminPricingSeeded = false;
 let adminPricingSeedAttemptedAt = 0;
@@ -1143,11 +1150,73 @@ function generationCreditsPerMinute(rule) {
 }
 
 
+
+const AUX_PRICING_MARKER = "adminAdvancedOptions/bq_aux_credit_pricing_v1";
+const AUX_TOKEN_RULES = [
+  { id: "default-openai-gpt-realtime-2-1-mini", model: "gpt-realtime-2.1-mini", credits: {
+    inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014,
+    inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668,
+    inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 } },
+  { id: "default-openai-gpt-image-1-mini", model: "gpt-image-1-mini", credits: {
+    inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666,
+    inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 } },
+  { id: "default-openai-gpt-4o-mini-transcribe", model: "gpt-4o-mini-transcribe", credits: {
+    inputCreditsPerToken: 0, cachedInputCreditsPerToken: 0, outputCreditsPerToken: 0.0002916666666666667,
+    inputAudioCreditsPerToken: 0.00007291666666666667 } },
+  { id: "default-openai-gpt-4o-mini-tts", model: "gpt-4o-mini-tts", credits: {
+    inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputCreditsPerToken: 0,
+    outputAudioCreditsPerToken: 0.0007 } },
+  { id: "default-openai-text-embedding-3-small", model: "text-embedding-3-small", credits: {
+    inputCreditsPerToken: 0.0000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0 } },
+  { id: "default-openai-omni-moderation-latest", model: "omni-moderation-latest", credits: {
+    inputCreditsPerToken: 0.00001, cachedInputCreditsPerToken: 0.00001, outputCreditsPerToken: 0 } }
+];
+async function seedAuxCreditPricingOnce() {
+  const marker = await firestoreGet(AUX_PRICING_MARKER).catch(() => null);
+  if (marker?.applied === true) return;
+  const existing = await firestoreQuery("tokenPricingRules", { limit: 500 }).catch(() => []);
+  for (const rule of AUX_TOKEN_RULES) {
+    const found = (existing || []).find(r => String(r.provider || "").toLowerCase() === "openai" && String(r.model || "") === rule.model);
+    if (found) continue;
+    const doc = {
+      id: rule.id, provider: "openai", model: rule.model, customerClass: "all", status: "active",
+      ...rule.credits,
+      inputCreditsPer1k: rule.credits.inputCreditsPerToken * 1000,
+      cachedInputCreditsPer1k: rule.credits.cachedInputCreditsPerToken * 1000,
+      outputCreditsPer1k: rule.credits.outputCreditsPerToken * 1000,
+      minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, seededDefaultVersion: 1,
+      source: "BQ customer credit defaults", updatedAt: new Date().toISOString()
+    };
+    await firestoreSet("tokenPricingRules/" + rule.id, doc, false);
+  }
+  await firestoreSet(AUX_PRICING_MARKER, { applied: true, version: 1, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
+}
+const STRIP_USD_MARKER = "adminAdvancedOptions/bq_strip_provider_usd_v1";
+const PROVIDER_USD_FIELD = /UsdPer(Million|Token)$/;
+async function stripProviderUsdFieldsOnce() {
+  const marker = await firestoreGet(STRIP_USD_MARKER).catch(() => null);
+  if (marker?.applied === true) return;
+  for (const collection of ["tokenPricingRules", "generationCostRules"]) {
+    const rows = await firestoreQuery(collection, { limit: 500 }).catch(() => []);
+    for (const row of rows || []) {
+      if (!Object.keys(row).some(k => PROVIDER_USD_FIELD.test(k))) continue;
+      const id = String(row.id || String(row.__name || "").split("/").pop() || "");
+      if (!id) continue;
+      const clean = {};
+      for (const [k, v] of Object.entries(row)) if (!PROVIDER_USD_FIELD.test(k) && k !== "__name") clean[k] = v;
+      await firestoreSet(collection + "/" + id, clean, false);
+    }
+  }
+  await firestoreSet(STRIP_USD_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+}
+
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
+  await seedAuxCreditPricingOnce().catch(() => {});
+  await stripProviderUsdFieldsOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 3) {
+  if (marker?.applied === true && Number(marker.version) >= 5) {
     adminPricingSeeded = true;
     return;
   }
@@ -1173,14 +1242,14 @@ async function seedAdminPricingDefaults() {
       unit: defaults.unit,
       status: "active",
       version: Math.max(1, Number(existing?.version || 0) + (existing ? 1 : 0)),
-      seededDefaultVersion: 3,
+      seededDefaultVersion: 5,
       updatedAt: new Date().toISOString()
     }, true);
   }
   await firestoreSet(PRICING_DEFAULTS_MARKER, {
     applied: true,
-    version: 2,
-    source: "Admin Live Credit Pricing defaults",
+    version: 5,
+    source: "BQ credit pricing defaults",
     updatedAt: new Date().toISOString()
   }, true);
   adminPricingSeeded = true;
