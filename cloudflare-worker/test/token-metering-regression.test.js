@@ -28,7 +28,8 @@ test("team image generation uses the same GPT Image token rule and settles the t
 test("deep research is fixed-price and its seven-credit rule is applied before Worker settlement", () => {
   assert.doesNotMatch(source, /const TOKEN_METERED = new Set\(\[[^\]]*"deep_research"/s);
   assert.doesNotMatch(source, /ensureDeepResearchPrice|bq_deep_research_fixed_7/);
-  assert.match(source, /credits: 7, creditsPerUnit: 0, unit: "none"/);
+  assert.match(source, /\["deep_research",\s*"web\.research",\s*7,\s*0,\s*"none"\]/);
+  assert.match(source, /const charge = deepResearch\s*\?\s*searchRule\.credits \+ \(searchRule\.unit === "none" \? 0 : searchRule\.creditsPerUnit\)/);
 });
 
 test("image editing uses shared image generation quality-tier rules", () => {
