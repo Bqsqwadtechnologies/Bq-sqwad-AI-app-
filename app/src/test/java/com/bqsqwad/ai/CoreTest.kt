@@ -31,6 +31,14 @@ import java.util.Calendar
 
 class CoreTest {
 
+    @Test fun assistantGreetingDropsOnlyStrayLeadingComma() {
+        assertEquals("Isaac! How can I help you today?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(", Isaac! How can I help you today?"))
+        assertEquals("Hello there.", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("  Hello there."))
+        assertEquals("Wait, what?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("Wait, what?"))
+    }
+
+
+
     @Test fun birthdayMonthiversaryClampsMonthEndAndPreservesLocalTime() {
         val start = Calendar.getInstance().apply {
             clear()
