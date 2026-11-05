@@ -91,7 +91,7 @@ const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
 export async function priceOperation(capability, units = 0) {
   const key = String(capability || "").trim().toLowerCase();
   if (TOKEN_METERED_CAPABILITIES.has(key)) {
-    return { ...calculateDirectCreditCharge({ credits: 0 }), capability: key, providerId: null, modelId: null, pricingSnapshot: { mode: "tokenPricingRules" }, estimateSource: "token_metered_usage" };
+    throw new Error("token_metering_required");
   }
   if (["live_voice", "live_camera", "dictation", "text_to_speech"].includes(key)) {
     throw new Error("duration_metering_required");
