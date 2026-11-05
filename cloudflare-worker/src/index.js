@@ -1152,45 +1152,44 @@ function generationCreditsPerMinute(rule) {
 
 
 
-const AUX_PRICING_MARKER = "adminAdvancedOptions/bq_aux_credit_pricing_v1";
-const AUX_TOKEN_RULES = [
-  { id: "default-openai-gpt-realtime-2-1-mini", model: "gpt-realtime-2.1-mini", credits: {
-    inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014,
-    inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668,
-    inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 } },
-  { id: "default-openai-gpt-image-1-mini", model: "gpt-image-1-mini", credits: {
-    inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666,
-    inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 } },
-  { id: "default-openai-gpt-4o-mini-transcribe", model: "gpt-4o-mini-transcribe", credits: {
-    inputCreditsPerToken: 0, cachedInputCreditsPerToken: 0, outputCreditsPerToken: 0.0002916666666666667,
-    inputAudioCreditsPerToken: 0.00007291666666666667 } },
-  { id: "default-openai-gpt-4o-mini-tts", model: "gpt-4o-mini-tts", credits: {
-    inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputCreditsPerToken: 0,
-    outputAudioCreditsPerToken: 0.0007 } },
-  { id: "default-openai-text-embedding-3-small", model: "text-embedding-3-small", credits: {
-    inputCreditsPerToken: 0.0000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0 } },
-  { id: "default-openai-omni-moderation-latest", model: "omni-moderation-latest", credits: {
-    inputCreditsPerToken: 0.00001, cachedInputCreditsPerToken: 0.00001, outputCreditsPerToken: 0 } }
+const TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions/bq_token_credit_pricing_defaults_v5";
+const TOKEN_CREDIT_DEFAULTS = [
+  { id: "default-openai-gpt-6-luna", model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667 } },
+  { id: "default-openai-gpt-5-6-luna", model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007 } },
+  { id: "default-openai-gpt-image-2-5-sunburst", model: "gpt-image-2.5-sunburst", credits: { inputCreditsPerToken: 0.0002916666666666667, cachedInputCreditsPerToken: 0.00007291666666666667, outputCreditsPerToken: 0, inputImageCreditsPerToken: 0.00046666666666666666, cachedInputImageCreditsPerToken: 0.00011666666666666667, outputImageCreditsPerToken: 0.00175 } },
+  { id: "default-openai-gpt-realtime-2-1-mini", model: "gpt-realtime-2.1-mini", credits: { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014, inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668, inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 } },
+  { id: "default-openai-gpt-image-1-mini", model: "gpt-image-1-mini", credits: { inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666, inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 } },
+  { id: "default-openai-gpt-4o-mini-transcribe", model: "gpt-4o-mini-transcribe", credits: { inputCreditsPerToken: 0, cachedInputCreditsPerToken: 0, outputCreditsPerToken: 0.0002916666666666667, inputAudioCreditsPerToken: 0.00007291666666666667 } },
+  { id: "default-openai-gpt-4o-mini-tts", model: "gpt-4o-mini-tts", credits: { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputCreditsPerToken: 0, outputAudioCreditsPerToken: 0.0007 } },
+  { id: "default-openai-text-embedding-3-small", model: "text-embedding-3-small", credits: { inputCreditsPerToken: 0.0000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0 } },
+  { id: "default-openai-omni-moderation-latest", model: "omni-moderation-latest", credits: { inputCreditsPerToken: 0.00001, cachedInputCreditsPerToken: 0.00001, outputCreditsPerToken: 0 } }
 ];
-async function seedAuxCreditPricingOnce() {
-  const marker = await firestoreGet(AUX_PRICING_MARKER).catch(() => null);
-  if (marker?.applied === true) return;
+async function seedTokenCreditDefaultsOnce() {
+  const marker = await firestoreGet(TOKEN_CREDIT_DEFAULTS_MARKER).catch(() => null);
+  if (marker?.applied === true && Number(marker.version) >= 5) return;
   const existing = await firestoreQuery("tokenPricingRules", { limit: 500 }).catch(() => []);
-  for (const rule of AUX_TOKEN_RULES) {
-    const found = (existing || []).find(r => String(r.provider || "").toLowerCase() === "openai" && String(r.model || "") === rule.model);
-    if (found) continue;
+  for (const rule of TOKEN_CREDIT_DEFAULTS) {
+    const found = (existing || []).find(row =>
+      String(row.provider || "").toLowerCase() === "openai" &&
+      String(row.model || "") === rule.model &&
+      String(row.customerClass || "all").toLowerCase() === "all"
+    );
+    const id = String(found?.id || String(found?.__name || "").split("/").pop() || rule.id);
     const doc = {
-      id: rule.id, provider: "openai", model: rule.model, customerClass: "all", status: "active",
+      ...(found || {}),
       ...rule.credits,
+      id, provider: "openai", model: rule.model, customerClass: "all", status: "active",
       inputCreditsPer1k: rule.credits.inputCreditsPerToken * 1000,
       cachedInputCreditsPer1k: rule.credits.cachedInputCreditsPerToken * 1000,
       outputCreditsPer1k: rule.credits.outputCreditsPerToken * 1000,
-      minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, seededDefaultVersion: 1,
-      source: "BQ customer credit defaults", updatedAt: new Date().toISOString()
+      minimumCredits: 0, plans: Array.isArray(found?.plans) ? found.plans : [],
+      features: Array.isArray(found?.features) ? found.features : [],
+      effectiveFrom: String(found?.effectiveFrom || ""), version: Math.max(5, Number(found?.version || 0) + 1),
+      seededDefaultVersion: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString()
     };
-    await firestoreSet("tokenPricingRules/" + rule.id, doc, false);
+    await firestoreSet("tokenPricingRules/" + id, doc, true);
   }
-  await firestoreSet(AUX_PRICING_MARKER, { applied: true, version: 1, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
+  await firestoreSet(TOKEN_CREDIT_DEFAULTS_MARKER, { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
 }
 const STRIP_USD_MARKER = "adminAdvancedOptions/bq_strip_provider_usd_v1";
 const PROVIDER_USD_FIELD = /UsdPer(Million|Token)$/;
@@ -1275,7 +1274,7 @@ async function dedupeLivePricingRulesOnce() {
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
-  await seedAuxCreditPricingOnce().catch(() => {});
+  await seedTokenCreditDefaultsOnce().catch(() => {});
   await ensureLivePricingLegacyValuesOnce().catch(() => {});
   await dedupeLivePricingRulesOnce().catch(() => {});
   await stripProviderUsdFieldsOnce().catch(() => {});
