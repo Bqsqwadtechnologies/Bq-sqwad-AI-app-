@@ -26,8 +26,8 @@ test("shared generation defaults use baked customer credit prices and preserve e
   assert.ok(source.includes('"operation": "speech.synthesize"'));
   assert.ok(source.includes('"creditsPerUnit": 0.0145833'));
   assert.ok(source.includes('bq_live_credit_pricing_defaults_v5'));
-  assert.match(source, /shouldSeedPricingDefaults\(marker, 5\)/);
-  assert.match(seedGuard, /Number\(marker\?\.version\) >= requiredVersion/);
+  assert.match(source, /shouldSeedPricingDefaults\(marker\)/);
+  assert.match(seedGuard, /Number\(marker\.version\) >= requiredVersion/);
   assert.ok(source.includes("PRESERVE_EXISTING_DEFAULTS"));
   assert.ok(source.includes("PRICING_DEFAULTS_MARKER"));
   assert.match(source, /await seedAdminPricingDefaults\(\);[\s\S]*?const key = String\(operation/);
