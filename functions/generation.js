@@ -68,7 +68,7 @@ export async function generateImage(uid, prompt, options = {}) {
   const id = cryptoRandomId();
   const url = await signedStorageUrl(buffer, "image/png", "generated/" + uid + "/images/" + id + ".png");
   await notifyGenerationReady(uid, "Your image is ready", "BQ Sqwad AI finished generating your image.", id);
-  return { providerId: "openai", modelId: model, imageUrl: url, generationId: id };
+  return { providerId: "openai", modelId: model, imageUrl: url, generationId: id, rawUsage: result.usage || null };
 }
 
 export async function createVideo() {
