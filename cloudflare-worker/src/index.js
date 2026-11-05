@@ -1281,7 +1281,7 @@ async function seedAdminPricingDefaults() {
   await stripProviderUsdFieldsOnce().catch(() => {});
   await stripLegacyAiModelCostFieldsOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 5) {
+  if (!shouldSeedPricingDefaults(marker)) {
     adminPricingSeeded = true;
     return;
   }
