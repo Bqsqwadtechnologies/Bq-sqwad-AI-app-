@@ -2841,6 +2841,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             while (true) {
                 runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                     .onSuccess { applyCreditSnapshot(it) }
+                    .onFailure { if (!creditBalanceLoaded) { creditBalanceLoaded = true; creditBalanceLabel = "Balance unavailable" } }
                 delay(30_000L)
             }
         }
