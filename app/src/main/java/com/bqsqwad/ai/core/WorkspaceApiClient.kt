@@ -261,7 +261,7 @@ class WorkspaceApiClient {
     suspend fun clearMemory():JSONObject = request("/memory","DELETE")
 
     suspend fun realtimeSession(voice: String? = null, organization: Boolean = false, mode: String = "voice", modelRegistryId: String? = null):JSONObject = request("/realtime/session", payload=JSONObject().apply { voice?.trim()?.takeIf { it.isNotEmpty() }?.let { put("voice", it) }; put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }; if (organization) put("organization", true) })
-    suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
+    suspend fun realtimeHeartbeat(mode: String = "voice", modelRegistryId: String? = null, smart: Boolean = false): JSONObject = request("/realtime/heartbeat", payload=JSONObject().apply { put("mode", mode); put("smart", smart); modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) } })
     suspend fun reportLiveSessionTimeline(mode: String, status: String, code: String = ""): JSONObject {
         val route = when (mode.lowercase()) {
             "camera" -> "/live-camera"
