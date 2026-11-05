@@ -280,7 +280,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
 }
 
 export function estimateTokenReservation({ message, system, pricing }) {
-  const inputTokens = Math.max(1, Math.ceil((String(message || "").length + String(system || "").length) / 3.5));
+  const inputTokens = Math.max(0, Math.ceil((String(message || "").length + String(system || "").length) / 3.5));
   // Reservation output estimate only; this value is not sent as a provider output cap.
   const outputTokens = Math.max(128, Number(pricing.maxOutputTokens || 1_024));
   const estimated = calculateTokenCost({
