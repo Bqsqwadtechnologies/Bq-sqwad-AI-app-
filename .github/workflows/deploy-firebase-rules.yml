@@ -1,10 +1,11 @@
-name: Deploy Firebase Storage rules (manual fallback)
+name: Deploy Firebase Firestore and Storage rules
 
 on:
   push:
     branches: [main]
     paths:
       - 'firebase.json'
+      - 'firestore.rules'
       - 'storage.rules'
       - '.github/workflows/deploy-firebase-rules.yml'
   workflow_dispatch:
@@ -48,6 +49,6 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
           echo "available=true" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy Firebase Storage rules only
+      - name: Deploy Firebase Firestore and Storage rules
         if: steps.firebase_auth.outputs.available == 'true'
-        run: npx firebase-tools deploy --only storage --project bqsqwadai --non-interactive
+        run: npx firebase-tools deploy --only firestore:rules,storage --project bqsqwadai --non-interactive
