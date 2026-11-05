@@ -136,18 +136,30 @@ export function canonicalPlayEntitlementWrite(uid, mapping, verified, lineItem, 
   const state = String(subscriptionState || "").includes("IN_GRACE_PERIOD") ? "grace" : "active";
   const planId = String(mapping.planId || "");
   if (!planId) return null;
+  // Older admin Play mappings may omit module/entitlements. Recover those
+  // fields from the canonical commercial catalog rather than writing a
+  // generic "general" entitlement that neither client can use.
+  const catalogPlan = Object.values(COMMERCIAL_CATALOG.sections || {}).flat()
+    .find(plan => String(plan?.id || "") === planId);
+  const module = String(mapping.module || catalogPlan?.module || mapping.product || "general");
+  const includedFeatures = Array.isArray(mapping.entitlements)
+    ? mapping.entitlements.map(String)
+    : Array.isArray(catalogPlan?.entitlements) ? catalogPlan.entitlements.map(String) : [];
+  const limits = mapping.limits && typeof mapping.limits === "object"
+    ? mapping.limits
+    : catalogPlan?.limits && typeof catalogPlan.limits === "object" ? catalogPlan.limits : {};
   return {
     path: "entitlements/" + uid + "/plans/" + planId,
     data: {
       planId,
-      module: String(mapping.module || mapping.product || "general"),
+      module,
       state,
       source: "google_play",
       startsAt: startsAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      includedFeatures: Array.isArray(mapping.entitlements) ? mapping.entitlements.map(String) : [],
+      includedFeatures,
       ...(mapping.orgId ? { orgId: String(mapping.orgId) } : {}),
-      ...(Number.isFinite(Number(mapping.limits?.seats)) ? { seats: Number(mapping.limits.seats) } : {}),
+      ...(Number.isFinite(Number(limits.seats)) ? { seats: Number(limits.seats) } : {}),
       updatedAt: new Date().toISOString(),
     }
   };
