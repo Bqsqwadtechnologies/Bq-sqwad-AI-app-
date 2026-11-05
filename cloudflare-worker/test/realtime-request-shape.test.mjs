@@ -54,3 +54,10 @@ test("normal realtime sessions explicitly disable transcription", async () => {
   const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/RealtimeVoiceSession.kt", import.meta.url), "utf8");
   assert.match(source, /put\("transcription", if \(silentTextMode\)[\s\S]*?else JSONObject\.NULL\)/);
 });
+
+test("realtime session clamps stale Firestore model IDs to the supported model", async () => {
+  const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  assert.match(source, /const ALLOWED_REALTIME_MODELS = new Set\(\["gpt-realtime-2\.1-mini"\]\)/);
+  assert.match(source, /if \(!ALLOWED_REALTIME_MODELS\.has\(model\)\)[\s\S]*?model = DEFAULT_REALTIME_MODEL/);
+  assert.match(source, /model = await pickAccessibleModel\(env, model, \/\^gpt-realtime\/\)/);
+});
