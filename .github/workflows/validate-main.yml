@@ -1,6 +1,13 @@
 name: BQ Sqwad AI — Validate Main and Debug APK
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "cloudflare-worker/**"
+      - "functions/**"
+      - ".github/workflows/validate-main.yml"
   workflow_dispatch:
 
 permissions:
