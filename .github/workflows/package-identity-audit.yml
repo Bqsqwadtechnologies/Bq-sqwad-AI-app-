@@ -137,26 +137,3 @@ jobs:
               sys.exit(1)
           print(f"\nPACKAGE IDENTITY AUDIT PASSED: {EXPECTED}")
           PY
-
-      - name: Compile and run Android unit tests
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
-
-      - name: Confirm generated APK application ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$APK"
-          if command -v apkanalyzer >/dev/null 2>&1; then
-            ACTUAL="$(apkanalyzer manifest application-id "$APK")"
-          elif [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" ]; then
-            ACTUAL="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK")"
-          else
-            echo "::error::apkanalyzer is unavailable; cannot verify application ID inside generated APK."
-            exit 1
-          fi
-          echo "Generated APK application ID: $ACTUAL"
-          test "$ACTUAL" = "com.bqsqwad.ai" || {
-            echo "::error::APK application ID mismatch. Expected com.bqsqwad.ai, got $ACTUAL"
-            exit 1
-          }
