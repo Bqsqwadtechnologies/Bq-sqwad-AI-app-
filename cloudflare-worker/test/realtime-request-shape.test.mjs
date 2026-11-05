@@ -59,7 +59,7 @@ test("Settings shows the signed-in account credit balance from the authenticated
   assert.match(app, /creditBalanceLabel = if \(creditBalanceLoaded\) creditBalanceLabel else "Loading balance…"/);
   assert.match(app, /SettingsCreditsCard\([\s\S]*?balanceLabel = creditBalanceLabel/);
   assert.match(app, /isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"/);
-  assert.match(app, /if \(settingsCategory == "All settings" \|\| settingsCategory == "Payments & Billing"\)[\s\S]*?SettingsCreditsCard/);
+  assert.match(app, /if \(settingsCategory == "All settings" \|\| settingsCategory == "Account"\)[\s\S]*?SettingsCreditsCard/);
   assert.match(card, /Text\("Credit balance"/);
 });
 
