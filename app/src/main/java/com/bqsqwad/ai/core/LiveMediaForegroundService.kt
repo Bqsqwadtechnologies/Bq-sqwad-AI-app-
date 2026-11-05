@@ -353,11 +353,11 @@ class LiveMediaForegroundService : Service() {
             while (isActive && (realtimeVoice != null || visualVoice != null)) {
                 delay(30_000L)
                 if (!isActive || (realtimeVoice == null && visualVoice == null)) break
-                var heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
+                var heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId, smartMode) }
                 if (heartbeat.isFailure) {
                     delay(1_500L)
                     if (!isActive || (realtimeVoice == null && visualVoice == null)) break
-                    heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId) }
+                    heartbeat = runCatching { WorkspaceApiClient().realtimeHeartbeat(sessionMode, modelRegistryId, smartMode) }
                 }
                 val result = heartbeat.getOrNull()
                 if (result == null) {
