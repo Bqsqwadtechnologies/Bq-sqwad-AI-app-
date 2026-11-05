@@ -5796,7 +5796,7 @@ export default {
             if (!Number.isFinite(actualValue)) missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + String(row.id || model), reason: "missing_" + field });
             else if (actualValue !== expectedValue) priceDifferences.push({ collection: "tokenPricingRules", model, field, expected: expectedValue, actual: actualValue });
           }
-          if (Object.keys(row).some(key => /UsdPer(Million|Token)$/.test(key))) {
+          if (Object.keys(row).some(key => /UsdPer(Million|Token)/i.test(key))) {
             missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + String(row.id || model), reason: "legacy_price_fields_present" });
           }
         }
