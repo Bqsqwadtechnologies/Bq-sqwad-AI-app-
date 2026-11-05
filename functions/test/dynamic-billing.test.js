@@ -34,6 +34,13 @@ test("Functions fixed charges read the canonical generation credit rules and unk
   assert.doesNotMatch(source, /calculateDirectCreditCharge\(\{ credits: finalCreditPrice \}\)/);
 });
 
+test("legacy Functions routes cannot bypass token or duration metering", async () => {
+  await assert.rejects(priceOperation("chat"), /token_metering_required/);
+  await assert.rejects(priceOperation("image_generation"), /token_metering_required/);
+  await assert.rejects(priceOperation("live_voice", 30), /duration_metering_required/);
+  await assert.rejects(priceOperation("live_camera", 30), /duration_metering_required/);
+});
+
 test("Functions calculate actual usage from the saved token rates, including cached image input", () => {
   const rule = {
     inputCreditsPerToken: 0.0002916666666666667,
