@@ -56,7 +56,9 @@ test("Settings shows the signed-in account credit balance from the authenticated
   const api = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/WorkspaceApiClient.kt", import.meta.url), "utf8");
   const card = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/chat/WorkspaceTeamScreen.kt", import.meta.url), "utf8");
   assert.match(api, /suspend fun credits\(\):JSONObject = request\("\/credits","GET"\)/);
-  assert.match(app, /creditBalanceLabel = if \(creditBalanceLoaded\) creditBalanceLabel else "Loading balance…"/);
+  assert.match(app, /creditBalanceLabel = settingsCreditBalanceLabel/);
+  assert.match(app, /var settingsCreditBalanceLabel by remember\(firebaseUser\?\.uid\)/);
+  assert.match(app, /WorkspaceApiClient\(\)\.credits\(\)/);
   assert.match(app, /SettingsCreditsCard\([\s\S]*?balanceLabel = creditBalanceLabel/);
   assert.match(app, /isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"/);
   assert.match(app, /if \(settingsCategory == "All settings" \|\| settingsCategory == "Account"\)[\s\S]*?SettingsCreditsCard/);
