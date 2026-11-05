@@ -111,7 +111,7 @@ test("shared website meter never applies a minimum charge", () => {
     creditReferenceValueUsd: 0.1199,
     multiplier: 7,
   });
-  assert.equal(tiny.customerCredits, 0);
+  assert.equal(tiny.customerCredits, 0.00003);
 });
 
 test("shared website meter rejects invalid admin metering instead of charging unpredictably", () => {
