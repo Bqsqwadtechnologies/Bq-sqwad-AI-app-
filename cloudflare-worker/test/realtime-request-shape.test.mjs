@@ -51,6 +51,18 @@ test("Android live price labels read only the shared public pricing endpoint", a
   assert.match(app, /liveVoicePriceLabel = if \(voiceRate\.isFinite\(\)\)/);
 });
 
+test("Settings shows the signed-in account credit balance from the authenticated credits endpoint", async () => {
+  const app = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt", import.meta.url), "utf8");
+  const api = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/WorkspaceApiClient.kt", import.meta.url), "utf8");
+  const card = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/chat/WorkspaceTeamScreen.kt", import.meta.url), "utf8");
+  assert.match(api, /suspend fun credits\(\):JSONObject = request\("\/credits","GET"\)/);
+  assert.match(app, /creditBalanceLabel = if \(creditBalanceLoaded\) creditBalanceLabel else "Loading balance…"/);
+  assert.match(app, /SettingsCreditsCard\([\s\S]*?balanceLabel = creditBalanceLabel/);
+  assert.match(app, /isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"/);
+  assert.match(app, /if \(settingsCategory == "All settings" \|\| settingsCategory == "Payments & Billing"\)[\s\S]*?SettingsCreditsCard/);
+  assert.match(card, /Text\("Credit balance"/);
+});
+
 test("opt-in training library is admin-only and checks explicit consent before returning examples", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
   assert.match(source, /url\.pathname === \"\/admin\/training-library\" && request\.method === \"GET\"/);
