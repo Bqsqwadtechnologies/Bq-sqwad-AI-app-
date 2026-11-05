@@ -113,3 +113,10 @@ test("legacy realtime model ID is rejected for both live features", async () => 
     );
   }
 });
+
+
+test("active token models do not require stored cost-rate fields", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../src/model-registry-native.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /token_pricing_required_for_active_token_billing/);
+});
