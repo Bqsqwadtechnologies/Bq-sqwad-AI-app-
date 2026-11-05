@@ -60,7 +60,7 @@ test("Settings shows the signed-in account credit balance from the authenticated
   assert.match(app, /var settingsCreditBalanceLabel by remember\(firebaseUser\?\.uid\)/);
   assert.match(app, /WorkspaceApiClient\(\)\.credits\(\)/);
   assert.match(app, /SettingsCreditsCard\([\s\S]*?balanceLabel = creditBalanceLabel/);
-  assert.match(app, /isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"/);
+  assert.match(app, /isAdminUnlimited = settingsCreditBalanceLabel == "Credits: Unlimited"/);
   assert.match(app, /if \(settingsCategory == "All settings" \|\| settingsCategory == "Account"\)[\s\S]*?SettingsCreditsCard/);
   assert.match(card, /Text\("Credit balance"/);
 });
