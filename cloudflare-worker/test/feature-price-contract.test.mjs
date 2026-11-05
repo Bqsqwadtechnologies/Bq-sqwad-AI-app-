@@ -19,8 +19,13 @@ test("shared generation defaults use baked customer credit prices and preserve e
   assert.ok(source.includes('"creditsPerUnit": 0.3'));
   assert.ok(source.includes('"operation": "web.search"'));
   assert.match(source, /"operation": "image\.edit",\s*"label": "Image editing uses image generation quality tiers",\s*"credits": 0,\s*"creditsPerUnit": 0,\s*"unit": "none"/);
-  assert.ok(source.includes('"creditsPerUnit": 0.34056155'));
+  assert.ok(source.includes('"creditsPerUnit": 0.045'));
+  assert.ok(source.includes('"creditsPerUnit": 0.09'));
   assert.ok(source.includes('"creditsPerUnit": 0.0204337'));
+  assert.ok(source.includes('"operation": "speech.synthesize"'));
+  assert.ok(source.includes('"creditsPerUnit": 0.0145833'));
+  assert.ok(source.includes('bq_live_credit_pricing_defaults_v5'));
+  assert.match(source, /Number\(marker\.version\) >= 5/);
   assert.ok(source.includes("PRESERVE_EXISTING_DEFAULTS"));
   assert.ok(source.includes("PRICING_DEFAULTS_MARKER"));
   assert.match(source, /await seedAdminPricingDefaults\(\);[\s\S]*?const key = String\(operation/);
