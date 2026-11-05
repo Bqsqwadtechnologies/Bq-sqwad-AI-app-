@@ -1226,7 +1226,7 @@ export const bqSqwadApi = onRequest(
         const gate = await authorizeCapability(user.uid, "capability_video_generation");
         let reservation = null;
         try {
-          reservation = await reserveCredits(user.uid, gate.creditCost, "video_generation");
+          reservation = await reserveCredits(user.uid, Math.max(0, Number(body.seconds || 0)), "video_generation");
           const result = await createVideo(user.uid, prompt, {
             seconds: body.seconds,
             size: body.size
