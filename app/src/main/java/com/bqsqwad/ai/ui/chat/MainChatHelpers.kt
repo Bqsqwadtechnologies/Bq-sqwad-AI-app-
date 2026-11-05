@@ -6,8 +6,8 @@ package com.bqsqwad.ai.ui.chat
  * are not stuck on older training knowledge.
  */
 object MainChatHelpers {
-    /** Remove stray leading punctuation occasionally emitted before a personalized greeting. */
-    fun cleanAssistantReply(text: String): String = text.trimStart(' ', '\t', '\n', '\r', ',')
+    /** Removes only a stray leading comma/semicolon, never meaningful punctuation. */
+    fun cleanAssistantReply(text: String): String = text.replace(Regex("^\\s*[,;，]+\\s*"), "")
 
     fun needsCurrentWebSearch(text: String): Boolean {
         val query = text.trim().lowercase(java.util.Locale.ROOT)
