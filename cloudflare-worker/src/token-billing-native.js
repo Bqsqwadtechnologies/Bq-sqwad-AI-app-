@@ -50,8 +50,10 @@ export function normalizeProviderUsage(providerId, raw = {}) {
       cachedInputTokens: Math.max(0, Number(inputDetails.cached_tokens ?? inputDetails.cache_read_input_tokens ?? 0)),
       reasoningTokens: Math.max(0, Number(outputDetails.reasoning_tokens ?? 0)),
       inputAudioTokens: Math.max(0, Number(raw.input_audio_tokens ?? inputDetails.audio_tokens ?? 0)),
+      cachedInputAudioTokens: Math.max(0, Number(raw.cached_input_audio_tokens ?? inputDetails.cached_audio_tokens ?? 0)),
       outputAudioTokens: Math.max(0, Number(raw.output_audio_tokens ?? outputDetails.audio_tokens ?? 0)),
       inputImageTokens: Math.max(0, Number(raw.input_image_tokens ?? inputDetails.image_tokens ?? 0)),
+      cachedInputImageTokens: Math.max(0, Number(raw.cached_input_image_tokens ?? inputDetails.cached_image_tokens ?? 0)),
       outputImageTokens: Math.max(0, Number(raw.output_image_tokens ?? outputDetails.image_tokens ?? 0)),
       modalityUsage: { input: inputDetails, output: outputDetails }
     };
@@ -67,6 +69,8 @@ export function normalizeProviderUsage(providerId, raw = {}) {
       inputAudioTokens: modalityTokens(inputDetails, "audio"),
       outputAudioTokens: modalityTokens(outputDetails, "audio"),
       inputImageTokens: modalityTokens(inputDetails, "image"),
+      cachedInputAudioTokens: modalityTokens(inputDetails, "cached_audio"),
+      cachedInputImageTokens: modalityTokens(inputDetails, "cached_image"),
       outputImageTokens: modalityTokens(outputDetails, "image"),
       modalityUsage: { promptTokensDetails: inputDetails, candidatesTokensDetails: outputDetails }
     };
@@ -77,8 +81,10 @@ export function normalizeProviderUsage(providerId, raw = {}) {
     cachedInputTokens: Math.max(0, Number(raw.cachedInputTokens ?? raw.cached_input_tokens ?? 0)),
     reasoningTokens: Math.max(0, Number(raw.reasoningTokens ?? raw.reasoning_tokens ?? 0)),
     inputAudioTokens: Math.max(0, Number(raw.inputAudioTokens ?? raw.input_audio_tokens ?? 0)),
+    cachedInputAudioTokens: Math.max(0, Number(raw.cachedInputAudioTokens ?? raw.cached_input_audio_tokens ?? 0)),
     outputAudioTokens: Math.max(0, Number(raw.outputAudioTokens ?? raw.output_audio_tokens ?? 0)),
     inputImageTokens: Math.max(0, Number(raw.inputImageTokens ?? raw.input_image_tokens ?? 0)),
+    cachedInputImageTokens: Math.max(0, Number(raw.cachedInputImageTokens ?? raw.cached_input_image_tokens ?? 0)),
     outputImageTokens: Math.max(0, Number(raw.outputImageTokens ?? raw.output_image_tokens ?? 0)),
     modalityUsage: raw.modalityUsage || {}
   };
@@ -90,6 +96,8 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const inputAudioTokens = Math.max(0, Number(usage?.inputAudioTokens || 0));
   const outputAudioTokens = Math.max(0, Number(usage?.outputAudioTokens || 0));
   const inputImageTokens = Math.max(0, Number(usage?.inputImageTokens || 0));
+  const cachedInputAudioTokens = Math.min(inputAudioTokens, Math.max(0, Number(usage?.cachedInputAudioTokens || 0)));
+  const cachedInputImageTokens = Math.min(inputImageTokens, Math.max(0, Number(usage?.cachedInputImageTokens || 0)));
   const outputImageTokens = Math.max(0, Number(usage?.outputImageTokens || 0));
   if (inputAudioTokens + inputImageTokens > inputTokens || outputAudioTokens + outputImageTokens > outputTokens) {
     throw Object.assign(new Error("provider_modality_usage_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
@@ -124,8 +132,10 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const precision = Number(meter.precision ?? 7);
   const modalityRates = [
     ["input audio", inputAudioTokens, meter.creditsPerInputAudioToken],
+    ["cached input audio", cachedInputAudioTokens, meter.creditsPerCachedInputAudioToken],
     ["output audio", outputAudioTokens, meter.creditsPerOutputAudioToken],
-    ["input image", inputImageTokens, meter.creditsPerInputImageToken],
+    ["input image", inputImageTokens - cachedInputImageTokens, meter.creditsPerInputImageToken],
+    ["cached input image", cachedInputImageTokens, meter.creditsPerCachedInputImageToken],
     ["output image", outputImageTokens, meter.creditsPerOutputImageToken]
   ];
   for (const [label, count, rate] of modalityRates) {
@@ -142,9 +152,11 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
     uncachedInputTokens * inputCreditRate +
     cachedInputTokens * cachedCreditRate +
     textOutputTokens * outputCreditRate +
-    inputAudioTokens * Number(meter.creditsPerInputAudioToken || 0) +
+    (inputAudioTokens - cachedInputAudioTokens) * Number(meter.creditsPerInputAudioToken || 0) +
+    cachedInputAudioTokens * Number(meter.creditsPerCachedInputAudioToken || 0) +
     outputAudioTokens * Number(meter.creditsPerOutputAudioToken || 0) +
-    inputImageTokens * Number(meter.creditsPerInputImageToken || 0) +
+    (inputImageTokens - cachedInputImageTokens) * Number(meter.creditsPerInputImageToken || 0) +
+    cachedInputImageTokens * Number(meter.creditsPerCachedInputImageToken || 0) +
     outputImageTokens * Number(meter.creditsPerOutputImageToken || 0);
   // No minimum deduction: only measured token usage and configured rates are charged.
   const roundedCredits = rawCredits > 0
@@ -348,9 +360,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   };
   const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
   const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
-  // Provider USD rates are private cost telemetry. Admin Live Credit Pricing
-  // stores them per million tokens; customer deductions still use the separate
-  // credits-per-token values in sharedCreditMetering below.
   const providerInputUsdPerMillion = Number(tokenRule?.inputUsdPerMillion);
   const providerOutputUsdPerMillion = Number(tokenRule?.outputUsdPerMillion);
   const providerCachedUsdPerMillion = Number(tokenRule?.cachedInputUsdPerMillion);
@@ -374,9 +383,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const customerMultiplier = 1;
   const estimatedFeePercent = 0;
   // Input/output ceilings are enforced by the shared website-admin token budget.
-  // Sanity-check normalized USD-per-million rates. A per-million value
-  // accidentally entered into a per-token field otherwise becomes millions
-  // of times larger and can drain a balance on a short prompt.
   const featureKey = String(feature || "").toLowerCase();
   const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
@@ -395,8 +401,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     creditsPerOutputToken: customerOutputCreditsPerToken,
     creditsPerCachedInputToken: customerCachedCreditsPerToken,
     creditsPerInputAudioToken: typeof tokenRule.inputAudioCreditsPerToken === "number" ? tokenRule.inputAudioCreditsPerToken : null,
+    creditsPerCachedInputAudioToken: typeof tokenRule.cachedInputAudioCreditsPerToken === "number" ? tokenRule.cachedInputAudioCreditsPerToken : null,
     creditsPerOutputAudioToken: typeof tokenRule.outputAudioCreditsPerToken === "number" ? tokenRule.outputAudioCreditsPerToken : null,
     creditsPerInputImageToken: typeof tokenRule.inputImageCreditsPerToken === "number" ? tokenRule.inputImageCreditsPerToken : null,
+    creditsPerCachedInputImageToken: typeof tokenRule.cachedInputImageCreditsPerToken === "number" ? tokenRule.cachedInputImageCreditsPerToken : null,
     creditsPerOutputImageToken: typeof tokenRule.outputImageCreditsPerToken === "number" ? tokenRule.outputImageCreditsPerToken : null,
     minimumCredits: Math.max(0, Number(tokenRule.minimumCredits ?? 0)),
     fallbackCredits: 0,
