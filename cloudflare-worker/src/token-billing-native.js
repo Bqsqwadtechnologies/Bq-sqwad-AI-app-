@@ -217,81 +217,6 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const config = control.config && typeof control.config === "object" ? control.config : {};
   let tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
   // Seed the final BQ customer credit defaults once. Administrator edits remain authoritative.
-  const openAiTokenDefaults = {
-    "gpt-6-luna": { inputCredits: 0.000005833333333333333, cachedCredits: 0.0000005833333333333333, outputCredits: 0.000029166666666666667 },
-    "gpt-5.6-luna": { inputCredits: 0.000011666666666666668, cachedCredits: 0.0000011666666666666668, outputCredits: 0.00007 },
-    "gpt-image-2.5-sunburst": { inputCredits: 0.0002916666666666667, cachedCredits: 0.00007291666666666667, outputCredits: 0, inputImageCredits: 0.00046666666666666666, cachedImageCredits: 0.00011666666666666667, outputImageCredits: 0.00175 }
-  };
-  const normalizedModelId = String(modelId || "").toLowerCase();
-  const mainDefaults = String(providerId || "").toLowerCase() === "openai" ? openAiTokenDefaults[normalizedModelId] : null;
-  const existingRule = mainDefaults ? tokenRules.find(rule =>
-    String(rule.provider || "").toLowerCase() === "openai" &&
-    String(rule.model || "").toLowerCase() === normalizedModelId &&
-    String(rule.customerClass || "all").toLowerCase() === "all"
-  ) : null;
-  if (mainDefaults) {
-    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v5_" + (normalizedModelId === "gpt-6-luna" ? "gpt6" : "gpt56");
-    const mainPricingMarker = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId)
-      ? await firestoreGet(mainPricingMarkerPath).catch(() => null) : null;
-    const applyMainPricingDefaults = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId) && mainPricingMarker?.applied !== true;
-    const id = normalizedModelId === "gpt-6-luna" ? "default-openai-gpt-6-luna"
-      : normalizedModelId === "gpt-5.6-luna" ? "default-openai-gpt-5-6-luna"
-      : "default-openai-gpt-image-2-5-sunburst";
-    const seeded = {
-      id, provider: "openai", model: String(modelId), customerClass: "all", status: "active",
-      inputCreditsPerToken: mainDefaults.inputCredits,
-      cachedInputCreditsPerToken: mainDefaults.cachedCredits,
-      outputCreditsPerToken: mainDefaults.outputCredits,
-      inputCreditsPer1k: mainDefaults.inputCredits * 1000,
-      cachedInputCreditsPer1k: mainDefaults.cachedCredits * 1000,
-      outputCreditsPer1k: mainDefaults.outputCredits * 1000,
-      ...(mainDefaults.inputImageCredits != null ? {
-        inputImageCreditsPerToken: mainDefaults.inputImageCredits,
-        cachedInputImageCreditsPerToken: mainDefaults.cachedImageCredits,
-        outputImageCreditsPerToken: mainDefaults.outputImageCredits
-      } : {}),
-      minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, updatedAt: new Date().toISOString()
-    };
-    if (existingRule) {
-      const existingId = String(existingRule.id || String(existingRule.__name || "").split("/").pop() || id);
-      if (applyMainPricingDefaults) {
-        const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 5, version: Math.max(5, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
-        await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
-        Object.assign(existingRule, migrated);
-        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 5, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
-      } else if (normalizedModelId === "gpt-image-2.5-sunburst") {
-        const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v5";
-        const marker = await firestoreGet(markerPath).catch(() => null);
-        if (marker?.applied !== true) {
-          const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 5, version: Math.max(5, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
-          await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
-          Object.assign(existingRule, migrated);
-          await firestoreSet(markerPath, { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
-        } else {
-          const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
-          if (Object.keys(patch).length) {
-            await firestoreSet("tokenPricingRules/" + existingId, { ...patch, updatedAt: new Date().toISOString() }, true);
-            Object.assign(existingRule, patch);
-          }
-        }
-      } else {
-        const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
-        if (Object.keys(patch).length) {
-          await firestoreSet("tokenPricingRules/" + existingId, { ...patch, updatedAt: new Date().toISOString() }, true);
-          Object.assign(existingRule, patch);
-        }
-      }
-    } else {
-      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: 5 }, false);
-      tokenRules = [...tokenRules, seeded];
-      if (applyMainPricingDefaults) {
-        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 5, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
-      }
-      if (normalizedModelId === "gpt-image-2.5-sunburst") {
-        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v5", { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
-      }
-    }
-  }
   const featureAliases = pricingFeatureAliases(feature);
   let tokenRule = (Array.isArray(tokenRules) ? tokenRules : []).filter(rule => {
     if (String(rule.status || "inactive") !== "active") return false;
@@ -311,37 +236,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
-  // The image-model fallback uses the same final BQ credit rates as Firestore.
-  if (!tokenRule && String(providerId || "").toLowerCase() === "openai" &&
-      String(modelId || "") === "gpt-image-2.5-sunburst") {
-    tokenRule = {
-      id: "builtin-gpt-image-2.5-sunburst",
-      version: 1,
-      status: "active",
-      provider: "openai",
-      model: "gpt-image-2.5-sunburst",
-      customerClass: "all",
-      inputCreditsPerToken: 0.0002916666666666667,
-      cachedInputCreditsPerToken: 0.00007291666666666667,
-      outputCreditsPerToken: 0,
-      inputImageCreditsPerToken: 0.00046666666666666666,
-      cachedInputImageCreditsPerToken: 0.00011666666666666667,
-      outputImageCreditsPerToken: 0.00175,
-      inputCreditsPer1k: 0.2916666666666667,
-      cachedInputCreditsPer1k: 0.07291666666666667,
-      outputCreditsPer1k: 0,
-      features: [],
-      plans: [],
-      effectiveFrom: ""
-    };
-  }
   const applyFeeToUsage = false;
 
-  // The website admin dashboard and the Android app share Firebase project
-  // bqsqwadai. Website AI model metering is persisted at config/aiModels;
-  // use it as the common fallback when this Worker has no per-model registry
-  // price, while preserving an explicitly configured registry price as the
-  // highest-priority source.
+  // Request-size limits are read from the shared configuration; customer prices
+  // come only from the active model-specific token rule.
   const sharedAiConfig = await firestoreGet("config/aiModels").catch(() => null);
   const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object" ? sharedAiConfig.metering : { maxRequestTokens: 8_000, maxOutputTokens: 512 };
   const boundedLimit = (value, fallback, min, max) => {
