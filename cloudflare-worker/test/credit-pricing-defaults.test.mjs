@@ -76,5 +76,6 @@ test("version-five seed guards run before writes so later dashboard edits surviv
 
 test("thirty seconds of Smart Voice uses the combined live and transcription rate", () => {
   const combinedPerSecond = 0.045 + 0.0204337;
-  assert.equal(combinedPerSecond * 30, 1.963011);
+  assert.ok(Math.abs(combinedPerSecond * 30 - 1.963011) < 1e-12,
+    "floating-point representation must remain within 1e-12 credits of the configured 30-second charge");
 });
