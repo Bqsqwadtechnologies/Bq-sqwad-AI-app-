@@ -2112,7 +2112,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
 private fun decodeImageBytes(imageBase64: String): ByteArray = Base64.decode(imageBase64, Base64.DEFAULT)
 
 private object ChatImageBitmapCache {
-    private val cache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+    private val cache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
@@ -2122,7 +2122,7 @@ private object ChatImageBitmapCache {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sampleSize = 1
-        while (bounds.outWidth / sampleSize > 1400 || bounds.outHeight / sampleSize > 1400) {
+        while (bounds.outWidth / sampleSize > 1200 || bounds.outHeight / sampleSize > 1200) {
             sampleSize *= 2
         }
         val options = BitmapFactory.Options().apply {
