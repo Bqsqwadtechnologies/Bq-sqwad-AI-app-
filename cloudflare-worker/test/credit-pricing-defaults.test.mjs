@@ -59,3 +59,22 @@ test("image generation and image editing remain measured-token rules with zero f
 test("Smart heartbeat calculation adds transcription at the same elapsed duration", () => {
   assert.match(index, /calculateLiveHeartbeatCharge\(liveRule, smartTranscribeRule, elapsedSeconds, heartbeatBody\.smart === true\)/);
 });
+
+
+test("version-five seed guards run before writes so later dashboard edits survive repeat calls", () => {
+  const generationSeedStart = index.indexOf("async function seedAdminPricingDefaults()");
+  const generationSeedEnd = index.indexOf("\nasync function capability(", generationSeedStart);
+  const generationSeed = index.slice(generationSeedStart, generationSeedEnd);
+  assert.ok(generationSeedStart >= 0 && generationSeedEnd > generationSeedStart);
+  assert.match(generationSeed, /if \(!shouldSeedPricingDefaults\(marker\)\) \{[\s\S]*?return;[\s\S]*?\}/);
+  assert.ok(generationSeed.indexOf("if (!shouldSeedPricingDefaults(marker))") < generationSeed.indexOf("for (const defaults of ADMIN_SEED_DEFAULTS)"));
+  const tokenSeedStart = index.indexOf("async function seedTokenCreditDefaultsOnce()");
+  const tokenSeedEnd = index.indexOf("\nconst STRIP_USD_MARKER", tokenSeedStart);
+  const tokenSeed = index.slice(tokenSeedStart, tokenSeedEnd);
+  assert.match(tokenSeed, /if \(!shouldSeedPricingDefaults\(marker\)\) return;/);
+});
+
+test("thirty seconds of Smart Voice uses the combined live and transcription rate", () => {
+  const combinedPerSecond = 0.045 + 0.0204337;
+  assert.equal(combinedPerSecond * 30, 1.963011);
+});
