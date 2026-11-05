@@ -230,6 +230,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     String(rule.customerClass || "all").toLowerCase() === "all"
   ) : null;
   if (mainDefaults) {
+    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v3";
+    const mainPricingMarker = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId)
+      ? await firestoreGet(mainPricingMarkerPath).catch(() => null) : null;
+    const applyMainPricingDefaults = mainPricingMarker?.applied !== true;
     const id = normalizedModelId === "gpt-6-luna" ? "default-openai-gpt-6-luna"
       : normalizedModelId === "gpt-5.6-luna" ? "default-openai-gpt-5-6-luna"
       : "default-openai-gpt-image-2-5-sunburst";
@@ -255,7 +259,12 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     };
     if (existingRule) {
       const existingId = String(existingRule.id || String(existingRule.__name || "").split("/").pop() || id);
-      if (normalizedModelId === "gpt-image-2.5-sunburst") {
+      if (applyMainPricingDefaults) {
+        const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 3, version: Math.max(3, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
+        await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
+        Object.assign(existingRule, migrated);
+        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
+      } else if (normalizedModelId === "gpt-image-2.5-sunburst") {
         const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2";
         const marker = await firestoreGet(markerPath).catch(() => null);
         if (marker?.applied !== true) {
@@ -280,6 +289,9 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     } else {
       await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: normalizedModelId === "gpt-image-2.5-sunburst" ? 2 : 1 }, false);
       tokenRules = [...tokenRules, seeded];
+      if (applyMainPricingDefaults) {
+        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
+      }
       if (normalizedModelId === "gpt-image-2.5-sunburst") {
         await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2", { applied: true, version: 2, source: "OpenAI standard Images API rates converted at 100 credits per 12 USD and multiplied by 7", updatedAt: new Date().toISOString() }, true);
       }
