@@ -61,7 +61,11 @@ function normalizeModel(raw, actorUid) {
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
     "device-commands": new Set(["openai", "gemini"]),
-    "video-generation": new Set(["openai"])
+    "video-generation": new Set(["openai"]),
+    "transcription": new Set(["openai"]),
+    "text-to-speech": new Set(["openai"]),
+    "embeddings": new Set(["openai"]),
+    "moderation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
   if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000) throw new Error("model_credit_cost_invalid");
