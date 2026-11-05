@@ -70,5 +70,5 @@ test("model cleanup preserves billing mode while removing obsolete currency pric
   assert.ok(fieldStart >= 0 && fieldEnd > fieldStart);
   const fields = index.slice(fieldStart, fieldEnd);
   assert.doesNotMatch(fields, /billingMode/);
-  assert.match(index, /billingMode: isTokenMeteredFeature && hasCustomerCreditRule \? "token"/);
+  assert.match(tokenBilling, /billingMode: isTokenMeteredFeature && hasCustomerCreditRule \? "token"/);
 });
