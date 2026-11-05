@@ -32,9 +32,14 @@ test("realtime public errors use safe codes rather than provider diagnostics", a
 
 test("live voice and camera prices are returned from the shared per-second credit rules", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
-  assert.match(source, /TOKEN_METERED\.has\(name\)/);
-  assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
+  assert.match(source, /url\.pathname === "\/pricing" \|\| url\.pathname === "\/live\/pricing"/);
+  assert.match(source, /creditsPerSecond: rule\.unit === "second" \? Number\(rule\.creditsPerUnit \|\| 0\) : 0/);
+  assert.match(source, /minimumBalanceToStart: creditsPerMinute/);
+  assert.ok(source.includes('"creditsPerUnit": 0.045'));
+  assert.ok(source.includes('"creditsPerUnit": 0.09'));
+  assert.doesNotMatch(source, /0\.34056155|0\.72977475/);
 });
+
 
 
 test("opt-in training library is admin-only and checks explicit consent before returning examples", async () => {
