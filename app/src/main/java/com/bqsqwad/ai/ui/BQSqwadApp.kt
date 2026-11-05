@@ -8217,6 +8217,13 @@ item { SettingsSectionTitle("Payments & billing", "Manage subscription") }
             }
             if (settingsCategory == "All settings" || settingsCategory == "Account") {
                 item {
+                    SettingsCreditsCard(
+                        balanceLabel = creditBalanceLabel,
+                        unlimited = isAdminUnlimited,
+                        onOpenPlans = onOpenPlans
+                    )
+                }
+                item {
                     SurfaceCard("AI age", if (FirebaseAuth.getInstance().currentUser == null) "Sign in to see your AI’s age." else if (aiBirthTimestamp > 0L) "Your AI was born on " + java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(aiBirthTimestamp)) + ". Its age is based on your account creation date." else "Your account creation date is unavailable.")
                 }
             }
