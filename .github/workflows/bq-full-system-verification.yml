@@ -122,8 +122,8 @@ jobs:
           set -euo pipefail
           worker="android-app/cloudflare-worker/src/index.js"
           orchestrator="android-app/cloudflare-worker/src/orchestrator-native.js"
-          grep -Fq 'versionCode = 15' android-app/app/build.gradle.kts
-          grep -Fq 'versionName = "1.0.15"' android-app/app/build.gradle.kts
+          grep -Fq 'versionCode = 17' android-app/app/build.gradle.kts
+          grep -Fq 'versionName = "1.0.17"' android-app/app/build.gradle.kts
           grep -Fq 'import { runWithFallback } from "./orchestrator-native.js";' "$worker"
           grep -Fq 'runWithFallback(' "$worker"
           grep -Fq 'fallbackEnabled: Boolean(fallbackPricing?.configured === true)' "$worker"
