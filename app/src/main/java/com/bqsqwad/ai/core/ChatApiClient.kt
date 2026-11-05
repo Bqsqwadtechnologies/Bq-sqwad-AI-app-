@@ -3,6 +3,9 @@ package com.bqsqwad.ai.core
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -144,6 +147,7 @@ class ChatApiClient(
             )
         } } }
 
+    @OptIn(InternalCoroutinesApi::class)
     suspend fun streamMessage(
         message: String,
         capability: String = "chat",
@@ -170,6 +174,17 @@ class ChatApiClient(
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Idempotency-Key", idempotencyKey)
+            }
+
+            // HttpURLConnection.readLine() is blocking and does not automatically stop
+            // when the calling coroutine is cancelled. Disconnect the socket as soon as
+            // the parent request is cancelled so the Stop button actually terminates IO.
+            val requestJob = currentCoroutineContext()[Job]
+            val cancellationHandle = requestJob?.invokeOnCompletion(
+                onCancelling = true,
+                invokeImmediately = true
+            ) { cause ->
+                if (cause != null) connection.disconnect()
             }
 
             try {
@@ -289,6 +304,7 @@ class ChatApiClient(
                     creditsCharged = creditsCharged
                 )
             } finally {
+                cancellationHandle?.dispose()
                 connection.disconnect()
             }
         }
