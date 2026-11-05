@@ -298,7 +298,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
       }
       if (normalizedModelId === "gpt-image-2.5-sunburst") {
-        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2", { applied: true, version: 2, source: "OpenAI standard Images API rates converted at 100 credits per 12 USD and multiplied by 7", updatedAt: new Date().toISOString() }, true);
+        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2", { applied: true, version: 2, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
       }
     }
   }
