@@ -2,11 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateTokenCost } from "../src/token-billing-native.js";
 
-test("configured per-token credit prices are final and ignore legacy markup fields", () => {
+test("configured per-token BQ credit prices are final and ignore legacy markup fields", () => {
   const result = calculateTokenCost({
     usage: { inputTokens: 1_000_000, outputTokens: 1_000_000, cachedInputTokens: 0 },
     pricing: {
-      inputPriceUsdPerMillion: 1, outputPriceUsdPerMillion: 2, cachedInputPriceUsdPerMillion: 0.5,
       profitMarkupPercent: 600,
       sharedCreditMetering: {
         creditsPerInputToken: 0.000001, creditsPerCachedInputToken: 0.0000001, creditsPerOutputToken: 0.000002,
