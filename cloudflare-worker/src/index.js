@@ -5749,6 +5749,10 @@ export default {
         ];
         const generationRows = await firestoreQuery("generationCostRules", { limit: 500 });
         const tokenRows = await firestoreQuery("tokenPricingRules", { limit: 500 });
+        const registryRows = await firestoreQuery("aiModelRegistry", { limit: 500 }).catch(() => []);
+        const catalogRows = await firestoreQuery("aiModelCatalog", { limit: 500 }).catch(() => []);
+        const modelConfig = await firestoreGet("config/aiModels").catch(() => null);
+        const capabilityRows = await firestoreQuery("adminAdvancedOptions", { limit: 500 }).catch(() => []);
         const missing = [];
         const priceDifferences = [];
         const duplicates = [];
@@ -5770,7 +5774,7 @@ export default {
           if (actual.credits !== expectedCredits || actual.creditsPerUnit !== expectedPerUnit || actual.unit !== expectedUnit) {
             priceDifferences.push({ collection: "generationCostRules", operation, expected: { credits: expectedCredits, creditsPerUnit: expectedPerUnit, unit: expectedUnit }, actual });
           }
-          if (Object.keys(row).some(key => /UsdPer(Million|Token)$/.test(key))) {
+          if (Object.keys(row).some(key => /UsdPer(Million|Token)/i.test(key))) {
             missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: "legacy_price_fields_present" });
           }
         }
@@ -5794,6 +5798,38 @@ export default {
           }
           if (Object.keys(row).some(key => /UsdPer(Million|Token)$/.test(key))) {
             missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + String(row.id || model), reason: "legacy_price_fields_present" });
+          }
+        }
+        const forbiddenModelFields = new Set([
+          "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
+          "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
+          "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
+          "billingMode"
+        ]);
+        for (const [collection, rows] of [["aiModelRegistry", registryRows], ["aiModelCatalog", catalogRows]]) {
+          for (const row of Array.isArray(rows) ? rows : []) {
+            const fields = Object.keys(row).filter(key => /UsdPer(Million|Token)/i.test(key) || forbiddenModelFields.has(key));
+            if (fields.length) missing.push({ feature: "model_catalog", document: collection + "/" + String(row.id || ""), reason: "legacy_model_price_fields_present", fields });
+          }
+        }
+        if (modelConfig && typeof modelConfig === "object") {
+          const fields = Object.keys(modelConfig).filter(key => /UsdPer(Million|Token)/i.test(key) || forbiddenModelFields.has(key));
+          if (fields.length) missing.push({ feature: "model_config", document: "config/aiModels", reason: "legacy_model_price_fields_present", fields });
+        }
+        for (const row of Array.isArray(capabilityRows) ? capabilityRows : []) {
+          const id = String(row.id || row.__name || "").split("/").pop();
+          if (!id.startsWith("capability_")) continue;
+          const fields = Object.keys(row).filter(key => /UsdPer(Million|Token)/i.test(key) || forbiddenModelFields.has(key));
+          if (fields.length) missing.push({ feature: id, document: "adminAdvancedOptions/" + id, reason: "legacy_model_price_fields_present", fields });
+        }
+        for (const [key, expected] of [["live_voice_pricing", 2.7], ["live_camera_pricing", 5.4]]) {
+          const stored = await firestoreGet("adminAdvancedOptions/" + key).catch(() => null);
+          if (!stored) continue;
+          const cfg = stored.config && typeof stored.config === "object" ? stored.config : stored;
+          for (const field of ["creditsPerMinute", "minimumBalanceToStart"]) {
+            if (cfg[field] != null && Number(cfg[field]) !== expected) {
+              priceDifferences.push({ collection: "adminAdvancedOptions", document: key, field, expected, actual: Number(cfg[field]) });
+            }
           }
         }
         return json({
