@@ -34,26 +34,8 @@ function totalBalance(balance) {
  * mirror for older backend consumers.
  */
 export async function reserveCredits(uid, amount, capability) {
-  const legacyEstimate = Math.max(0, Number(amount) || 0);
-  let pricing;
-  try {
-    pricing = await priceOperation(capability, legacyEstimate);
-  } catch {
-    // The server-provided capability credit price is already the final customer price.
-    pricing = {
-      capability: String(capability || "unknown"),
-      providerCostUsd: 0,
-      sellingPriceUsd: 0,
-      credits: legacyEstimate,
-      reservedCredits: legacyEstimate,
-      profitMarkup: 0,
-      feeRateApplied: 0,
-      creditValueUsd: 0.07999,
-      estimated: true,
-      estimateSource: "direct_server_credit_price",
-      pricingVersion: 1
-    };
-  }
+  const requestedUnits = Math.max(0, Number(amount) || 0);
+  const pricing = await priceOperation(capability, requestedUnits);
   const adminExempt = await isSuperAdmin(uid);
   const db = getFirestore();
   if (adminExempt) {
