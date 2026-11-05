@@ -13,6 +13,10 @@ const OPENAI_MODEL_BY_CAPABILITY = {
   image_edit: "gpt-image-2.5-sunburst",
   live_camera: "gpt-realtime-2.1-mini",
   live_voice: "gpt-realtime-2.1-mini",
+  transcription: "whisper-1",
+  text_to_speech: "gpt-4o-mini-tts",
+  embeddings: "text-embedding-3-small",
+  moderation: "omni-moderation-latest",
   device_commands: "gpt-6-luna",
   video_generation: null
 };
