@@ -182,7 +182,7 @@ class RealtimeVoiceSession(
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
-                        if (silentTextMode) put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
+                        put("transcription", if (silentTextMode) JSONObject().put("model", "gpt-4o-mini-transcribe") else JSONObject.NULL)
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
