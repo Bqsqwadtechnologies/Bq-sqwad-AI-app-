@@ -71,14 +71,17 @@ The Worker maps these capabilities to `feature.*` operations but does not provid
 - `feature.learning`
 - `feature.organization_studio`
 - `feature.truth_guard`
+- `business_plan_builder` (legacy Firebase Functions entry point has no launch rule)
+- Legacy Firebase Functions `image_generation` and `image_edit` entry points (token usage is not returned by that retired path; token-metered generation must use the Worker)
+- Legacy Firebase Functions `youtube_live`, `truth_guard`, `companion`, `companion_checkin`, `learning_studio`, `organization_studio`, and `device_commands` paths until each has a corresponding active `generationCostRules` operation
 
-This is a source-default audit, not proof that these rules are absent from production Firestore.
+The legacy Firebase Functions billing adapter now reads `generationCostRules` for supported fixed operations and fails closed when a matching rule or a required token/duration metering path is unavailable. It does not fall back to a capability-document price. These source-level UNPRICED entries are not guessed or assigned a default. This is a source-default audit, not proof that these rules are absent from production Firestore.
 
 ## Seeding and verification
 
 - The generation seed marker is `adminAdvancedOptions/bq_live_credit_pricing_defaults_v5`, version 5.
-- Auxiliary token defaults use `adminAdvancedOptions/bq_aux_credit_pricing_v1`.
-- The one-time cleanup removes legacy `UsdPerMillion` and `UsdPerToken` suffix fields from `tokenPricingRules` and `generationCostRules`.
+- All nine model token defaults use the shared marker `adminAdvancedOptions/bq_token_credit_pricing_defaults_v5` (version 5), shared by the Worker and website.
+- The one-time cleanup removes legacy `UsdPerMillion` and `UsdPerToken` suffix fields from `tokenPricingRules` and `generationCostRules`. A separate version-two cleanup removes legacy price, conversion and multiplier settings from `config/aiModels`; that document now carries request-size limits only.
 - Existing image-generation, background-upload and team-message prices are preserved by the generation seed.
 - Later website dashboard edits are protected by the version-5 marker.
-- `GET /admin/pricing/audit` must be checked with an authorized admin session after deployment. This source file does not certify live Firestore values, deployment success, app display parity, or measured image-generation charges.
+- `GET /admin/pricing/audit` must be checked with an authorized admin session after deployment. The Android Live Voice and Live Camera labels read `WorkspaceApiClient.livePricing()` from the public `/pricing` endpoint, which resolves the same `generationCostRules` as the Worker. This source file does not certify live Firestore values, deployment success, or measured image-generation charges.
