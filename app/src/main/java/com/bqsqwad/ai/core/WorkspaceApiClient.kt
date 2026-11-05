@@ -277,7 +277,7 @@ class WorkspaceApiClient {
         })
     }
 
-    suspend fun livePricing(): JSONObject = request("/live/pricing", "GET")
+    suspend fun livePricing(): JSONObject = request("/pricing", "GET")
 
     suspend fun transcribeAudioWav(wavBytes: ByteArray, durationSeconds: Int): String = withContext(Dispatchers.IO) {
         require(wavBytes.size in 44..4_000_000) { "The recording is empty or too large. Record a shorter message and retry." }
