@@ -81,7 +81,7 @@ The legacy Firebase Functions billing adapter now reads `generationCostRules` fo
 
 - The generation seed marker is `adminAdvancedOptions/bq_live_credit_pricing_defaults_v5`, version 5.
 - All nine model token defaults use the shared marker `adminAdvancedOptions/bq_token_credit_pricing_defaults_v5` (version 5), shared by the Worker and website.
-- The one-time cleanup removes legacy `UsdPerMillion` and `UsdPerToken` suffix fields from `tokenPricingRules` and `generationCostRules`. A separate version-two cleanup removes legacy price, conversion and multiplier settings from `config/aiModels`; that document now carries request-size limits only.
-- Existing image-generation, background-upload and team-message prices are preserved by the generation seed.
+- The one-time cleanup removes any field name containing `UsdPerMillion` or `UsdPerToken` from `tokenPricingRules` and `generationCostRules`. Cleanup version three also removes embedded currency rates, conversion and markup fields from `config/aiModels`, `aiModelRegistry`, `aiModelCatalog`, and capability documents; model registry entries now contain model identity and availability, not prices.
+- The generation seed preserves only the existing `image.generate` rule; the other launch defaults are written once if the version-five marker has not yet been applied.
 - Later website dashboard edits are protected by the version-5 marker.
 - `GET /admin/pricing/audit` must be checked with an authorized admin session after deployment. The Android Live Voice and Live Camera labels read `WorkspaceApiClient.livePricing()` from the public `/pricing` endpoint, which resolves the same `generationCostRules` as the Worker. This source file does not certify live Firestore values, deployment success, or measured image-generation charges.
