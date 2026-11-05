@@ -1,6 +1,6 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
-import { priceOperation, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
+import { priceOperation, priceTokenUsage, TOKEN_METERED_CAPABILITIES, recordBillingTransaction, updateBillingTransaction } from "./dynamic-billing.js";
 
 const ADMIN_EMAIL = String(process.env.SUPER_ADMIN_EMAIL || "isaacoshiomole0@gmail.com").trim().toLowerCase();
 
@@ -53,7 +53,7 @@ export async function reserveCredits(uid, amount, capability) {
   }
   const finalCharge = Math.max(0, Number(pricing.credits || 0));
   const charge = Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge));
-  if (finalCharge === 0) {
+  if (finalCharge === 0 && !TOKEN_METERED_CAPABILITIES.has(String(capability || "").toLowerCase())) {
     const includedTransactionId = "included_" + db.collection("aiBillingTransactions").doc().id;
     await recordBillingTransaction(includedTransactionId, {
       uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
@@ -174,6 +174,18 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     return;
   }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
+  const initialReservation = await reservationRef.get();
+  if (!initialReservation.exists || initialReservation.data()?.uid !== uid || initialReservation.data()?.status !== "reserved") return;
+  const initialData = initialReservation.data() || {};
+  const tokenMetered = TOKEN_METERED_CAPABILITIES.has(String(initialData.capability || "").toLowerCase());
+  const tokenPricing = tokenMetered
+    ? await priceTokenUsage({
+        providerId: providerId || "openai",
+        modelId: metadata.modelId || initialData.modelId,
+        usage: metadata.usage,
+        feature: initialData.capability
+      })
+    : null;
   await db.runTransaction(async tx => {
     const snap = await tx.get(reservationRef);
     if (!snap.exists || snap.data().uid !== uid || snap.data().status !== "reserved") return;
@@ -189,15 +201,20 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const balance = canonicalBalance(profile);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
     const reservedAmount = Math.max(0, Number(data.amount || 0));
-    const requestedFinalCharge = Math.max(0, Number(data.finalCharge ?? reservedAmount));
-    const finalCharge = Math.min(reservedAmount, requestedFinalCharge);
-    const costOverrunCredits = 0;
+    const requestedFinalCharge = tokenPricing
+      ? Math.max(0, Number(tokenPricing.credits || 0))
+      : Math.max(0, Number(data.finalCharge ?? reservedAmount));
+    const finalCharge = requestedFinalCharge;
     const unused = Math.max(0, reservedAmount - finalCharge);
-    // Refund unused safety-margin credits to the same buckets originally debited.
+    const costOverrunCredits = Math.max(0, finalCharge - reservedAmount);
+    // Refund unused reserved credits to their original buckets; actual overrun is debited from remaining credits.
     const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
     const refundSubscription = Math.max(0, unused - refundPermanent);
-    const nextPermanent = balance.permanent + refundPermanent;
-    const nextSubscription = balance.subscription + refundSubscription;
+    const overrunSubscription = Math.min(balance.subscription, costOverrunCredits);
+    const overrunPermanent = costOverrunCredits - overrunSubscription;
+    if (overrunPermanent > balance.permanent) throw new Error("Insufficient credits for actual token usage.");
+    const nextPermanent = balance.permanent - overrunPermanent + refundPermanent;
+    const nextSubscription = balance.subscription - overrunSubscription + refundSubscription;
     const nextBalance = { permanent: nextPermanent, subscription: nextSubscription };
 
     tx.update(userRef, {
@@ -216,6 +233,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       costOverrunCredits,
       providerCostUsd: 0,
       providerId: providerId || null,
+      modelId: metadata.modelId || data.modelId || null,
+      pricingSnapshot: tokenPricing?.pricingSnapshot || data.pricingSnapshot || null,
+      costOverrunCredits,
       committedAt: FieldValue.serverTimestamp()
     });
     tx.create(db.collection("creditLedger").doc(), {
@@ -238,8 +258,8 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
         providerCostUsd: 0,
         costType: "direct_credit_price",
         sellingPriceUsd: 0,
-        costOverrunCredits: 0,
-        costOverrun: false,
+        costOverrunCredits: Number(data.costOverrunCredits || 0),
+        costOverrun: Number(data.costOverrunCredits || 0) > 0,
         status: "committed",
         creditsCharged: Number(data.finalCharge ?? data.amount ?? 0),
         creditsReserved: Number(data.amount || 0),
