@@ -102,3 +102,14 @@ test("provider model validation returns a bounded service error when the provide
   );
 });
 
+test("legacy realtime model ID is rejected for both live features", async () => {
+  for (const feature of ["live-voice", "live-camera"]) {
+    await assert.rejects(
+      validateAiModel(
+        { OPENAI_API_KEY: "test-key" },
+        { providerId: "openai", modelId: "gpt-realtime-2.1", feature }
+      ),
+      /openai_model_not_allowed_by_project_policy/
+    );
+  }
+});
