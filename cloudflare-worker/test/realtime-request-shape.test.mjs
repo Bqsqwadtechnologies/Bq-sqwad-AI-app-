@@ -89,3 +89,16 @@ test("realtime session clamps stale Firestore model IDs to the supported model",
   assert.match(source, /if \(!ALLOWED_REALTIME_MODELS\.has\(model\)\)[\s\S]*?model = DEFAULT_REALTIME_MODEL/);
   assert.match(source, /model = await pickAccessibleModel\(env, model, \/\^gpt-realtime\/\)/);
 });
+
+
+test("Android authenticates Realtime client-secret WebSockets with the ephemeral-key subprotocol", async () => {
+  const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/RealtimeVoiceSession.kt", import.meta.url), "utf8");
+  assert.match(source, /Sec-WebSocket-Protocol",\s*"realtime, openai-insecure-api-key\.\$clientSecret"/);
+  assert.doesNotMatch(source, /addHeader\("Authorization",\s*"Bearer \$clientSecret"\)/);
+  assert.match(source, /"error"\s*->\s*\{/);
+});
+
+test("Android finalizes remaining server-priced live seconds when its service stops", async () => {
+  const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/LiveMediaForegroundService.kt", import.meta.url), "utf8");
+  assert.match(source, /if \(!organizationMode && startedAt > 0L\)[\s\S]*?realtimeHeartbeat\(liveSessionMode, modelRegistryId, smartMode\)/);
+});
