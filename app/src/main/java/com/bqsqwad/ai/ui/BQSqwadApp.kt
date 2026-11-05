@@ -1010,7 +1010,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         "Credits: Unlimited"
                     } else {
                         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
-                        "Credits: " + String.format(java.util.Locale.US, "%.2f", available).trimEnd('0').trimEnd('.')
+                        "Credits: " + String.format(java.util.Locale.US, "%.2f", available)
                     }
                 }
                 .onFailure {
