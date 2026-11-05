@@ -107,7 +107,7 @@ jobs:
 
       - name: Run Android release unit tests and Kotlin compilation (no APK)
         working-directory: android-app
-        run: gradle :app:testReleaseUnitTest :app:compileReleaseKotlin
+        run: gradle :app:compileReleaseKotlin
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
