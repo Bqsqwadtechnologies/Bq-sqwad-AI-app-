@@ -21,7 +21,10 @@ data class WorkspaceAccessSnapshot(
             return entitlementModules.contains(module)
         }
         val hasFreePlan = plans.any { it.endsWith(":free") }
-        return hasFreePlan || plans.any { entitlements.contains(it.substringBefore(":")) }
+        // A verified plan for this product opens its workspace immediately.
+        // Tier-specific tools and quotas are still enforced by the server.
+        return hasFreePlan || entitlementModules.contains(module) ||
+            plans.any { entitlements.contains(it.substringBefore(":")) }
     }
 
     fun requiresPaidAccess(workspace: Workspace): Boolean {
@@ -41,7 +44,8 @@ data class WorkspaceAccessSnapshot(
             for (i in 0 until planArray.length()) {
                 val p = planArray.optJSONObject(i) ?: continue
                 val id = p.optString("id")
-                val module = p.optString("module")
+                val rawModule = p.optString("module")
+                val module = if (rawModule.equals("education", ignoreCase = true)) "learning" else rawModule
                 if (id.isBlank() || module.isBlank()) continue
                 val free = p.optJSONObject("price")?.has("free") == true ||
                     p.optString("productType") == "free" ||
@@ -55,8 +59,13 @@ data class WorkspaceAccessSnapshot(
                 val item = items.optJSONObject(i) ?: continue
                 val state = item.optString("state").ifBlank { item.optString("status") }
                 if (state !in ACTIVE_STATES) continue
+                val expiresAt = item.optString("expiresAt").ifBlank { item.optString("endDate") }
+                val expiry = expiresAt.takeIf { it.isNotBlank() }?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+                if (expiry != null && expiry <= System.currentTimeMillis()) continue
                 item.optString("planId").takeIf { it.isNotBlank() }?.let(entitlementIds::add)
-                item.optString("module").takeIf { it.isNotBlank() }?.let(entitlementModules::add)
+                val rawModule = item.optString("module")
+                val module = if (rawModule.equals("education", ignoreCase = true)) "learning" else rawModule
+                module.takeIf { it.isNotBlank() }?.let(entitlementModules::add)
             }
             val adminPlanTest = entitlementsBody.optBoolean("adminPlanTest", testMode)
             return WorkspaceAccessSnapshot(admin, adminPlanTest || testMode, entitlementIds, entitlementModules, plans, true)
