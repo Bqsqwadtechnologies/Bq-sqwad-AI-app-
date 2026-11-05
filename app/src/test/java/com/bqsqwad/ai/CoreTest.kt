@@ -390,6 +390,18 @@ class CoreTest {
         assertTrue(authorizedAdminTestMode.hasVerifiedAccess(Workspace.BUSINESS))
     }
 
+    @Test fun verifiedProductPlanOpensWorkspaceEvenWhenProviderAndCatalogPlanIdsDiffer() {
+        val catalog = org.json.JSONObject().put("plans", org.json.JSONArray()
+            .put(org.json.JSONObject().put("id", "bizstarter").put("module", "business"))
+            .put(org.json.JSONObject().put("id", "learnscholar").put("module", "learning")))
+        val entitlements = org.json.JSONObject().put("items", org.json.JSONArray()
+            .put(org.json.JSONObject().put("planId", "business_starter").put("module", "business").put("state", "active"))
+            .put(org.json.JSONObject().put("planId", "scholar").put("module", "education").put("state", "active")))
+        val snapshot = WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin = false, testMode = false)
+        assertTrue(snapshot.hasVerifiedAccess(Workspace.BUSINESS))
+        assertTrue(snapshot.hasVerifiedAccess(Workspace.LEARNING))
+    }
+
     @Test fun cleanAssistantReplyRemovesOnlyStrayLeadingSeparators() {
         assertEquals("Isaac! How can I help?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(", Isaac! How can I help?"))
         assertEquals("Hello, Isaac!", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("Hello, Isaac!"))
