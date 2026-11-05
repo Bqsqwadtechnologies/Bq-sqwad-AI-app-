@@ -1344,7 +1344,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else if (workspaceAccess.hasVerifiedAccess(selected)) {
             workspace = selected
         } else {
-            paywallWorkspace = selected
+            // Re-check the shared website entitlement endpoint before showing a
+            // paywall. A plan purchased on the website or another device may
+            // have become active since this shell's previous snapshot.
+            workspace = selected
+            entitlementRefreshNonce++
         }
     }
 
@@ -1869,7 +1873,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             },
             confirmButton = {
                 Button(enabled = !accessLoading, onClick = { paywallWorkspace = null; plans = true }) {
-                    Text(if (accessLoading) "Checking…" else "View Plans & Billing")
+                    Text(if (accessLoading) "Checking…" else "View catalog")
                 }
             },
             dismissButton = {
