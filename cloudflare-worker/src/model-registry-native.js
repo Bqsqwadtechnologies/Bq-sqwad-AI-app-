@@ -34,18 +34,6 @@ function normalizeModel(raw, actorUid) {
   const providerId = String(raw?.providerId || "").trim().toLowerCase();
   const modelId = String(raw?.modelId || "").trim();
   const feature = String(raw?.feature || "text-chat").trim().toLowerCase();
-  const creditCost = Number(raw?.creditCost);
-  const priceUsd = Number(raw?.priceUsd ?? 0);
-  const creditsPerMinute = raw?.creditsPerMinute == null || raw?.creditsPerMinute === "" ? null : Number(raw.creditsPerMinute);
-  const billingMode = ["fixed_credit", "token", "provider_cost"].includes(String(raw?.billingMode || "fixed_credit")) ? String(raw?.billingMode || "fixed_credit") : "fixed_credit";
-  const providerCostUnit = String(raw?.providerCostUnit || (feature === "image-generation" ? "image" : ["video-generation", "live-camera"].includes(feature) ? "second" : feature === "live-voice" ? "minute" : "request"));
-  const providerCostTrackingEnabled = raw?.providerCostTrackingEnabled === true;
-  const inputPriceUsdPerMillion = Number(raw?.inputPriceUsdPerMillion ?? 0);
-  const outputPriceUsdPerMillion = Number(raw?.outputPriceUsdPerMillion ?? 0);
-  const cachedInputPriceUsdPerMillion = raw?.cachedInputPriceUsdPerMillion == null || raw?.cachedInputPriceUsdPerMillion === "" ? null : Number(raw.cachedInputPriceUsdPerMillion);
-  const creditReferenceValueUsd = Number(raw?.creditReferenceValueUsd ?? 0.1199);
-  const customerMultiplier = Number(raw?.customerMultiplier ?? 1.8);
-  const estimatedFeePercent = Number(raw?.estimatedFeePercent ?? 15);
   if (!/^[a-z0-9][a-z0-9-]{1,79}$/.test(id)) throw new Error("model_id_invalid");
   if (!name) throw new Error("model_name_required");
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
@@ -68,25 +56,8 @@ function normalizeModel(raw, actorUid) {
     "moderation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
-  if (!Number.isFinite(creditCost) || creditCost < 0 || creditCost > 100000) throw new Error("model_credit_cost_invalid");
-  if (!Number.isFinite(priceUsd) || priceUsd < 0 || priceUsd > 100000) throw new Error("model_price_invalid");
-  if (![inputPriceUsdPerMillion, outputPriceUsdPerMillion].every(value => Number.isFinite(value) && value >= 0 && value <= 1000000)) throw new Error("model_token_price_invalid");
-  if (cachedInputPriceUsdPerMillion != null && (!Number.isFinite(cachedInputPriceUsdPerMillion) || cachedInputPriceUsdPerMillion < 0 || cachedInputPriceUsdPerMillion > 1000000)) throw new Error("model_cached_token_price_invalid");
-  if (!Number.isFinite(creditReferenceValueUsd) || creditReferenceValueUsd <= 0 || creditReferenceValueUsd > 1000) throw new Error("credit_reference_value_invalid");
-  if (!Number.isFinite(customerMultiplier) || customerMultiplier < 1 || customerMultiplier > 1000) throw new Error("customer_multiplier_invalid");
-  if (!Number.isFinite(estimatedFeePercent) || estimatedFeePercent < 0 || estimatedFeePercent > 100) throw new Error("estimated_fee_percent_invalid");
   if (billingMode === "token" && !["text-chat", "device-commands"].includes(feature)) throw new Error("token_billing_only_supported_for_text_model_features");
 
-  if (!["request", "image", "second", "minute"].includes(providerCostUnit)) throw new Error("provider_cost_unit_invalid");
-  if (providerCostTrackingEnabled && !["live-camera", "live-voice"].includes(feature)) throw new Error("provider_cost_tracking_only_supported_for_live_media");
-  if (providerCostTrackingEnabled && raw?.active === true && priceUsd <= 0) throw new Error("live_provider_cost_required");
-  if (providerCostTrackingEnabled && feature === "live-camera" && providerCostUnit !== "second") throw new Error("camera_provider_cost_unit_must_be_second");
-  if (providerCostTrackingEnabled && feature === "live-voice" && providerCostUnit !== "minute") throw new Error("voice_provider_cost_unit_must_be_minute");
-  if (billingMode === "provider_cost" && !["image-generation", "video-generation"].includes(feature)) throw new Error("provider_cost_billing_only_supported_for_media_features");
-  if (billingMode === "provider_cost" && raw?.active === true && priceUsd <= 0) throw new Error("provider_operation_cost_required");
-  if (billingMode === "provider_cost" && feature === "image-generation" && providerCostUnit !== "image") throw new Error("image_provider_cost_unit_must_be_image");
-  if (billingMode === "provider_cost" && feature === "video-generation" && providerCostUnit !== "second") throw new Error("video_provider_cost_unit_must_be_second");
-  if (creditsPerMinute != null && (!Number.isFinite(creditsPerMinute) || creditsPerMinute < 0 || creditsPerMinute > 100000)) throw new Error("model_minute_credit_cost_invalid");
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
   return {
@@ -95,9 +66,6 @@ function normalizeModel(raw, actorUid) {
     active: raw?.active === true,
     isDefault: raw?.isDefault === true,
     published: raw?.published === true,
-    creditCost, priceUsd, creditsPerMinute,
-    billingMode, providerCostUnit, providerCostTrackingEnabled, inputPriceUsdPerMillion, outputPriceUsdPerMillion,
-    cachedInputPriceUsdPerMillion, creditReferenceValueUsd, customerMultiplier, estimatedFeePercent,
     validation: raw?.validation && raw.validation.ok === true ? { ok: true, providerModelName: String(raw.validation.providerModelName || modelId).slice(0, 160), validatedAt: String(raw.validation.validatedAt || new Date().toISOString()) } : null,
     updatedBy: actorUid, updatedAt: new Date()
   };
@@ -164,21 +132,6 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       active,
       isDefault: active,
       published: matching?.published !== false,
-      creditCost: Math.max(0, Number(matching?.creditCost ?? capability.creditCost ?? 0)),
-      priceUsd: Math.max(0, Number(matching?.priceUsd ?? capability.priceUsd ?? 0)),
-      creditsPerMinute: matching?.creditsPerMinute == null
-        ? (capability.creditsPerMinute == null ? null : Math.max(0, Number(capability.creditsPerMinute)))
-        : Math.max(0, Number(matching.creditsPerMinute)),
-      billingMode: String(matching?.billingMode || capability.billingMode || "fixed_credit"),
-      providerCostUnit: String(matching?.providerCostUnit || capability.providerCostUnit || (definition.feature === "image-generation" ? "image" : ["video-generation", "live-camera"].includes(definition.feature) ? "second" : definition.feature === "live-voice" ? "minute" : "request")),
-      providerCostTrackingEnabled: matching?.providerCostTrackingEnabled === true || capability.providerCostTrackingEnabled === true,
-      inputPriceUsdPerMillion: Math.max(0, Number(matching?.inputPriceUsdPerMillion ?? capability.inputPriceUsdPerMillion ?? 0)),
-      outputPriceUsdPerMillion: Math.max(0, Number(matching?.outputPriceUsdPerMillion ?? capability.outputPriceUsdPerMillion ?? 0)),
-      cachedInputPriceUsdPerMillion: matching?.cachedInputPriceUsdPerMillion == null && capability.cachedInputPriceUsdPerMillion == null
-        ? null : Math.max(0, Number(matching?.cachedInputPriceUsdPerMillion ?? capability.cachedInputPriceUsdPerMillion ?? 0)),
-      creditReferenceValueUsd: Math.max(0.000001, Number(matching?.creditReferenceValueUsd ?? capability.creditReferenceValueUsd ?? 0.1199)),
-      customerMultiplier: Math.max(1, Number(matching?.customerMultiplier ?? capability.customerMultiplier ?? 1.8)),
-      estimatedFeePercent: Math.min(100, Math.max(0, Number(matching?.estimatedFeePercent ?? capability.estimatedFeePercent ?? 15))),
       updatedAt: now,
       updatedBy: "system-bootstrap"
     };
@@ -189,22 +142,10 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
         enabled: capability.enabled !== false && capability.killSwitch !== true,
         providerId,
         modelId,
-        creditCost: model.creditCost,
-        priceUsd: model.priceUsd,
-        creditsPerMinute: model.creditsPerMinute,
-        billingMode: model.billingMode,
-        providerCostUnit: model.providerCostUnit,
-        providerCostTrackingEnabled: model.providerCostTrackingEnabled,
-        inputPriceUsdPerMillion: model.inputPriceUsdPerMillion,
-        outputPriceUsdPerMillion: model.outputPriceUsdPerMillion,
-        cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion,
-        creditReferenceValueUsd: model.creditReferenceValueUsd,
-        customerMultiplier: model.customerMultiplier,
-        estimatedFeePercent: model.estimatedFeePercent,
         selectedRegistryModelId: id,
         selectedRegistryModelName: model.name,
         updatedAt: now
-      }, true);
+      }, false);
       if (definition.feature === "live-voice") {
         await firestoreSet("adminAdvancedOptions/live_voice_pricing", {
           ...voiceConfig,
@@ -221,7 +162,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     } else {
       model.isDefault = false;
     }
-    await firestoreSet("aiModelRegistry/" + id, model, true);
+    await firestoreSet("aiModelRegistry/" + id, model, false);
   }
   return { seeded: definitions.length, ok: true };
 }
@@ -262,9 +203,6 @@ export async function listAiModels({ admin = false } = {}) {
       active: x.active === true,
       isDefault: x.isDefault === true,
       published: x.published === true,
-      creditCost: (function(){ const n = Number(x.creditCost); return Number.isFinite(n) && n >= 0 ? Math.round(n*1e5)/1e5 : 1; })(),
-      priceUsd: Math.max(0, Number(x.priceUsd || 0)),
-      creditsPerMinute: x.creditsPerMinute == null ? null : Math.max(0, Number(x.creditsPerMinute || 0)),
       validation: x.validation?.ok === true ? { ok: true, providerModelName: String(x.validation.providerModelName || modelId), validatedAt: x.validation.validatedAt || null } : null,
       providerStatus: String(x.providerStatus || "not_checked"),
       providerStatusMessage: String(x.providerStatusMessage || ""),
@@ -368,7 +306,7 @@ export async function saveAiModel(env, raw, actorUid) {
       }
     }
   }
-  await firestoreSet("aiModelRegistry/" + model.id, model, true);
+  await firestoreSet("aiModelRegistry/" + model.id, model, false);
   return { ok: true, model };
 }
 
@@ -385,17 +323,5 @@ export async function resolvePublishedModel(modelId, expectedFeature) {
     providerId: String(model.providerId || ""),
     modelId: String(model.modelId || ""),
     feature: String(model.feature || ""),
-    creditCost: (function(){ const n = Number(model.creditCost); return Number.isFinite(n) && n >= 0 ? Math.round(n*1e5)/1e5 : 1; })(),
-    priceUsd: Math.max(0, Number(model.priceUsd || 0)),
-    creditsPerMinute: model.creditsPerMinute == null ? null : Math.max(0, Number(model.creditsPerMinute || 0)),
-    billingMode: String(model.billingMode || "fixed_credit"),
-    providerCostUnit: String(model.providerCostUnit || "request"),
-    providerCostTrackingEnabled: model.providerCostTrackingEnabled === true,
-    inputPriceUsdPerMillion: Math.max(0, Number(model.inputPriceUsdPerMillion || 0)),
-    outputPriceUsdPerMillion: Math.max(0, Number(model.outputPriceUsdPerMillion || 0)),
-    cachedInputPriceUsdPerMillion: model.cachedInputPriceUsdPerMillion == null ? null : Math.max(0, Number(model.cachedInputPriceUsdPerMillion || 0)),
-    creditReferenceValueUsd: Math.max(0.000001, Number(model.creditReferenceValueUsd || 0.1199)),
-    customerMultiplier: Math.max(1, Number(model.customerMultiplier || 1.8)),
-    estimatedFeePercent: Math.min(100, Math.max(0, Number(model.estimatedFeePercent || 15)))
   };
 }
