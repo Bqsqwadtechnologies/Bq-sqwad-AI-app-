@@ -34,7 +34,7 @@ data class WorkspaceAccessSnapshot(
     }
 
     companion object {
-        private val ACTIVE_STATES = setOf("active", "trialing", "grace", "on_hold", "paused")
+        private val ACTIVE_STATES = setOf("active", "trialing", "grace")
 
         fun empty() = WorkspaceAccessSnapshot(false, false, emptySet(), emptySet(), emptyMap(), false)
 
