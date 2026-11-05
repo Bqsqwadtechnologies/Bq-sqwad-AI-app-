@@ -120,3 +120,16 @@ test("active token models do not require stored cost-rate fields", async () => {
   const source = await readFile(new URL("../src/model-registry-native.js", import.meta.url), "utf8");
   assert.doesNotMatch(source, /token_pricing_required_for_active_token_billing/);
 });
+
+
+test("model registry stores model identity only and writes replacement documents", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../src/model-registry-native.js", import.meta.url), "utf8");
+  for (const field of [
+    "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
+    "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
+    "providerCostUnit", "providerCostTrackingEnabled", "priceUsd"
+  ]) assert.doesNotMatch(source, new RegExp(field));
+  assert.match(source, /firestoreSet\("aiModelRegistry\/" \+ model\.id, model, false\)/);
+  assert.match(source, /firestoreSet\("aiModelRegistry\/" \+ id, model, false\)/);
+});
