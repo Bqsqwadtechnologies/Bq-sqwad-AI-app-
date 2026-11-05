@@ -42,6 +42,15 @@ test("live voice and camera prices are returned from the shared per-second credi
 
 
 
+test("Android live price labels read only the shared public pricing endpoint", async () => {
+  const client = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/WorkspaceApiClient.kt", import.meta.url), "utf8");
+  const app = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt", import.meta.url), "utf8");
+  assert.match(client, /livePricing\(\): JSONObject = request\("\/pricing", "GET"\)/);
+  assert.match(app, /WorkspaceApiClient\(\)\.livePricing\(\)/);
+  assert.match(app, /liveCameraPriceLabel = if \(cameraRate\.isFinite\(\)\)/);
+  assert.match(app, /liveVoicePriceLabel = if \(voiceRate\.isFinite\(\)\)/);
+});
+
 test("opt-in training library is admin-only and checks explicit consent before returning examples", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
   assert.match(source, /url\.pathname === \"\/admin\/training-library\" && request\.method === \"GET\"/);
