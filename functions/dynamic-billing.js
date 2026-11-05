@@ -80,7 +80,7 @@ export async function recordBillingTransaction(id, data) {
         sellingPriceUsd: Number(data.sellingPriceUsd || 0),
         profitMarkup: Number(data.profitMarkup || 0),
         feeRateApplied: Number(data.feeRateApplied || 0),
-        creditValueUsd: Number(data.creditValueUsd || DIRECT_CREDIT_REFERENCE_USD),
+        creditValueUsd: Number(data.creditValueUsd || 0),
         creditsReserved: Number(data.creditsReserved || 0),
         creditsCharged: Number(data.creditsCharged || 0),
         creditsRefunded: Number(data.creditsRefunded || 0),
