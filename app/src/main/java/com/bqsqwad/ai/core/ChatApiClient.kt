@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -157,6 +158,7 @@ class ChatApiClient(
         modelKey: String? = null,
         onTaskStarted: (Long) -> Unit = {},
         onPhase: (String) -> Unit = {},
+        onReplace: (String) -> Unit = {},
         onTaskEnded: () -> Unit = {}
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) {
@@ -256,6 +258,14 @@ class ChatApiClient(
                                 onDelta(delta)
                             }
                         }
+                        "replace" -> {
+                            val full = json.optString("text")
+                            if (full.isNotEmpty()) {
+                                textBuilder.setLength(0)
+                                textBuilder.append(full)
+                                onReplace(full)
+                            }
+                        }
                         "completed" -> {
                             providerId = json.optString("providerId").takeIf { it.isNotBlank() }
                             modelId = json.optString("modelId").takeIf { it.isNotBlank() }
@@ -265,7 +275,7 @@ class ChatApiClient(
                         "error" -> {
                             // A late diagnostic can follow a completed provider response.
                             // Do not turn a successfully delivered answer into a visible error.
-                            if (completed && textBuilder.isNotBlank()) return
+                            if (textBuilder.isNotBlank()) return
                             val detail = json.optString("message").lowercase()
                             val friendly = when {
                                 detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
@@ -278,22 +288,28 @@ class ChatApiClient(
                     }
                 }
 
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    if (line.isEmpty()) {
-                        processEvent(eventData.toString(), eventName)
-                        eventData = StringBuilder()
-                        eventName = "message"
-                    } else if (line.startsWith("event:")) {
-                        eventName = line.removePrefix("event:").trim().ifBlank { "message" }
-                    } else if (line.startsWith("data:")) {
-                        if (eventData.isNotEmpty()) eventData.append('\n')
-                        eventData.append(line.removePrefix("data:").trimStart())
+                try {
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val line = reader.readLine() ?: break
+                        if (line.isEmpty()) {
+                            processEvent(eventData.toString(), eventName)
+                            eventData = StringBuilder()
+                            eventName = "message"
+                        } else if (line.startsWith("event:")) {
+                            eventName = line.removePrefix("event:").trim().ifBlank { "message" }
+                        } else if (line.startsWith("data:")) {
+                            if (eventData.isNotEmpty()) eventData.append('\n')
+                            eventData.append(line.removePrefix("data:").trimStart())
+                        }
                     }
+                    if (eventData.isNotEmpty()) processEvent(eventData.toString(), eventName)
+                } catch (e: IOException) {
+                    currentCoroutineContext().ensureActive()
+                    if (textBuilder.isBlank()) throw e
                 }
-                if (eventData.isNotEmpty()) processEvent(eventData.toString(), eventName)
 
-                if (!completed) throw IllegalStateException("AI streaming ended before completion.")
+                if (!completed && textBuilder.isBlank()) throw IllegalStateException("AI streaming ended before completion.")
                 val finalText = textBuilder.toString().trim()
                 if (finalText.isBlank()) throw IllegalStateException("AI service returned no text.")
 
