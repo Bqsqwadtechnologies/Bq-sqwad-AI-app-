@@ -71,7 +71,7 @@ class RealtimeVoiceSession(
         if (!running.compareAndSet(false, true)) return
         val request = Request.Builder()
             .url("wss://api.openai.com/v1/realtime?model=${java.net.URLEncoder.encode(model, "UTF-8")}")
-            .addHeader("Authorization", "Bearer $clientSecret")
+            .addHeader("Sec-WebSocket-Protocol", "realtime, openai-insecure-api-key.$clientSecret")
             .build()
         toolScope.launch {
             delay(10_000L)
@@ -256,6 +256,20 @@ class RealtimeVoiceSession(
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
+            "error" -> {
+                val providerError = event.optJSONObject("error")
+                val code = providerError?.optString("code").orEmpty()
+                    .filter { it.isLetterOrDigit() || it == '_' || it == '-' || it == '.' }
+                    .take(80)
+                val message = providerError?.optString("message").orEmpty()
+                    .replace(Regex("[\\r\\n\\t]+"), " ")
+                    .take(240)
+                onDiagnostic("Realtime provider error" +
+                    (code.takeIf { it.isNotBlank() }?.let { " [$it]" } ?: "") +
+                    (message.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""))
+                onError(message.takeIf { it.isNotBlank() } ?: "The realtime provider rejected the live session. Check the model and session configuration, then retry.")
+                stopInternal()
+            }
             "session.created" -> {
                 sessionCreated.set(true)
                 onState("configuring")
