@@ -204,7 +204,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     let finalCredits=0;
     if(!chargeCovered){
       if(!usage||!tokenPricing)throw Object.assign(new Error("image_token_usage_unavailable"),{httpStatus:503,safeError:"provider_unavailable"});
-      const priced=calculateTokenCost({usage:{inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,inputImageTokens:usage.inputImageTokens,outputImageTokens:usage.outputImageTokens},pricing:tokenPricing});
+      const priced=calculateTokenCost({usage:{inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,inputImageTokens:usage.inputImageTokens,cachedInputImageTokens:usage.cachedInputImageTokens,cachedInputTokens:usage.cachedInputTokens,outputImageTokens:usage.outputImageTokens},pricing:tokenPricing});
       finalCredits=Number(priced.customerCredits||0);
     }
     const id=crypto.randomUUID();
