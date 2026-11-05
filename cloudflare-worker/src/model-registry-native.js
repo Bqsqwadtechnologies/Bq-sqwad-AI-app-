@@ -56,7 +56,6 @@ function normalizeModel(raw, actorUid) {
     "moderation": new Set(["openai"])
   };
   if (!allowedProviders[feature].has(providerId)) throw new Error("provider_not_supported_for_feature");
-  if (billingMode === "token" && !["text-chat", "device-commands"].includes(feature)) throw new Error("token_billing_only_supported_for_text_model_features");
 
   if (raw?.isDefault === true && raw?.active !== true) throw new Error("default_model_must_be_enabled");
   if (raw?.isDefault === true && raw?.published !== true) throw new Error("default_model_must_be_published");
