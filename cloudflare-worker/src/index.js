@@ -1189,7 +1189,7 @@ const LEGACY_MODEL_PRICE_FIELDS = new Set([
   "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
   "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
   "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
-  "billingMode"
+
 ]);
 function stripLegacyModelPriceFields(row) {
   const clean = {};
@@ -5780,7 +5780,7 @@ export default {
           "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
           "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
           "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
-          "billingMode", "providerUsdPerMinute", "providerUsdPerMinute4k", "providerUsd"
+          "providerUsdPerMinute", "providerUsdPerMinute4k", "providerUsd"
         ]);
         for (const [collection, rows] of [["aiModelRegistry", registryRows], ["aiModelCatalog", catalogRows]]) {
           for (const row of Array.isArray(rows) ? rows : []) {
