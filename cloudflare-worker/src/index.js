@@ -3,6 +3,24 @@ function sseFrame(event, data) {
 }
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1-mini";
+const ALLOWED_REALTIME_MODELS = new Set(["gpt-realtime-2.1-mini"]);
+let openAiModelCache = { at: 0, ids: new Set() };
+async function openAiAccessibleModelIds(env) {
+  if (Date.now() - openAiModelCache.at < 10 * 60_000 && openAiModelCache.ids.size) return openAiModelCache.ids;
+  try {
+    const r = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: "Bearer " + String(env.OPENAI_API_KEY) }, signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return openAiModelCache.ids;
+    const body = await r.json().catch(() => ({}));
+    openAiModelCache = { at: Date.now(), ids: new Set((body.data || []).map(m => String(m.id))) };
+  } catch {}
+  return openAiModelCache.ids;
+}
+async function pickAccessibleModel(env, preferred, pattern, exclude = /(preview|transcribe|tts|search)/) {
+  const ids = await openAiAccessibleModelIds(env);
+  if (!ids.size || ids.has(preferred)) return preferred;
+  const alt = [...ids].filter(id => pattern.test(id) && !exclude.test(id)).sort().reverse()[0];
+  return alt || preferred;
+}
 const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"]);
 
 import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
@@ -308,7 +326,7 @@ async function adminReadinessSelfTest(env, adminUser) {
     try {
       const config = await firestoreGet("adminAdvancedOptions/live_voice_pricing");
       if (config?.enabled === false || config?.killSwitch === true) return { status: "disabled", model: String(config?.modelId || "") };
-      if (!env?.OPENAI_API_KEY) return { status: "missing_provider_key", model: String(config?.modelId || "") };
+      if (!env?.OPENAI_API_KEY) return { status: "provider_key_missing", model: String(config?.modelId || "") };
       const capabilityConfig = await firestoreGet("adminAdvancedOptions/capability_live_voice");
       if (capabilityConfig?.enabled === false || capabilityConfig?.killSwitch === true) {
         return { status: "disabled", model: String(config?.modelId || capabilityConfig?.modelId || "") };
@@ -3254,6 +3272,8 @@ export default {
             throw Object.assign(new Error("transcription_model_invalid"), { httpStatus: 400, safeError: "transcription_model_invalid" });
           }
           let model = configuredModel;
+          const accessibleModels = await openAiAccessibleModelIds(env);
+          if (accessibleModels.size && !accessibleModels.has(model)) model = "whisper-1";
           let response = await transcribeWithModel(model);
           let raw = await response.text();
           let transcription = {};
@@ -4836,7 +4856,11 @@ export default {
          const serverNow = Date.now();
          const lastBilledAt = new Date(liveSession.lastBilledAt || liveSession.startedAt || serverNow).getTime();
          const elapsedSeconds = Math.min(120, Math.max(0, Math.floor((serverNow - lastBilledAt) / 1000)));
-         const rate = generationCreditsForSeconds(liveRule, elapsedSeconds);
+         let rate = generationCreditsForSeconds(liveRule, elapsedSeconds);
+          if (heartbeatBody.smart === true) {
+            const smartTranscribeRule = await activeGenerationRule("speech.transcribe");
+            rate += generationCreditsForSeconds(smartTranscribeRule, elapsedSeconds);
+          }
          if (rate > 0 && !isSuperAdmin(user, env)) {
            const balance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
            if (!balance || balance.total < rate) throw Object.assign(new Error("out_of_credits"), { httpStatus: 402, safeError: "out_of_credits" });
@@ -4862,7 +4886,7 @@ export default {
            charged: Number(charge.amount || 0),
            free: rate === 0,
            billingIntervalSeconds: 30,
-           ...(trackedCost ? { estimatedProviderCostUsd: trackedCost.providerCostUsd } : {})
+
          });
        }
        
@@ -4913,6 +4937,11 @@ export default {
          }
          return await settleLiveStartReservation(u.uid, reservation, commitCredits, reverseCredits, async () => {
            let model = String(b.modelRegistryId ? control.modelId : (conf.modelId || control.modelId || DEFAULT_REALTIME_MODEL)).slice(0, 80);
+            if (!ALLOWED_REALTIME_MODELS.has(model)) {
+              await notifyAdminOfIssue(env, url.pathname, 200, "realtime_model_overridden:" + model.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 60));
+              model = DEFAULT_REALTIME_MODEL;
+            }
+            model = await pickAccessibleModel(env, model, /^gpt-realtime/);
            const voice0 = String(b.voice || conf.defaultVoice || "marin").toLowerCase();
           const voice = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"].includes(voice0)
             ? voice0 : String(conf.defaultVoice || "marin");
