@@ -402,6 +402,21 @@ class CoreTest {
         assertTrue(snapshot.hasVerifiedAccess(Workspace.LEARNING))
     }
 
+    @Test fun expiredAndPausedPlansDoNotOpenPaidWorkspaces() {
+        val catalog = org.json.JSONObject().put("plans", org.json.JSONArray().put(
+            org.json.JSONObject().put("id", "bizstarter").put("module", "business")
+        ))
+        val paused = org.json.JSONObject().put("items", org.json.JSONArray().put(
+            org.json.JSONObject().put("planId", "bizstarter").put("module", "business").put("state", "paused")
+        ))
+        val expired = org.json.JSONObject().put("items", org.json.JSONArray().put(
+            org.json.JSONObject().put("planId", "bizstarter").put("module", "business")
+                .put("state", "active").put("expiresAt", "2020-01-01T00:00:00.000Z")
+        ))
+        assertFalse(WorkspaceAccessSnapshot.fromCatalog(catalog, paused, false, false).hasVerifiedAccess(Workspace.BUSINESS))
+        assertFalse(WorkspaceAccessSnapshot.fromCatalog(catalog, expired, false, false).hasVerifiedAccess(Workspace.BUSINESS))
+    }
+
     @Test fun cleanAssistantReplyRemovesOnlyStrayLeadingSeparators() {
         assertEquals("Isaac! How can I help?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(", Isaac! How can I help?"))
         assertEquals("Hello, Isaac!", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("Hello, Isaac!"))
