@@ -417,6 +417,21 @@ class CoreTest {
         assertFalse(WorkspaceAccessSnapshot.fromCatalog(catalog, expired, false, false).hasVerifiedAccess(Workspace.BUSINESS))
     }
 
+    @Test fun legacyProviderPlansWithoutModuleMetadataStillOpenTheirWorkspaces() {
+        val catalog = org.json.JSONObject().put("plans", org.json.JSONArray()
+            .put(org.json.JSONObject().put("id", "bizstarter").put("module", "business"))
+            .put(org.json.JSONObject().put("id", "tgplus").put("module", "truthguard"))
+            .put(org.json.JSONObject().put("id", "lmstandard").put("module", "life-mathis")))
+        val entitlements = org.json.JSONObject().put("items", org.json.JSONArray()
+            .put(org.json.JSONObject().put("planId", "bizstarter").put("module", "general").put("state", "active"))
+            .put(org.json.JSONObject().put("planId", "tgplus").put("module", "general").put("state", "active"))
+            .put(org.json.JSONObject().put("planId", "lmstandard").put("module", "general").put("state", "active")))
+        val snapshot = WorkspaceAccessSnapshot.fromCatalog(catalog, entitlements, admin = false, testMode = false)
+        assertTrue(snapshot.hasVerifiedAccess(Workspace.BUSINESS))
+        assertTrue(snapshot.hasVerifiedAccess(Workspace.TRUTH_GUARD))
+        assertTrue(snapshot.hasVerifiedAccess(Workspace.LIFE))
+    }
+
     @Test fun cleanAssistantReplyRemovesOnlyStrayLeadingSeparators() {
         assertEquals("Isaac! How can I help?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(", Isaac! How can I help?"))
         assertEquals("Hello, Isaac!", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("Hello, Isaac!"))
