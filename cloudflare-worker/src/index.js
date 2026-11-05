@@ -5690,39 +5690,94 @@ export default {
       if (url.pathname === "/admin/pricing/audit" && request.method === "GET") {
         const admin = await verifyFirebaseUser(request);
         if (!isSuperAdmin(admin, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
-        const requiredOperations = [
-          ["image_generation", "image.generate"], ["image_edit", "image.edit"],
-          ["chat_background_upload", "chat.background_upload"], ["team_member_message", "team.member_message"],
-          ["pdf", "file.pdf"], ["file_docx", "file.docx"], ["file_xlsx", "file.xlsx"],
-          ["file_csv", "file.csv"], ["file_txt", "file.txt"], ["file_md", "file.md"], ["file_html", "file.html"],
-          ["file_json", "file.json"], ["file_code", "file.code"],
-          ["video_generation", "video.generate"], ["music", "music.generate"], ["music_render", "music.render"],
-          ["resume", "resume.generate"], ["web_search", "web.search"], ["deep_research", "web.research"],
-          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"], ["text_to_speech", "speech.synthesize"], ["connector_action", "feature.connector_action"], ["text_to_speech", "speech.synthesize"]
+        const requiredGeneration = [
+          ["image_generation", "image.generate", 0, 0, "none"],
+          ["image_edit", "image.edit", 0, 0, "none"],
+          ["chat_background_upload", "chat.background_upload", 2, 0, "none"],
+          ["team_member_message", "team.member_message", 0, 0, "none"],
+          ["pdf", "file.pdf", 0, 0.3, "page"], ["file_docx", "file.docx", 0, 0.3, "page"],
+          ["file_xlsx", "file.xlsx", 0, 0.45, "page"], ["file_csv", "file.csv", 0.15, 0, "none"],
+          ["file_txt", "file.txt", 0.15, 0, "none"], ["file_md", "file.md", 0.15, 0, "none"],
+          ["file_html", "file.html", 0.15, 0, "none"], ["file_json", "file.json", 0.15, 0, "none"],
+          ["file_code", "file.code", 0.15, 0, "none"], ["file_xml", "file.xml", 0.15, 0, "none"],
+          ["file_yaml", "file.yaml", 0.15, 0, "none"], ["video_generation", "video.generate", 0, 87.573, "second"],
+          ["music", "music.generate", 0, 1.5, "second"], ["music_render", "music.render", 0, 0.3, "second"],
+          ["resume", "resume.generate", 0.75, 0, "none"], ["web_search", "web.search", 0, 0.2, "page"],
+          ["deep_research", "web.research", 7, 0, "none"], ["live_voice", "live.voice", 0, 0.045, "second"],
+          ["live_camera", "live.camera", 0, 0.09, "second"], ["dictation", "speech.transcribe", 0, 0.0204337, "second"],
+          ["text_to_speech", "speech.synthesize", 0, 0.0145833, "second"],
+          ["connector_action", "feature.connector_action", 0.4, 0, "none"]
         ];
-        const rows = await firestoreQuery("generationCostRules", { limit: 500 });
-        const active = new Map((Array.isArray(rows) ? rows : [])
-          .filter(row => String(row.status || "").toLowerCase() === "active")
-          .map(row => [String(row.operation || "").trim().toLowerCase(), row]));
+        const requiredTokenModels = [
+          ["gpt-6-luna", { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667 }],
+          ["gpt-5.6-luna", { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007 }],
+          ["gpt-image-2.5-sunburst", { inputCreditsPerToken: 0.0002916666666666667, cachedInputCreditsPerToken: 0.00007291666666666667, outputCreditsPerToken: 0, inputImageCreditsPerToken: 0.00046666666666666666, cachedInputImageCreditsPerToken: 0.00011666666666666667, outputImageCreditsPerToken: 0.00175 }],
+          ["gpt-realtime-2.1-mini", { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014, inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668, inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 }],
+          ["gpt-image-1-mini", { inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666, inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 }],
+          ["gpt-4o-mini-transcribe", { inputAudioCreditsPerToken: 0.00007291666666666667, outputCreditsPerToken: 0.0002916666666666667 }],
+          ["gpt-4o-mini-tts", { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputAudioCreditsPerToken: 0.0007 }],
+          ["text-embedding-3-small", { inputCreditsPerToken: 0.0000011666666666666668 }],
+          ["omni-moderation-latest", { inputCreditsPerToken: 0.00001 }]
+        ];
+        const generationRows = await firestoreQuery("generationCostRules", { limit: 500 });
+        const tokenRows = await firestoreQuery("tokenPricingRules", { limit: 500 });
         const missing = [];
-        for (const [feature, operation] of requiredOperations) {
-          const row = active.get(operation);
-          const credits = Number(row?.credits);
-          const perUnit = Number(row?.creditsPerUnit ?? 0);
-          if (!row || !Number.isFinite(credits) || credits < 0 || !Number.isFinite(perUnit) || perUnit < 0) {
-            missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: row ? "invalid_credit_price" : "missing_active_rule" });
+        const priceDifferences = [];
+        const duplicates = [];
+        const activeGeneration = (Array.isArray(generationRows) ? generationRows : []).filter(row => String(row.status || "").toLowerCase() === "active");
+        for (const [feature, operation, expectedCredits, expectedPerUnit, expectedUnit] of requiredGeneration) {
+          const matches = activeGeneration.filter(row => String(row.operation || "").trim().toLowerCase() === operation && (!row.model || String(row.model) === "*"));
+          if (matches.length === 0) {
+            missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: "missing_active_rule" });
+            await logMissingPrice(operation);
+            continue;
+          }
+          if (matches.length > 1) duplicates.push({ operation, activeRuleIds: matches.map(row => String(row.id || row.__name || "")) });
+          const row = matches.sort((x, y) => Number(y.version || 0) - Number(x.version || 0))[0];
+          const actual = { credits: Number(row.credits), creditsPerUnit: Number(row.creditsPerUnit || 0), unit: String(row.unit || "none") };
+          if (!Number.isFinite(actual.credits) || actual.credits < 0 || !Number.isFinite(actual.creditsPerUnit) || actual.creditsPerUnit < 0) {
+            missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: "invalid_credit_price" });
             await logMissingPrice(operation);
           }
-        }
-        for (const [operation, row] of active) {
-          const credits = Number(row?.credits);
-          const perUnit = Number(row?.creditsPerUnit ?? 0);
-          if (!Number.isFinite(credits) || credits < 0 || !Number.isFinite(perUnit) || perUnit < 0) {
-            missing.push({ feature: operation, operation, document: "generationCostRules/" + operation, reason: "invalid_credit_price" });
-            await logMissingPrice(operation);
+          if (actual.credits !== expectedCredits || actual.creditsPerUnit !== expectedPerUnit || actual.unit !== expectedUnit) {
+            priceDifferences.push({ collection: "generationCostRules", operation, expected: { credits: expectedCredits, creditsPerUnit: expectedPerUnit, unit: expectedUnit }, actual });
+          }
+          if (Object.keys(row).some(key => /UsdPer(Million|Token)$/.test(key))) {
+            missing.push({ feature, operation, document: "generationCostRules/" + operation, reason: "legacy_price_fields_present" });
           }
         }
-        return json({ checkedAt: new Date().toISOString(), checkedBy: admin.uid, missing, missingCount: missing.length });
+        for (const [model, expected] of requiredTokenModels) {
+          const matches = (Array.isArray(tokenRows) ? tokenRows : []).filter(row =>
+            String(row.provider || "").toLowerCase() === "openai" &&
+            String(row.model || "") === model &&
+            String(row.customerClass || "all").toLowerCase() === "all" &&
+            String(row.status || "").toLowerCase() === "active"
+          );
+          if (!matches.length) {
+            missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + model, reason: "missing_active_rule" });
+            await logMissingPrice("token:" + model);
+            continue;
+          }
+          const row = matches.sort((x, y) => Number(y.version || 0) - Number(x.version || 0))[0];
+          for (const [field, expectedValue] of Object.entries(expected)) {
+            const actualValue = Number(row[field]);
+            if (!Number.isFinite(actualValue)) missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + String(row.id || model), reason: "missing_" + field });
+            else if (actualValue !== expectedValue) priceDifferences.push({ collection: "tokenPricingRules", model, field, expected: expectedValue, actual: actualValue });
+          }
+          if (Object.keys(row).some(key => /UsdPer(Million|Token)$/.test(key))) {
+            missing.push({ feature: "token:" + model, model, document: "tokenPricingRules/" + String(row.id || model), reason: "legacy_price_fields_present" });
+          }
+        }
+        return json({
+          checkedAt: new Date().toISOString(),
+          checkedBy: admin.uid,
+          missing,
+          missingCount: missing.length,
+          duplicates,
+          priceDifferences,
+          generationRuleCount: activeGeneration.length,
+          tokenRuleCount: Array.isArray(tokenRows) ? tokenRows.length : 0
+        });
       }
 
       if (url.pathname === "/admin/route" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const id=String(url.searchParams.get("capability")||"");if(!id)throw new Error("capability_required");return json(await firestoreGet("adminAdvancedOptions/"+(id.startsWith("capability_")?id:"capability_"+id))||{}); }
