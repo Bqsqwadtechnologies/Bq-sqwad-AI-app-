@@ -57,7 +57,7 @@ export function calculateTokenCreditsFromRule(rule, usage = {}) {
   ];
   for (const [count, rate] of rates) if (count > 0 && (!Number.isFinite(Number(rate)) || Number(rate) < 0)) throw new Error("token_pricing_not_configured");
   const credits = rates.reduce((sum, [count, rate]) => sum + Number(count) * Number(rate || 0), 0);
-  return Math.round((credits + Number.EPSILON) * 10_000_000) / 10_000_000;
+  return Math.round((credits + Number.EPSILON) * 1_000_000_000_000_000) / 1_000_000_000_000_000;
 }
 
 export async function priceTokenUsage({ providerId = "openai", modelId, usage, feature, customerClass = "all" }) {
