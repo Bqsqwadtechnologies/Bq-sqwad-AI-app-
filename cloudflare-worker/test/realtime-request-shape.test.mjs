@@ -44,3 +44,13 @@ test("opt-in training library is admin-only and checks explicit consent before r
   assert.match(source, /fieldPath:\s*\"trainingConsent\"[\s\S]*?booleanValue:\s*true/);
   assert.match(source, /firestoreQuery\("consented_contributions"/);
 });
+
+test("heartbeat has no undefined trackedCost reference", async () => {
+  const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /trackedCost/);
+});
+
+test("normal realtime sessions explicitly disable transcription", async () => {
+  const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/RealtimeVoiceSession.kt", import.meta.url), "utf8");
+  assert.match(source, /put\("transcription", if \(silentTextMode\)[\s\S]*?else JSONObject\.NULL\)/);
+});
