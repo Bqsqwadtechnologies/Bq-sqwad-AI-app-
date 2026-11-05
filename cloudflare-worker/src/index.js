@@ -833,7 +833,7 @@ const ADMIN_SEED_DEFAULTS = [
   }
 ];
 const PRICING_DEFAULTS_MARKER = "adminAdvancedOptions/bq_live_credit_pricing_defaults_v5";
-const PRESERVE_EXISTING_DEFAULTS = new Set(["image.generate", "chat.background_upload", "team.member_message"]);
+const PRESERVE_EXISTING_DEFAULTS = new Set(["image.generate"]);
 let adminPricingSeeded = false;
 let adminPricingSeedAttemptedAt = 0;
 
