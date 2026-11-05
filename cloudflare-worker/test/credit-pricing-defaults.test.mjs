@@ -5,7 +5,6 @@ import { readFile } from "node:fs/promises";
 const index = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const generationDefaults = index.slice(index.indexOf("const ADMIN_SEED_DEFAULTS"), index.indexOf("const PRICING_DEFAULTS_MARKER"));
 const auxiliaryDefaults = index.slice(index.indexOf("const TOKEN_CREDIT_DEFAULTS ="), index.indexOf("async function seedTokenCreditDefaultsOnce"));
-const mainDefaults = tokenBilling.slice(tokenBilling.indexOf("const openAiTokenDefaults"), tokenBilling.indexOf("const normalizedModelId"));
 
 test("all model token defaults match the final BQ credit table", () => {
   for (const value of [
