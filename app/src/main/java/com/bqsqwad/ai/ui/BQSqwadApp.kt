@@ -1642,7 +1642,9 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 onNotificationsChanged = { notificationsEnabled = it },
                 notificationStatus = notificationStatus,
                 onOpenWorkspace = { selected -> settings = false; if (firebaseUser == null && selected != Workspace.CHAT) { signInRequired = true; signUpRequired = false } else openWorkspace(selected) },
-                onOpenPlans = { plansInitialSection = "all"; plans = true }
+                onOpenPlans = { plansInitialSection = "all"; plans = true },
+                creditBalanceLabel = if (creditBalanceLoaded) creditBalanceLabel else "Loading balance…",
+                isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"
             )
             history -> HistoryScreen(
                 onBack = { history = false },
@@ -7712,7 +7714,7 @@ private fun ConnectorsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenSignIn: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onSignOut: () -> Unit, onOpenSignIn: () -> Unit, onOpenAccountProtection: () -> Unit, onOpenLegalCenter: () -> Unit, onNotificationsChanged: (Boolean) -> Unit, notificationStatus: String?, onOpenWorkspace: (Workspace) -> Unit, onOpenPlans: () -> Unit, creditBalanceLabel: String, isAdminUnlimited: Boolean) {
     val context = LocalContext.current
     val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
     val prefs = remember(uid) { accountPreferences(context) }
@@ -8166,6 +8168,13 @@ item { SettingsSectionTitle("Account & security", "Identity, protection and devi
             }
             if (settingsCategory == "All settings" || settingsCategory == "Payments & Billing") {
 item { SettingsSectionTitle("Payments & billing", "Manage subscription") }
+            item {
+                SettingsCreditsCard(
+                    balanceLabel = creditBalanceLabel,
+                    unlimited = isAdminUnlimited,
+                    onOpenPlans = onOpenPlans
+                )
+            }
             item {
                 FeatureCard("BQ Sqwad AI catalog", "Browse available plans, eligible add-ons and credit packs for your account.", onOpenPlans)
             }
