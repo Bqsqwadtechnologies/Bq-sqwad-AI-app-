@@ -53,7 +53,7 @@ export async function reserveCredits(uid, amount, capability) {
   }
   const finalCharge = Math.max(0, Number(pricing.credits || 0));
   const charge = Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge));
-  if (requestedUnits === 0 || finalCharge === 0) {
+  if (finalCharge === 0) {
     const includedTransactionId = "included_" + db.collection("aiBillingTransactions").doc().id;
     await recordBillingTransaction(includedTransactionId, {
       uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
