@@ -3,6 +3,7 @@ package com.bqsqwad.ai.ui
 
 import com.bqsqwad.ai.ui.chat.BqChatHeader
 import com.bqsqwad.ai.ui.chat.BqGeneratingImagePlaceholder
+import com.bqsqwad.ai.ui.chat.SettingsCreditsCard
 import com.bqsqwad.ai.ui.chat.WorkspaceTeamScreen
 
 import android.Manifest
@@ -994,6 +995,32 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         onDispose { auth.removeAuthStateListener(listener) }
     }
     val email = firebaseUser?.email.orEmpty()
+    var settingsCreditBalanceLabel by remember(firebaseUser?.uid) {
+        mutableStateOf(if (firebaseUser == null) "Sign in for credits" else "Loading balance…")
+    }
+    LaunchedEffect(firebaseUser?.uid) {
+        if (firebaseUser == null) {
+            settingsCreditBalanceLabel = "Sign in for credits"
+            return@LaunchedEffect
+        }
+        while (true) {
+            runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                .onSuccess { snapshot ->
+                    settingsCreditBalanceLabel = if (snapshot.optBoolean("adminUnlimited")) {
+                        "Credits: Unlimited"
+                    } else {
+                        val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
+                        "Credits: " + String.format(java.util.Locale.US, "%.2f", available).trimEnd('0').trimEnd('.')
+                    }
+                }
+                .onFailure {
+                    if (settingsCreditBalanceLabel == "Loading balance…") {
+                        settingsCreditBalanceLabel = "Balance unavailable"
+                    }
+                }
+            delay(30_000L)
+        }
+    }
     LaunchedEffect(firebaseUser?.uid) {
         bqTextScaleState.floatValue = accountPreferences(context).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
     }
@@ -1643,8 +1670,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 notificationStatus = notificationStatus,
                 onOpenWorkspace = { selected -> settings = false; if (firebaseUser == null && selected != Workspace.CHAT) { signInRequired = true; signUpRequired = false } else openWorkspace(selected) },
                 onOpenPlans = { plansInitialSection = "all"; plans = true },
-                creditBalanceLabel = if (creditBalanceLoaded) creditBalanceLabel else "Loading balance…",
-                isAdminUnlimited = creditBalanceLabel == "Credits: Unlimited"
+                creditBalanceLabel = settingsCreditBalanceLabel,
+                isAdminUnlimited = settingsCreditBalanceLabel == "Credits: Unlimited"
             )
             history -> HistoryScreen(
                 onBack = { history = false },
