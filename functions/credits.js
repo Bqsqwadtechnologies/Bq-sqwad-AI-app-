@@ -235,7 +235,6 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       providerId: providerId || null,
       modelId: metadata.modelId || data.modelId || null,
       pricingSnapshot: tokenPricing?.pricingSnapshot || data.pricingSnapshot || null,
-      costOverrunCredits,
       committedAt: FieldValue.serverTimestamp()
     });
     tx.create(db.collection("creditLedger").doc(), {

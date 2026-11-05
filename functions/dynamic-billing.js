@@ -62,6 +62,9 @@ export function calculateTokenCreditsFromRule(rule, usage = {}) {
 
 export async function priceTokenUsage({ providerId = "openai", modelId, usage, feature, customerClass = "all" }) {
   if (!modelId || !usage || typeof usage !== "object") throw new Error("token_usage_missing");
+  const hasUsage = ["inputTokens", "input_tokens", "prompt_tokens", "outputTokens", "output_tokens", "completion_tokens"]
+    .some(key => Object.prototype.hasOwnProperty.call(usage, key));
+  if (!hasUsage) throw new Error("token_usage_missing");
   const provider = String(providerId || "").toLowerCase();
   const snapshot = await getFirestore().collection("tokenPricingRules").where("model", "==", String(modelId)).where("status", "==", "active").limit(100).get();
   const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

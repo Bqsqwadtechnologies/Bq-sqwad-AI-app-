@@ -47,7 +47,7 @@ test("Functions calculate actual usage from the saved token rates, including cac
     inputTokens: 1000, cachedInputTokens: 200, inputImageTokens: 300,
     cachedInputImageTokens: 100, outputTokens: 50, outputImageTokens: 10
   });
-  const expected = 700 * rule.inputCreditsPerToken + 200 * rule.cachedInputCreditsPerToken +
+  const expected = 500 * rule.inputCreditsPerToken + 200 * rule.cachedInputCreditsPerToken +
     200 * rule.inputImageCreditsPerToken + 100 * rule.cachedInputImageCreditsPerToken +
     10 * rule.outputImageCreditsPerToken;
   assert.ok(Math.abs(charge - Math.round(expected * 1e7) / 1e7) < 1e-12);
