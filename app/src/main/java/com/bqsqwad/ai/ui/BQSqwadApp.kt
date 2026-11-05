@@ -3383,7 +3383,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
                     if (current != null) {
-                        val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(reply.text) else reply.text
+                        val normalizedReply = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(reply.text)
+                        val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(normalizedReply) else normalizedReply
                         messages[aiIndex] = current.copy(
                             text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + generatedPdfNotice,
                             attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
@@ -3406,7 +3407,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
                         runCatching {
                             historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
-                        }.onFailure { error = safeUserFacingIssue(it, "The response was generated, but chat history could not be saved.") }
+                        }.onFailure { statusText = "Response sent. Chat history could not be saved; it will remain in this chat." }
                     }
                 }
             } catch (t: Throwable) {
