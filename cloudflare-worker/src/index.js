@@ -3598,12 +3598,15 @@ export default {
 
       if (url.pathname === "/entitlements" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const [primary, playRows] = await Promise.all([
+        const [primary, playRows, canonicalRows] = await Promise.all([
           firestoreGet("entitlements/" + user.uid),
           firestoreQuery("playEntitlements", {
             filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
             limit: 100
-          })
+          }),
+          // Website Paystack/admin and verified Play purchases share this
+          // canonical multi-plan subcollection.
+          firestoreQuery("entitlements/" + user.uid + "/plans", { limit: 100 })
         ]);
         const rows = new Map();
         if (primary) {
@@ -3614,18 +3617,25 @@ export default {
           const key = String(row.productId || row.planId || String(row.__name || "").split("/").pop());
           rows.set(key, { ...row, id: key });
         }
+        for (const row of canonicalRows) {
+          const key = String(row.planId || String(row.__name || "").split("/").pop());
+          if (!key) continue;
+          rows.set(key, { ...row, id: key });
+        }
         return json({
           items: Array.from(rows.values()).map(row => ({
             id: String(row.id || ""),
             planId: String(row.planId || ""),
             productId: String(row.productId || ""),
             product: String(row.product || row.productId || ""),
+            module: String(row.module || ""),
             basePlanId: row.basePlanId ? String(row.basePlanId) : null,
-            state: String(row.state || ""),
+            state: String(row.state || row.status || ""),
             renewalState: String(row.renewalState || ""),
             source: String(row.source || ""),
-            startDate: row.startDate || null,
-            endDate: row.endDate || null,
+            includedFeatures: Array.isArray(row.includedFeatures) ? row.includedFeatures : [],
+            startDate: row.startsAt || row.startDate || null,
+            endDate: row.expiresAt || row.endDate || null,
             updatedAt: row.updatedAt || null
           }))
         });
