@@ -1272,27 +1272,6 @@ async function dedupeLivePricingRulesOnce() {
   await firestoreSet(LIVE_DEDUPE_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
 }
 
-const LIVE_DEDUPE_MARKER = "adminAdvancedOptions/bq_live_rule_dedupe_v1";
-async function dedupeLivePricingRulesOnce() {
-  const marker = await firestoreGet(LIVE_DEDUPE_MARKER).catch(() => null);
-  if (marker?.applied === true) return;
-  const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
-  for (const operation of ["live.voice", "live.camera", "speech.transcribe", "speech.synthesize"]) {
-    const group = (rows || []).filter(row =>
-      String(row.operation || "").toLowerCase() === operation &&
-      String(row.status || "") === "active"
-    );
-    if (group.length < 2) continue;
-    const keep = group.find(row => String(row.id || "").startsWith("default-")) || group[0];
-    for (const row of group) {
-      if (row === keep) continue;
-      const id = String(row.id || String(row.__name || "").split("/").pop() || "");
-      if (id) await firestoreSet("generationCostRules/" + id, { status: "inactive", updatedAt: new Date().toISOString() }, true);
-    }
-  }
-  await firestoreSet(LIVE_DEDUPE_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
-}
-
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
@@ -1301,7 +1280,6 @@ async function seedAdminPricingDefaults() {
   await dedupeLivePricingRulesOnce().catch(() => {});
   await stripProviderUsdFieldsOnce().catch(() => {});
   await stripLegacyAiModelCostFieldsOnce().catch(() => {});
-  await dedupeLivePricingRulesOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
   if (marker?.applied === true && Number(marker.version) >= 5) {
     adminPricingSeeded = true;
