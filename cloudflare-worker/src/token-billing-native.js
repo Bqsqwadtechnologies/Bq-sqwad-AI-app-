@@ -289,7 +289,7 @@ export function estimateTokenReservation({ message, system, pricing }) {
   });
   // Reserve a safety margin for tokenizer differences, then settle to exact
   // provider-reported usage after the request completes.
-  return Math.max(0.000001, estimated.customerCredits * 1.35);
+  return Math.max(0, estimated.customerCredits * 1.35);
 }
 
 export async function recordTokenUsage({ uid, feature, providerId, modelId, usage, pricing, calculation, requestId, chargedCredits, planCovered = false, modality = "text", unitCount = 0 }) {
