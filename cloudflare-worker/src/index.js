@@ -1213,14 +1213,27 @@ async function stripProviderUsdFieldsOnce() {
 }
 
 
-const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_cleanup_v2";
+const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_cleanup_v3";
+const LEGACY_MODEL_PRICE_FIELDS = new Set([
+  "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
+  "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
+  "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
+  "billingMode"
+]);
+function stripLegacyModelPriceFields(row) {
+  const clean = {};
+  for (const [key, value] of Object.entries(row || {})) {
+    if (key === "__name" || /UsdPer(Million|Token)/i.test(key) || LEGACY_MODEL_PRICE_FIELDS.has(key)) continue;
+    clean[key] = value;
+  }
+  return clean;
+}
 async function stripLegacyAiModelCostFieldsOnce() {
   const marker = await firestoreGet(AI_MODEL_COST_CLEANUP_MARKER).catch(() => null);
   if (marker?.applied === true) return;
   const current = await firestoreGet("config/aiModels").catch(() => null);
   if (current && typeof current === "object") {
-    const clean = { ...current };
-    for (const key of ["usdPerMillionInputTokens", "usdPerMillionOutputTokens", "creditsPerInputToken", "creditsPerOutputToken", "creditsPerCachedInputToken", "minimumCredits", "fallbackCredits", "precision", "conversionRate", "modelMultipliers"]) delete clean[key];
+    const clean = stripLegacyModelPriceFields(current);
     if (clean.metering && typeof clean.metering === "object") {
       clean.metering = {
         maxRequestTokens: Number(clean.metering.maxRequestTokens || 8000),
@@ -1229,7 +1242,23 @@ async function stripLegacyAiModelCostFieldsOnce() {
     }
     await firestoreSet("config/aiModels", clean, false);
   }
-  await firestoreSet(AI_MODEL_COST_CLEANUP_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+  for (const collection of ["aiModelRegistry", "aiModelCatalog"]) {
+    const rows = await firestoreQuery(collection, { limit: 500 }).catch(() => []);
+    for (const row of rows || []) {
+      const clean = stripLegacyModelPriceFields(row);
+      const id = String(row.id || String(row.__name || "").split("/").pop() || "");
+      if (!id) continue;
+      await firestoreSet(collection + "/" + id, clean, false);
+    }
+  }
+  const options = await firestoreQuery("adminAdvancedOptions", { limit: 500 }).catch(() => []);
+  for (const row of options || []) {
+    const id = String(row.id || String(row.__name || "").split("/").pop() || "");
+    if (!id.startsWith("capability_")) continue;
+    const clean = stripLegacyModelPriceFields(row);
+    await firestoreSet("adminAdvancedOptions/" + id, clean, false);
+  }
+  await firestoreSet(AI_MODEL_COST_CLEANUP_MARKER, { applied: true, version: 3, updatedAt: new Date().toISOString() }, true);
 }
 
 async function ensureLivePricingLegacyValuesOnce() {
