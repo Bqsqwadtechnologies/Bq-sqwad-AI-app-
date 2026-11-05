@@ -5779,7 +5779,7 @@ export default {
         await firestoreSet("adminAdvancedOptions/" + livePricingAdminKey, { enabled, killSwitch, config: { ...config, enabled, killSwitch }, updatedBy: u.uid, updatedAt: new Date() }, true);
         return json(await firestoreGet("adminAdvancedOptions/" + livePricingAdminKey));
       }
-      if (url.pathname === "/live/pricing" && request.method === "GET") {
+      if ((url.pathname === "/pricing" || url.pathname === "/live/pricing") && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         enforceRateLimit(user.uid);
         const readPublicPricing = async (key, operation) => {
@@ -5788,7 +5788,7 @@ export default {
           const rule = await activeGenerationRule(operation);
           const creditsPerMinute = generationCreditsPerMinute(rule);
           const enabled = stored.enabled !== false && stored.killSwitch !== true && conf.enabled !== false && conf.killSwitch !== true;
-          return { enabled, free: enabled && creditsPerMinute === 0 && rule.credits === 0, creditsPerMinute, startFeeCredits: rule.credits };
+          return { enabled, free: enabled && creditsPerMinute === 0 && rule.credits === 0, creditsPerSecond: rule.unit === "second" ? Number(rule.creditsPerUnit || 0) : 0, creditsPerMinute, minimumBalanceToStart: creditsPerMinute, startFeeCredits: rule.credits };
         };
         return json({
           liveVoice: await readPublicPricing("live_voice_pricing", "live.voice"),
