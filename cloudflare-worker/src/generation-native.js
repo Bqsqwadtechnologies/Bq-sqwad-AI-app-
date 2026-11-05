@@ -1,7 +1,7 @@
 import { firestoreGet, firestoreCreate, firestoreCommit, uploadFirebaseStorageObject } from "./firebase.js";
 import { calculateTokenCost } from "./token-billing-native.js";
 
-const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
+const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst", "gpt-image-1-mini"]);
 const ALLOWED_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
 const ALLOWED_IMAGE_QUALITIES = new Set(["low", "medium", "high", "auto"]);
 
