@@ -304,12 +304,12 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
   const reservation = requestKey ? await firestoreGet("creditReservations/" + requestKey).catch(error => { console.error("usage reservation snapshot read failed", error?.message || "unknown"); return null; }) : null;
   const creditsBefore = Math.max(0, Number(reservation?.balanceBefore || 0));
   const creditsAfter = reservation ? Math.max(0, creditsBefore - actualChargedCredits) : 0;
-  const creditValue = Math.max(0.000001, Number(pricing?.creditReferenceValueUsd || DEFAULT_CREDIT_REFERENCE_USD));
-  const grossUsageValueUsd = actualChargedCredits * creditValue;
-  const estimatedFeePercent = Math.min(100, Math.max(0, Number(calculation?.estimatedFeePercent ?? pricing?.estimatedFeePercent ?? 0)));
-  const estimatedFeeUsd = grossUsageValueUsd * estimatedFeePercent / 100;
-  const estimatedGrossProfitUsd = grossUsageValueUsd - Number(calculation?.providerCostUsd || 0);
-  const estimatedNetProfitUsd = estimatedGrossProfitUsd - estimatedFeeUsd;
+  const creditValue = 0;
+  const grossUsageValueUsd = 0;
+  const estimatedFeePercent = 0;
+  const estimatedFeeUsd = 0;
+  const estimatedGrossProfitUsd = 0;
+  const estimatedNetProfitUsd = 0;
   const entry = {
     uid: String(uid || ""),
     feature: String(feature || ""),
@@ -348,9 +348,9 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     estimatedFeeUsd,
     estimatedNetProfitUsd,
     creditReferenceValueUsd: creditValue,
-    customerMultiplier: Number(pricing?.customerMultiplier || DEFAULT_CUSTOMER_MULTIPLIER),
+    customerMultiplier: 1,
     planCovered: planCovered === true,
-    costStatus: modality === "text" ? "estimated_from_provider_usage_and_configured_rates" : "estimated_from_configured_provider_unit_rate",
+    costStatus: "measured_usage_and_configured_bq_credit_rates",
     createdAt
   };
   const path = "providerUsage/" + recordId;
