@@ -23,6 +23,57 @@ export function calculateDirectCreditCharge({ credits }) {
   };
 }
 
+export const TOKEN_METERED_CAPABILITIES = new Set([
+  "chat", "text-chat", "vision", "chat_attachment", "personal_intelligence",
+  "team_chat", "image_generation", "image_edit"
+]);
+
+export function calculateTokenCreditsFromRule(rule, usage = {}) {
+  const input = Math.max(0, Number(usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens ?? 0));
+  const output = Math.max(0, Number(usage.outputTokens ?? usage.output_tokens ?? usage.completion_tokens ?? 0));
+  const inDetails = usage.input_token_details || usage.input_tokens_details || usage.prompt_tokens_details || {};
+  const outDetails = usage.output_token_details || usage.output_tokens_details || usage.completion_tokens_details || {};
+  const audioIn = Math.max(0, Number(usage.inputAudioTokens ?? usage.input_audio_tokens ?? inDetails.audio_tokens ?? 0));
+  const cachedAudioIn = Math.max(0, Number(usage.cachedInputAudioTokens ?? inDetails.cached_audio_tokens ?? 0));
+  const imageIn = Math.max(0, Number(usage.inputImageTokens ?? usage.input_image_tokens ?? inDetails.image_tokens ?? 0));
+  const cachedImageIn = Math.max(0, Number(usage.cachedInputImageTokens ?? inDetails.cached_image_tokens ?? 0));
+  const audioOut = Math.max(0, Number(usage.outputAudioTokens ?? usage.output_audio_tokens ?? outDetails.audio_tokens ?? 0));
+  const imageOut = Math.max(0, Number(usage.outputImageTokens ?? usage.output_image_tokens ?? outDetails.image_tokens ?? 0));
+  const cachedText = Math.max(0, Number(usage.cachedInputTokens ?? usage.cached_input_tokens ?? inDetails.cached_tokens ?? 0));
+  if (audioIn + imageIn > input || audioOut + imageOut > output || cachedAudioIn > audioIn || cachedImageIn > imageIn) throw new Error("token_usage_modality_invalid");
+  const textIn = input - audioIn - imageIn;
+  const textOut = output - audioOut - imageOut;
+  const cachedTextTokens = Math.min(textIn, cachedText);
+  const rates = [
+    [textIn - cachedTextTokens, rule.inputCreditsPerToken],
+    [cachedTextTokens, rule.cachedInputCreditsPerToken],
+    [textOut, rule.outputCreditsPerToken],
+    [audioIn - cachedAudioIn, rule.inputAudioCreditsPerToken],
+    [cachedAudioIn, rule.cachedInputAudioCreditsPerToken],
+    [audioOut, rule.outputAudioCreditsPerToken],
+    [imageIn - cachedImageIn, rule.inputImageCreditsPerToken],
+    [cachedImageIn, rule.cachedInputImageCreditsPerToken],
+    [imageOut, rule.outputImageCreditsPerToken]
+  ];
+  for (const [count, rate] of rates) if (count > 0 && (!Number.isFinite(Number(rate)) || Number(rate) < 0)) throw new Error("token_pricing_not_configured");
+  const credits = rates.reduce((sum, [count, rate]) => sum + Number(count) * Number(rate || 0), 0);
+  return Math.round((credits + Number.EPSILON) * 10_000_000) / 10_000_000;
+}
+
+export async function priceTokenUsage({ providerId = "openai", modelId, usage, feature, customerClass = "all" }) {
+  if (!modelId || !usage || typeof usage !== "object") throw new Error("token_usage_missing");
+  const provider = String(providerId || "").toLowerCase();
+  const snapshot = await getFirestore().collection("tokenPricingRules").where("model", "==", String(modelId)).where("status", "==", "active").limit(100).get();
+  const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const rule = rows.filter(row =>
+    String(row.provider || "").toLowerCase() === provider &&
+    ["all", customerClass].includes(String(row.customerClass || "all").toLowerCase()) &&
+    (!Array.isArray(row.features) || row.features.length === 0 || row.features.includes(String(feature || "")))
+  ).sort((a, b) => Number(b.version || 0) - Number(a.version || 0))[0];
+  if (!rule) throw new Error("token_pricing_not_configured");
+  return { credits: calculateTokenCreditsFromRule(rule, usage), providerCostUsd: 0, pricingVersion: Number(rule.version || 1), pricingSnapshot: { mode: "tokenPricingRules", ruleId: rule.id, model: rule.model, version: Number(rule.version || 1) } };
+}
+
 const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
   video_generation: "video.generate", video: "video.generate",
   chat_background_upload: "chat.background_upload", team_member_message: "team.member_message",
@@ -36,8 +87,8 @@ const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
 
 export async function priceOperation(capability, units = 0) {
   const key = String(capability || "").trim().toLowerCase();
-  if (["image_generation", "image_edit", "chat", "vision", "chat_attachment", "personal_intelligence", "team_chat"].includes(key)) {
-    throw new Error("token_metering_required");
+  if (TOKEN_METERED_CAPABILITIES.has(key)) {
+    return { ...calculateDirectCreditCharge({ credits: 0 }), capability: key, providerId: null, modelId: null, pricingSnapshot: { mode: "tokenPricingRules" }, estimateSource: "token_metered_usage" };
   }
   if (["live_voice", "live_camera", "dictation", "text_to_speech"].includes(key)) {
     throw new Error("duration_metering_required");
