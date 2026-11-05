@@ -1,4 +1,5 @@
 function sseFrame(event, data) {
+import { shouldSeedPricingDefaults } from "./pricing-seed-native.js";
   return "event: " + event + "\\ndata: " + JSON.stringify(data) + "\\n\\n";
 }
 
@@ -1166,7 +1167,7 @@ const TOKEN_CREDIT_DEFAULTS = [
 ];
 async function seedTokenCreditDefaultsOnce() {
   const marker = await firestoreGet(TOKEN_CREDIT_DEFAULTS_MARKER).catch(() => null);
-  if (marker?.applied === true && Number(marker.version) >= 5) return;
+  if (!shouldSeedPricingDefaults(marker)) return;
   const existing = await firestoreQuery("tokenPricingRules", { limit: 500 }).catch(() => []);
   for (const rule of TOKEN_CREDIT_DEFAULTS) {
     const found = (existing || []).find(row =>
