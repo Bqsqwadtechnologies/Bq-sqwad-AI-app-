@@ -1210,10 +1210,34 @@ async function stripProviderUsdFieldsOnce() {
   await firestoreSet(STRIP_USD_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
 }
 
+
+async function ensureLivePricingLegacyValuesOnce() {
+  const markerPath = "adminAdvancedOptions/bq_live_minimum_balance_defaults_v1";
+  const marker = await firestoreGet(markerPath).catch(() => null);
+  if (marker?.applied === true) return;
+  for (const [key, perMinute] of [["live_voice_pricing", 2.7], ["live_camera_pricing", 5.4]]) {
+    const current = await firestoreGet("adminAdvancedOptions/" + key).catch(() => null);
+    if (!current) continue;
+    const config = current.config && typeof current.config === "object" ? current.config : {};
+    const patch = {
+      creditsPerMinute: perMinute,
+      minimumBalanceToStart: perMinute,
+      updatedAt: new Date().toISOString()
+    };
+    if (current.config && typeof current.config === "object") {
+      await firestoreSet("adminAdvancedOptions/" + key, { ...current, config: { ...config, ...patch }, updatedAt: new Date().toISOString() }, true);
+    } else {
+      await firestoreSet("adminAdvancedOptions/" + key, { ...current, ...patch }, true);
+    }
+  }
+  await firestoreSet(markerPath, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+}
+
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
   await seedAuxCreditPricingOnce().catch(() => {});
+  await ensureLivePricingLegacyValuesOnce().catch(() => {});
   await stripProviderUsdFieldsOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
   if (marker?.applied === true && Number(marker.version) >= 5) {
@@ -5633,7 +5657,7 @@ export default {
           ["file_json", "file.json"], ["file_code", "file.code"],
           ["video_generation", "video.generate"], ["music", "music.generate"], ["music_render", "music.render"],
           ["resume", "resume.generate"], ["web_search", "web.search"], ["deep_research", "web.research"],
-          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"]
+          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"], ["text_to_speech", "speech.synthesize"]
         ];
         const rows = await firestoreQuery("generationCostRules", { limit: 500 });
         const active = new Map((Array.isArray(rows) ? rows : [])
