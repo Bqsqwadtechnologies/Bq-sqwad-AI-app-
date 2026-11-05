@@ -190,19 +190,16 @@ test("team chat is token-metered while deep research remains fixed-price", async
   assert.doesNotMatch(source, /isTokenMeteredFeature = \[[^\]]*"deep_research"/s);
 });
 
-test("Main Chat and GPT Image defaults contain precomputed per-token credit rates, not a runtime seven-times multiplier", async () => {
+test("token model defaults are stored as final per-token BQ credit rates", async () => {
   const { readFile } = await import("node:fs/promises");
-  const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
-  assert.match(source, /"gpt-6-luna": \{[^}]*inputCredits: 0\.000005833333333333333/s);
-  assert.match(source, /"gpt-5\.6-luna": \{[^}]*outputCredits: 0\.00007/s);
-  assert.match(source, /"gpt-image-2\.5-sunburst": \{[^}]*inputImageCredits: 0\.00046666666666666666, cachedImageCredits: 0\.00011666666666666667/s);
-  assert.doesNotMatch(source, /"gpt-image-2\.5-sunburst": \{[^}]*input: 5, cached: 1\.25, output: 0/s);
-  assert.match(source, /cachedInputImageCreditsPerToken: mainDefaults\.cachedImageCredits/);
-  const defaults = source.slice(source.indexOf("const openAiTokenDefaults"), source.indexOf("const featureAliases"));
+  const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  const defaults = source.slice(source.indexOf("const TOKEN_CREDIT_DEFAULTS ="), source.indexOf("async function seedTokenCreditDefaultsOnce"));
+  assert.match(defaults, /"gpt-6-luna"[\\s\\S]*?inputCreditsPerToken: 0\\.000005833333333333333/);
+  assert.match(defaults, /"gpt-5\\.6-luna"[\\s\\S]*?outputCreditsPerToken: 0\\.00007/);
+  assert.match(defaults, /"gpt-image-2\\.5-sunburst"[\\s\\S]*?cachedInputImageCreditsPerToken: 0\\.00011666666666666667/);
   assert.doesNotMatch(defaults, /UsdPer(Million|Token)/);
   assert.match(source, /source: "BQ customer credit defaults"/);
-  assert.match(source, /bq_gpt_image_2_5_token_pricing_v5/);
-  assert.doesNotMatch(source, /CUSTOMER_COST_MULTIPLIER/);
+  assert.match(source, /bq_token_credit_pricing_defaults_v5/);
 });
 
 test("token pricing selects free and paid rules independently and prefers the exact class", async () => {

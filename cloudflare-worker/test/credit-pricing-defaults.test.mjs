@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const index = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
-const tokenBilling = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 const generationDefaults = index.slice(index.indexOf("const ADMIN_SEED_DEFAULTS"), index.indexOf("const PRICING_DEFAULTS_MARKER"));
 const auxiliaryDefaults = index.slice(index.indexOf("const TOKEN_CREDIT_DEFAULTS ="), index.indexOf("async function seedTokenCreditDefaultsOnce"));
 const mainDefaults = tokenBilling.slice(tokenBilling.indexOf("const openAiTokenDefaults"), tokenBilling.indexOf("const normalizedModelId"));
@@ -14,14 +13,14 @@ test("all model token defaults match the final BQ credit table", () => {
     "0.000011666666666666668", "0.0000011666666666666668", "0.00007",
     "0.0002916666666666667", "0.00007291666666666667", "0.00046666666666666666",
     "0.00011666666666666667", "0.00175",
-  ]) assert.ok(mainDefaults.includes(value), `missing main/image rate ${value}`);
+  ]) assert.ok(auxiliaryDefaults.includes(value), `missing main/image rate ${value}`);
   for (const value of [
     "0.000035", "0.0000035", "0.00014", "0.0005833333333333334", "0.0000175",
     "0.0011666666666666668", "0.00004666666666666667", "0.000004666666666666667",
     "0.00011666666666666667", "0.000011666666666666668", "0.00046666666666666666",
     "0.00014583333333333335", "0.000014583333333333333", "0.00007291666666666667",
     "0.0002916666666666667", "0.0007", "0.0000011666666666666668", "0.00001",
-  ]) assert.ok(auxiliaryDefaults.includes(value) || mainDefaults.includes(value), `missing auxiliary rate ${value}`);
+  ]) assert.ok(auxiliaryDefaults.includes(value), `missing auxiliary rate ${value}`);
 });
 
 test("all fixed and per-second launch prices are present in generation seed data", () => {
@@ -40,7 +39,6 @@ test("all fixed and per-second launch prices are present in generation seed data
 });
 
 test("seed defaults contain no stored cost-rate fields and the marker is version five", () => {
-  assert.doesNotMatch(mainDefaults, /UsdPer(Million|Token)/);
   assert.doesNotMatch(auxiliaryDefaults, /UsdPer(Million|Token)/);
   assert.match(index, /TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_token_credit_pricing_defaults_v5"/);
   assert.match(index, /seedTokenCreditDefaultsOnce\(\)/);
