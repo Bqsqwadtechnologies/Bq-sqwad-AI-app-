@@ -709,6 +709,13 @@ class LiveMediaForegroundService : Service() {
         runBlocking {
             realtimeBillingJob?.cancelAndJoin()
             realtimeBillingJob = null
+            // Settle the remaining server-measured seconds when a connected live session stops.
+            // This closes the unpaid tail shorter than the periodic 30-second heartbeat.
+            if (!organizationMode && startedAt > 0L) {
+                runCatching {
+                    WorkspaceApiClient().realtimeHeartbeat(liveSessionMode, modelRegistryId, smartMode)
+                }
+            }
             organizationBillingJob?.cancelAndJoin()
             organizationBillingJob = null
             runCatching {
