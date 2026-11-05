@@ -58,7 +58,7 @@ test("token and generation seed objects contain no legacy USD-per-token fields",
 test("generation and token defaults are guarded by version-five markers", () => {
   assert.match(index, /bq_live_credit_pricing_defaults_v5/);
   assert.match(index, /bq_token_credit_pricing_defaults_v5/);
-  assert.match(index, /shouldSeedPricingDefaults\(marker, 5\)/);
-  assert.match(seedGuard, /Number\(marker\?\.version\) >= requiredVersion/);
+  assert.match(index, /shouldSeedPricingDefaults\(marker\)/);
+  assert.match(seedGuard, /Number\(marker\.version\) >= requiredVersion/);
   assert.match(index, /version: 5,[\s\S]*?source: "BQ credit pricing defaults"/);
 });
