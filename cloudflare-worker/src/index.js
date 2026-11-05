@@ -5689,6 +5689,9 @@ export default {
       if (url.pathname === "/admin/pricing/audit" && request.method === "GET") {
         const admin = await verifyFirebaseUser(request);
         if (!isSuperAdmin(admin, env)) throw Object.assign(new Error("Admin access required"), { httpStatus: 403 });
+        // The authenticated audit request is the safe, explicit one-time seed trigger.
+        // It never charges a user and the version-five markers preserve later dashboard edits.
+        await seedAdminPricingDefaults();
         const requiredGeneration = [
           ["image_generation", "image.generate", 0, 0, "none"],
           ["image_edit", "image.edit", 0, 0, "none"],
