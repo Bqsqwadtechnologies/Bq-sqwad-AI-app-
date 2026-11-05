@@ -92,6 +92,7 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
     testImplementation("junit:junit:4.13.2")
     // Provide a real JSON implementation to local JVM tests instead of Android's unmocked stub.
     testImplementation("org.json:json:20240303")
