@@ -44,8 +44,8 @@ test("seed defaults contain no stored cost-rate fields and the marker is version
   assert.match(index, /seedTokenCreditDefaultsOnce\(\)/);
   assert.match(index, /PRICING_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_live_credit_pricing_defaults_v5"/);
   const seedGuard = await readFile(new URL("../src/pricing-seed-native.js", import.meta.url), "utf8");
-  assert.match(seedGuard, /Number\(marker\?\.version\) >= requiredVersion/);
-  assert.match(index, /shouldSeedPricingDefaults\(marker, 5\)/);
+  assert.match(seedGuard, /Number\(marker\.version\) >= requiredVersion/);
+  assert.match(index, /shouldSeedPricingDefaults\(marker\)/);
   assert.match(index, /seededDefaultVersion: 5/);
   assert.match(index, /version: 5,[\s\S]*?source: "BQ credit pricing defaults"/);
 });
