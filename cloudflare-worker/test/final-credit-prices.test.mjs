@@ -62,3 +62,13 @@ test("generation and token defaults are guarded by version-five markers", () => 
   assert.match(seedGuard, /Number\(marker\.version\) >= requiredVersion/);
   assert.match(index, /version: 5,[\s\S]*?source: "BQ credit pricing defaults"/);
 });
+
+
+test("model cleanup preserves billing mode while removing obsolete currency price fields", () => {
+  const fieldStart = index.indexOf("const LEGACY_MODEL_PRICE_FIELDS = new Set([");
+  const fieldEnd = index.indexOf("\n]);", fieldStart);
+  assert.ok(fieldStart >= 0 && fieldEnd > fieldStart);
+  const fields = index.slice(fieldStart, fieldEnd);
+  assert.doesNotMatch(fields, /billingMode/);
+  assert.match(index, /billingMode: isTokenMeteredFeature && hasCustomerCreditRule \? "token"/);
+});
