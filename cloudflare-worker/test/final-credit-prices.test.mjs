@@ -72,3 +72,13 @@ test("model cleanup preserves billing mode while removing obsolete currency pric
   assert.doesNotMatch(fields, /billingMode/);
   assert.match(tokenBilling, /billingMode: isTokenMeteredFeature && hasCustomerCreditRule \? "token"/);
 });
+
+test("token reservation estimate has no artificial minimum charge", () => {
+  const start = tokenBilling.indexOf("export function estimateTokenReservation");
+  const end = tokenBilling.indexOf("\nexport async function recordTokenUsage", start);
+  assert.ok(start >= 0 && end > start);
+  const estimate = tokenBilling.slice(start, end);
+  assert.match(estimate, /inputTokens = Math\.max\(0,/);
+  assert.match(estimate, /return Math\.max\(0, estimated\.customerCredits \* 1\.35\)/);
+  assert.doesNotMatch(estimate, /Math\.max\(1,|Math\.max\(0\.000001/);
+});
