@@ -1,5 +1,6 @@
-function sseFrame(event, data) {
 import { shouldSeedPricingDefaults } from "./pricing-seed-native.js";
+
+function sseFrame(event, data) {
   return "event: " + event + "\\ndata: " + JSON.stringify(data) + "\\n\\n";
 }
 
