@@ -39,6 +39,7 @@ test("all fixed and per-second launch prices are present in generation seed data
 
 test("seed defaults contain no stored cost-rate fields and the marker is version five", () => {
   assert.doesNotMatch(auxiliaryDefaults, /UsdPer(Million|Token)/);
+  assert.doesNotMatch(generationDefaults, /UsdPer(Million|Token)/);
   assert.match(index, /TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_token_credit_pricing_defaults_v5"/);
   assert.match(index, /seedTokenCreditDefaultsOnce\(\)/);
   assert.match(index, /PRICING_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_live_credit_pricing_defaults_v5"/);
