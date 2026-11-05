@@ -1213,20 +1213,19 @@ async function stripProviderUsdFieldsOnce() {
 }
 
 
-const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_cleanup_v1";
+const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_cleanup_v2";
 async function stripLegacyAiModelCostFieldsOnce() {
   const marker = await firestoreGet(AI_MODEL_COST_CLEANUP_MARKER).catch(() => null);
   if (marker?.applied === true) return;
   const current = await firestoreGet("config/aiModels").catch(() => null);
   if (current && typeof current === "object") {
     const clean = { ...current };
-    delete clean.usdPerMillionInputTokens;
-    delete clean.usdPerMillionOutputTokens;
+    for (const key of ["usdPerMillionInputTokens", "usdPerMillionOutputTokens", "creditsPerInputToken", "creditsPerOutputToken", "creditsPerCachedInputToken", "minimumCredits", "fallbackCredits", "precision", "conversionRate", "modelMultipliers"]) delete clean[key];
     if (clean.metering && typeof clean.metering === "object") {
-      const metering = { ...clean.metering };
-      delete metering.usdPerMillionInputTokens;
-      delete metering.usdPerMillionOutputTokens;
-      clean.metering = metering;
+      clean.metering = {
+        maxRequestTokens: Number(clean.metering.maxRequestTokens || 8000),
+        maxOutputTokens: Number(clean.metering.maxOutputTokens || 512)
+      };
     }
     await firestoreSet("config/aiModels", clean, false);
   }
