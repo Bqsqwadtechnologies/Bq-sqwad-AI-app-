@@ -7,7 +7,7 @@ package com.bqsqwad.ai.ui.chat
  */
 object MainChatHelpers {
     /** Removes only a stray leading comma/semicolon, never meaningful punctuation. */
-    fun cleanAssistantReply(text: String): String = text.replace(Regex("^\\s*[,;，]+\\s*"), "")
+    fun cleanAssistantReply(text: String): String = text.trimStart().replace(Regex("^[,;，]+\\s*"), "")
 
     fun needsCurrentWebSearch(text: String): Boolean {
         val query = text.trim().lowercase(java.util.Locale.ROOT)
