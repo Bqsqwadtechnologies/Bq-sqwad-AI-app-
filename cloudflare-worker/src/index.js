@@ -3606,7 +3606,7 @@ export default {
           }),
           // Website Paystack/admin and verified Play purchases share this
           // canonical multi-plan subcollection.
-          firestoreQuery("entitlements/" + user.uid + "/plans", { limit: 100 })
+          firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 })
         ]);
         const rows = new Map();
         if (primary) {
