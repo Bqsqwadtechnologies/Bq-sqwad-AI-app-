@@ -105,7 +105,7 @@ jobs:
         with:
           gradle-version: "9.5.0"
 
-      - name: Run Android release unit tests and Kotlin compilation (no APK)
+      - name: Compile Android Release Kotlin (no APK)
         working-directory: android-app
         run: gradle :app:compileReleaseKotlin
 
