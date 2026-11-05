@@ -269,3 +269,13 @@ test("free live sessions create without commit or reverse calls", async () => {
   assert.equal(result, "free-session");
   assert.deepEqual(events, ["create"]);
 });
+
+
+test("live session starts require one minute at the configured per-second rate", () => {
+  assert.deepEqual(liveStartChargePolicy({ creditsPerMinute: 2.7, minimumBalanceToStart: 2.7 }, 2.69, false), {
+    allowed: false, free: false, requiredBalance: 2.7, startFeeCredits: 0
+  });
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 2.7, minimumBalanceToStart: 2.7 }, 2.7, false).allowed, true);
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 5.4, minimumBalanceToStart: 5.4 }, 5.39, false).allowed, false);
+  assert.equal(liveStartChargePolicy({ creditsPerMinute: 5.4, minimumBalanceToStart: 5.4 }, 5.4, false).allowed, true);
+});
