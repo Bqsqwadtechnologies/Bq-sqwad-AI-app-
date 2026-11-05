@@ -1,6 +1,5 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const DIRECT_CREDIT_REFERENCE_USD = 0.07999;
 
 function finite(value, fallback) {
   const number = Number(value);
@@ -17,21 +16,48 @@ export function calculateDirectCreditCharge({ credits }) {
     sellingPriceUsd: 0,
     profitMarkup: 0,
     feeRateApplied: 0,
-    creditValueUsd: DIRECT_CREDIT_REFERENCE_USD,
+    creditValueUsd: 0,
     estimated: true,
     pricingVersion: 1,
     estimateSource: "direct_credit_price"
   };
 }
 
-export async function priceOperation(capability, finalCreditPrice = 0) {
+const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
+  video_generation: "video.generate",
+  video: "video.generate"
+});
+
+export async function priceOperation(capability, units = 0) {
+  const key = String(capability || "").trim().toLowerCase();
+  if (key === "image_generation" || key === "image_edit") {
+    throw new Error("token_metering_required");
+  }
+  const operation = CAPABILITY_TO_GENERATION_OPERATION[key] || (key.includes(".") ? key : "");
+  if (!operation) throw new Error("generation_credit_rule_missing");
+  const requestedUnits = Number(units);
+  if (!Number.isFinite(requestedUnits) || requestedUnits < 0) throw new Error("generation_usage_units_invalid");
+  const snapshot = await getFirestore().collection("generationCostRules")
+    .where("operation", "==", operation).where("status", "==", "active").limit(100).get();
+  const rows = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const rule = rows.filter(row => !row.model || row.model === "*")
+    .sort((a, b) => Number(b.version || 0) - Number(a.version || 0))[0];
+  if (!rule) throw new Error("generation_credit_rule_missing");
+  const unit = String(rule.unit || "none");
+  let variableUnits = requestedUnits;
+  if (unit === "none") variableUnits = 0;
+  else if (unit === "minute") variableUnits = requestedUnits / 60;
+  else if (unit !== "second" && unit !== "page" && unit !== "file" && unit !== "resume") {
+    throw new Error("generation_credit_rule_unit_invalid");
+  }
+  const credits = Math.max(0, Number(rule.credits || 0) + Math.max(0, Number(rule.creditsPerUnit || 0)) * variableUnits);
   return {
-    ...calculateDirectCreditCharge({ credits: finalCreditPrice }),
-    capability: String(capability || "unknown").trim().toLowerCase().slice(0, 80),
+    ...calculateDirectCreditCharge({ credits }),
+    capability: key,
     providerId: null,
     modelId: null,
     rateSnapshot: null,
-    pricingSnapshot: { mode: "direct_credit_price" }
+    pricingSnapshot: { mode: "generationCostRules", operation, ruleId: rule.id, version: Number(rule.version || 1), unit }
   };
 }
 
@@ -105,11 +131,11 @@ export async function getBillingAnalytics(limit = 500) {
     const cost = Math.max(0, finite(x.providerCostUsd, 0));
     const charged = Math.max(0, finite(x.creditsCharged, 0));
     const refunded = Math.max(0, finite(x.creditsRefunded, 0));
-    const creditValue = Math.max(0, finite(x.creditValueUsd, DIRECT_CREDIT_REFERENCE_USD));
+    const creditValue = Math.max(0, finite(x.creditValueUsd, 0));
     const exempt = x.exemptType === "admin_exempt";
     const subscription = x.exemptType === "subscription_included" || x.exemptType === "subscription_or_free";
-    const revenue = exempt || subscription ? 0 : Math.max(0, finite(x.sellingPriceUsd, charged * creditValue));
-    const fee = Math.max(0, finite(x.feeRateApplied, 0)) * revenue;
+    const revenue = exempt || subscription ? 0 : Math.max(0, finite(x.sellingPriceUsd, 0));
+    const fee = 0;
     const customerCost = exempt || subscription ? 0 : cost;
     const profit = revenue - customerCost - fee;
     const created = asDate(x.createdAt);
