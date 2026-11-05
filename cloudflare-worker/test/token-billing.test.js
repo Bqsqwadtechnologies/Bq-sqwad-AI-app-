@@ -206,8 +206,11 @@ test("Main Chat and GPT Image defaults contain precomputed per-token credit rate
   const source = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
   assert.match(source, /"gpt-6-luna": \{[^}]*inputCredits: 0\.000005833333333333333/s);
   assert.match(source, /"gpt-5\.6-luna": \{[^}]*outputCredits: 0\.00007/s);
-  assert.match(source, /"gpt-image-2\.5-sunburst": \{[^}]*inputImageCredits: 0\.0004666666666666667/s);
-  assert.match(source, /"gpt-image-2\.5-sunburst": \{[^}]*input: 5, cached: 1\.25, output: 0, inputCredits: 0\.0002916666666666667, cachedCredits: 0\.00007291666666666667, outputCredits: 0, inputImage: 8, outputImage: 30, inputImageCredits: 0\.0004666666666666667, outputImageCredits: 0\.00175/s);
+  assert.match(source, /"gpt-image-2\.5-sunburst": \{[^}]*inputImageCredits: 0\.00046666666666666666, cachedImageCredits: 0\.00011666666666666667/s);
+  assert.doesNotMatch(source, /"gpt-image-2\.5-sunburst": \{[^}]*input: 5, cached: 1\.25, output: 0/s);
+  assert.match(source, /cachedInputImageCreditsPerToken: mainDefaults\.cachedImageCredits/);
+  assert.doesNotMatch(source, /UsdPer(Million|Token)/);
+  assert.match(source, /source: "BQ customer credit defaults"/);
   assert.match(source, /bq_gpt_image_2_5_token_pricing_v2/);
   assert.doesNotMatch(source, /CUSTOMER_COST_MULTIPLIER/);
 });
