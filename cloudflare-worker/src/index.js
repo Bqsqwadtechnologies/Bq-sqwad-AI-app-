@@ -1233,12 +1233,31 @@ async function ensureLivePricingLegacyValuesOnce() {
   await firestoreSet(markerPath, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
 }
 
+const LIVE_DEDUPE_MARKER = "adminAdvancedOptions/bq_live_rule_dedupe_v1";
+async function dedupeLivePricingRulesOnce() {
+  const marker = await firestoreGet(LIVE_DEDUPE_MARKER).catch(() => null);
+  if (marker?.applied === true) return;
+  const rows = await firestoreQuery("generationCostRules", { limit: 500 }).catch(() => []);
+  for (const operation of ["live.voice", "live.camera", "speech.transcribe", "speech.synthesize"]) {
+    const group = (rows || []).filter(r => String(r.operation || "").toLowerCase() === operation && String(r.status || "") === "active");
+    if (group.length < 2) continue;
+    const keep = group.find(r => String(r.id || "").startsWith("default-")) || group[0];
+    for (const r of group) {
+      if (r === keep) continue;
+      const id = String(r.id || String(r.__name || "").split("/").pop() || "");
+      if (id) await firestoreSet("generationCostRules/" + id, { status: "inactive", updatedAt: new Date().toISOString() }, true);
+    }
+  }
+  await firestoreSet(LIVE_DEDUPE_MARKER, { applied: true, version: 1, updatedAt: new Date().toISOString() }, true);
+}
+
 async function seedAdminPricingDefaults() {
   if (adminPricingSeeded && Date.now() - adminPricingSeedAttemptedAt < 60_000) return;
   adminPricingSeedAttemptedAt = Date.now();
   await seedAuxCreditPricingOnce().catch(() => {});
   await ensureLivePricingLegacyValuesOnce().catch(() => {});
   await stripProviderUsdFieldsOnce().catch(() => {});
+  await dedupeLivePricingRulesOnce().catch(() => {});
   const marker = await firestoreGet(PRICING_DEFAULTS_MARKER).catch(() => null);
   if (marker?.applied === true && Number(marker.version) >= 5) {
     adminPricingSeeded = true;
@@ -5657,7 +5676,7 @@ export default {
           ["file_json", "file.json"], ["file_code", "file.code"],
           ["video_generation", "video.generate"], ["music", "music.generate"], ["music_render", "music.render"],
           ["resume", "resume.generate"], ["web_search", "web.search"], ["deep_research", "web.research"],
-          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"], ["text_to_speech", "speech.synthesize"]
+          ["live_voice", "live.voice"], ["live_camera", "live.camera"], ["dictation", "speech.transcribe"], ["text_to_speech", "speech.synthesize"], ["connector_action", "feature.connector_action"], ["text_to_speech", "speech.synthesize"]
         ];
         const rows = await firestoreQuery("generationCostRules", { limit: 500 });
         const active = new Map((Array.isArray(rows) ? rows : [])
