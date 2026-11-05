@@ -30,7 +30,7 @@ test("realtime public errors use safe codes rather than provider diagnostics", a
   assert.doesNotMatch(source, /const body = \{[^}]*providerStatus/);
 });
 
-test("live voice and camera defaults are free unless admin explicitly configures a positive price", async () => {
+test("live voice and camera prices are returned from the shared per-second credit rules", async () => {
   const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
   assert.match(source, /TOKEN_METERED\.has\(name\)/);
   assert.match(source, /creditCost: TOKEN_METERED\.has\(name\)\s*\? 0/);
