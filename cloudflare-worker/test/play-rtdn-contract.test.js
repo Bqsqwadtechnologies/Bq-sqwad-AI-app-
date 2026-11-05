@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { canonicalPlayEntitlementWrite } from "../src/google-play.js";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -14,6 +15,25 @@ test("play-rtdn module exports handlers", () => {
   assert.match(playRtdn, /export async function reaggregateRootEntitlement/);
   assert.match(playRtdn, /source: "google_play"/);
   assert.match(playRtdn, /state: notificationType === 5 \? "grace" : notificationType === 3 \? "cancelled" : "expired"/);
+});
+
+test("verified Play plan writes retain the canonical product module", () => {
+  const write = canonicalPlayEntitlementWrite(
+    "test-user",
+    { planId: "bizstarter", productType: "subs" },
+    { startTime: "2026-11-01T00:00:00.000Z" },
+    { expiryTime: "2026-12-01T00:00:00.000Z" },
+    "ACTIVE"
+  );
+  assert.equal(write.data.module, "business");
+  assert.equal(write.data.source, "google_play");
+  assert.equal(write.data.expiresAt, "2026-12-01T00:00:00.000Z");
+});
+
+test("Worker entitlements response includes website canonical plan rows", () => {
+  assert.match(indexJs, /firestoreQuery\("plans", \{ parent: "entitlements\/" \+ user\.uid, limit: 100 \}\)/);
+  assert.match(indexJs, /row\.expiresAt \|\| row\.endDate/);
+  assert.match(indexJs, /module: String\(row\.module \|\| ""\)/);
 });
 
 test("vault append is server-only and redacts secrets", () => {
