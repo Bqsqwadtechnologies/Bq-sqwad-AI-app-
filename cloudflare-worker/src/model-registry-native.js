@@ -6,18 +6,22 @@ const FEATURE_CAPABILITIES = {
   "image-generation": "image_generation",
   "device-commands": "device_commands",
   "video-generation": "video_generation",
-  "live-voice": "live_voice"
+  "live-voice": "live_voice", "transcription": "dictation", "text-to-speech": "text_to_speech", "embeddings": "embeddings", "moderation": "moderation"
 };
 
 const PROVIDERS = new Set(["openai", "gemini"]);
 
-const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-2.5-sunburst","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini"};
+const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands":"gpt-6-luna","image-generation":"gpt-image-2.5-sunburst","live-camera":"gpt-realtime-2.1-mini","live-voice":"gpt-realtime-2.1-mini","transcription":"whisper-1","text-to-speech":"gpt-4o-mini-tts","embeddings":"text-embedding-3-small","moderation":"omni-moderation-latest"};
 const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
   "text-chat": new Set(["gpt-6-luna", "gpt-5.6-luna"]),
   "device-commands": new Set(["gpt-6-luna"]),
-  "image-generation": new Set(["gpt-image-2.5-sunburst"]),
+  "image-generation": new Set(["gpt-image-2.5-sunburst", "gpt-image-1-mini"]),
   "live-camera": new Set(["gpt-realtime-2.1-mini"]),
   "live-voice": new Set(["gpt-realtime-2.1-mini"]),
+  "transcription": new Set(["whisper-1", "gpt-4o-mini-transcribe"]),
+  "text-to-speech": new Set(["gpt-4o-mini-tts"]),
+  "embeddings": new Set(["text-embedding-3-small"]),
+  "moderation": new Set(["omni-moderation-latest"]),
   "video-generation": new Set()
 };
 function isAllowedOpenAiModel(modelId, feature) {
@@ -101,6 +105,10 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     { feature: "image-generation", capability: "image_generation", providerId: "openai", modelId: "gpt-image-2.5-sunburst", id: "current-image-generation", name: "GPT Image 2.5 Sunburst" },
     { feature: "live-camera", capability: "live_camera", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-camera", name: "GPT Realtime 2.1 Mini — Live Camera" },
     { feature: "live-voice", capability: "live_voice", providerId: "openai", modelId: "gpt-realtime-2.1-mini", id: "current-live-voice", name: "GPT Realtime 2.1 Mini — Live Voice" },
+    { feature: "transcription", capability: "dictation", providerId: "openai", modelId: "whisper-1", id: "current-transcription", name: "Whisper — Dictation" },
+    { feature: "text-to-speech", capability: "text_to_speech", providerId: "openai", modelId: "gpt-4o-mini-tts", id: "current-tts", name: "GPT-4o Mini TTS" },
+    { feature: "embeddings", capability: "embeddings", providerId: "openai", modelId: "text-embedding-3-small", id: "current-embeddings", name: "Text Embedding 3 Small" },
+    { feature: "moderation", capability: "moderation", providerId: "openai", modelId: "omni-moderation-latest", id: "current-moderation", name: "Omni Moderation" },
     { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
   ];
   const existingRows = await firestoreQuery("aiModelRegistry", { limit: 200 });
@@ -127,7 +135,7 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       modelId = "gpt-6-luna";
     }
     if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
-    if (["live-camera", "live-voice"].includes(definition.feature) && !/^(?:gpt-realtime|gpt-4o-realtime)/i.test(modelId)) modelId = definition.modelId;
+    if (["live-camera", "live-voice"].includes(definition.feature) && !/^gpt-realtime-2\.1-mini$/i.test(modelId)) modelId = definition.modelId;
     if (definition.feature === "image-generation" && !modelId.startsWith("gpt-image")) modelId = definition.modelId;
     if (definition.feature === "video-generation" && !modelId.startsWith("sora")) modelId = definition.modelId;
     if (definition.feature === "device-commands") {
@@ -282,8 +290,12 @@ export async function validateAiModel(env, raw) {
     throw Object.assign(new Error("openai_model_not_allowed_by_project_policy"), { httpStatus: 403, safeError: "model_blocked_by_project_policy" });
   }
   const prefixRules = {
-    "live-camera": /^(?:gpt-realtime|gpt-4o-realtime)/i,
-    "live-voice": /^(?:gpt-realtime|gpt-4o-realtime)/i,
+    "live-camera": /^gpt-realtime-2\.1-mini$/i,
+    "live-voice": /^gpt-realtime-2\.1-mini$/i,
+    "transcription": /^(?:whisper|gpt-4o(?:-mini)?-transcribe)/i,
+    "text-to-speech": /^gpt-4o-mini-tts/i,
+    "embeddings": /^text-embedding/i,
+    "moderation": /^omni-moderation/i,
     "image-generation": /^gpt-image/i,
     "video-generation": /^sora/i,
   };
