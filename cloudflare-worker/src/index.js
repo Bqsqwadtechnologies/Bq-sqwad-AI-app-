@@ -1193,8 +1193,8 @@ async function seedTokenCreditDefaultsOnce() {
   }
   await firestoreSet(TOKEN_CREDIT_DEFAULTS_MARKER, { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
 }
-const STRIP_USD_MARKER = "adminAdvancedOptions/bq_strip_provider_usd_v1";
-const PROVIDER_USD_FIELD = /UsdPer(Million|Token)$/;
+const STRIP_USD_MARKER = "adminAdvancedOptions/bq_strip_provider_usd_v2";
+const PROVIDER_USD_FIELD = /UsdPer(Million|Token)/i;
 async function stripProviderUsdFieldsOnce() {
   const marker = await firestoreGet(STRIP_USD_MARKER).catch(() => null);
   if (marker?.applied === true) return;
