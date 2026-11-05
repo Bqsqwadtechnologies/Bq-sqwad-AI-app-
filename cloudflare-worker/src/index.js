@@ -360,8 +360,7 @@ async function adminReadinessSelfTest(env, adminUser) {
           status: response.status === 401 ? "provider_key_missing"
             : response.status === 429 ? "provider_billing"
             : response.status === 400 || response.status === 422 ? "realtime_request_rejected"
-            : response.status === 403 ? "realtime_model_rejected"
-            : response.status === 404 ? "model_or_endpoint_unavailable" : "session_creation_failed",
+: response.status === 403 || response.status === 404 ? "realtime_model_rejected" : "session_creation_failed",
           model
         };
       }
