@@ -285,7 +285,11 @@ export async function validateAiModel(env, raw) {
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
     "device-commands": new Set(["openai", "gemini"]),
-    "video-generation": new Set(["openai"])
+    "video-generation": new Set(["openai"]),
+    "transcription": new Set(["openai"]),
+    "text-to-speech": new Set(["openai"]),
+    "embeddings": new Set(["openai"]),
+    "moderation": new Set(["openai"])
   };
   if (!FEATURE_CAPABILITIES[feature] || !allowedProviders[feature]?.has(providerId)) {
     throw Object.assign(new Error("provider_not_supported_for_feature"), { httpStatus: 400 });
