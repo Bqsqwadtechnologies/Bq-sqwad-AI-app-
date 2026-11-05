@@ -24,14 +24,23 @@ export function calculateDirectCreditCharge({ credits }) {
 }
 
 const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
-  video_generation: "video.generate",
-  video: "video.generate"
+  video_generation: "video.generate", video: "video.generate",
+  chat_background_upload: "chat.background_upload", team_member_message: "team.member_message",
+  connector_action: "feature.connector_action", resume: "resume.generate",
+  web_search: "web.search", deep_research: "web.research",
+  music: "music.generate", music_render: "music.render",
+  pdf: "file.pdf", file_pdf: "file.pdf", file_docx: "file.docx", file_xlsx: "file.xlsx",
+  file_csv: "file.csv", file_txt: "file.txt", file_md: "file.md", file_html: "file.html",
+  file_json: "file.json", file_code: "file.code", file_xml: "file.xml", file_yaml: "file.yaml"
 });
 
 export async function priceOperation(capability, units = 0) {
   const key = String(capability || "").trim().toLowerCase();
-  if (key === "image_generation" || key === "image_edit") {
+  if (["image_generation", "image_edit", "chat", "vision", "chat_attachment", "personal_intelligence", "team_chat"].includes(key)) {
     throw new Error("token_metering_required");
+  }
+  if (["live_voice", "live_camera", "dictation", "text_to_speech"].includes(key)) {
+    throw new Error("duration_metering_required");
   }
   const operation = CAPABILITY_TO_GENERATION_OPERATION[key] || (key.includes(".") ? key : "");
   if (!operation) throw new Error("generation_credit_rule_missing");
