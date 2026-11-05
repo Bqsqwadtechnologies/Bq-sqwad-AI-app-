@@ -1188,8 +1188,7 @@ const AI_MODEL_COST_CLEANUP_MARKER = "adminAdvancedOptions/bq_ai_model_cost_clea
 const LEGACY_MODEL_PRICE_FIELDS = new Set([
   "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
   "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
-  "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
-
+  "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion"
 ]);
 function stripLegacyModelPriceFields(row) {
   const clean = {};
