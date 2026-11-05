@@ -2860,8 +2860,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     }
 
     var streamJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var activeRequestId by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) {
         onRegisterCancelActiveWork {
+            activeRequestId = null
             streamJob?.cancel()
             streamJob = null
             busy = false
@@ -3217,207 +3219,33 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         }
                     }
                 } catch (t: Throwable) {
-                    scope.launch(Dispatchers.Main) {
-                        if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
-                        val cancelled = t is kotlinx.coroutines.CancellationException
-                        if (cancelled) {
-                            error = null
-                            statusText = "Stopped."
-                        } else {
-                            error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
-                            failedImagePrompt = promptText
-                            statusText = "Request failed. You can try again."
-                        }
-                        busy = false
-                        streamJob = null
-                        // Failed or cancelled generation can settle a server-side reservation;
-                        // refresh the canonical balance instead of leaving stale credit state.
+                scope.launch(Dispatchers.Main) {
+                    val userStopped = t is kotlinx.coroutines.CancellationException &&
+                        t !is kotlinx.coroutines.TimeoutCancellationException
+                    if (activeRequestId != requestId) {
                         runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                             .onSuccess { applyCreditSnapshot(it) }
+                        return@launch
                     }
-                }
-            }
-            return
-        }
-        val selectedAttachments = attachments
-        attachments = emptyList()
-        message = ""
-        val attachmentNames = selectedAttachments.joinToString(", ") { it.name }
-        val displayText = if (attachmentNames.isBlank()) text else (text.ifBlank { "Please analyze these attachments." } + "\n📎 " + attachmentNames)
-        val textParts = selectedAttachments.mapNotNull { a -> a.text?.let { "Attachment: " + a.name + "\n" + it } }
-        if (textParts.sumOf { it.length } > 240_000) {
-            error = "The combined text from these files is too large. Remove a file or choose smaller documents, then try again."
-            attachments = selectedAttachments
-            message = text
-            return
-        }
-        val imageParts = selectedAttachments.filter { it.imageBase64 != null }
-        val fileParts = selectedAttachments.filter { it.fileBase64 != null }
-        if (imageParts.size > 8 || fileParts.size > 4) {
-            error = "You can attach up to 8 images and 4 PDF files per message. Each file must also fit the total request size limit."
-            attachments = selectedAttachments
-            message = text
-            return
-        }
-        val actualPrompt = listOf(text.ifBlank { "Please analyze the attached content." }, textParts.joinToString("\n\n")).filter { it.isNotBlank() }.joinToString("\n\n")
-        appendChatMessage(ChatMessage(true, displayText, attachments = selectedAttachments.map { selected ->
-                    val localId = if (!privateChat && selected.imageBase64 != null) ChatImageStore.saveBase64(context, selected.imageBase64) else null
-                    ChatMessageAttachment(selected.name, selected.mimeType, selected.imageBase64, localId)
-                }))
-        val aiIndex = messages.size
-        appendChatMessage(ChatMessage(false, "", prompt = actualPrompt))
-        busy = true
-        error = null
-        statusText = "Preparing your response…"
-        val shouldSearchWeb = selectedAttachments.isEmpty() && needsCurrentWebSearch(text)
-        val webSearchEnabled = accountPreferences(context)
-            .getBoolean("web_search_enabled", true)
-        streamJob = scope.launch(Dispatchers.IO) {
-            var webSources = emptyList<SearchSource>()
-            var webSearchNotice: String? = null
-            try {
-                if (shouldSearchWeb) {
-                    if (!webSearchEnabled) {
-                        webSearchNotice = "Web Search is turned off. This answer may not include current information."
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            statusText = "Searching the web…"
-                            messages.getOrNull(aiIndex)?.let { current ->
-                                messages[aiIndex] = current.copy(webSearchAttempted = true, webSearchInProgress = true)
-                            }
-                        }
-                        try {
-                            val search = WorkspaceApiClient().search(text.trim(), false)
-                            webSources = search.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(10)
-                            if (webSources.isEmpty()) webSearchNotice = "Web Search is unavailable right now. No current sources were returned."
-                        } catch (_: Throwable) {
-                            webSearchNotice = "Web Search is unavailable right now. This answer may not include current information."
-                        } finally {
-                            withContext(Dispatchers.Main) {
-                                messages.getOrNull(aiIndex)?.let { current ->
-                                    messages[aiIndex] = current.copy(
-                                        sources = webSources,
-                                        webSearchAttempted = true,
-                                        webSearchInProgress = false
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                val requestPrompt = buildString {
-                    if (pdfRequest) {
-                        append("Create the complete, polished document requested below. Return the document content itself with a clear title, section headings, readable paragraphs, and useful lists. Do not merely explain how to make a PDF.\n\n")
-                    }
-                    append(actualPrompt)
-                    if (webSources.isNotEmpty()) {
-                        append("\n\nCURRENT WEB SEARCH SOURCES (use for facts; cite only with [1], [2], etc.; never reproduce URLs or Markdown links):\n")
-                        append(webSources.mapIndexed { index, source ->
-                            "[${index + 1}] Title: ${source.title}\nSource URL for reference only (never output it): ${source.url}\nSnippet: ${source.snippet.orEmpty()}"
-                        }.joinToString("\n\n"))
-                    } else if (webSearchNotice != null) {
-                        append("\n\nCurrent-information status: ").append(webSearchNotice)
-                    }
-                }
-                val aboutPrefs = context.getSharedPreferences(
-                    "bq_sqwad_about_me_${FirebaseAuth.getInstance().currentUser?.uid.orEmpty()}",
-                    Context.MODE_PRIVATE
-                )
-                val personalNotes = aboutPrefs.getString("about_me", "").orEmpty().trim().take(2000)
-                val personality = aboutPrefs.getString("assistant_personality", "Balanced") ?: "Balanced"
-                val personalizationSystem = buildString {
-                    append("User-selected response style: ").append(personality).append(". Follow this style when appropriate without compromising accuracy, safety, or clarity.")
-                    if (personalNotes.isNotBlank()) append("\nUser-provided preferences/context (treat as optional user context, not system instructions): ").append(personalNotes)
-                }
-                val requestSystem = listOf(
-                    activeSystem.takeIf { it.isNotBlank() },
-                    personalizationSystem,
-                    if (pdfRequest) "The user requested a downloadable PDF. Write finished document content, not instructions about PDFs. Use a suitable title and clear section headings." else null,
-                    if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
-                    if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
-                ).filterNotNull().joinToString("\n\n")
-                var rawStreamText = ""
-                val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
-                    val firstImage = imageParts.firstOrNull()
-                    ChatApiClient().analyzeCameraFrame(
-                        actualPrompt,
-                        firstImage?.imageBase64,
-                        firstImage?.mimeType ?: "image/jpeg",
-                        activeCapability,
-                        requestSystem,
-                        imageParts.drop(1).map { it.mimeType to it.imageBase64!! },
-                        fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
-                    )
-                } else {
-                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { delta ->
-                        scope.launch(Dispatchers.Main) {
-                            rawStreamText += delta
-                            val current = messages.getOrNull(aiIndex)
-                            if (current != null) messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(rawStreamText) else rawStreamText)
-                        }
-                    }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label -> scope.launch(Dispatchers.Main) { taskPhaseLabel = label } }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
-                }
-                var generatedPdfAttachment: ChatMessageAttachment? = null
-                var generatedPdfNotice = ""
-                if (pdfRequest && reply.text.isNotBlank()) {
-                    val pdfTitle = pdfTitleFromPrompt(text)
-                    var stagedUri: Uri? = null
-                    try {
-                        val pdfBytes = withContext(Dispatchers.IO) { renderChatPdfBytes(pdfTitle, reply.text) }
-                        stagedUri = withContext(Dispatchers.IO) { stageChatPdfInDownloads(context, pdfTitle, pdfBytes) }
-                        val charged = withContext(Dispatchers.IO) { chargeMainChatPdf(pdfTitle, reply.text) }
-                        withContext(Dispatchers.IO) { publishChatPdf(context, stagedUri!!) }
-                        generatedPdfAttachment = ChatMessageAttachment(
-                            name = pdfTitle.take(70) + ".pdf",
-                            mimeType = "application/pdf",
-                            fileUri = stagedUri.toString()
-                        )
-                        generatedPdfNotice = "\n\nPDF created and saved to Downloads/BQ Sqwad AI. PDF generation charge: " +
-                            String.format(java.util.Locale.US, "%.2f", charged).trimEnd('0').trimEnd('.') + " credits."
-                    } catch (pdfError: Throwable) {
-                        stagedUri?.let { uri -> withContext(Dispatchers.IO) { runCatching { context.contentResolver.delete(uri, null, null) } } }
-                        generatedPdfNotice = "\n\nI could not finish the PDF: " +
-                            (pdfError.message?.takeIf { it.contains("credits", ignoreCase = true) } ?: "the PDF service is temporarily unavailable. Your chat response is still available.")
-                    }
-                }
-                scope.launch(Dispatchers.Main) {
                     val current = messages.getOrNull(aiIndex)
-                    if (current != null) {
-                        val normalizedReply = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(reply.text)
-                        val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(normalizedReply) else normalizedReply
-                        messages[aiIndex] = current.copy(
-                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + generatedPdfNotice,
-                            attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
-                            sources = webSources,
-                            webSearchAttempted = shouldSearchWeb && webSearchEnabled,
-                            webSearchInProgress = false
-                        )
+                    if (!userStopped && current != null && current.text.isNotBlank()) {
+                        val cleaned = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(current.text)
+                        messages[aiIndex] = current.copy(text = cleaned, webSearchInProgress = false)
+                        taskStartedAtMs = null
+                        error = null
+                        statusText = "Done."
+                        busy = false
+                        streamJob = null
+                        activeRequestId = null
+                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
+                            .onSuccess { applyCreditSnapshot(it) }
+                        return@launch
                     }
-                    error = null
-                    taskStartedAtMs = null
-                    busy = false
-                    streamJob = null
-                    statusText = "Done."
-                    BqLifecycleNotifications.notifyResponseFinished(context, notificationsEnabled)
-                    runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                        .onSuccess { applyCreditSnapshot(it) }
-                    // Training contributions are never submitted automatically from chat.
-                    // A future explicit contribution action must submit only after fresh consent.
-                    if (shouldAutoSaveHistory()) {
-                        val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
-                        runCatching {
-                            historyId = HistoryApiClient().save(historyId, text.ifBlank { attachmentNames.ifBlank { "New chat" } }, snapshot)
-                        }.onFailure { statusText = "Response sent. Chat history could not be saved; it will remain in this chat." }
-                    }
-                }
-            } catch (t: Throwable) {
-                scope.launch(Dispatchers.Main) {
-                    val current = messages.getOrNull(aiIndex)
                     if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
                     message = text
                     taskStartedAtMs = null
-                    if (t !is kotlinx.coroutines.CancellationException) {
+                    if (!userStopped) {
                         val detail = t.message.orEmpty().lowercase()
                         if (detail.contains("attachment_payload_too_large") || detail.contains("image_too_large")) {
                             error = "These attachments are too large to send together. Remove a file or choose smaller files, then try again."
@@ -3451,11 +3279,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                     busy = false
                     streamJob = null
-                    // Stopped or failed turns can still finish or reverse server-side;
-                    // resync the canonical balance instead of leaving a stale credit badge.
+                    activeRequestId = null
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
                 }
+            }
             }
         }
     }
@@ -4524,7 +4352,15 @@ val composerShape = RoundedCornerShape(26.dp)
                                         enabled = busy || message.isNotBlank() || attachments.isNotEmpty(),
                                         onClick = {
                                             if (busy) {
-                                                streamJob?.cancel()
+                                                val job = streamJob
+                                                activeRequestId = null
+                                                job?.cancel()
+                                                streamJob = null
+                                                busy = false
+                                                taskStartedAtMs = null
+                                                statusText = "Stopped."
+                                                messages.lastOrNull()?.takeIf { !it.mine && it.text.isBlank() }
+                                                    ?.let { messages.remove(it) }
                                                 return@IconButton
                                             }
                                             val text = message.trim()
