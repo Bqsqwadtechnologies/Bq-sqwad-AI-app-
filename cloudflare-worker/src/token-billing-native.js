@@ -273,7 +273,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v5";
         const marker = await firestoreGet(markerPath).catch(() => null);
         if (marker?.applied !== true) {
-          const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 2, version: Math.max(2, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
+          const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 5, version: Math.max(5, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
           await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
           Object.assign(existingRule, migrated);
           await firestoreSet(markerPath, { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
@@ -292,13 +292,13 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         }
       }
     } else {
-      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: normalizedModelId === "gpt-image-2.5-sunburst" ? 5 : 5 }, false);
+      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: 5 }, false);
       tokenRules = [...tokenRules, seeded];
       if (applyMainPricingDefaults) {
-        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
+        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 5, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
       }
       if (normalizedModelId === "gpt-image-2.5-sunburst") {
-        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2", { applied: true, version: 2, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
+        await firestoreSet("adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v5", { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
       }
     }
   }
