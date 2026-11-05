@@ -39,11 +39,14 @@ function normalizeImageUsage(raw) {
   const inputTokens = Number(raw.input_tokens || 0);
   const outputTokens = Number(raw.output_tokens || 0);
   const inputImageTokens = Number(inputDetails.image_tokens || 0);
+  const cachedInputImageTokens = Number(inputDetails.cached_image_tokens || 0);
+  const cachedInputTokens = Number(inputDetails.cached_text_tokens || inputDetails.cached_tokens || 0);
   const outputImageTokens = Number(outputDetails.image_tokens || outputTokens || 0);
   const inputTextTokens = Number(inputDetails.text_tokens || Math.max(0, inputTokens - inputImageTokens));
-  if (![inputTokens, outputTokens, inputImageTokens, outputImageTokens, inputTextTokens].every(Number.isFinite)) return null;
+  if (![inputTokens, outputTokens, inputImageTokens, cachedInputImageTokens, cachedInputTokens, outputImageTokens, inputTextTokens].every(Number.isFinite)) return null;
+  if (cachedInputImageTokens > inputImageTokens || cachedInputTokens > inputTextTokens) return null;
   if (inputTokens + outputTokens <= 0) return null;
-  return { inputTokens, inputImageTokens, inputTextTokens, outputTokens, outputImageTokens };
+  return { inputTokens, inputImageTokens, inputTextTokens, cachedInputImageTokens, cachedInputTokens, outputTokens, outputImageTokens };
 }
 
 export function validateGeneratedImageBase64(encoded) {
@@ -133,7 +136,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       const priced = calculateTokenCost({
         usage: {
           inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
-          inputImageTokens: usage.inputImageTokens, outputImageTokens: usage.outputImageTokens
+          inputImageTokens: usage.inputImageTokens, cachedInputImageTokens: usage.cachedInputImageTokens, cachedInputTokens: usage.cachedInputTokens, outputImageTokens: usage.outputImageTokens
         },
         pricing: tokenPricing
       });
