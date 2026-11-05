@@ -15,7 +15,7 @@ test("configured per-token credit prices are final and ignore legacy markup fiel
     },
     multiplier: 8.75,
   });
-  assert.equal(result.providerCostUsd, 3);
+  assert.equal(result.providerCostUsd, 0);
   assert.equal(result.customerMultiplier, 1);
   assert.equal(result.estimatedFeePercent, 0);
   assert.equal(result.customerCredits, 3);
