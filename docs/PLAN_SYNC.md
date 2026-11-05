@@ -6,7 +6,7 @@ Plans sync through Firebase's canonical `entitlements/{uid}/plans/{planId}` coll
 - Android catalog reads: Worker `GET /entitlements`, including the canonical multi-plan subcollection.
 - Android workspace gate refreshes the website entitlement endpoint before showing a plan-required catalog action.
 - Verified Play writes include the canonical plan module, feature list and expiry; legacy configured Play mappings fall back to the canonical commercial catalog.
-- Website Paystack recurring and legacy premium checkout fulfilment write canonical entitlement rows using native catalog plan IDs.
+- Website Paystack recurring, direct Business checkout, legacy premium fulfilment/renewals and failed-payment revocation write or update canonical entitlement rows using native catalog plan IDs.
 - Website entitlement resolution reads every active Google Play plan, not only the single legacy root plan.
 - Active product entitlement opens its workspace immediately; tier-specific tools and quotas remain server-authoritative.
 - Locked feature actions in the app and website use the label **View catalog** to open the relevant plan catalog.
