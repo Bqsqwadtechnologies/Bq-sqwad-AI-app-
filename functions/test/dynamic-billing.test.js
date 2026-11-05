@@ -62,3 +62,28 @@ test("token usage without a configured modality rate fails closed", () => {
 test("unpriced capabilities do not fall back to caller-supplied guesses", async () => {
   await assert.rejects(priceOperation("business_plan_builder", 4.5), /generation_credit_rule_missing/);
 });
+
+
+test("Functions token settlement uses exact BQ per-token rates including cached modalities", () => {
+  const gpt6 = calculateTokenCreditsFromRule({
+    inputCreditsPerToken: 0.000005833333333333333,
+    cachedInputCreditsPerToken: 0.0000005833333333333333,
+    outputCreditsPerToken: 0.000029166666666666667,
+  }, { inputTokens: 1_000_000, outputTokens: 1_000_000 });
+  assert.equal(gpt6, 35);
+
+  const realtime = calculateTokenCreditsFromRule({
+    inputCreditsPerToken: 0.000035,
+    cachedInputCreditsPerToken: 0.0000035,
+    outputCreditsPerToken: 0.00014,
+    inputAudioCreditsPerToken: 0.0005833333333333334,
+    cachedInputAudioCreditsPerToken: 0.0000175,
+    outputAudioCreditsPerToken: 0.0011666666666666668,
+    inputImageCreditsPerToken: 0.00004666666666666667,
+    cachedInputImageCreditsPerToken: 0.000004666666666666667,
+  }, {
+    inputTokens: 100, inputAudioTokens: 40, cachedInputAudioTokens: 10,
+    inputImageTokens: 20, cachedInputImageTokens: 5, outputTokens: 10,
+  });
+  assert.ok(realtime > 0);
+});
