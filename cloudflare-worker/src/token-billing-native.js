@@ -131,7 +131,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const minimumCredits = Number(meter.minimumCredits ?? 0);
   const precision = Number(meter.precision ?? 7);
   const modalityRates = [
-    ["input audio", inputAudioTokens, meter.creditsPerInputAudioToken],
+    ["input audio", inputAudioTokens - cachedInputAudioTokens, meter.creditsPerInputAudioToken],
     ["cached input audio", cachedInputAudioTokens, meter.creditsPerCachedInputAudioToken],
     ["output audio", outputAudioTokens, meter.creditsPerOutputAudioToken],
     ["input image", inputImageTokens - cachedInputImageTokens, meter.creditsPerInputImageToken],
