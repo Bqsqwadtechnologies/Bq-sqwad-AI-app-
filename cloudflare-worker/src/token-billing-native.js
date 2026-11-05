@@ -218,8 +218,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   // Admin Live Credit Pricing editor can subsequently change these canonical
   // Firestore values; Android and Worker always read the same records.
   const openAiTokenDefaults = {
-    "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5, inputCredits: 0.000005833333333333333, cachedCredits: 0.0000005833333333333333, outputCredits: 0.000029166666666666667 },
-    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666666666666667, cachedCredits: 0.0000011666666666666667, outputCredits: 0.00007 },
+    "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5, inputCredits: 0.000005833333, cachedCredits: 0.000000583333, outputCredits: 0.000029166667 },
+    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666667, cachedCredits: 0.000001166667, outputCredits: 0.000070000000 },
     "gpt-image-2.5-sunburst": { input: 5, cached: 1.25, output: 0, inputCredits: 0.0002916666666666667, cachedCredits: 0.00007291666666666667, outputCredits: 0, inputImage: 8, outputImage: 30, inputImageCredits: 0.0004666666666666667, outputImageCredits: 0.00175 }
   };
   const normalizedModelId = String(modelId || "").toLowerCase();
