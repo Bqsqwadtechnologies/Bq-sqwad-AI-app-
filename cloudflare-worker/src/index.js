@@ -5752,6 +5752,8 @@ export default {
         const registryRows = await firestoreQuery("aiModelRegistry", { limit: 500 }).catch(() => []);
         const catalogRows = await firestoreQuery("aiModelCatalog", { limit: 500 }).catch(() => []);
         const modelConfig = await firestoreGet("config/aiModels").catch(() => null);
+        const heygenConfig = await firestoreGet("config/heygenVideo").catch(() => null);
+        const heygenCostRows = await firestoreQuery("heygenCosts", { limit: 500 }).catch(() => []);
         const capabilityRows = await firestoreQuery("adminAdvancedOptions", { limit: 500 }).catch(() => []);
         const missing = [];
         const priceDifferences = [];
@@ -5804,7 +5806,7 @@ export default {
           "priceUsd", "providerCostUnit", "providerCostTrackingEnabled",
           "creditReferenceValueUsd", "customerMultiplier", "estimatedFeePercent",
           "inputPriceUsdPerMillion", "outputPriceUsdPerMillion", "cachedInputPriceUsdPerMillion",
-          "billingMode"
+          "billingMode", "providerUsdPerMinute", "providerUsdPerMinute4k", "providerUsd"
         ]);
         for (const [collection, rows] of [["aiModelRegistry", registryRows], ["aiModelCatalog", catalogRows]]) {
           for (const row of Array.isArray(rows) ? rows : []) {
@@ -5821,6 +5823,14 @@ export default {
           if (!id.startsWith("capability_")) continue;
           const fields = Object.keys(row).filter(key => /UsdPer(Million|Token)/i.test(key) || forbiddenModelFields.has(key));
           if (fields.length) missing.push({ feature: id, document: "adminAdvancedOptions/" + id, reason: "legacy_model_price_fields_present", fields });
+        }
+        if (heygenConfig?.json && /providerUsdPerMinute|providerUsdPerMinute4k|providerUsd/i.test(String(heygenConfig.json))) {
+          missing.push({ feature: "video.generate", document: "config/heygenVideo", reason: "legacy_video_cost_fields_present" });
+        }
+        for (const row of Array.isArray(heygenCostRows) ? heygenCostRows : []) {
+          if (Object.prototype.hasOwnProperty.call(row, "providerUsd")) {
+            missing.push({ feature: "video.generate", document: "heygenCosts/" + String(row.id || ""), reason: "legacy_video_cost_field_present" });
+          }
         }
         for (const [key, expected] of [["live_voice_pricing", 2.7], ["live_camera_pricing", 5.4]]) {
           const stored = await firestoreGet("adminAdvancedOptions/" + key).catch(() => null);
