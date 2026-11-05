@@ -35,6 +35,7 @@ import { runtimeCreate, runtimeList, runtimeUpdate, runtimeAudit } from "./runti
 import { createTrainingAssetUploadSession, inspectTrainingAssetObject, deleteTrainingAssetObject, createTrainingAssetDownloadAuthorization, downloadTrainingAssetObject, uploadTrainingAssetObject } from "./training-assets.js";
 import { socialStart, socialCallback, listSocialAccounts, manageXAction, tiktokProfile, tiktokVideos, publishTikTok } from "./social.js";
 import { computeHold, computeSettlement, splitCreditBuckets } from "./billing-hold.js";
+import { recoverStreamFailure } from "./stream-delivery.js";
 import { teamMembers, teamInvite, teamRemove, teamRequestChargeAccount, teamApproveCharge, teamAcceptInvite } from "./team-workspace-native.js";
 import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { getNativeMonthlyFeedbackState, submitNativeMonthlyFeedback, getNativeMonthlyFeedbackAdmin, saveNativeMonthlyFeedbackAdmin } from "./monthly-feedback-native.js";
@@ -2857,19 +2858,18 @@ async function stream(request, user, body) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
-          await reverseCredits(user.uid, reservation.reservationId).catch(() => {});
-          await notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed").catch(() => {});
+          const failureEvent = await recoverStreamFailure({
+            deliveredChars,
+            reverseCredits: () => reverseCredits(user.uid, reservation.reservationId),
+            notifyAdmin: () => notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed"),
+            providerId: provider.providerId,
+            modelId: provider.modelId,
+            safeError: error?.safeError || "service_temporarily_unavailable"
+          });
           request.signal.removeEventListener("abort", onClientAbort);
-          if (deliveredChars > 0) {
-            endTask("completed");
-            emit({
-              type: "completed", providerId: provider.providerId, modelId: provider.modelId,
-              creditsCharged: 0, settlement: "failed_after_delivery"
-            });
-          } else {
-            endTask("failed");
-            emit({ type: "error", message: error?.safeError || "service_temporarily_unavailable" });
-          }
+          if (failureEvent.type === "completed") endTask("completed");
+          else endTask("failed");
+          emit(failureEvent);
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
