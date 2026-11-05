@@ -389,5 +389,13 @@ class CoreTest {
         assertFalse(adminWithoutTestMode.hasVerifiedAccess(Workspace.BUSINESS))
         assertTrue(authorizedAdminTestMode.hasVerifiedAccess(Workspace.BUSINESS))
     }
-}
 
+    @Test fun cleanAssistantReplyRemovesOnlyStrayLeadingSeparators() {
+        assertEquals("Isaac! How can I help?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(", Isaac! How can I help?"))
+        assertEquals("Hello, Isaac!", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("Hello, Isaac!"))
+        assertEquals("- item", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("- item"))
+        assertEquals("(note) text", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("(note) text"))
+        assertEquals("¿Qué tal?", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("¿Qué tal?"))
+        assertEquals("hi", com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply("  , hi"))
+    }
+}
