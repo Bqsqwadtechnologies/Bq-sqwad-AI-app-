@@ -214,13 +214,11 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   }
   const config = control.config && typeof control.config === "object" ? control.config : {};
   let tokenRules = await firestoreQuery("tokenPricingRules", { limit: 200 }).catch(() => []);
-  // Seed exact Main Chat model rules once, from provider USD rates. The website
-  // Admin Live Credit Pricing editor can subsequently change these canonical
-  // Firestore values; Android and Worker always read the same records.
+  // Seed the final BQ customer credit defaults once. Administrator edits remain authoritative.
   const openAiTokenDefaults = {
-    "gpt-6-luna": { input: 0.1, cached: 0.01, output: 0.5, inputCredits: 0.000005833333, cachedCredits: 0.000000583333, outputCredits: 0.000029166667 },
-    "gpt-5.6-luna": { input: 0.2, cached: 0.02, output: 1.2, inputCredits: 0.000011666667, cachedCredits: 0.000001166667, outputCredits: 0.000070000000 },
-    "gpt-image-2.5-sunburst": { input: 5, cached: 1.25, output: 0, inputCredits: 0.0002916666666666667, cachedCredits: 0.00007291666666666667, outputCredits: 0, inputImage: 8, outputImage: 30, inputImageCredits: 0.0004666666666666667, outputImageCredits: 0.00175 }
+    "gpt-6-luna": { inputCredits: 0.000005833333333333333, cachedCredits: 0.0000005833333333333333, outputCredits: 0.000029166666666666667 },
+    "gpt-5.6-luna": { inputCredits: 0.000011666666666666668, cachedCredits: 0.0000011666666666666668, outputCredits: 0.00007 },
+    "gpt-image-2.5-sunburst": { inputCredits: 0.0002916666666666667, cachedCredits: 0.00007291666666666667, outputCredits: 0, inputImageCredits: 0.00046666666666666666, cachedImageCredits: 0.00011666666666666667, outputImageCredits: 0.00175 }
   };
   const normalizedModelId = String(modelId || "").toLowerCase();
   const mainDefaults = String(providerId || "").toLowerCase() === "openai" ? openAiTokenDefaults[normalizedModelId] : null;
@@ -230,7 +228,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     String(rule.customerClass || "all").toLowerCase() === "all"
   ) : null;
   if (mainDefaults) {
-    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v3_" + (normalizedModelId === "gpt-6-luna" ? "gpt6" : "gpt56");
+    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v5_" + (normalizedModelId === "gpt-6-luna" ? "gpt6" : "gpt56");
     const mainPricingMarker = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId)
       ? await firestoreGet(mainPricingMarkerPath).catch(() => null) : null;
     const applyMainPricingDefaults = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId) && mainPricingMarker?.applied !== true;
@@ -239,20 +237,15 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
       : "default-openai-gpt-image-2-5-sunburst";
     const seeded = {
       id, provider: "openai", model: String(modelId), customerClass: "all", status: "active",
-      inputUsdPerMillion: mainDefaults.input, cachedInputUsdPerMillion: mainDefaults.cached, outputUsdPerMillion: mainDefaults.output,
-      inputUsdPerToken: mainDefaults.input / 1_000_000, cachedInputUsdPerToken: mainDefaults.cached / 1_000_000, outputUsdPerToken: mainDefaults.output / 1_000_000,
       inputCreditsPerToken: mainDefaults.inputCredits,
       cachedInputCreditsPerToken: mainDefaults.cachedCredits,
       outputCreditsPerToken: mainDefaults.outputCredits,
       inputCreditsPer1k: mainDefaults.inputCredits * 1000,
       cachedInputCreditsPer1k: mainDefaults.cachedCredits * 1000,
       outputCreditsPer1k: mainDefaults.outputCredits * 1000,
-      ...(mainDefaults.inputImage != null ? {
-        inputImageUsdPerMillion: mainDefaults.inputImage,
-        outputImageUsdPerMillion: mainDefaults.outputImage,
-        inputImageUsdPerToken: mainDefaults.inputImage / 1_000_000,
-        outputImageUsdPerToken: mainDefaults.outputImage / 1_000_000,
+      ...(mainDefaults.inputImageCredits != null ? {
         inputImageCreditsPerToken: mainDefaults.inputImageCredits,
+        cachedInputImageCreditsPerToken: mainDefaults.cachedImageCredits,
         outputImageCreditsPerToken: mainDefaults.outputImageCredits
       } : {}),
       minimumCredits: 0, plans: [], features: [], effectiveFrom: "", version: 1, updatedAt: new Date().toISOString()
@@ -260,18 +253,18 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (existingRule) {
       const existingId = String(existingRule.id || String(existingRule.__name || "").split("/").pop() || id);
       if (applyMainPricingDefaults) {
-        const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 3, version: Math.max(3, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
+        const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 5, version: Math.max(5, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
         await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
         Object.assign(existingRule, migrated);
-        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
+        await firestoreSet(mainPricingMarkerPath, { applied: true, version: 5, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
       } else if (normalizedModelId === "gpt-image-2.5-sunburst") {
-        const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v2";
+        const markerPath = "adminAdvancedOptions/bq_gpt_image_2_5_token_pricing_v5";
         const marker = await firestoreGet(markerPath).catch(() => null);
         if (marker?.applied !== true) {
           const migrated = { ...existingRule, ...seeded, id: existingId, seededDefaultVersion: 2, version: Math.max(2, Number(existingRule.version || 0) + 1), updatedAt: new Date().toISOString() };
           await firestoreSet("tokenPricingRules/" + existingId, migrated, true);
           Object.assign(existingRule, migrated);
-          await firestoreSet(markerPath, { applied: true, version: 2, source: "OpenAI standard Images API rates converted at 100 credits per 12 USD and multiplied by 7", updatedAt: new Date().toISOString() }, true);
+          await firestoreSet(markerPath, { applied: true, version: 5, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
         } else {
           const patch = Object.fromEntries(Object.entries(seeded).filter(([key]) => existingRule[key] === undefined || existingRule[key] === null));
           if (Object.keys(patch).length) {
@@ -287,7 +280,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
         }
       }
     } else {
-      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: normalizedModelId === "gpt-image-2.5-sunburst" ? 2 : 1 }, false);
+      await firestoreSet("tokenPricingRules/" + id, { ...seeded, seededDefaultVersion: normalizedModelId === "gpt-image-2.5-sunburst" ? 5 : 5 }, false);
       tokenRules = [...tokenRules, seeded];
       if (applyMainPricingDefaults) {
         await firestoreSet(mainPricingMarkerPath, { applied: true, version: 3, models: ["gpt-6-luna", "gpt-5.6-luna"], updatedAt: new Date().toISOString() }, true);
@@ -316,9 +309,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
-  // GPT Image 2.5 default customer rates use the approved 7x markup and
-  // $0.12 per BQ credit. An administrator-saved tokenPricingRules entry
-  // takes precedence over these defaults.
+  // The image-model fallback uses the same final BQ credit rates as Firestore.
   if (!tokenRule && String(providerId || "").toLowerCase() === "openai" &&
       String(modelId || "") === "gpt-image-2.5-sunburst") {
     tokenRule = {
@@ -328,18 +319,14 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
       provider: "openai",
       model: "gpt-image-2.5-sunburst",
       customerClass: "all",
-      inputUsdPerMillion: 5,
-      cachedInputUsdPerMillion: 1.25,
-      outputUsdPerMillion: 0,
-      inputImageUsdPerMillion: 8,
-      outputImageUsdPerMillion: 30,
       inputCreditsPerToken: 0.0002916666666666667,
       cachedInputCreditsPerToken: 0.00007291666666666667,
       outputCreditsPerToken: 0,
-      inputImageCreditsPerToken: 0.0004666666666666667,
+      inputImageCreditsPerToken: 0.00046666666666666666,
+      cachedInputImageCreditsPerToken: 0.00011666666666666667,
       outputImageCreditsPerToken: 0.00175,
-      inputCreditsPer1k: 0.2916667,
-      cachedInputCreditsPer1k: 0.0729167,
+      inputCreditsPer1k: 0.2916666666666667,
+      cachedInputCreditsPer1k: 0.07291666666666667,
       outputCreditsPer1k: 0,
       features: [],
       plans: [],
