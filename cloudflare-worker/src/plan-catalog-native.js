@@ -307,6 +307,7 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
     return pairs
       .map(pair => ({
         planId: String(plan.id),
+        module: String(plan.module || "general"),
         productId: String(plan.productId),
         basePlanId: pair.basePlanId,
         productType: String(plan.productType),
@@ -316,6 +317,8 @@ export function canonicalPlayMappings(catalog = COMMERCIAL_CATALOG) {
         priceUsd: plan.price?.[pair.priceKey] == null ? null : Number(plan.price[pair.priceKey]),
         trialOfferId: plan.trialEligible ? (plan.offerId || null) : null,
         trialDays: plan.trialEligible ? Number(plan.trialDays || 0) : 0,
+        entitlements,
+        limits: plan.limits && typeof plan.limits === "object" ? plan.limits : {},
         creditGrant,
         organizationWalletTopup: false
       }));
