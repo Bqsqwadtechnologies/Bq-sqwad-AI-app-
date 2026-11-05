@@ -105,6 +105,7 @@ export function calculateTokenCost({ usage, pricing, creditReferenceValueUsd = D
   const textInputTokens = inputTokens - inputAudioTokens - inputImageTokens;
   const textOutputTokens = outputTokens - outputAudioTokens - outputImageTokens;
   const cachedInputTokens = Math.min(textInputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
+  const uncachedInputTokens = Math.max(0, textInputTokens - cachedInputTokens);
   const providerCostUsd = 0;
   const inputCostUsd = 0;
   const cachedInputCostUsd = 0;
