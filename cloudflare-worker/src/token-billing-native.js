@@ -230,7 +230,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     String(rule.customerClass || "all").toLowerCase() === "all"
   ) : null;
   if (mainDefaults) {
-    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v3";
+    const mainPricingMarkerPath = "adminAdvancedOptions/bq_main_chat_token_pricing_v3_" + (normalizedModelId === "gpt-6-luna" ? "gpt6" : "gpt56");
     const mainPricingMarker = ["gpt-6-luna", "gpt-5.6-luna"].includes(normalizedModelId)
       ? await firestoreGet(mainPricingMarkerPath).catch(() => null) : null;
     const applyMainPricingDefaults = mainPricingMarker?.applied !== true;
