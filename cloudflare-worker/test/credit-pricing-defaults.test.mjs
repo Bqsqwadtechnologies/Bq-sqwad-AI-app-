@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const index = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
 const tokenBilling = await readFile(new URL("../src/token-billing-native.js", import.meta.url), "utf8");
 const generationDefaults = index.slice(index.indexOf("const ADMIN_SEED_DEFAULTS"), index.indexOf("const PRICING_DEFAULTS_MARKER"));
-const auxiliaryDefaults = index.slice(index.indexOf("const AUX_TOKEN_RULES"), index.indexOf("async function seedAuxCreditPricingOnce"));
+const auxiliaryDefaults = index.slice(index.indexOf("const TOKEN_CREDIT_DEFAULTS ="), index.indexOf("async function seedTokenCreditDefaultsOnce"));
 const mainDefaults = tokenBilling.slice(tokenBilling.indexOf("const openAiTokenDefaults"), tokenBilling.indexOf("const normalizedModelId"));
 
 test("all model token defaults match the final BQ credit table", () => {
@@ -42,6 +42,8 @@ test("all fixed and per-second launch prices are present in generation seed data
 test("seed defaults contain no stored cost-rate fields and the marker is version five", () => {
   assert.doesNotMatch(mainDefaults, /UsdPer(Million|Token)/);
   assert.doesNotMatch(auxiliaryDefaults, /UsdPer(Million|Token)/);
+  assert.match(index, /TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_token_credit_pricing_defaults_v5"/);
+  assert.match(index, /seedTokenCreditDefaultsOnce\(\)/);
   assert.match(index, /PRICING_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_live_credit_pricing_defaults_v5"/);
   assert.match(index, /marker\?\.applied === true && Number\(marker\.version\) >= 5/);
   assert.match(index, /seededDefaultVersion: 5/);

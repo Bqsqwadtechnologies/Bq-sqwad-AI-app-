@@ -201,7 +201,7 @@ test("Main Chat and GPT Image defaults contain precomputed per-token credit rate
   const defaults = source.slice(source.indexOf("const openAiTokenDefaults"), source.indexOf("const featureAliases"));
   assert.doesNotMatch(defaults, /UsdPer(Million|Token)/);
   assert.match(source, /source: "BQ customer credit defaults"/);
-  assert.match(source, /bq_gpt_image_2_5_token_pricing_v2/);
+  assert.match(source, /bq_gpt_image_2_5_token_pricing_v5/);
   assert.doesNotMatch(source, /CUSTOMER_COST_MULTIPLIER/);
 });
 
