@@ -191,10 +191,9 @@ class RealtimeVoiceSession(
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
-                            // Responses are requested explicitly on speech_stopped below.
-                            // This avoids relying on automatic VAD response creation across
-                            // Realtime server/client session-update variants.
-                            put("create_response", false)
+                            // Let server VAD create a response when the user finishes speaking.
+                            // Visual-frame replies remain explicitly requested by sendPendingVisualFrameIfIdle.
+                            put("create_response", true)
                         })
                     })
                 })
@@ -317,11 +316,10 @@ class RealtimeVoiceSession(
                 onState("listening")
             }
             "input_audio_buffer.speech_stopped" -> {
+                // With server_vad.create_response=true, Realtime commits the completed
+                // speech turn and creates its reply itself. Do not send a second
+                // response.create here: doing so races the provider's automatic turn.
                 onState("thinking")
-                // Queue the turn if a camera-frame answer or interrupted response is
-                // still finishing; never silently drop the user's spoken question.
-                pendingAudioResponse.set(true)
-                sendPendingAudioResponseIfIdle(ws)
             }
             "conversation.item.input_audio_transcription.delta", "input_audio_transcription.delta" -> {
                 val delta = event.optString("delta")
