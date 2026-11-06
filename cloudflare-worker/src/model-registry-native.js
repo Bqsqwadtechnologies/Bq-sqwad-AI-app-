@@ -80,13 +80,13 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     { feature: "text-to-speech", capability: "text_to_speech", providerId: "openai", modelId: "gpt-4o-mini-tts", id: "current-tts", name: "GPT-4o Mini TTS" },
     { feature: "embeddings", capability: "embeddings", providerId: "openai", modelId: "text-embedding-3-small", id: "current-embeddings", name: "Text Embedding 3 Small" },
     { feature: "moderation", capability: "moderation", providerId: "openai", modelId: "omni-moderation-latest", id: "current-moderation", name: "Omni Moderation" },
-    { feature: "device-commands", capability: "device_commands", providerId: "gemini", modelId: defaultModels.gemini || "gemini-2.5-flash", id: "current-device-commands", name: "Gemini 2.5 Flash — Device Intelligence" }
+    { feature: "device-commands", capability: "device_commands", providerId: "openai", modelId: "gpt-6-luna", id: "current-device-commands", name: "GPT-6 Luna — Device Intelligence" }
   ];
   const existingRows = await firestoreQuery("aiModelRegistry", { limit: 200 });
   const now = new Date();
   for (const definition of definitions) {
     const featureRows = existingRows.filter(row => row.feature === definition.feature);
-    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true && !(row.providerId === "openai" && !isAllowedOpenAiModel(row.modelId, row.feature)))) continue;
+    if (featureRows.some(row => row.isDefault === true && row.active === true && row.published === true && !(row.providerId === "openai" && !isAllowedOpenAiModel(row.modelId, row.feature)) && !(definition.feature === "device-commands" && (row.providerId !== "openai" || row.modelId !== "gpt-6-luna")))) continue;
 
     const capability = await firestoreGet("adminAdvancedOptions/capability_" + definition.capability) || {};
     const voiceConfig = definition.feature === "live-voice"
@@ -110,8 +110,8 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
     if (definition.feature === "image-generation" && !modelId.startsWith("gpt-image")) modelId = definition.modelId;
     if (definition.feature === "video-generation" && !modelId.startsWith("sora")) modelId = definition.modelId;
     if (definition.feature === "device-commands") {
-      providerId = "gemini";
-      if (!modelId.startsWith("gemini")) modelId = defaultModels.gemini || "gemini-2.5-flash";
+      providerId = "openai";
+      modelId = "gpt-6-luna";
     }
     if (providerId === "openai" && !isAllowedOpenAiModel(modelId, definition.feature)) {
       modelId = SAFE_OPENAI_MODEL_BY_FEATURE[definition.feature] || "gpt-6-luna";
