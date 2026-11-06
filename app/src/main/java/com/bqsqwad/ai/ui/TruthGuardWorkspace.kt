@@ -67,7 +67,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
             conservativeVerdicts = settings.optBoolean("conservativeVerdicts", true)
             saveHistory = settings.optBoolean("saveHistory", true)
             defaultDeepResearch = settings.optBoolean("defaultDeepResearch", false)
-            deepResearch = defaultDeepResearch && proOrHigher
+            deepResearch = defaultDeepResearch && (adminTestMode || catalog.optString("activePlanId") in setOf("tgpro", "tgteam"))
             history = api.truthGuardHistory()
         }.onFailure { notice = safeUserFacingIssue(it, "TruthGuard could not load.") }
         loading = false
@@ -178,6 +178,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                         }
                         Switch(
                             checked = deepResearch,
+                            enabled = proOrHigher,
                             onCheckedChange = {
                                 if (it && !proOrHigher) notice = "Deep Evidence Sweep requires TruthGuard Pro or Team."
                                 else deepResearch = it
