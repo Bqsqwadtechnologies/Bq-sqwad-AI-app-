@@ -6568,8 +6568,8 @@ export default {
             const sources = result.sources.map((s,i) => "[" + (i + 1) + "] " + String(s.title || "") + "\nURL: " + String(s.url || "") + "\n" + String(s.snippet || "")).join("\n\n");
             const synthesis = await runProvider(env, {
               primaryProviderId: "openai",
-              primaryModelId: DEFAULT_MODELS.openai,
-              fallbackProviderIds: ["gemini"],
+              primaryModelId: "gpt-6-luna",
+              fallbackProviderIds: [],
               fallbackModels: {}
             }, {
               message: "Research question: " + query + "\n\nSearch sources:\n" + sources,
