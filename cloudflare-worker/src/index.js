@@ -348,7 +348,7 @@ async function adminReadinessSelfTest(env, adminUser) {
           session: {
             type: "realtime", model, output_modalities: ["audio"],
             audio: {
-              input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: false } },
+              input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
               output: { format: { type: "audio/pcm", rate: 24000 }, voice: "marin" }
             }
           }
@@ -1330,7 +1330,7 @@ async function capability(uid, name) {
     live_camera: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     live_voice: { providerId: "openai", modelId: DEFAULT_REALTIME_MODEL, fallbackProviderIds: [] },
     video_generation: { providerId: "openai", modelId: null, enabled: false, killSwitch: true, fallbackProviderIds: [] },
-    device_commands: { providerId: "gemini", modelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [] },
+    device_commands: { providerId: "openai", modelId: "gpt-6-luna", fallbackProviderIds: [] },
     web_search: { providerId: "tavily", modelId: null, fallbackProviderIds: [] },
     deep_research: { providerId: "tavily", modelId: null, fallbackProviderIds: [] }
   };
@@ -6181,7 +6181,7 @@ export default {
         if(b.modelRegistryId){const selected=await resolvePublishedModel(b.modelRegistryId,"device-commands");control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost};}
         const r=await chargeCredits(u.uid,control.creditCost||0,"device_commands",u);
         try {
-          const z=await runProvider(env,{primaryProviderId:control.providerId||"gemini",primaryModelId:control.modelId||DEFAULT_MODELS.gemini,fallbackProviderIds:[]},{message:String(b.message||"").slice(0,4000),system:'Return ONLY JSON: {"actions":[{"type":"...","value":null}],"message":"short confirmation"}. Allowed actions: torch_on, torch_off, set_brightness, volume_up, volume_down, play_media, pause_media, next_media, previous_media, open_settings, open_wifi_settings, open_bluetooth_settings, open_camera, open_calendar, open_maps. Never invent an action type. The Android app performs the final action and enforces permissions.'});
+          const z=await runProvider(env,{primaryProviderId:control.providerId||"openai",primaryModelId:control.modelId||"gpt-6-luna",fallbackProviderIds:[]},{message:String(b.message||"").slice(0,4000),system:'Return ONLY JSON: {"actions":[{"type":"...","value":null}],"message":"short confirmation"}. Allowed actions: torch_on, torch_off, set_brightness, volume_up, volume_down, play_media, pause_media, next_media, previous_media, open_settings, open_wifi_settings, open_bluetooth_settings, open_camera, open_calendar, open_maps. Never invent an action type. The Android app performs the final action and enforces permissions.'});
           let parsed={actions:[],message:"No supported device action."}; try{parsed=JSON.parse(z.text||"")}catch{}
           const allowed=new Set(["torch_on","torch_off","set_brightness","volume_up","volume_down","play_media","pause_media","next_media","previous_media","open_settings","open_wifi_settings","open_bluetooth_settings","open_camera","open_calendar","open_maps"]);
           const actions=Array.isArray(parsed.actions)?parsed.actions.filter(x=>allowed.has(x?.type)).map(x=>({type:x.type,value:x.value??null})): [];
