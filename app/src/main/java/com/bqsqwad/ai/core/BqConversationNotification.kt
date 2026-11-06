@@ -41,6 +41,8 @@ object BqConversationNotification {
             .setColor(0xFF246BCE.toInt())
             .setContentTitle(title)
             .setContentText(body)
+            .setSubText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body).setSummaryText("BQ Sqwad AI reply").also { /* MessagingStyle below retains conversation grouping */ })
             .setStyle(style)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
