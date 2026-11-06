@@ -63,7 +63,6 @@ class RealtimeVoiceSession(
     // The next response.created event re-enables playback for the new AI turn.
     private val suppressAudioUntilResponse = AtomicBoolean(false)
     private val pendingVisualFrame = AtomicReference<ByteArray?>(null)
-    private val pendingAudioResponse = AtomicBoolean(false)
     private val inputTranscript = StringBuilder()
     private val outputTranscript = StringBuilder()
 
@@ -240,23 +239,6 @@ class RealtimeVoiceSession(
         if (!responseSent) responseInProgress.set(false)
     }
 
-    private fun sendPendingAudioResponseIfIdle(ws: WebSocket) {
-        if (!running.get() || !sessionConfigured.get() || toolCallInProgress.get()) return
-        if (!pendingAudioResponse.compareAndSet(true, false)) return
-        if (!responseInProgress.compareAndSet(false, true)) {
-            pendingAudioResponse.set(true)
-            return
-        }
-        val sent = ws.send(JSONObject().put("type", "response.create").put("response", JSONObject().apply {
-            put("output_modalities", org.json.JSONArray().put(if (silentTextMode) "text" else "audio"))
-        }).toString())
-        if (!sent) {
-            responseInProgress.set(false)
-            pendingAudioResponse.set(true)
-            onError("Your voice message could not be sent for a reply. Please try again.")
-        }
-    }
-
     private fun handleEvent(ws: WebSocket, raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrNull() ?: return
         when (event.optString("type")) {
@@ -293,7 +275,6 @@ class RealtimeVoiceSession(
                     }
                 }
                 onState("listening")
-                sendPendingAudioResponseIfIdle(ws)
                 if (!responseInProgress.get()) sendPendingVisualFrameIfIdle(ws)
             }
             "input_audio_buffer.speech_started" -> {
@@ -449,7 +430,6 @@ class RealtimeVoiceSession(
                 onOutputAudioLevel(0f)
                 onState("listening")
                 if (!toolCallInProgress.get()) {
-                    sendPendingAudioResponseIfIdle(ws)
                     if (!responseInProgress.get()) sendPendingVisualFrameIfIdle(ws)
                 }
             }
