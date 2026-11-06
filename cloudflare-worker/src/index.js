@@ -6179,6 +6179,7 @@ export default {
         const u=await verifyFirebaseUser(request); await requireConsent(u.uid); const b=await readBody(request);
         let control=await capability(u.uid,"device_commands");
         if(b.modelRegistryId){const selected=await resolvePublishedModel(b.modelRegistryId,"device-commands");control={...control,providerId:selected.providerId,modelId:selected.modelId,creditCost:selected.creditCost};}
+        else control={...control,providerId:"openai",modelId:"gpt-6-luna"};
         const r=await chargeCredits(u.uid,control.creditCost||0,"device_commands",u);
         try {
           const z=await runProvider(env,{primaryProviderId:control.providerId||"openai",primaryModelId:control.modelId||"gpt-6-luna",fallbackProviderIds:[]},{message:String(b.message||"").slice(0,4000),system:'Return ONLY JSON: {"actions":[{"type":"...","value":null}],"message":"short confirmation"}. Allowed actions: torch_on, torch_off, set_brightness, volume_up, volume_down, play_media, pause_media, next_media, previous_media, open_settings, open_wifi_settings, open_bluetooth_settings, open_camera, open_calendar, open_maps. Never invent an action type. The Android app performs the final action and enforces permissions.'});
