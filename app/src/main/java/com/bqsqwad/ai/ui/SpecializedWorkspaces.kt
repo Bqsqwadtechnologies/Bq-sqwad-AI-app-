@@ -46,7 +46,7 @@ private val truthGuardPlansUi = listOf(
     TruthGuardPlanUi(
         "tgplus", "TruthGuard Plus", "150 checks/month",
         listOf("Live web evidence", "Source reliability notes", "Manipulation/bias signals", "History"),
-        deep = true, export = false, team = false
+        deep = false, export = false, team = false
     ),
     TruthGuardPlanUi(
         "tgpro", "TruthGuard Pro", "1,000 checks/month",
@@ -202,6 +202,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
             )
             FilterChip(
                 selected = depth == "Deep",
+                enabled = activePlan.deep && !loadingPlan,
                 onClick = { if (activePlan.deep) depth = "Deep" else error = "Deep evidence is locked on your current plan." },
                 label = { Text(if (activePlan.deep) "Deep" else "Deep • Upgrade") }
             )
