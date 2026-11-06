@@ -3081,9 +3081,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     }
     stopDictationAction.value = { stopDictation() }
 
-    LaunchedEffect(dictationReadyAudio) {
-        if (dictationReadyAudio != null && !dictationTranscribing) transcribeDictation()
-    }
+    // Dictation is intentionally never auto-transcribed. The user must tap
+    // the visible Transcribe action after recording; the server then applies
+    // the configured per-second speech.transcribe credit charge.
 
     fun cancelDictation() {
         dictationSessionId += 1
