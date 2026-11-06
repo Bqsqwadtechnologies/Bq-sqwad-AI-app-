@@ -102,7 +102,7 @@ fun LegalCenterScreen(initialTopic: Workspace? = null, onBack: () -> Unit) {
                 }
             }
             item { Text("Feature privacy", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            items(Workspace.values()) { topic ->
+            items(Workspace.values().filterNot { it == Workspace.ORGANIZATION_STUDIO }) { topic ->
                 LegalSectionCard(
                     LegalSection(
                         "${topic.title} privacy",
