@@ -1322,8 +1322,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
 
     val openWorkspace: (Workspace) -> Unit = { selected ->
         shellScope.launch { drawerState.close() }
-        // Guest browsing is allowed in Main Chat, but every other workspace is
-        // account-scoped and must require Firebase authentication first.
+        // Organization AI opens an informational website link; other workspaces
+        // follow their normal account and entitlement checks.
         if (selected == Workspace.ORGANIZATION_STUDIO) {
             // This entry is informational only; Organization AI runs on the website.
             workspace = selected
