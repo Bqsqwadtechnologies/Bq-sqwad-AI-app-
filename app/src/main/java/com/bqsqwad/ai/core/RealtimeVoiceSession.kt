@@ -182,7 +182,7 @@ class RealtimeVoiceSession(
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
-                        put("transcription", if (silentTextMode) JSONObject().put("model", "gpt-4o-mini-transcribe") else JSONObject.NULL)
+                        put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
@@ -493,19 +493,23 @@ class RealtimeVoiceSession(
     private fun startAudioCapture() {
         val min = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_IN, ENCODING)
         if (min <= 0) throw IllegalStateException("Microphone audio format is unavailable.")
-        val communicationRecorder = runCatching {
-            AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
-        }.getOrNull()
-        recorder = if (communicationRecorder?.state == AudioRecord.STATE_INITIALIZED) {
-            communicationRecorder
-        } else {
-            communicationRecorder?.release()
-            // Some Android devices do not initialize VOICE_COMMUNICATION capture reliably.
-            // Fall back to the standard microphone source rather than ending the session.
+        // Prefer the device's ordinary microphone path. Some vendors initialize
+        // VOICE_COMMUNICATION but deliver near-silent PCM to third-party apps.
+        val candidates = listOf(
+            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION
+        )
+        recorder = candidates.asSequence().mapNotNull { source ->
             runCatching {
-                AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
-            }.getOrNull()
-        }
+                AudioRecord(source, SAMPLE_RATE, CHANNEL_IN, ENCODING, min * 2)
+            }.getOrNull()?.let { candidate ->
+                if (candidate.state == AudioRecord.STATE_INITIALIZED) candidate else {
+                    candidate.release()
+                    null
+                }
+            }
+        }.firstOrNull()
         if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
             recorder?.release()
             recorder = null
