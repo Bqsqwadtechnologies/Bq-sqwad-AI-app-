@@ -1,4 +1,5 @@
 import { firestoreGet, firestoreSet, firestoreCreate, firestoreDelete, firestoreQuery, firestoreCommit } from "./firebase.js";
+import { COMMERCIAL_CATALOG, mergeCommercialCatalog } from "./plan-catalog-native.js";
 const C={workspaces:"businessWorkspaces",members:"businessWorkspaceMembers",assistants:"businessAssistants",knowledge:"businessKnowledge",contacts:"businessContacts",leads:"businessLeads",pipelines:"businessPipelines",appointments:"businessAppointments",activities:"businessCrmActivities",faqs:"businessFaqs",vault:"businessVault",inbox:"businessInbox",automations:"businessAutomations",leadCaptures:"businessLeadCaptures"};
 const clean=(v,n=1000)=>String(v??"").trim().slice(0,n), obj=v=>v&&typeof v==="object"&&!Array.isArray(v)?v:{};
 const id=x=>String(x.__name||"").split("/").pop();
@@ -6,7 +7,38 @@ const mapType={assistant:C.assistants,knowledge:C.knowledge,contact:C.contacts,l
 const accessRoles={owner:5,admin:4,manager:3,editor:2,member:1};
 async function owned(uid,workspaceId){const w=await firestoreGet(C.workspaces+"/"+workspaceId);if(!w||String(w.ownerUid||"")!==uid){const m=await firestoreGet(C.members+"/"+workspaceId+"_"+uid);if(!m||m.status==="inactive")throw new Error("business_workspace_access_denied")}return w}
 export async function requireBusinessRole(uid,workspaceId,minimumRole="editor"){const w=await owned(uid,workspaceId);if(String(w.ownerUid||"")===uid)return w;const member=await firestoreGet(C.members+"/"+workspaceId+"_"+uid);const role=String(member?.role||"member").toLowerCase();if((accessRoles[role]||0)<(accessRoles[String(minimumRole).toLowerCase()]||accessRoles.editor))throw new Error("business_permission_denied");return w}
-async function getBusinessPlanContext(uid){const test=await firestoreGet("adminBusinessTestSessions/"+uid).catch(()=>null);const testExpiry=test?.expiresAt?Date.parse(String(test.expiresAt)):NaN;const testActive=test?.enabled===true&&Number.isFinite(testExpiry)&&testExpiry>Date.now();const entitlement=await firestoreGet("entitlements/"+uid).catch(()=>null);const state=String(entitlement?.state||entitlement?.status||"").toLowerCase();const expiry=entitlement?.expiresAt?Date.parse(String(entitlement.expiresAt)):NaN;const entitlementActive=["active","trialing","grace"].includes(state)&&(!entitlement?.expiresAt||(Number.isFinite(expiry)&&expiry>Date.now()));const validIds=new Set(["bizstarter","bizbasic","bizstandard","bizprofessional","bizbusiness","bizenterprise","businessenterprise"]);const planId=testActive?String(test.planId||""):entitlementActive&&validIds.has(String(entitlement.planId||""))?String(entitlement.planId):"";const catalog=await firestoreGet("planCatalog/config").catch(()=>null);const rows=Array.isArray(catalog?.catalog?.sections?.business)?catalog.catalog.sections.business:[];const plan=rows.find(item=>String(item.id||"")===planId);if(!planId||!plan)return {id:"",name:"",features:[],limits:{},price:{},adminTest:false,expiresAt:null};return {id:planId,name:String(plan.name||planId),features:Array.isArray(plan.features)?plan.features:[],limits:plan.limits&&typeof plan.limits==="object"?plan.limits:{},price:plan.price&&typeof plan.price==="object"?plan.price:{},trialEligible:plan.trialEligible===true,trialDays:Number(plan.trialDays||0),adminTest:testActive,expiresAt:testActive?test.expiresAt:entitlement?.expiresAt||null,source:testActive?"admin_test_session":String(entitlement?.source||"verified_entitlement")}}
+async function getBusinessPlanContext(uid){
+  const test=await firestoreGet("adminBusinessTestSessions/"+uid).catch(()=>null);
+  const testExpiry=test?.expiresAt?Date.parse(String(test.expiresAt)):NaN;
+  const testActive=test?.enabled===true&&Number.isFinite(testExpiry)&&testExpiry>Date.now();
+  const [root,rows,catalog]=await Promise.all([
+    firestoreGet("entitlements/"+uid).catch(()=>null),
+    firestoreQuery("entitlements/"+uid+"/plans",{limit:100}).catch(()=>[]),
+    firestoreGet("planCatalog/config").catch(()=>null)
+  ]);
+  const validIds=new Set(["bizstarter","bizbasic","bizstandard","bizprofessional","bizbusiness","bizenterprise","businessenterprise"]);
+  const now=Date.now();
+  const isCurrent=item=>{
+    const state=String(item?.state||item?.status||"").toLowerCase();
+    const expiryValue=item?.expiresAt||item?.endDate||null;
+    const expiry=expiryValue?Date.parse(String(expiryValue)):NaN;
+    const planId=String(item?.planId||item?.id||"");
+    const module=String(item?.module||"").trim().toLowerCase();
+    return ["active","trialing","grace"].includes(state)&&
+      (!expiryValue||(Number.isFinite(expiry)&&expiry>now))&&
+      validIds.has(planId)&&(!module||module==="business");
+  };
+  const matching=(Array.isArray(rows)?rows:[]).filter(isCurrent)
+    .sort((a,b)=>String(b.updatedAt||b.expiresAt||"").localeCompare(String(a.updatedAt||a.expiresAt||"")));
+  const rootPlanId=String(root?.planId||"");
+  const rootMatches=validIds.has(rootPlanId)&&isCurrent({...root,planId:rootPlanId});
+  const planId=testActive?String(test.planId||""):(matching[0]?String(matching[0].planId||matching[0].id):(rootMatches?rootPlanId:""));
+  const merged=mergeCommercialCatalog(catalog?.catalog||COMMERCIAL_CATALOG);
+  const planRows=Array.isArray(merged?.sections?.business)?merged.sections.business:[];
+  const plan=planRows.find(item=>String(item.id||"")===planId);
+  if(!planId||!plan)return {id:"",name:"",features:[],limits:{},price:{},adminTest:false,expiresAt:null};
+  return {id:planId,name:String(plan.name||planId),features:Array.isArray(plan.features)?plan.features:[],limits:plan.limits&&typeof plan.limits==="object"?plan.limits:{},price:plan.price&&typeof plan.price==="object"?plan.price:{},trialEligible:plan.trialEligible===true,trialDays:Number(plan.trialDays||0),adminTest:testActive,expiresAt:testActive?test.expiresAt:(matching[0]?.expiresAt||root?.expiresAt||null),source:testActive?"admin_test_session":String(matching[0]?.source||root?.source||"verified_entitlement")};
+}
 async function workspaceBusinessPlanContext(uid,workspace){const own=await getBusinessPlanContext(uid);if(own.adminTest===true||String(workspace?.ownerUid||"")===uid)return own;const ownerUid=String(workspace?.ownerUid||"");return ownerUid?getBusinessPlanContext(ownerUid):own}
 export async function businessWorkspace(uid,input={}){let wid=clean(input.workspaceId,120),w;if(wid)w=await firestoreGet(C.workspaces+"/"+wid);if(w&&String(w.ownerUid||"")!==uid){const m=await firestoreGet(C.members+"/"+wid+"_"+uid);if(!m||m.status==="inactive")throw new Error("business_workspace_access_denied")}if(!w){const rows=await firestoreQuery(C.workspaces,{filters:[{field:{fieldPath:"ownerUid"},op:"EQUAL",value:{stringValue:uid}}],limit:1});w=rows[0];if(w)wid=String(w.workspaceId||id(w))}if(!w){wid=crypto.randomUUID();w={workspaceId:wid,ownerUid:uid,name:"My Business",planId:"",status:"active",settings:{assistantEnabled:true,automationEnabled:true,notificationsEnabled:true,webSearchEnabled:true},usage:{messages:0,contacts:0,leads:0,knowledgeItems:0,assistants:0},createdAt:new Date(),updatedAt:new Date()};await firestoreSet(C.workspaces+"/"+wid,w,false);await firestoreSet(C.members+"/"+wid+"_"+uid,{workspaceId:wid,uid,role:"owner",status:"active",permissions:["*"],createdAt:new Date(),updatedAt:new Date()},false)}const context=await workspaceBusinessPlanContext(uid,w);const rank=businessRanks[context.id]??-1;const enabledFeatureGroups=context.id?["assistant","knowledge","analytics",...(rank>=2?["crm","channels","integrations"]:[]),...(rank>=3?["automation"]:[]),...(rank>=4?["advanced","enterprise"]:[])]:[];return {...w,workspaceId:wid||id(w),workspace:w,planId:context.id||"",planContext:context,enabledFeatureGroups,accessGranted:Boolean(context.id),adminTest:context.adminTest===true}}
 export async function requireBusinessAccess(uid,workspaceId){return owned(uid,workspaceId)}
