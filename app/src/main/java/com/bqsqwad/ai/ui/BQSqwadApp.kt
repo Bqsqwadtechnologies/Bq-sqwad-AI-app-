@@ -4938,8 +4938,8 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.VIDEO -> "Create videos with BQ Sqwad AI and track your generated media in your account."
     Workspace.SEARCH -> "Search uses approved web sources and keeps source links available for you to open."
     Workspace.TRUTH_GUARD -> "TruthGuard can search the web first, then send the evidence to its configured AI capability for claim analysis."
-    Workspace.FRONTIER_LAB -> "Frontier Lab uses the configured capability route and can attach web-search evidence before the AI response."
-    Workspace.DATA_ANALYSIS -> "Data Analysis uses the server capability route and central credit controls."
+    Workspace.FRONTIER_LAB -> "Frontier Lab combines AI research with relevant web evidence."
+    Workspace.DATA_ANALYSIS -> "Data Analysis follows your available plan and credit balance."
     Workspace.CAMERA -> "Use the camera or supported screen-sharing flow for live visual analysis."
     Workspace.VOICE -> "Start a real-time voice conversation with interruption support and microphone controls."
     Workspace.PERSONAL -> "Workspace requests are routed with the selected capability and account context; memory is loaded or changed only through the account APIs."
@@ -5514,17 +5514,12 @@ private fun AdvancedFeatureScreen(feature: AppFeature, onBack: () -> Unit, onOpe
                     Text(feature.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(feature.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "Requested capability: " + feature.capability,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
                         "Availability depends on server configuration, account access and any required external connection. A feature listing alone does not mean an external service is connected.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "This feature uses the shared BQ Sqwad AI runtime, central credit controls and server-side availability. It is part of the native app feature registry.",
+                        "This feature follows your current plan, credit balance and availability.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
