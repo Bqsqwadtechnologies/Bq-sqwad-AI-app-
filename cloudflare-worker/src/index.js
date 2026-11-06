@@ -2518,7 +2518,7 @@ async function ai(request, user, body) {
     }[capabilityName];
     const [rootEntitlement, planRows] = await Promise.all([
       firestoreGet("entitlements/" + user.uid).catch(() => null),
-      firestoreQuery("entitlements/" + user.uid + "/plans", { limit: 100 }).catch(() => [])
+      firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }).catch(() => [])
     ]);
     const now = Date.now();
     const isCurrentPlan = item => {
