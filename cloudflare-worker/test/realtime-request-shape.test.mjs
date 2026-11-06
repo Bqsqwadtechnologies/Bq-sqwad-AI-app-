@@ -78,9 +78,9 @@ test("heartbeat has no undefined trackedCost reference", async () => {
   assert.doesNotMatch(source, /trackedCost/);
 });
 
-test("realtime sessions enable input transcription so normal voice capture can be verified", async () => {
+test("Realtime input transcription is enabled only in Smart text mode", async () => {
   const source = await readFile(new URL("../../app/src/main/java/com/bqsqwad/ai/core/RealtimeVoiceSession.kt", import.meta.url), "utf8");
-  assert.match(source, /put\("transcription", JSONObject\(\)\.put\("model", "gpt-4o-mini-transcribe"\)\)/);
+  assert.match(source, /if \(silentTextMode\) \{[\s\S]*?put\("transcription", JSONObject\(\)\.put\("model", "gpt-4o-mini-transcribe"\)\)/);\n  assert.match(source, /put\("create_response", true\)/);\n  assert.match(source, /input_audio_buffer\.speech_stopped"[\s\S]*?onState\("thinking"\)/);\n  assert.doesNotMatch(source, /input_audio_buffer\.speech_stopped"[\s\S]*?response\.create/);
 });
 
 test("realtime session clamps stale Firestore model IDs to the supported model", async () => {
