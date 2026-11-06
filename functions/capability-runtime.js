@@ -102,7 +102,7 @@ export async function authorizeCapability(uid, controlId) {
     enabled: true,
     killSwitch: false,
     rolloutPercent: 100,
-    creditCost: PAYG_CAPABILITIES.has(controlId) ? 1 : 0,
+    creditCost: 0, // Missing capability configuration must never invent a one-credit charge.
     allowedPlanIds: [],
     config: { fallbackEnabled: true, fallbackProviderIds: ["gemini"] }
   };
