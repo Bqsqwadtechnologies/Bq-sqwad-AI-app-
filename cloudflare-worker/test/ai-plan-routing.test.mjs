@@ -76,7 +76,7 @@ test("Live Voice has one actionable Realtime error handler and no stale removed 
 
 test("Worker text-generation capabilities are pinned to GPT-6 Luna without Gemini fallback", async () => {
   const worker = await read("../src/index.js");
-  assert.match(worker, /gpt6TextCapabilities = new Set\(\["chat", "pdf", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "organization_studio", "device_commands"\]\)/);
+  assert.match(worker, /gpt6TextCapabilities = new Set\(\["chat", "pdf", "vision", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "learning_studio", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "organization_studio", "device_commands"\]\)/);
   assert.match(worker, /providerId: pinToGpt6Luna \? "openai"/);
   assert.match(worker, /modelId: pinToGpt6Luna \? "gpt-6-luna"/);
   assert.match(worker, /fallbackProviderIds: pinToGpt6Luna \? \[\]/);
