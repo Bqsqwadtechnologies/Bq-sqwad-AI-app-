@@ -55,7 +55,7 @@ test("Live voice lets Realtime server VAD create replies; transcription stays Sm
 
 test("workspace subscriptions are resolved from their own plan entitlements, not another module's root plan", async () => {
   const legacy = await read("../src/legacy-native.js");
-  assert.match(legacy, /firestoreQuery\("entitlements\/"\+user\.uid\+"\/plans"/);
+  assert.match(legacy, /firestoreQuery\("plans",\{parent:"entitlements\/"+user\.uid,limit:100\}\)/);
   assert.match(legacy, /const modulePlans=\(Array\.isArray\(rows\)\?rows:\[\]\)\s*\.filter\(isActive\)/);
   assert.match(legacy, /rootMatchesWorkspace=Boolean\(workspace&&allowed\[workspace\]\?\.has\(rootPlanId\)&&\(!rootModule\|\|rootModule===workspace\)\)/);
 });
@@ -110,7 +110,7 @@ test("legacy Firebase text routes also pin GPT-6 Luna and disable Gemini fallbac
 
 test("Life Mathis, Learning Studio and Frontier use their own verified plan records", async () => {
   const worker = await read("../src/index.js");
-  assert.match(worker, /firestoreQuery\("entitlements\/"\s*\+\s*user\.uid\s*\+\s*"\/plans",\s*\{\s*limit:\s*100\s*\}\)/);
+  assert.match(worker, /firestoreQuery\("plans",\s*\{\s*parent:\s*"entitlements\/"\s*\+\s*user\.uid,\s*limit:\s*100\s*\}\)/);
   assert.match(worker, /life_matters: \{ module: "life-mathis", ids: new Set\(\["lifemathisfree", "lmstandard", "lmultimate"\]\) \}/);
   assert.match(worker, /frontier_lab: \{ module: "frontier", ids: new Set\(\["frontierexplorer", "frontierpro", "frontierenterprise"\]\) \}/);
   assert.match(worker, /learning_studio: \{ module: "learning", ids: new Set\(\["explorer", "learnscholar", "learnfamily", "learnschool"\]\) \}/);
@@ -118,7 +118,7 @@ test("Life Mathis, Learning Studio and Frontier use their own verified plan reco
 
 test("Business plans use module-scoped entitlements and canonical catalog fallback", async () => {
   const business = await read("../src/business-native.js");
-  assert.match(business, /firestoreQuery\("entitlements\/"\+uid\+"\/plans"/);
+  assert.match(business, /firestoreQuery\("plans",\{parent:"entitlements\/"+uid,limit:100\}\)/);
   assert.match(business, /module==="business"/);
   assert.match(business, /mergeCommercialCatalog\(catalog\?\.catalog\|\|COMMERCIAL_CATALOG\)/);
 });
