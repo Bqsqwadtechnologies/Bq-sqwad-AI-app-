@@ -1,7 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { getProviderSecret } from "./secret-store.js";
 
-const GPT6_TEXT_CAPABILITIES = new Set(["chat", "device_commands", "vision", "truth_guard", "learning", "companion", "business", "business_ai", "organization_studio", "pdf", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "deep_research"]);
+const GPT6_TEXT_CAPABILITIES = new Set(["chat", "device_commands", "vision", "truth_guard", "learning", "learning_studio", "companion", "business", "business_ai", "organization_studio", "pdf", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "deep_research"]);
 
 const DEFAULT_MODELS = {
   openai: "gpt-6-luna",
