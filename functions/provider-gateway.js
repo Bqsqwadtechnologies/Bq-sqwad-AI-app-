@@ -41,11 +41,11 @@ export async function getRoute(capability) {
     const data = doc.data() || {};
     const config = data.config || {};
     return {
-      primaryProviderId: capability === "chat" ? "openai" : (data.providerId || "openai"),
-      // Main chat is pinned to the explicitly allowed GPT-6 Luna model.
-      // Do not route chat to a different model/provider if Luna fails.
-      primaryModelId: allowedModelForCapability(capability, capability === "chat" ? "openai" : (data.providerId || "openai"), data.modelId),
-      fallbackProviderIds: capability === "chat" ? [] : (Array.isArray(config.fallbackProviderIds)
+      primaryProviderId: ["chat", "device_commands"].includes(capability) ? "openai" : (data.providerId || "openai"),
+      // Main chat and device-command interpretation are pinned to GPT-6 Luna.
+      // Do not silently switch either text workflow to another provider/model.
+      primaryModelId: allowedModelForCapability(capability, ["chat", "device_commands"].includes(capability) ? "openai" : (data.providerId || "openai"), data.modelId),
+      fallbackProviderIds: ["chat", "device_commands"].includes(capability) ? [] : (Array.isArray(config.fallbackProviderIds)
         ? config.fallbackProviderIds
         : ((data.providerId || "openai") === "openai" ? ["gemini"] : [])),
       fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
@@ -54,7 +54,7 @@ export async function getRoute(capability) {
   }
   const defaults = {
     chat: { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: [], enabled: true },
-    device_commands: { primaryProviderId: "gemini", primaryModelId: DEFAULT_MODELS.gemini, fallbackProviderIds: [], enabled: true },
+    device_commands: { primaryProviderId: "openai", primaryModelId: "gpt-6-luna", fallbackProviderIds: [], enabled: true },
     web_search: { primaryProviderId: "tavily", primaryModelId: null, fallbackProviderIds: [], enabled: true },
     video_generation: { primaryProviderId: "openai", primaryModelId: null, fallbackProviderIds: [], enabled: false }
   };
@@ -177,6 +177,58 @@ export async function streamAi({ capability, message, system, onEvent }) {
     }
   }
   throw lastError || new Error("No provider route available");
+}
+
+export async function callOpenAIDeviceCommand({ model, message, system }) {
+  const apiKey = await getProviderSecret("openai");
+  if (!apiKey) throw new Error("OpenAI provider is not configured");
+  const modelId = "gpt-6-luna";
+  const body = {
+    model: modelId,
+    input: [{ role: "user", content: [{ type: "input_text", text: String(message || "") }] }],
+    tools: [{
+      type: "function",
+      name: "device_command",
+      description: "Return safe Android actions requested by the user. The app validates and performs each action.",
+      parameters: {
+        type: "object",
+        properties: {
+          actions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                value: { type: ["string", "number", "null"] }
+              },
+              required: ["type", "value"],
+              additionalProperties: false
+            }
+          },
+          message: { type: "string" }
+        },
+        required: ["actions", "message"],
+        additionalProperties: false
+      },
+      strict: true
+    }],
+    tool_choice: { type: "function", name: "device_command" }
+  };
+  if (system) body.instructions = String(system);
+  const result = await jsonFetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const call = (result.output || []).find(item => item?.type === "function_call" && item?.name === "device_command");
+  let args = {};
+  try { args = JSON.parse(String(call?.arguments || "{}")); } catch {}
+  return {
+    text: JSON.stringify({ actions: Array.isArray(args.actions) ? args.actions : [], message: String(args.message || "") }),
+    providerId: "openai",
+    modelId,
+    rawUsage: result.usage || {}
+  };
 }
 
 export async function callGeminiDeviceCommand({ model, message, system }) {
