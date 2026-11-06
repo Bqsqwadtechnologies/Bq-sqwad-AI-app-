@@ -110,7 +110,7 @@ test("legacy Firebase text routes also pin GPT-6 Luna and disable Gemini fallbac
 
 test("Life Mathis, Learning Studio and Frontier use their own verified plan records", async () => {
   const worker = await read("../src/index.js");
-  assert.match(worker, /firestoreQuery\("entitlements\/"\+user\.uid\+"\/plans", \{ limit: 100 \}\)/);
+  assert.match(worker, /firestoreQuery\("entitlements\/"\s*\+\s*user\.uid\s*\+\s*"\/plans",\s*\{\s*limit:\s*100\s*\}\)/);
   assert.match(worker, /life_matters: \{ module: "life-mathis", ids: new Set\(\["lifemathisfree", "lmstandard", "lmultimate"\]\) \}/);
   assert.match(worker, /frontier_lab: \{ module: "frontier", ids: new Set\(\["frontierexplorer", "frontierpro", "frontierenterprise"\]\) \}/);
   assert.match(worker, /learning_studio: \{ module: "learning", ids: new Set\(\["explorer", "learnscholar", "learnfamily", "learnschool"\]\) \}/);
