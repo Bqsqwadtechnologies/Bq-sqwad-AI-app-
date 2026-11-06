@@ -446,7 +446,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                             val answer = reply.optString("text").ifBlank { reply.optString("answer") }
                             if (answer.isNotBlank()) {
                                 messages.add(CompanionMessage(false, answer))
-                                // The Worker independently checks explicit account consent before storing anything.
+                                // The service independently checks explicit account consent before storing anything.
                                 scope.launch {
                                     runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
                                 }
