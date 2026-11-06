@@ -5421,14 +5421,16 @@ private fun WorkspaceScreen(
                 title = { Text(if (w == Workspace.BUSINESS) "Business AI" else w.title) },
                 navigationIcon = { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
                 actions = {
-                    IconButton(onClick = onLearnMore) {
-                        Icon(Icons.Default.Info, contentDescription = "Learn more about ${w.title}")
-                    }
-                    IconButton(onClick = onPrivacy) {
-                        Icon(Icons.Default.Lock, contentDescription = "${w.title} privacy")
-                    }
-                    IconButton(onClick = onSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "${w.title} settings")
+                    if (w != Workspace.ORGANIZATION_STUDIO) {
+                        IconButton(onClick = onLearnMore) {
+                            Icon(Icons.Default.Info, contentDescription = "Learn more about ${w.title}")
+                        }
+                        IconButton(onClick = onPrivacy) {
+                            Icon(Icons.Default.Lock, contentDescription = "${w.title} privacy")
+                        }
+                        IconButton(onClick = onSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "${w.title} settings")
+                        }
                     }
                 }
             )
@@ -5439,7 +5441,7 @@ private fun WorkspaceScreen(
                 .padding(p)
                 .then(if (w == Workspace.CAMERA) Modifier.fillMaxSize() else Modifier.padding(16.dp).fillMaxSize())
         ) {
-            if (w !in setOf(Workspace.CAMERA, Workspace.VOICE, Workspace.CHAT)) {
+            if (w !in setOf(Workspace.CAMERA, Workspace.VOICE, Workspace.CHAT, Workspace.ORGANIZATION_STUDIO)) {
                 val workspaceDescription = when (w) {
                     Workspace.LEARNING -> "Learn with guided lessons, focused practice, study plans and progress tracking."
                     Workspace.TRUTH_GUARD -> "Check claims against evidence, review sources and understand confidence before sharing."
