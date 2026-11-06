@@ -30,6 +30,7 @@ test("Device Intelligence defaults to GPT-6 Luna in both capability and publishe
   const registry = await read("../src/model-registry-native.js");
   assert.match(worker, /device_commands: \{ providerId: "openai", modelId: "gpt-6-luna"/);
   assert.match(worker, /primaryProviderId:control\.providerId\|\|"openai",primaryModelId:control\.modelId\|\|"gpt-6-luna"/);
+  assert.match(worker, /else control=\{\.\.\.control,providerId:"openai",modelId:"gpt-6-luna"\}/);
   assert.match(registry, /feature: "device-commands", capability: "device_commands", providerId: "openai", modelId: "gpt-6-luna"/);
   assert.match(registry, /if \(definition\.feature === "device-commands"\) \{\s*providerId = "openai";\s*modelId = "gpt-6-luna";/);
 });
