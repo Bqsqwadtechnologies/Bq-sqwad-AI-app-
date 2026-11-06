@@ -3216,7 +3216,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                         ?: generated.imageBase64?.let {
                             runCatching { uploadGeneratedImage(it) }
-                                .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
                                 .getOrNull()
                         }
                     scope.launch(Dispatchers.Main) {
@@ -4686,7 +4686,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                                     ?: generated.imageBase64?.let {
                                         runCatching { uploadGeneratedImage(it) }
-                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
                                             .getOrNull()
                                     }
                             }
@@ -4729,7 +4729,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                                     ?: generated.imageBase64?.let {
                                         runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }
-                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
                                             .getOrNull()
                                     }
                                 val idx = messages.indexOfFirst { it.id == targetId }
@@ -4774,7 +4774,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                 val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                                     ?: generated.imageBase64?.let {
                                         runCatching { withContext(Dispatchers.IO) { uploadGeneratedImage(it) } }
-                                            .onFailure { android.util.Log.w("BQImage", "Worker image URL unavailable; client storage fallback failed.") }
+                                            .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
                                             .getOrNull()
                                     }
                                 val idx = messages.indexOfFirst { it.id == targetId }
@@ -5125,7 +5125,7 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
     }
 
 private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>): List<Workspace> {
-    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
+    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ORGANIZATION_STUDIO }
     val byName = all.associateBy { it.name }
     val configured = order.mapNotNull { id -> byName[id] }.filter { enabled[it.name] != false }
     val remaining = all.filter { it.name !in order && enabled[it.name] != false }
@@ -5199,7 +5199,7 @@ private fun FeatureHub(
     onHistory: () -> Unit,
     onWorkspace: (Workspace) -> Unit
 ) {
-    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
+    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ORGANIZATION_STUDIO }
     val primary = listOf(
         Workspace.LEARNING,
         Workspace.TRUTH_GUARD,
@@ -5374,6 +5374,32 @@ private fun FeatureHub(
 }
 
 @Composable
+private fun OrganizationStudioWebsiteNotice() {
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxWidth().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
+        Text("Continue on the BQ Sqwad website", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            "Organization AI is currently available on our website, not in the Android app. Visit the website to access Organization AI and its advanced organization tools.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Button(onClick = {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://bqsqwadai.com")))
+            }
+        }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.OpenInNew, contentDescription = null)
+            Text("Open BQ Sqwad website", modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Composable
 private fun WorkspaceScreen(
     w: Workspace,
     email: String,
@@ -5456,7 +5482,7 @@ private fun WorkspaceScreen(
                 Workspace.LEARNING -> CompleteLearningStudioWorkspace(onOpenPlans = onOpenPlans, onOpenMainChat = onOpenMainChat)
                 Workspace.BUSINESS -> BusinessWorkspaceScreen(onOpenPlans = onOpenPlans)
                 Workspace.TASKS -> MyTasksWorkspace()
-                Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWorkspace()
+                Workspace.ORGANIZATION_STUDIO -> OrganizationStudioWebsiteNotice()
                 Workspace.CHAT -> AiTaskWorkspace("Main Chat", "General AI conversation.")
             }
         }
@@ -8481,7 +8507,7 @@ item { SettingsSectionTitle("File Box", "Store uploaded files and pictures for q
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Automatic expiry", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Choose how long uploaded files, pictures and text documents remain in your File Box. Expired stored files are removed from private storage by the scheduled Worker cleanup.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Choose how long uploaded files, pictures and text documents remain in your File Box. Expired stored files are automatically removed from your private storage.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(7, 14, 30, 90).forEach { days ->
                             FilterChip(selected = fileBoxRetentionDays == days, onClick = {
