@@ -1,6 +1,8 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { getProviderSecret } from "./secret-store.js";
 
+const GPT6_TEXT_CAPABILITIES = new Set(["chat", "device_commands", "vision", "truth_guard", "learning", "companion", "business", "business_ai", "organization_studio", "pdf", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "deep_research"]);
+
 const DEFAULT_MODELS = {
   openai: "gpt-6-luna",
   gemini: "gemini-3.5-flash"
@@ -41,11 +43,11 @@ export async function getRoute(capability) {
     const data = doc.data() || {};
     const config = data.config || {};
     return {
-      primaryProviderId: ["chat", "device_commands"].includes(capability) ? "openai" : (data.providerId || "openai"),
-      // Main chat and device-command interpretation are pinned to GPT-6 Luna.
-      // Do not silently switch either text workflow to another provider/model.
-      primaryModelId: allowedModelForCapability(capability, ["chat", "device_commands"].includes(capability) ? "openai" : (data.providerId || "openai"), data.modelId),
-      fallbackProviderIds: ["chat", "device_commands"].includes(capability) ? [] : (Array.isArray(config.fallbackProviderIds)
+      primaryProviderId: GPT6_TEXT_CAPABILITIES.has(capability) ? "openai" : (data.providerId || "openai"),
+      // Text-generation capabilities use GPT-6 Luna. Modality-specific routes
+      // retain their dedicated models, and text routes never silently fall back.
+      primaryModelId: allowedModelForCapability(capability, GPT6_TEXT_CAPABILITIES.has(capability) ? "openai" : (data.providerId || "openai"), data.modelId),
+      fallbackProviderIds: GPT6_TEXT_CAPABILITIES.has(capability) ? [] : (Array.isArray(config.fallbackProviderIds)
         ? config.fallbackProviderIds
         : ((data.providerId || "openai") === "openai" ? ["gemini"] : [])),
       fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
