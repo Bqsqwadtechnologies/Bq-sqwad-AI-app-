@@ -17,7 +17,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev\"")
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
+        versionCode = 19
         versionName = "1.0.18"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")

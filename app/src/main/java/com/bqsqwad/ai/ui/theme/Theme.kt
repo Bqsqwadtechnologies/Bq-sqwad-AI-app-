@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -203,10 +202,8 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
-            @Suppress("DEPRECATION")
-            window.statusBarColor = palette.background.toArgb()
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = palette.background.toArgb()
+            // Edge-to-edge keeps system bars transparent; only update icon contrast
+            // as the user changes BQ Sqwad AI themes.
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !dark
             controller.isAppearanceLightNavigationBars = !dark
