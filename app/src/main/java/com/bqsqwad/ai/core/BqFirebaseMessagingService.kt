@@ -53,7 +53,10 @@ class BqFirebaseMessagingService : FirebaseMessagingService() {
         val title = message.notification?.title
             ?: message.data["title"]
             ?: "BQ Sqwad AI"
-        val body = message.notification?.body
+        val body = message.data["reply"]
+            ?: message.data["preview"]
+            ?: message.data["message"]
+            ?: message.notification?.body
             ?: message.data["body"]
             ?: "You have a new BQ Sqwad AI update."
         if (AppVisibility.isForeground) {
