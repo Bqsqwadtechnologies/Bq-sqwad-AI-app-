@@ -171,7 +171,7 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
                         Column(Modifier.weight(1f)) {
                             Text("Deep Evidence Sweep", fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (proOrHigher) "Available on Pro and Team." else "Locked — Pro or Team required.",
+                                if (proOrHigher) "Available on Pro and Team." else "Upgrade to Pro or Team to unlock.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
