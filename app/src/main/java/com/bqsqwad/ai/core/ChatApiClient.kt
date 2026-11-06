@@ -50,7 +50,7 @@ class ChatApiClient(
     suspend fun getPublicModels(idToken: String? = null): JSONObject = withFriendlyNetworkErrors {
         withContext(Dispatchers.IO) {
             val token = idToken ?: runCatching { authToken() }.getOrNull()
-            // Prefer website public endpoint; fall back to Worker path if configured the same base.
+            // Prefer the public website endpoint; use the configured service endpoint when both share a base.
             val url = URL("${ApiConfig.websiteBaseUrl.trimEnd('/')}/api/public/models")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
