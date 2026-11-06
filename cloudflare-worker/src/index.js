@@ -5102,7 +5102,7 @@ export default {
                session: {
                  type: "realtime", model: sessionModel, output_modalities: ["audio"],
                  audio: {
-                   input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: false } },
+                   input: { format: { type: "audio/pcm", rate: 24000 }, turn_detection: { type: "server_vad", interrupt_response: true, create_response: true } },
                    output: { format: { type: "audio/pcm", rate: 24000 }, voice }
                  }
                }
