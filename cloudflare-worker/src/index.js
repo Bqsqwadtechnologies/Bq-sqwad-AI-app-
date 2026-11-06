@@ -1321,6 +1321,8 @@ async function seedAdminPricingDefaults() {
 
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
+  const gpt6TextCapabilities = new Set(["chat", "pdf", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "organization_studio", "device_commands"]);
+  const pinToGpt6Luna = gpt6TextCapabilities.has(String(name || "").trim().toLowerCase());
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
   const defaults = {
@@ -1339,15 +1341,15 @@ async function capability(uid, name) {
   return {
     ...value,
     enabled: value.enabled !== false,
-    providerId: value.providerId || d.providerId,
-    modelId: value.modelId || d.modelId,
+    providerId: pinToGpt6Luna ? "openai" : (value.providerId || d.providerId),
+    modelId: pinToGpt6Luna ? "gpt-6-luna" : (value.modelId || d.modelId),
     // Use an explicitly configured capability model when present. BQ model
     // IDs select their own generation rule; provider-specific media models
     // naturally fall back to the shared operation rule.
     creditCost: TOKEN_METERED.has(name) ? 0 : await featurePrice(name),
     config: {
       ...(value.config || {}),
-      fallbackProviderIds: Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds
+      fallbackProviderIds: pinToGpt6Luna ? [] : (Array.isArray(value.config?.fallbackProviderIds) ? value.config.fallbackProviderIds : d.fallbackProviderIds)
     }
   };
 }
