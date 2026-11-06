@@ -2511,26 +2511,47 @@ async function ai(request, user, body) {
     const env = globalThis.__bqEnv || {};
     const testing = await firestoreGet("adminAdvancedOptions/admin_testing_mode").catch(() => null);
     const adminTest = isSuperAdmin(user, env) && testing?.enabled === true;
-    const entitlement = await firestoreGet("entitlements/" + user.uid).catch(() => null);
-    const state = String(entitlement?.state || entitlement?.status || "").toLowerCase();
-    const expiresAt = entitlement?.expiresAt ? Date.parse(String(entitlement.expiresAt)) : NaN;
-    const active = ["active", "trialing", "grace"].includes(state) && (!entitlement?.expiresAt || (Number.isFinite(expiresAt) && expiresAt > Date.now()));
-    const entitlementPlan = active ? String(entitlement?.planId || "").toLowerCase() : "";
+    const planScope = {
+      life_matters: { module: "life-mathis", ids: new Set(["lifemathisfree", "lmstandard", "lmultimate"]) },
+      frontier_lab: { module: "frontier", ids: new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]) },
+      learning_studio: { module: "learning", ids: new Set(["explorer", "learnscholar", "learnfamily", "learnschool"]) }
+    }[capabilityName];
+    const [rootEntitlement, planRows] = await Promise.all([
+      firestoreGet("entitlements/" + user.uid).catch(() => null),
+      firestoreQuery("entitlements/" + user.uid + "/plans", { limit: 100 }).catch(() => [])
+    ]);
+    const now = Date.now();
+    const isCurrentPlan = item => {
+      const state = String(item?.state || item?.status || "").toLowerCase();
+      const expiryValue = item?.expiresAt || item?.endDate || null;
+      const expiry = expiryValue ? Date.parse(String(expiryValue)) : NaN;
+      const notExpired = !expiryValue || (Number.isFinite(expiry) && expiry > now);
+      const planId = String(item?.planId || item?.id || "").trim().toLowerCase();
+      const module = String(item?.module || "").trim().toLowerCase();
+      return ["active", "trialing", "grace"].includes(state) &&
+        notExpired && planScope.ids.has(planId) && (!module || module === planScope.module);
+    };
+    const matchingPlans = (Array.isArray(planRows) ? planRows : [])
+      .filter(isCurrentPlan)
+      .sort((a, b) => String(b.updatedAt || b.expiresAt || "").localeCompare(String(a.updatedAt || a.expiresAt || "")));
+    const rootPlanId = String(rootEntitlement?.planId || "").trim().toLowerCase();
+    const rootModule = String(rootEntitlement?.module || "").trim().toLowerCase();
+    const rootMatches = planScope.ids.has(rootPlanId) && (!rootModule || rootModule === planScope.module) && isCurrentPlan({ ...rootEntitlement, planId: rootPlanId });
+    const entitlementPlan = matchingPlans[0]
+      ? String(matchingPlans[0].planId || matchingPlans[0].id).trim().toLowerCase()
+      : (rootMatches ? rootPlanId : "");
     if (capabilityName === "life_matters") {
-      const valid = new Set(["lifemathisfree", "lmstandard", "lmultimate"]);
-      const planId = valid.has(entitlementPlan) ? entitlementPlan : "lifemathisfree";
+      const planId = planScope.ids.has(entitlementPlan) ? entitlementPlan : "lifemathisfree";
       const monthlyLimit = planId === "lifemathisfree" ? 10 : planId === "lmstandard" ? 300 : Infinity;
       const monthKey = new Date().toISOString().slice(0, 7);
       workspacePlan = { planId, monthKey, monthlyLimit, adminTest };
     } else if (capabilityName === "learning_studio") {
-      const valid = new Set(["learnscholar", "learnfamily", "learnschool"]);
-      const planId = valid.has(entitlementPlan) ? entitlementPlan : "explorer";
+      const planId = planScope.ids.has(entitlementPlan) ? entitlementPlan : "explorer";
       const dailyLimit = planId === "explorer" ? 3 : Infinity;
       const dayKey = new Date().toISOString().slice(0, 10);
       workspacePlan = { planId, dayKey, dailyLimit, adminTest };
     } else {
-      const valid = new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]);
-      if (!adminTest && !valid.has(entitlementPlan)) throw Object.assign(new Error("frontier_plan_required"), { httpStatus: 403, safeError: "frontier_plan_required" });
+      if (!adminTest && !planScope.ids.has(entitlementPlan)) throw Object.assign(new Error("frontier_plan_required"), { httpStatus: 403, safeError: "frontier_plan_required" });
       workspacePlan = { planId: adminTest ? "admin-unlimited" : entitlementPlan, adminTest };
     }
   }
