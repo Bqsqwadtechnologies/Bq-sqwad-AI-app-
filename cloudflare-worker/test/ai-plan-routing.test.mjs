@@ -36,9 +36,11 @@ test("Device Intelligence defaults to GPT-6 Luna in both capability and publishe
 
 test("Dictation waits for the user's explicit Transcribe tap instead of auto-charging", async () => {
   const app = await read("../../app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt");
+  const worker = await read("../src/index.js");
   assert.doesNotMatch(app, /LaunchedEffect\(dictationReadyAudio\)[\s\S]{0,180}?transcribeDictation\(\)/);
   assert.match(app, /Button\(onClick = \{ transcribeDictation\(\) \}/);
-  assert.match(app, /speech\.transcribe/);
+  assert.match(worker, /activeGenerationRule\("speech\.transcribe"\)/);
+  assert.match(worker, /chargeCredits\(user\.uid, chargeAmount, "dictation", user\)/);
 });
 
 test("Live voice lets Realtime server VAD create replies; transcription stays Smart-mode only", async () => {
