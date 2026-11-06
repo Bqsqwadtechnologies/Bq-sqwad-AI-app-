@@ -130,3 +130,21 @@ test("A verified Play purchase refreshes the plan screen after backend activatio
   assert.match(billing, /PlayPurchaseState\("success", "Purchase verified\. Your access is now active\."/);
   assert.match(screen, /"success" -> load\(\)/);
 });
+
+test("Learning AI, TruthGuard and Frontier keep GPT-6 Luna across every subscription tier", async () => {
+  const worker = await read("../src/index.js");
+  const catalog = await read("../src/plan-catalog-native.js");
+  const planIds = [
+    "explorer", "learnscholar", "learnfamily", "learnschool",
+    "truthguardfree", "tgplus", "tgpro", "tgteam",
+    "frontierexplorer", "frontierpro", "frontierenterprise"
+  ];
+  for (const planId of planIds) {
+    assert.ok(catalog.includes('"' + planId + '"'), "missing plan " + planId);
+  }
+
+  // Plans control access and limits; they must never select another text model.
+  assert.match(worker, /"truth_guard", "companion"[\s\S]*?"learning", "learning_studio"[\s\S]*?"frontier_lab"/);
+  assert.match(worker, /modelId: pinToGpt6Luna \? "gpt-6-luna"/);
+  assert.match(worker, /modelId: "gpt-6-luna",[\s\S]{0,100}fallbackModels: \{\}/);
+});
