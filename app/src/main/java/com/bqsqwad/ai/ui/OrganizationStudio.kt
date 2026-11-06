@@ -607,7 +607,7 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Members & roles", style = MaterialTheme.typography.titleLarge)
-                    Text("Owner, admin, editor, viewer and member roles are persisted server-side.")
+                    Text("Owner, admin, editor, viewer and member roles are saved securely to your account.")
                     OutlinedTextField(memberId, { memberId = it }, Modifier.fillMaxWidth(), label = { Text("Member account ID") })
                     OutlinedTextField(memberRole, { memberRole = it }, Modifier.fillMaxWidth(), label = { Text("Role") })
                     Button(
@@ -787,7 +787,7 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("YouTube live production", style = MaterialTheme.typography.titleLarge)
-                    Text("Organization AI creates the provider session server-side, then the native camera broadcaster sends H.264 video and AAC audio directly to the provider ingestion endpoint.")
+                    Text("Organization AI prepares the broadcast connection securely, then streams video and audio to the selected platform.")
                     Text("YouTube account", style = MaterialTheme.typography.labelLarge)
                     if (youtubeAccounts.length() == 0) {
                         Text("No Organization YouTube channel is connected. Connect it below; the client secret stays in the encrypted server secret store.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1151,7 +1151,7 @@ fun OrganizationStudioWorkspace() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Scheduled AI", style = MaterialTheme.typography.titleLarge)
-                    Text("Create organization-scoped AI tasks that run automatically on the backend. Schedules are server-persisted and billed from the separate Organization usage balance.")
+                    Text("Create organization-scoped AI tasks that run automatically using your saved schedule and billed from the separate Organization usage balance.")
                     OutlinedTextField(scheduledName, { scheduledName = it }, Modifier.fillMaxWidth(), label = { Text("Task name") })
                     OutlinedTextField(scheduledPrompt, { scheduledPrompt = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("AI task prompt") })
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
