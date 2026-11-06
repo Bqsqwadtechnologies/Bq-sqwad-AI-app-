@@ -610,7 +610,7 @@ class WorkspaceApiClient {
 
     suspend fun entitlements():JSONObject = request("/entitlements","GET")
 
-    // The Worker reads/writes the same Firebase users/{uid} credit authority as the website.
+    // The app service reads and writes the same account credit balance used by the website.
     suspend fun credits():JSONObject = request("/credits","GET")
 
     suspend fun playSubscriptionManagement():JSONObject = request("/play/subscription-management","GET")
