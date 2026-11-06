@@ -107,3 +107,26 @@ test("legacy Firebase text routes also pin GPT-6 Luna and disable Gemini fallbac
   assert.match(gateway, /primaryProviderId: GPT6_TEXT_CAPABILITIES\.has\(capability\) \? "openai"/);
   assert.match(gateway, /fallbackProviderIds: GPT6_TEXT_CAPABILITIES\.has\(capability\) \? \[\]/);
 });
+
+test("Life Mathis, Learning Studio and Frontier use their own verified plan records", async () => {
+  const worker = await read("../src/index.js");
+  assert.match(worker, /firestoreQuery\("entitlements\/"\+user\.uid\+"\/plans", \{ limit: 100 \}\)/);
+  assert.match(worker, /life_matters: \{ module: "life-mathis", ids: new Set\(\["lifemathisfree", "lmstandard", "lmultimate"\]\) \}/);
+  assert.match(worker, /frontier_lab: \{ module: "frontier", ids: new Set\(\["frontierexplorer", "frontierpro", "frontierenterprise"\]\) \}/);
+  assert.match(worker, /learning_studio: \{ module: "learning", ids: new Set\(\["explorer", "learnscholar", "learnfamily", "learnschool"\]\) \}/);
+});
+
+test("Business plans use module-scoped entitlements and canonical catalog fallback", async () => {
+  const business = await read("../src/business-native.js");
+  assert.match(business, /firestoreQuery\("entitlements\/"\+uid\+"\/plans"/);
+  assert.match(business, /module==="business"/);
+  assert.match(business, /mergeCommercialCatalog\(catalog\?\.catalog\|\|COMMERCIAL_CATALOG\)/);
+});
+
+test("A verified Play purchase refreshes the plan screen after backend activation", async () => {
+  const billing = await read("../../app/src/main/java/com/bqsqwad/ai/core/PlayBillingClient.kt");
+  const screen = await read("../../app/src/main/java/com/bqsqwad/ai/ui/ProductCatalogScreen.kt");
+  assert.match(billing, /connection\.outputStream\.use[\s\S]*?verifiedBody\.optBoolean\("ok", false\)/);
+  assert.match(billing, /PlayPurchaseState\("success", "Purchase verified\. Your access is now active\."/);
+  assert.match(screen, /"success" -> load\(\)/);
+});
