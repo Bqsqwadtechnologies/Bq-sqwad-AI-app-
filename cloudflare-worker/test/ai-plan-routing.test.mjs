@@ -52,3 +52,24 @@ test("Live voice lets Realtime server VAD create replies; transcription stays Sm
   assert.match(android, /if \(silentTextMode\) \{[\s\S]*?put\("transcription", JSONObject\(\)\.put\("model", "gpt-4o-mini-transcribe"\)\)/);
   assert.match(worker, /heartbeatBody\.smart === true\s*\? await activeGenerationRule\("speech\.transcribe"\)/);
 });
+
+test("workspace subscriptions are resolved from their own plan entitlements, not another module's root plan", async () => {
+  const legacy = await read("../src/legacy-native.js");
+  assert.match(legacy, /firestoreQuery\("entitlements\/"\+user\.uid\+"\/plans"/);
+  assert.match(legacy, /const modulePlans=\(Array\.isArray\(rows\)\?rows:\[\]\)\s*\.filter\(isActive\)/);
+  assert.match(legacy, /rootMatchesWorkspace=Boolean\(workspace&&allowed\[workspace\]\?\.has\(rootPlanId\)&&\(!rootModule\|\|rootModule===workspace\)\)/);
+});
+
+test("TruthGuard plan cards fall back to the canonical catalog when Firestore overrides are absent", async () => {
+  const legacy = await read("../src/legacy-native.js");
+  assert.match(legacy, /import \{ COMMERCIAL_CATALOG, mergeCommercialCatalog \} from "\.\/plan-catalog-native\.js"/);
+  assert.match(legacy, /const catalog = mergeCommercialCatalog\(saved\?\.catalog \|\| COMMERCIAL_CATALOG\)/);
+  assert.match(legacy, /truthGuardPlans/);
+});
+
+test("Live Voice has one actionable Realtime error handler and no stale removed response flag", async () => {
+  const android = await read("../../app/src/main/java/com/bqsqwad/ai/core/RealtimeVoiceSession.kt");
+  assert.equal((android.match(/"error" -> \{/g) || []).length, 1);
+  assert.doesNotMatch(android, /pendingAudioResponse/);
+  assert.match(android, /"input_audio_buffer\.speech_stopped" -> \{[\s\S]*?onState\("thinking"\)/);
+});
