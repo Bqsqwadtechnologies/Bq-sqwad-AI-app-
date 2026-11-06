@@ -119,7 +119,7 @@ async function gate(user,env,fallback){
   };
   const [root,rows,test]=await Promise.all([
     firestoreGet("entitlements/"+user.uid).catch(()=>null),
-    firestoreQuery("entitlements/"+user.uid+"/plans",{limit:100}).catch(()=>[]),
+    firestoreQuery("plans",{parent:"entitlements/"+user.uid,limit:100}).catch(()=>[]),
     adminTest(user,env)
   ]);
   const now=Date.now();
