@@ -70,7 +70,7 @@ object NativeFeatureRegistry {
         "ai_coding_workspace", "github_codron_integration", "codron" -> "AI-assisted coding, repository understanding and controlled development workflows."
         "background_generation_jobs", "generation_queue" -> "Track longer AI work in a server-backed generation queue."
         "cross_device_sync" -> "Synchronize supported AI data across signed-in devices."
-        "business_crm", "business_workflows", "business_analytics" -> "Business intelligence, CRM and automation capability connected to the business backend."
+        "business_crm", "business_workflows", "business_analytics" -> "Business intelligence, customer records and automation tools for your business."
         else -> "Native BQ Sqwad AI capability connected to the shared server runtime and admin controls."
     }
 }
