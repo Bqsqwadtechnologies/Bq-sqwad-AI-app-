@@ -1299,7 +1299,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val current = workspace
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1312,7 +1312,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 workspaceAccess.planModules["data-analysis"].orEmpty().isNotEmpty()
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL
+                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
                 ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
                 accessRetryWorkspace = current
             }
@@ -1324,7 +1324,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         shellScope.launch { drawerState.close() }
         // Guest browsing is allowed in Main Chat, but every other workspace is
         // account-scoped and must require Firebase authentication first.
-        if (FirebaseAuth.getInstance().currentUser == null) {
+        if (selected == Workspace.ORGANIZATION_STUDIO) {
+            // This entry is informational only; Organization AI runs on the website.
+            workspace = selected
+        } else if (FirebaseAuth.getInstance().currentUser == null) {
             workspace = null
             signInRequired = true
         } else if (selected in setOf(
@@ -5125,7 +5128,7 @@ private val ADVANCED_APP_FEATURES: List<AppFeature>
     }
 
 private fun orderedDrawerWorkspaces(order: List<String>, enabled: Map<String, Boolean>): List<Workspace> {
-    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ORGANIZATION_STUDIO }
+    val all = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
     val byName = all.associateBy { it.name }
     val configured = order.mapNotNull { id -> byName[id] }.filter { enabled[it.name] != false }
     val remaining = all.filter { it.name !in order && enabled[it.name] != false }
@@ -5199,7 +5202,7 @@ private fun FeatureHub(
     onHistory: () -> Unit,
     onWorkspace: (Workspace) -> Unit
 ) {
-    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH && it != Workspace.ORGANIZATION_STUDIO }
+    val visibleWorkspaces = Workspace.values().filter { it != Workspace.CHAT && it != Workspace.SEARCH }
     val primary = listOf(
         Workspace.LEARNING,
         Workspace.TRUTH_GUARD,
