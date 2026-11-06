@@ -1321,7 +1321,7 @@ async function seedAdminPricingDefaults() {
 
 async function capability(uid, name) {
   assertPublicCapabilityAllowed(name);
-  const gpt6TextCapabilities = new Set(["chat", "pdf", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "organization_studio", "device_commands"]);
+  const gpt6TextCapabilities = new Set(["chat", "pdf", "vision", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "learning_studio", "life_matters", "frontier_lab", "personal_intelligence", "data_analyst", "organization_studio", "device_commands"]);
   const pinToGpt6Luna = gpt6TextCapabilities.has(String(name || "").trim().toLowerCase());
   const control = await firestoreGet("adminAdvancedOptions/capability_" + name).catch(() => null);
   if (control?.enabled === false || control?.killSwitch === true) throw new Error("capability_disabled:capability_" + name);
