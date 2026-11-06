@@ -1,5 +1,6 @@
 import { firestoreGet, firestoreSet, firestoreCreate, firestoreDelete, firestoreQuery, firestoreCommit } from "./firebase.js";
 import { runProvider, callTavily } from "./providers.js";
+import { COMMERCIAL_CATALOG, mergeCommercialCatalog } from "./plan-catalog-native.js";
 
 const activeStates=new Set(["active","trialing","grace"]);
 const clean=(v,n=12000)=>String(v??"").trim().slice(0,n);
@@ -103,9 +104,43 @@ export async function workspaceScopeRedirect(workspace, prompt) {
   const result = classifyWorkspaceScope(key, prompt);
   return result.inScope ? null : result.redirect;
 }
-async function section(name){const x=await firestoreGet("planCatalog/config");return Array.isArray(x?.catalog?.sections?.[name])?x.catalog.sections[name]:[]}
+async function section(name){
+  const saved = await firestoreGet("planCatalog/config").catch(() => null);
+  const catalog = mergeCommercialCatalog(saved?.catalog || COMMERCIAL_CATALOG);
+  return Array.isArray(catalog?.sections?.[name]) ? catalog.sections[name] : [];
+}
 async function adminTest(user,env){const claims=user?.customAttributes||{},email=String(user?.email||"").toLowerCase(),owner=String(env?.SUPER_ADMIN_EMAIL||"").toLowerCase();const root=(Boolean(owner)&&email===owner&&user?.emailVerified===true)||claims.superAdmin===true||claims.role==="super_admin";if(!root)return false;return (await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.enabled===true}
-async function gate(user,env,fallback){const e=await firestoreGet("entitlements/"+user.uid),test=await adminTest(user,env),state=String(e?.state||e?.status||"").toLowerCase(),expiry=e?.expiresAt?Date.parse(String(e.expiresAt)):NaN,notExpired=!e?.expiresAt||(Number.isFinite(expiry)&&expiry>Date.now()),workspace=fallback==="companionfree"?"companion":fallback==="explorer"?"learning":fallback==="truthguardfree"?"truthguard":"",allowed={companion:new Set(["companionfree","companionbasic","companionplus","companionpremium","companionultimate"]),learning:new Set(["explorer","learnscholar","learnfamily","learnschool"]),truthguard:new Set(["truthguardfree","tgplus","tgpro","tgteam"])},entitledPlan=String(e?.planId||"").trim().toLowerCase(),active=activeStates.has(state)&&notExpired&&Boolean(workspace&&allowed[workspace]?.has(entitledPlan));return {planId:test?"admin-unlimited":(active?entitledPlan:fallback),adminTestMode:test}}
+async function gate(user,env,fallback){
+  const workspace=fallback==="companionfree"?"companion":fallback==="explorer"?"learning":fallback==="truthguardfree"?"truthguard":"";
+  const allowed={
+    companion:new Set(["companionfree","companionbasic","companionplus","companionpremium","companionultimate"]),
+    learning:new Set(["explorer","learnscholar","learnfamily","learnschool"]),
+    truthguard:new Set(["truthguardfree","tgplus","tgpro","tgteam"])
+  };
+  const [root,rows,test]=await Promise.all([
+    firestoreGet("entitlements/"+user.uid).catch(()=>null),
+    firestoreQuery("entitlements/"+user.uid+"/plans",{limit:100}).catch(()=>[]),
+    adminTest(user,env)
+  ]);
+  const now=Date.now();
+  const isActive=(item)=>{
+    const state=String(item?.state||item?.status||"").toLowerCase();
+    const expiryValue=item?.expiresAt||item?.endDate||null;
+    const expiry=expiryValue?Date.parse(String(expiryValue)):NaN;
+    const notExpired=!expiryValue||(Number.isFinite(expiry)&&expiry>now);
+    const planId=String(item?.planId||item?.id||"").trim().toLowerCase();
+    return activeStates.has(state)&&notExpired&&Boolean(workspace&&allowed[workspace]?.has(planId));
+  };
+  const modulePlans=(Array.isArray(rows)?rows:[])
+    .filter(isActive)
+    .sort((a,b)=>String(b.updatedAt||b.expiresAt||"").localeCompare(String(a.updatedAt||a.expiresAt||"")));
+  const rootPlanId=String(root?.planId||"").trim().toLowerCase();
+  const rootModule=String(root?.module||"").trim().toLowerCase();
+  const rootMatchesWorkspace=Boolean(workspace&&allowed[workspace]?.has(rootPlanId)&&(!rootModule||rootModule===workspace));
+  const rootFallback=rootMatchesWorkspace&&isActive({...root,planId:rootPlanId});
+  const entitledPlan=modulePlans[0]?String(modulePlans[0].planId||modulePlans[0].id).trim().toLowerCase():(rootFallback?rootPlanId:"");
+  return {planId:test?"admin-unlimited":(entitledPlan||fallback),adminTestMode:test};
+}
 
 export async function companionCatalog(user,env){const g=await gate(user,env,"companionfree"),p=await section("companion");return {ok:true,activePlanId:g.planId,adminTestMode:g.adminTestMode,plans:p.map(x=>({id:x.id,name:x.name,description:x.description||"",price:x.price||{},features:x.features||[],limits:x.limits||{},basePlans:x.basePlans||[],billingPeriods:x.billingPeriods||[],trialDays:x.trialDays||0,playEligible:x.playEligible===true,productId:x.productId||null}))}}
 export async function companionProfile(uid){const x=await firestoreGet("companionProfiles/"+uid)||{};return {ok:true,profile:{personality:String(x.personality||"Warm"),name:String(x.name||"BQ Companion"),memoryEnabled:x.memoryEnabled!==false,checkInsEnabled:x.checkInsEnabled!==false,voiceEnabled:x.voiceEnabled===true,cameraEnabled:x.cameraEnabled===true,updatedAt:x.updatedAt||null}}}
