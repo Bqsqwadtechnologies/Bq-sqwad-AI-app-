@@ -15,7 +15,7 @@ function pemToBytes(pem) {
   const base64 = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
 
@@ -296,15 +296,36 @@ export async function firestoreCreate(path, data) {
   return decodeDocument(await firestoreFetch(url, { method: "POST", body: JSON.stringify({ fields }) }));
 }
 
+export function buildFirestoreCommitBody(writes, documentName) {
+  return {
+    writes: writes.map(write => {
+      const fields = Object.fromEntries(
+        Object.entries(write.data || {}).map(([key, value]) => [key, encodeValue(value)])
+      );
+      const document = { name: documentName(write.path), fields };
+      return {
+        ...(write.create
+          ? { create: document }
+          : {
+              update: document,
+              // An update without a mask replaces the entire Firestore document.
+              // Mask every update so partial credit writes cannot erase account
+              // metadata such as dailyFreeCreditsDate, email, plan or settings.
+              updateMask: { fieldPaths: Object.keys(fields) }
+            }),
+        ...(!write.create && write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {}),
+        ...(!write.create && write.exists === false ? { currentDocument: { exists: false } } : {}),
+        ...(!write.create && write.exists === true ? { currentDocument: { exists: true } } : {})
+      };
+    })
+  };
+}
+
 export async function firestoreCommit(writes) {
-  const body = { writes: writes.map(write => ({
-    ...(write.create
-      ? { create: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }
-      : { update: { name: docUrl(write.path).replace(FIRESTORE_BASE + "/", ""), fields: Object.fromEntries(Object.entries(write.data || {}).map(([k,v]) => [k, encodeValue(v)])) } }),
-    ...(!write.create && write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {}),
-    ...(!write.create && write.exists === false ? { currentDocument: { exists: false } } : {}),
-    ...(!write.create && write.exists === true ? { currentDocument: { exists: true } } : {})
-  })) };
+  const body = buildFirestoreCommitBody(
+    writes,
+    path => docUrl(path).replace(FIRESTORE_BASE + "/", "")
+  );
   const token = await googleAccessToken();
   const url = FIRESTORE_BASE + "/projects/" + encodeURIComponent(projectId()) + "/databases/(default)/documents:commit";
   const response = await fetch(url, {
