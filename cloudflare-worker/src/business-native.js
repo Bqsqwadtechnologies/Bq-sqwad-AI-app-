@@ -13,7 +13,7 @@ async function getBusinessPlanContext(uid){
   const testActive=test?.enabled===true&&Number.isFinite(testExpiry)&&testExpiry>Date.now();
   const [root,rows,catalog]=await Promise.all([
     firestoreGet("entitlements/"+uid).catch(()=>null),
-    firestoreQuery("entitlements/"+uid+"/plans",{limit:100}).catch(()=>[]),
+    firestoreQuery("plans",{parent:"entitlements/"+uid,limit:100}).catch(()=>[]),
     firestoreGet("planCatalog/config").catch(()=>null)
   ]);
   const validIds=new Set(["bizstarter","bizbasic","bizstandard","bizprofessional","bizbusiness","bizenterprise","businessenterprise"]);
