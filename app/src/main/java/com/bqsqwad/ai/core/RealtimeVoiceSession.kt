@@ -182,7 +182,12 @@ class RealtimeVoiceSession(
                 put("audio", JSONObject().apply {
                     put("input", JSONObject().apply {
                         put("format", JSONObject().put("type", "audio/pcm").put("rate", SAMPLE_RATE))
-                        put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
+                        // Input transcription is a separately metered Smart Practice feature.
+                        // Ordinary Live Voice uses the audio stream directly and must not
+                        // enable transcript generation or display transcript activity.
+                        if (silentTextMode) {
+                            put("transcription", JSONObject().put("model", "gpt-4o-mini-transcribe"))
+                        }
                         put("turn_detection", JSONObject().apply {
                             put("type", "server_vad")
                             put("interrupt_response", true)
