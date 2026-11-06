@@ -91,3 +91,19 @@ test("Firebase Functions legacy device commands also use GPT-6 Luna", async () =
   assert.match(entry, /callOpenAIDeviceCommand\(/);
   assert.doesNotMatch(entry, /callGeminiDeviceCommand\(/);
 });
+
+test("published text-chat and device-command model registry entries cannot select Gemini", async () => {
+  const registry = await read("../src/model-registry-native.js");
+  assert.match(registry, /const OPENAI_ONLY_TEXT_FEATURES = new Set\(\["text-chat", "device-commands"\]\)/);
+  assert.match(registry, /"text-chat": new Set\(\["openai"\]\)/);
+  assert.match(registry, /"device-commands": new Set\(\["openai"\]\)/);
+  assert.match(registry, /isAllowedProviderForFeature\(x\.providerId, x\.feature\)/);
+  assert.match(registry, /row\.modelId !== definition\.modelId/);
+});
+
+test("legacy Firebase text routes also pin GPT-6 Luna and disable Gemini fallback", async () => {
+  const gateway = await read("../../functions/provider-gateway.js");
+  assert.match(gateway, /const GPT6_TEXT_CAPABILITIES = new Set/);
+  assert.match(gateway, /primaryProviderId: GPT6_TEXT_CAPABILITIES\.has\(capability\) \? "openai"/);
+  assert.match(gateway, /fallbackProviderIds: GPT6_TEXT_CAPABILITIES\.has\(capability\) \? \[\]/);
+});
