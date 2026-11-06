@@ -73,3 +73,21 @@ test("Live Voice has one actionable Realtime error handler and no stale removed 
   assert.doesNotMatch(android, /pendingAudioResponse/);
   assert.match(android, /"input_audio_buffer\.speech_stopped" -> \{[\s\S]*?onState\("thinking"\)/);
 });
+
+test("Worker text-generation capabilities are pinned to GPT-6 Luna without Gemini fallback", async () => {
+  const worker = await read("../src/index.js");
+  assert.match(worker, /gpt6TextCapabilities = new Set\(\["chat", "pdf", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "learning", "organization_studio", "device_commands"\]\)/);
+  assert.match(worker, /providerId: pinToGpt6Luna \? "openai"/);
+  assert.match(worker, /modelId: pinToGpt6Luna \? "gpt-6-luna"/);
+  assert.match(worker, /fallbackProviderIds: pinToGpt6Luna \? \[\]/);
+});
+
+test("Firebase Functions legacy device commands also use GPT-6 Luna", async () => {
+  const gateway = await read("../../functions/provider-gateway.js");
+  const entry = await read("../../functions/index.js");
+  assert.match(gateway, /device_commands: \{ primaryProviderId: "openai", primaryModelId: "gpt-6-luna", fallbackProviderIds: \[\]/);
+  assert.match(gateway, /export async function callOpenAIDeviceCommand/);
+  assert.match(gateway, /const modelId = "gpt-6-luna"/);
+  assert.match(entry, /callOpenAIDeviceCommand\(/);
+  assert.doesNotMatch(entry, /callGeminiDeviceCommand\(/);
+});
