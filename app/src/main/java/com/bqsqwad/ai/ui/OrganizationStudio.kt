@@ -388,7 +388,7 @@ fun OrganizationStudioWorkspace() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Website Studio PAYG wallet", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Read-only view of the website's canonical organization wallet. This is separate from the legacy Worker balance while reconciliation is pending.",
+                        "Read-only view of the website's canonical organization wallet. This is separate from the previous service balance while reconciliation is pending.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
