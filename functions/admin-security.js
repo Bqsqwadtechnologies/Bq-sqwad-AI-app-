@@ -30,6 +30,7 @@ async function recordAdminUnlockFailure(uid) {
     if (lockUntil > Date.now()) return;
     const failures = Math.max(0, Number(data.failures || 0)) + 1;
     transaction.set(document, {
+      uid: String(uid),
       failures: failures >= ADMIN_UNLOCK_MAX_FAILURES ? 0 : failures,
       lockUntil: failures >= ADMIN_UNLOCK_MAX_FAILURES
         ? new Date(Date.now() + ADMIN_UNLOCK_LOCKOUT_MS)
