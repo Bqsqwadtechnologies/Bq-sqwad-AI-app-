@@ -3349,14 +3349,16 @@ export default {
         const chatId = String(url.searchParams.get("chatId") || "").trim();
         const validateBlob = (value) => {
           if (!value || typeof value !== "object") return null;
-          const fields = ["salt", "iv", "ciphertext"];
-          const out = {};
-          for (const field of fields) {
-            const item = value[field];
-            if (typeof item !== "string" || item.length < 8 || item.length > 900000 || !/^[A-Za-z0-9+/=]+$/.test(item)) return null;
-            out[field] = item;
-          }
-          return out;
+          const { salt, iv, ciphertext } = value;
+          if (
+            typeof salt !== "string" || salt.length !== 24 ||
+            typeof iv !== "string" || iv.length !== 16 ||
+            typeof ciphertext !== "string" || ciphertext.length < 24 || ciphertext.length > 900000 ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(salt) ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(iv) ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(ciphertext)
+          ) return null;
+          return { salt, iv, ciphertext };
         };
         if (chatId) {
           if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId)) return json({ error: "invalid_secret_chat_id" }, 400);
@@ -3380,13 +3382,16 @@ export default {
         const chatId = String(body.chatId || "").trim();
         const validateBlob = (value) => {
           if (!value || typeof value !== "object") return null;
-          const out = {};
-          for (const field of ["salt", "iv", "ciphertext"]) {
-            const item = value[field];
-            if (typeof item !== "string" || item.length < 8 || item.length > 900000 || !/^[A-Za-z0-9+/=]+$/.test(item)) return null;
-            out[field] = item;
-          }
-          return out;
+          const { salt, iv, ciphertext } = value;
+          if (
+            typeof salt !== "string" || salt.length !== 24 ||
+            typeof iv !== "string" || iv.length !== 16 ||
+            typeof ciphertext !== "string" || ciphertext.length < 24 || ciphertext.length > 900000 ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(salt) ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(iv) ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(ciphertext)
+          ) return null;
+          return { salt, iv, ciphertext };
         };
         const primary = validateBlob(body.primary);
         const recovery = validateBlob(body.recovery);
