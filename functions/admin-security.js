@@ -55,14 +55,22 @@ function totp(secret, counter = Math.floor(Date.now() / 1000 / 30)) {
   return String(code).padStart(6, "0");
 }
 
-function verifyTotp(secret, code) {
+function matchingTotpCounter(secret, code) {
   const normalized = String(code || "").replace(/\D/g, "");
-  if (normalized.length !== 6) return false;
+  if (normalized.length !== 6) return null;
+  const supplied = Buffer.from(normalized);
   const counter = Math.floor(Date.now() / 1000 / 30);
   for (let delta = -1; delta <= 1; delta++) {
-    if (crypto.timingSafeEqual(Buffer.from(totp(secret, counter + delta)), Buffer.from(normalized))) return true;
+    const candidate = counter + delta;
+    if (candidate < 0) continue;
+    const expected = Buffer.from(totp(secret, candidate));
+    if (crypto.timingSafeEqual(expected, supplied)) return candidate;
   }
-  return false;
+  return null;
+}
+
+function verifyTotp(secret, code) {
+  return matchingTotpCounter(secret, code) !== null;
 }
 
 function hashPassword(password, salt = crypto.randomBytes(16)) {
@@ -123,35 +131,74 @@ export async function beginTotpSetup(actorUid) {
 }
 
 export async function confirmTotpSetup(code, actorUid) {
-  const snap = await (await ref()).get();
+  const document = await ref();
+  const snap = await document.get();
   const data = snap.data() || {};
-  const pending = data.pendingTotpSecretEncrypted
-    ? decryptSecret(data.pendingTotpSecretEncrypted)
-    : data.pendingTotpSecret;
-  if (!pending || !verifyTotp(pending, code)) throw new Error("Invalid authenticator code");
-  await (await ref()).set({
-    totpSecretEncrypted: encryptSecret(pending),
-    totpSecret: null,
-    pendingTotpSecretEncrypted: null,
-    pendingTotpSecret: null,
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: actorUid
-  }, { merge: true });
+  const pendingEncrypted = data.pendingTotpSecretEncrypted || null;
+  const pending = pendingEncrypted ? decryptSecret(pendingEncrypted) : data.pendingTotpSecret;
+  const matchedCounter = pending ? matchingTotpCounter(pending, code) : null;
+  if (!pending || matchedCounter === null) throw new Error("Invalid authenticator code");
+
+  await getFirestore().runTransaction(async (transaction) => {
+    const latest = await transaction.get(document);
+    const latestData = latest.data() || {};
+    const latestPending = latestData.pendingTotpSecretEncrypted
+      ? decryptSecret(latestData.pendingTotpSecretEncrypted)
+      : latestData.pendingTotpSecret;
+    if (!latestPending || latestPending !== pending) throw new Error("Authenticator setup expired; start again.");
+    if (matchedCounter <= Number(latestData.lastTotpCounter || -1)) {
+      throw new Error("This authenticator code has already been used.");
+    }
+    transaction.set(document, {
+      totpSecretEncrypted: encryptSecret(pending),
+      totpSecret: null,
+      pendingTotpSecretEncrypted: null,
+      pendingTotpSecret: null,
+      lastTotpCounter: matchedCounter,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actorUid
+    }, { merge: true });
+  });
   await audit(actorUid, "totp_configured");
   return securityStatus();
 }
 
 export async function unlockAdmin(uid, password, code) {
-  const snap = await (await ref()).get();
+  const document = await ref();
+  const snap = await document.get();
   const data = snap.exists ? snap.data() || {} : {};
   const totpSecret = data.totpSecretEncrypted ? decryptSecret(data.totpSecretEncrypted) : data.totpSecret;
+  let matchedCounter = null;
+
   if (data.password?.hash) {
     if (!totpSecret) throw new Error("Configure the authenticator before password-based admin login");
     if (!verifyPassword(password, data.password)) throw new Error("Invalid admin password");
-    if (!verifyTotp(totpSecret, code)) throw new Error("Invalid authenticator code");
-  } else if (totpSecret && !verifyTotp(totpSecret, code)) {
-    throw new Error("Invalid authenticator code");
+    matchedCounter = matchingTotpCounter(totpSecret, code);
+    if (matchedCounter === null) throw new Error("Invalid authenticator code");
+  } else if (totpSecret) {
+    matchedCounter = matchingTotpCounter(totpSecret, code);
+    if (matchedCounter === null) throw new Error("Invalid authenticator code");
   }
+
+  if (matchedCounter !== null) {
+    await getFirestore().runTransaction(async (transaction) => {
+      const latest = await transaction.get(document);
+      const latestData = latest.data() || {};
+      const latestSecret = latestData.totpSecretEncrypted
+        ? decryptSecret(latestData.totpSecretEncrypted)
+        : latestData.totpSecret;
+      if (!latestSecret || latestSecret !== totpSecret) throw new Error("Authenticator configuration changed; try again.");
+      if (matchedCounter <= Number(latestData.lastTotpCounter || -1)) {
+        throw new Error("This authenticator code has already been used.");
+      }
+      transaction.set(document, {
+        lastTotpCounter: matchedCounter,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: uid
+      }, { merge: true });
+    });
+  }
+
   const user = await getAuth().getUser(uid);
   await getAuth().setCustomUserClaims(uid, {
     ...(user.customClaims || {}),
@@ -211,23 +258,51 @@ export async function beginBiometricChallenge(uid) {
 }
 
 export async function verifyBiometric(uid, challengeId, signatureBase64) {
-  const snap = await getFirestore().collection("adminBiometricChallenges").doc(String(challengeId || "")).get();
-  if (!snap.exists || snap.data()?.uid !== uid) throw new Error("biometric_challenge_invalid");
-  const expires = snap.data()?.expiresAt?.toDate?.()?.getTime?.() || 0;
+  const id = String(challengeId || "");
+  const signature = String(signatureBase64 || "");
+  if (!/^[A-Za-z0-9_-]{32}$/.test(id) || signature.length > 2048 || !/^[A-Za-z0-9+/]+={0,2}$/.test(signature)) {
+    throw new Error("biometric_challenge_invalid");
+  }
+  const challengeRef = getFirestore().collection("adminBiometricChallenges").doc(id);
+  const snap = await challengeRef.get();
+  const challengeData = snap.data() || {};
+  if (!snap.exists || challengeData.uid !== uid) throw new Error("biometric_challenge_invalid");
+  const expires = challengeData.expiresAt?.toDate?.()?.getTime?.() || 0;
   if (!expires || expires < Date.now()) throw new Error("biometric_challenge_expired");
+  const challengeText = String(challengeData.challenge || "");
+  const challengeBytes = Buffer.from(challengeText, "base64");
+  if (challengeBytes.length !== 32) throw new Error("biometric_challenge_invalid");
+
   const security = await (await ref()).get();
   const publicKey = security.data()?.biometric?.publicKey;
-  if (!publicKey) throw new Error("biometric_not_configured");
+  if (!publicKey || String(publicKey).length > 10000) throw new Error("biometric_not_configured");
   const verify = crypto.createVerify("SHA256");
-  verify.update(Buffer.from(String(snap.data()?.challenge || ""), "base64"));
+  verify.update(challengeBytes);
   verify.end();
-  const ok = verify.verify({ key: Buffer.from(String(publicKey), "base64"), format: "der", type: "spki" }, Buffer.from(String(signatureBase64 || ""), "base64"));
+  const ok = verify.verify(
+    { key: Buffer.from(String(publicKey), "base64"), format: "der", type: "spki" },
+    Buffer.from(signature, "base64")
+  );
   if (!ok) throw new Error("biometric_verification_failed");
+
+  // Consume the challenge transactionally. Two simultaneous requests with the
+  // same valid signature cannot both elevate the admin session.
+  await getFirestore().runTransaction(async (transaction) => {
+    const latest = await transaction.get(challengeRef);
+    const latestData = latest.data() || {};
+    const latestExpiry = latestData.expiresAt?.toDate?.()?.getTime?.() || 0;
+    if (!latest.exists || latestData.uid !== uid || latestData.challenge !== challengeText ||
+        !latestExpiry || latestExpiry < Date.now()) {
+      throw new Error("biometric_challenge_already_used_or_expired");
+    }
+    transaction.delete(challengeRef);
+  });
+
+  const user = await getAuth().getUser(uid);
   await getAuth().setCustomUserClaims(uid, {
-    ...(await getAuth().getUser(uid)).customClaims,
+    ...(user.customClaims || {}),
     adminBiometricVerifiedAt: Date.now()
   });
-  await snap.ref.delete();
   await audit(uid, "biometric_unlocked");
   return { ok: true, verifiedAt: Date.now() };
 }
