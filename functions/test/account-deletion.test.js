@@ -12,9 +12,9 @@ test("account deletion covers ordinary chats, secret chats, tombstones and priva
     assert.ok(cleanup.includes(JSON.stringify(collection)), "missing account cleanup for " + collection);
   }
   for (const prefix of [
-    "users/" + uid + "/uploads/",
-    "users/" + uid + "/generated-files/",
-    "avatars/" + uid + "/"
+    '"users/" + uid + "/uploads/"',
+    '"users/" + uid + "/generated-files/"',
+    '"avatars/" + uid + "/"'
   ]) {
     assert.ok(cleanup.includes(prefix), "missing private storage cleanup prefix " + prefix);
   }
