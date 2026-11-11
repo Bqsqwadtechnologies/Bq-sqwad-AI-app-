@@ -609,6 +609,42 @@ function json(value, status = 200) {
 async function readBody(request) {
   try { return await request.json(); } catch { return {}; }
 }
+
+async function readBodyLimited(request, maxBytes) {
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw Object.assign(new Error("request_too_large"), { httpStatus: 413, safeError: "request_too_large" });
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return {};
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw Object.assign(new Error("request_too_large"), { httpStatus: 413, safeError: "request_too_large" });
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw Object.assign(new Error("invalid_json"), { httpStatus: 400, safeError: "invalid_json" });
+  }
+}
 function env(name) {
   const value = globalThis.__bqEnv?.[name];
   if (!value) throw new Error(name + " is not configured");
@@ -3387,7 +3423,12 @@ export default {
       if (url.pathname === "/secret-chats" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         await enforceRateLimit(user.uid, 20);
-        const body = await readBody(request);
+        let body;
+        try {
+          body = await readBodyLimited(request, 2_000_000);
+        } catch (error) {
+          return json({ error: "invalid_secret_chat_request" }, Number(error?.httpStatus || 400));
+        }
         if (!body || ["messages", "plaintext", "text", "transcript", "title", "parts"].some((key) => Object.prototype.hasOwnProperty.call(body, key))) {
           return json({ error: "secret_chats_accept_ciphertext_only" }, 400);
         }
