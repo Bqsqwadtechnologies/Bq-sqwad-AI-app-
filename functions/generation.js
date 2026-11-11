@@ -18,7 +18,7 @@ async function notifyGenerationReady(uid, title, body, generationId) {
       });
     }
   } catch (error) {
-    console.error("generation_notification_failed", { uid, generationId, message: error?.message || "notification_failed" });
+    console.error("generation_notification_failed");
   }
 }
 
