@@ -25,4 +25,13 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(deletion, /"chats"/);
   assert.match(deletion, /"chatDeletionTombstones"/);
   assert.match(deletion, /"secretChats"/);
+  for (const prefix of [
+    '"/generated-images/"',
+    '"/uploads/"',
+    '"/generated-files/"',
+    '"/avatars/"',
+    '"business-training/"'
+  ]) assert.ok(deletion.includes(prefix), `missing account deletion storage prefix ${prefix}`);
+  assert.ok(deletion.includes("await deleteFirebaseStoragePrefix(prefix)"));
+  assert.ok(!deletion.includes("deleteFirebaseStoragePrefix(prefix).catch"));
 });
