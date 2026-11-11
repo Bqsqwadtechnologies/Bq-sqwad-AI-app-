@@ -34,7 +34,9 @@ class NoInfrastructureNamesInUserCopyTest {
         "LiveMediaForegroundService.kt",
         "BqLifecycleNotifications.kt",
         "BusinessToolCatalog.kt",
-        "LegalCenterScreen.kt"
+        "LegalCenterScreen.kt",
+        // Realtime protocol header contains the provider's required ephemeral-key subprotocol.
+        "RealtimeVoiceSession.kt"
     )
 
     @Test
