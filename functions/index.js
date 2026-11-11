@@ -2368,7 +2368,9 @@ export const bqSqwadApi = onRequest(
       }
 
       if (req.method === "POST" && path === "admin/security/unlock") {
-        const admin = await adminFromRequest(req);
+        // Unlock is the step-up operation itself. Requiring adminFromRequest here
+        // would require an unexpired step-up before the user can renew it.
+        const admin = await assertSuperAdmin(user);
         return send(res, 200, await unlockAdmin(admin.uid, String(body.password || ""), String(body.code || "")));
       }
 
