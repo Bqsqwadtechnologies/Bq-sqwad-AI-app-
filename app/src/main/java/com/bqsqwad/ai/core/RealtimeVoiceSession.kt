@@ -284,8 +284,8 @@ class RealtimeVoiceSession(
             }
             "input_audio_buffer.speech_stopped" -> {
                 // With server_vad.create_response=true, Realtime commits the completed
-                // speech turn and creates its reply itself. Do not send a second
-                // response.create here: doing so races the provider's automatic turn.
+                // speech turn and creates its reply itself. Do not request a second
+                // reply here: doing so races the provider's automatic turn.
                 onState("thinking")
             }
             "conversation.item.input_audio_transcription.delta", "input_audio_transcription.delta" -> {
