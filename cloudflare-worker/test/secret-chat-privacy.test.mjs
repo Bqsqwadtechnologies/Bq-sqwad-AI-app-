@@ -16,6 +16,6 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(routes, /salt\.length !== 24/);
   assert.match(routes, /iv\.length !== 16/);
   assert.match(routes, /ciphertext\.length > 900000/);
-  assert.match(routes, /"secretChats/" \+ user\.uid \+ "_" \+ chatId/);
+  assert.ok(routes.includes('"secretChats/" + user.uid + "_" + chatId'));
   assert.match(routes, /if \(!existing \|\| existing\.uid !== user\.uid\)/);
 });
