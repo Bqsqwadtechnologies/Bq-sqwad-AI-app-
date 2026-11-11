@@ -188,7 +188,11 @@ export async function verifyFirebaseUser(request) {
   const user = body.users[0];
   const uid = String(user.localId);
   const accountStatus = await firestoreGet("userAccountStatus/" + uid);
-  if (accountStatus?.status === "deleting" || accountStatus?.status === "deleted") {
+  if (
+    accountStatus?.status === "deleting" ||
+    accountStatus?.status === "deleted" ||
+    Boolean(accountStatus?.authDeletionStartedAt)
+  ) {
     throw Object.assign(new Error("account_unavailable"), { httpStatus: 403, safeError: "account_unavailable" });
   }
   let customAttributes = {};
