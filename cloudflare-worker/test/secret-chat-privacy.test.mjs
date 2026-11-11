@@ -18,6 +18,9 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(routes, /ciphertext\.length > 900000/);
   assert.ok(routes.includes('"secretChats/" + user.uid + "_" + chatId'));
   assert.match(routes, /if \(!existing \|\| existing\.uid !== user\.uid\)/);
+  assert.match(routes, /if \(existing && existing\.uid !== user\.uid\)/);
+  assert.match(routes, /firestoreCommit\(\[\{[\s\S]*?updateTime: existing\.__updateTime/);
+  assert.match(routes, /create: true/);
 
   const deletionStart = source.indexOf("async function permanentlyDeleteAccount(uid)");
   assert.ok(deletionStart >= 0, "account deletion function exists");
