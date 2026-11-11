@@ -7,6 +7,41 @@ const REF = "adminSecurity/global";
 const ISSUER = "BQ Sqwad AI";
 const ACCOUNT = "BQ Sqwad Admin";
 const BIOMETRIC_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const ADMIN_UNLOCK_MAX_FAILURES = 5;
+const ADMIN_UNLOCK_LOCKOUT_MS = 15 * 60 * 1000;
+
+function unlockAttemptsRef(uid) {
+  return getFirestore().collection("adminSecurityAttempts").doc(String(uid));
+}
+
+async function assertAdminUnlockAllowed(uid) {
+  const document = unlockAttemptsRef(uid);
+  const snap = await document.get();
+  const lockUntil = snap.data()?.lockUntil?.toDate?.()?.getTime?.() || 0;
+  if (lockUntil > Date.now()) throw new Error("admin_unlock_temporarily_locked");
+}
+
+async function recordAdminUnlockFailure(uid) {
+  const document = unlockAttemptsRef(uid);
+  await getFirestore().runTransaction(async (transaction) => {
+    const snap = await transaction.get(document);
+    const data = snap.data() || {};
+    const lockUntil = data.lockUntil?.toDate?.()?.getTime?.() || 0;
+    if (lockUntil > Date.now()) return;
+    const failures = Math.max(0, Number(data.failures || 0)) + 1;
+    transaction.set(document, {
+      failures: failures >= ADMIN_UNLOCK_MAX_FAILURES ? 0 : failures,
+      lockUntil: failures >= ADMIN_UNLOCK_MAX_FAILURES
+        ? new Date(Date.now() + ADMIN_UNLOCK_LOCKOUT_MS)
+        : null,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  });
+}
+
+async function clearAdminUnlockFailures(uid) {
+  await unlockAttemptsRef(uid).delete();
+}
 
 function base32Encode(buffer) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -164,6 +199,7 @@ export async function confirmTotpSetup(code, actorUid) {
 }
 
 export async function unlockAdmin(uid, password, code) {
+  await assertAdminUnlockAllowed(uid);
   const document = await ref();
   const snap = await document.get();
   const data = snap.exists ? snap.data() || {} : {};
@@ -172,12 +208,21 @@ export async function unlockAdmin(uid, password, code) {
 
   if (data.password?.hash) {
     if (!totpSecret) throw new Error("Configure the authenticator before password-based admin login");
-    if (!verifyPassword(password, data.password)) throw new Error("Invalid admin password");
+    if (!verifyPassword(password, data.password)) {
+      await recordAdminUnlockFailure(uid);
+      throw new Error("Invalid admin credentials");
+    }
     matchedCounter = matchingTotpCounter(totpSecret, code);
-    if (matchedCounter === null) throw new Error("Invalid authenticator code");
+    if (matchedCounter === null) {
+      await recordAdminUnlockFailure(uid);
+      throw new Error("Invalid admin credentials");
+    }
   } else if (totpSecret) {
     matchedCounter = matchingTotpCounter(totpSecret, code);
-    if (matchedCounter === null) throw new Error("Invalid authenticator code");
+    if (matchedCounter === null) {
+      await recordAdminUnlockFailure(uid);
+      throw new Error("Invalid admin credentials");
+    }
   }
 
   if (matchedCounter !== null) {
@@ -199,6 +244,7 @@ export async function unlockAdmin(uid, password, code) {
     });
   }
 
+  await clearAdminUnlockFailures(uid);
   const user = await getAuth().getUser(uid);
   await getAuth().setCustomUserClaims(uid, {
     ...(user.customClaims || {}),
