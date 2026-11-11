@@ -96,6 +96,7 @@ async function deleteUserAccountData(uid) {
     "chatHistory",
     "secretChats",
     "chatDeletionTombstones",
+    "adminSecurityAttempts",
     "businessTrainingAssets",
     "aiFeedback",
     "contactSalesRequests",
