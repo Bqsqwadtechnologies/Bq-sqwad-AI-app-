@@ -3147,8 +3147,6 @@ async function permanentlyDeleteAccount(uid) {
   for (const item of (Array.isArray(fileBoxBeforeDeletion?.items) ? fileBoxBeforeDeletion.items : [])) {
     if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath));
   }
-  // Delete Auth first for the rest of the account-deletion operation; retries are safe.
-  await deleteFirebaseAuthUser(uid);
   const cols = [
     // Shared website history, encrypted Secret Chats and their deletion tombstones
     // use the same Firebase project and must be erased with the account.
@@ -3196,6 +3194,17 @@ async function permanentlyDeleteAccount(uid) {
     ["organizationWallets", uid], ["organizationEntitlements", uid],
     ["organizationTestSessions", uid], ["entitlements", uid], ["userFeatureSettings", uid]
   ]) await firestoreDelete(col + "/" + id);
+
+  // Mark the Auth deletion boundary before calling Firebase. If the request
+  // fails after Auth was actually removed, the marker survives the retry state
+  // and old, unexpired ID tokens remain blocked.
+  await firestoreSet("userAccountStatus/" + uid, {
+    uid,
+    status: "deleting",
+    authDeletionStartedAt: new Date(),
+    updatedAt: new Date()
+  }, true);
+  await deleteFirebaseAuthUser(uid);
 }
 
 export default {
