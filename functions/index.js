@@ -127,7 +127,7 @@ async function deleteUserAccountData(uid) {
   try {
     await getStorage().bucket().deleteFiles({ prefix: "business-training/" + uid + "/" });
   } catch (error) {
-    console.error("account_storage_cleanup_failed", { uid, message: error?.message || "storage_cleanup_failed" });
+    console.error("account_storage_cleanup_failed");
   }
 }
 
@@ -3128,7 +3128,7 @@ export const bqSqwadApi = onRequest(
 
       return send(res, 404, { error: "not_found" });
     } catch (error) {
-      console.error("BQ API error", error instanceof Error ? error.message : "request_failed");
+      console.error("BQ API request failed");
       return send(res, 400, { error: error instanceof Error ? error.message : "request_failed" });
     }
   }
@@ -3137,7 +3137,7 @@ export const bqSqwadApi = onRequest(
 
 export const googlePlayRtdn = onMessagePublished({ topic: "google-play-rtdn", region: "europe-west1" }, async (event) => {
   try { return await processPlayRtdn(event); }
-  catch (error) { console.error("Google Play RTDN error", error instanceof Error ? error.message : "notification_failed"); throw error; }
+  catch { console.error("Google Play RTDN processing failed"); throw error; }
 });
 export const bqSqwadOrganizationScheduler = onSchedule({ schedule: "every 5 minutes", region: "europe-west1" }, async () => {
   await runDueOrganizationScheduledTasks();
