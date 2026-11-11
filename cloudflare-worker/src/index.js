@@ -89,28 +89,65 @@ function composioHeaders(envOrKey, extraHeaders = {}) {
   return { ...authHeader, ...extraHeaders };
 }
 
-const rateBuckets = new Map();
-
 async function requestKeyHash(value) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value || "")));
   return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, "0")).join("");
 }
 
-function enforceRateLimit(uid, limitOverride = null) {
-  const limit = Math.max(1, Number(limitOverride || globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60));
+/**
+ * Distributed fixed-window limiter. Every increment is conditional on the
+ * Firestore document version, so parallel Worker isolates cannot overwrite
+ * one another's counters. Fail closed if the authoritative store is offline.
+ */
+async function enforceRateLimit(uid, limitOverride = null) {
+  const limit = Math.max(1, Math.floor(Number(limitOverride || globalThis.__bqEnv?.RATE_LIMIT_PER_MINUTE || 60)));
+  const subjectHash = await requestKeyHash("bq-rate-limit:v1:" + String(uid || ""));
+  const path = "rateLimits/worker_" + subjectHash;
   const now = Date.now();
-  const bucket = rateBuckets.get(uid);
-  if (!bucket || now - bucket.startedAt >= 60000) {
-    rateBuckets.set(uid, { startedAt: now, count: 1 });
-    return;
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const current = await firestoreGet(path);
+    const startedAt = Number(current?.startedAt) || 0;
+    const active = startedAt > 0 && now - startedAt < 60_000;
+    const count = (active ? Math.max(0, Number(current?.count) || 0) : 0) + 1;
+    const windowStart = active ? startedAt : now;
+
+    if (count > limit) {
+      const retryAfter = Math.max(1, Math.ceil((60_000 - (now - windowStart)) / 1000));
+      throw Object.assign(new Error("rate_limited"), {
+        httpStatus: 429,
+        safeError: "rate_limited",
+        retryAfter
+      });
+    }
+
+    const write = {
+      path,
+      data: {
+        subjectHash,
+        count,
+        startedAt: windowStart,
+        expiresAt: new Date(windowStart + 2 * 60_000),
+        updatedAt: new Date(now)
+      },
+      ...(current ? { updateTime: current.__updateTime } : { create: true })
+    };
+    try {
+      await firestoreCommit([write]);
+      return;
+    } catch (error) {
+      if (attempt === 5) {
+        throw Object.assign(new Error("rate_limit_unavailable"), {
+          httpStatus: 503,
+          safeError: "rate_limit_unavailable"
+        });
+      }
+    }
   }
-  if (bucket.count >= limit) {
-    const retryAfter = Math.max(1, Math.ceil((60000 - (now - bucket.startedAt)) / 1000));
-    const error = new Error("rate_limited");
-    error.retryAfter = retryAfter;
-    throw error;
-  }
-  bucket.count += 1;
+  throw Object.assign(new Error("rate_limit_unavailable"), {
+    httpStatus: 503,
+    safeError: "rate_limit_unavailable"
+  });
 }
 
 async function loadIdempotentResponse(request, user, path) {
@@ -2497,7 +2534,7 @@ async function enforceChatModelEligibility(uid, body, control, user) {
 }
 
 async function ai(request, user, body) {
-  enforceRateLimit(user.uid);
+  await enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
   const userMessage = String(body.message || "").trim();
@@ -2727,7 +2764,7 @@ async function ai(request, user, body) {
   }
 }
 async function vision(request, user, body) {
-  enforceRateLimit(user.uid);
+  await enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const message = String(body.message || "Describe what is visible in the attached image(s).").slice(0, 4000);
   const rawImages = Array.isArray(body.images)
@@ -2839,7 +2876,7 @@ async function vision(request, user, body) {
   }
 }
 async function stream(request, user, body) {
-  enforceRateLimit(user.uid);
+  await enforceRateLimit(user.uid);
   await requireConsent(user.uid);
   const capabilityName = String(body.capability || "chat").trim();
   if (["life_matters", "frontier_lab", "learning_studio", "business", "business_ai", "truth_guard", "companion", "companion_checkin", "organization_studio"].includes(capabilityName)) throw Object.assign(new Error("workspace_plan_route_required"), { httpStatus: 400, safeError: "workspace_plan_route_required" });
@@ -3299,7 +3336,7 @@ export default {
 
       if (url.pathname === "/presence/ping" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 60);
+        await enforceRateLimit(user.uid, 60);
         const body = await readBody(request);
         const platform = String(body.platform || "android").slice(0, 32);
         const presence = await writePresence(globalThis.__bqEnv, (documentPath, data) =>
@@ -3308,7 +3345,7 @@ export default {
       }
       if (url.pathname === "/secret-chats" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 60);
+        await enforceRateLimit(user.uid, 60);
         const chatId = String(url.searchParams.get("chatId") || "").trim();
         const validateBlob = (value) => {
           if (!value || typeof value !== "object") return null;
@@ -3335,7 +3372,7 @@ export default {
       }
       if (url.pathname === "/secret-chats" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 20);
+        await enforceRateLimit(user.uid, 20);
         const body = await readBody(request);
         if (!body || ["messages", "plaintext", "text", "transcript", "title", "parts"].some((key) => Object.prototype.hasOwnProperty.call(body, key))) {
           return json({ error: "secret_chats_accept_ciphertext_only" }, 400);
@@ -3363,7 +3400,7 @@ export default {
       }
       if (url.pathname === "/secret-chats" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 20);
+        await enforceRateLimit(user.uid, 20);
         const chatId = String(url.searchParams.get("chatId") || "").trim();
         if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId)) return json({ error: "invalid_secret_chat_id" }, 400);
         const path = "secretChats/" + user.uid + "_" + chatId;
@@ -3379,7 +3416,7 @@ export default {
       }
       if (url.pathname === "/ai/transcribe" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid);
+        await enforceRateLimit(user.uid);
         await requireConsent(user.uid);
         const configDocument = await firestoreGet("adminAdvancedOptions/dictation_pricing") || {};
         const pricing = await resolveCanonicalLivePricing(configDocument.config || configDocument, {}, "dictation_pricing");
@@ -4338,7 +4375,7 @@ export default {
       }
       if (url.pathname === "/support/messages" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 30);
+        await enforceRateLimit(user.uid, 30);
         const rows = await firestoreQuery("supportReplies", {
           filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
           limit: 50
@@ -4362,7 +4399,7 @@ export default {
 
       if (url.pathname === "/support/issue" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 10);
+        await enforceRateLimit(user.uid, 10);
         const body = await readBody(request);
         const subject = String(body.subject || "").trim().slice(0, 120);
         const description = String(body.description || "").trim().slice(0, 2000);
@@ -4540,7 +4577,7 @@ export default {
         if (!/^[A-F0-9]{6,8}$/.test(rawRefCode)) return json({ error: "diagnostic_ref_code_invalid" }, 400);
         const refCode = rawRefCode;
         const ip = String(request.headers.get("CF-Connecting-IP") || "unknown").slice(0, 80);
-        enforceRateLimit("client_diag:" + ip, 5);
+        await enforceRateLimit("client_diag:" + ip, 5);
         const safeRoute = String(body.route || "unknown").split("?")[0].replace(/[^a-zA-Z0-9/_-]/g, "").slice(0, 80) || "unknown";
         const safeStep = String(body.step || "unknown").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 60) || "unknown";
         const safeCode = String(body.safeCode || "unknown").toLowerCase().replace(/[^a-z0-9_.-]/g, "").slice(0, 80) || "unknown";
@@ -4570,7 +4607,7 @@ export default {
 
       if (url.pathname === "/issues/report" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid);
+        await enforceRateLimit(user.uid);
         const body = await readBody(request);
         const requestedRoute = String(body.route || "/live-voice").slice(0, 80);
         const allowedRoutes = new Set(["/live-voice", "/live-camera", "/screen-share", "/ai/stream", "/ai/vision"]);
@@ -4986,7 +5023,7 @@ export default {
       if (url.pathname === "/companion/memory" && request.method === "POST") { const u=await verifyFirebaseUser(request),access=await companionCatalog(u,env),b=await readBody(request); if(!access.adminTestMode&&!["companionbasic","companionplus","companionpremium","companionultimate"].includes(access.activePlanId))throw new Error("companion_memory_plan_required"); if(b.enabled!=null){await firestoreSet("userMemory/"+u.uid,{uid:u.uid,enabled:b.enabled===true,updatedAt:new Date()},true);return json({enabled:b.enabled===true});} const textValue=String(b.text||"").trim().slice(0,4000);if(!textValue)throw new Error("memory_text_required");const x=await firestoreGet("userMemory/"+u.uid),items=Array.isArray(x?.items)?x.items:[],item={id:crypto.randomUUID(),text:textValue,source:String(b.source||"companion").slice(0,40),createdAt:new Date().toISOString()};items.push(item);await firestoreSet("userMemory/"+u.uid,{uid:u.uid,enabled:x?.enabled!==false,items:items.slice(-200),updatedAt:new Date()},true);return json(item); }
        if (url.pathname === "/realtime/heartbeat" && request.method === "POST") {
          const user = await verifyFirebaseUser(request);
-         enforceRateLimit(user.uid);
+         await enforceRateLimit(user.uid);
          await requireConsent(user.uid);
          const heartbeatBody = await readBody(request);
          const heartbeatMode = String(heartbeatBody.mode || "voice").toLowerCase();
@@ -5056,7 +5093,7 @@ export default {
        
        if (url.pathname === "/realtime/session" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
-        enforceRateLimit(u.uid);
+        await enforceRateLimit(u.uid);
         try {
           await requireConsent(u.uid);
         } catch (error) {
@@ -5916,7 +5953,7 @@ export default {
       }
       if ((url.pathname === "/pricing" || url.pathname === "/live/pricing") && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid);
+        await enforceRateLimit(user.uid);
         const readPublicPricing = async (key, operation) => {
           const stored = await firestoreGet("adminAdvancedOptions/" + key) || {};
           const conf = await resolveCanonicalLivePricing(stored.config || stored, {}, key);
@@ -6103,8 +6140,8 @@ export default {
       if (url.pathname === "/admin/security/session" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw Object.assign(new Error("Admin access required"),{httpStatus:403});return json(await adminSessionStatusNative(u.uid)); }
       if (url.pathname === "/admin/security/password" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await configurePasswordNative(env,u.uid,String((await readBody(request)).password||""))); }
       if (url.pathname === "/admin/security/totp/start" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await beginTotpNative(env,u.uid)); }
-      if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit("admin-auth:"+u.uid,8);const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }
-      if (url.pathname === "/admin/security/unlock" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");enforceRateLimit("admin-auth:"+u.uid,8);const b=await readBody(request);return json(await unlockAdminNative(env,u.uid,String(b.password||""),String(b.code||""))); }
+      if (url.pathname === "/admin/security/totp/confirm" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");await enforceRateLimit("admin-auth:"+u.uid,8);const b=await readBody(request);return json(await confirmTotpNative(env,u.uid,String(b.code||""))); }
+      if (url.pathname === "/admin/security/unlock" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");await enforceRateLimit("admin-auth:"+u.uid,8);const b=await readBody(request);return json(await unlockAdminNative(env,u.uid,String(b.password||""),String(b.code||""))); }
       if (url.pathname === "/admin/security/biometric" && request.method === "GET") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");return json(await biometricStatusNative()); }
        if (url.pathname === "/admin/security/biometric" && request.method === "DELETE") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");await requireAdminSessionNative(u.uid);return json(await removeBiometricNative(u.uid)); }
       if (url.pathname === "/admin/security/biometric/register" && request.method === "POST") { const u=await verifyFirebaseUser(request);if(!isSuperAdmin(u,env))throw new Error("Admin access required");const b=await readBody(request);return json(await registerBiometricNative(u.uid,String(b.publicKeyBase64||b.publicKey||""))); }
@@ -6314,7 +6351,7 @@ export default {
       if (url.pathname === "/connectors/link" && request.method === "POST") {
         const connectorJson = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...corsHeaders(request), "content-type": "application/json; charset=utf-8" } });
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 20);
+        await enforceRateLimit(user.uid, 20);
         const body = await readBody(request);
         const requestedToolkit = String(body.toolkit || "").trim().toLowerCase();
         const allowedToolkits = new Set([
@@ -6397,7 +6434,7 @@ export default {
 
       if (url.pathname === "/connectors/permissions" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 30);
+        await enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
@@ -6409,7 +6446,7 @@ export default {
 
       if (url.pathname === "/connectors/permissions" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 20);
+        await enforceRateLimit(user.uid, 20);
         const body = await readBody(request);
         const toolkit = String(body.toolkit || "").trim().toLowerCase();
         const accessMode = String(body.accessMode || "").trim().toLowerCase();
@@ -6425,7 +6462,7 @@ export default {
 
       if (url.pathname === "/connectors/list" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 30);
+        await enforceRateLimit(user.uid, 30);
         const allowedToolkits = new Set([
           "googledrive", "googlecalendar", "gmail", "github",
           "one_drive", "outlook", "dropbox", "notion",
@@ -6454,7 +6491,7 @@ export default {
 
       if (url.pathname === "/connectors/status" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 30);
+        await enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
@@ -6480,7 +6517,7 @@ export default {
 
       if (url.pathname === "/connectors/tools" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 30);
+        await enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
@@ -6503,7 +6540,7 @@ export default {
 
       if (url.pathname === "/connectors/call" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid, 10);
+        await enforceRateLimit(user.uid, 10);
         await requireConsent(user.uid);
         const body = await readBody(request);
         const toolkit = String(body.toolkit || "").trim().toLowerCase();
@@ -6562,7 +6599,7 @@ export default {
       }
       if (url.pathname === "/web-search" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
-        enforceRateLimit(user.uid);
+        await enforceRateLimit(user.uid);
         await requireConsent(user.uid);
         const body = await readBody(request);
         const query = String(body.query || "").trim();
