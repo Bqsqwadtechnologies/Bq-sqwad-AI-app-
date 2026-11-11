@@ -10,7 +10,8 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   const routes = source.slice(routeStart, routeEnd);
 
   assert.match(source, /const accountStatus = await firestoreGet\("userAccountStatus\/" \+ uid\)/);
-  assert.match(source, /accountStatus\?\.status === "deleting" \|\| accountStatus\?\.status === "deleted"/);
+  assert.match(source, /accountStatus\?\.status === "deleting"/);
+  assert.match(source, /Boolean\(accountStatus\?\.authDeletionStartedAt\)/);
   assert.match(routes, /const user = await verifyFirebaseUser\(request\)/);
   assert.match(routes, /fieldPath: "uid"[\s\S]*?stringValue: user\.uid/);
   assert.match(routes, /if \(!row \|\| row\.uid !== user\.uid\)/);
@@ -31,6 +32,9 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(deletion, /"chats"/);
   assert.match(deletion, /"chatDeletionTombstones"/);
   assert.match(deletion, /"secretChats"/);
+  const markerIndex = deletion.indexOf("authDeletionStartedAt");
+  const authDeleteIndex = deletion.indexOf("await deleteFirebaseAuthUser(uid)");
+  assert.ok(markerIndex >= 0 && authDeleteIndex > markerIndex, "Auth deletion marker must be written before deleting Auth");
   for (const prefix of [
     '"/generated-images/"',
     '"/uploads/"',
