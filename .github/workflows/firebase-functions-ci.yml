@@ -1,0 +1,39 @@
+name: Firebase Functions security checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "functions/**"
+      - ".github/workflows/firebase-functions-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "functions/**"
+      - ".github/workflows/firebase-functions-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-functions-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Run unit tests
+        run: npm test
