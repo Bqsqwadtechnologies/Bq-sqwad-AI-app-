@@ -233,7 +233,7 @@ fun SecretChatVaultDialog(
             ) {
                 when (mode) {
                     "create" -> {
-                        Text("The conversation is encrypted on this device before upload. The server receives ciphertext only. The ordinary history copy is removed after the encrypted save succeeds.")
+                        Text("The saved copy is encrypted on this device before upload, and the server receives ciphertext only. This does not hide prompts from the selected cloud AI provider while it processes your messages. The ordinary history copy is removed after the encrypted save succeeds.")
                         OutlinedTextField(password, { password = it }, label = { Text("Secret-chat password (8+ characters)") }, singleLine = true)
                         OutlinedTextField(confirm, { confirm = it }, label = { Text("Confirm password") }, singleLine = true)
                         Button(onClick = { recoveryCode = SecretChatCrypto.generateRecoveryCode(); acknowledged = false }, enabled = !busy) { Text("Generate recovery code") }
