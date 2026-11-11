@@ -286,7 +286,7 @@ export async function runBusinessUsageWarnings() {
         created++;
       }
     } catch (error) {
-      console.error("business_usage_warning_failed", { workspaceId: doc.id, message: error?.message || "warning_failed" });
+      console.error("business_usage_warning_failed");
     }
   }
   return { ok: true, checked, created };
