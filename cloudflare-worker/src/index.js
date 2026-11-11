@@ -3106,7 +3106,10 @@ async function permanentlyDeleteAccount(uid) {
   // Delete Auth first for the rest of the account-deletion operation; retries are safe.
   await deleteFirebaseAuthUser(uid);
   const cols = [
-    "chatHistory", "fileBox", "fileBoxUploads", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
+    // Shared website history, encrypted Secret Chats and their deletion tombstones
+    // use the same Firebase project and must be erased with the account.
+    "chatHistory", "chats", "chatDeletionTombstones", "secretChats",
+    "fileBox", "fileBoxUploads", "businessTrainingAssets", "aiFeedback", "contactSalesRequests",
     "creditReservations", "creditLedger", "creditTransactions", "creditBalances",
     "billingReceipts", "payments", "playPurchases", "passkeys", "passkeyChallenges",
     "socialAccounts", "notificationTokens", "adminStepUp", "adminBiometricChallenges", "organizationProductionEvents", "aiJobs",
