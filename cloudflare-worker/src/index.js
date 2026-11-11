@@ -3396,24 +3396,45 @@ export default {
           if (!value || typeof value !== "object") return null;
           const { salt, iv, ciphertext } = value;
           if (
-            typeof salt !== "string" || salt.length !== 24 ||
-            typeof iv !== "string" || iv.length !== 16 ||
+            typeof salt !== "string" || salt.length !== 24 || !/^[A-Za-z0-9+/]{22}==$/.test(salt) ||
+            typeof iv !== "string" || iv.length !== 16 || !/^[A-Za-z0-9+/]{16}$/.test(iv) ||
             typeof ciphertext !== "string" || ciphertext.length < 24 || ciphertext.length > 900000 ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(salt) ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(iv) ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(ciphertext)
+            ciphertext.length % 4 !== 0 ||
+            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(ciphertext)
           ) return null;
           return { salt, iv, ciphertext };
         };
         const primary = validateBlob(body.primary);
         const recovery = validateBlob(body.recovery);
         if (!/^[A-Za-z0-9_-]{1,120}$/.test(chatId) || !primary || !recovery) return json({ error: "invalid_secret_chat_ciphertext" }, 400);
+        const path = "secretChats/" + user.uid + "_" + chatId;
         const now = new Date().toISOString();
-        await firestoreSet("secretChats/" + user.uid + "_" + chatId, {
-          uid: user.uid, chatId, kind: "secret", label: "Secret chat",
-          primary, recovery, createdAt: now, updatedAt: now
-        }, true);
-        return json({ ok: true, chat: { id: chatId, updatedAt: now } });
+        // The legacy key concatenates UID and chat ID. Conditional writes ensure
+        // a crafted path collision can never overwrite another user's ciphertext.
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const existing = await firestoreGet(path);
+          if (existing && existing.uid !== user.uid) return json({ error: "secret_chat_not_found" }, 404);
+          if (existing && !existing.__updateTime) return json({ error: "secret_chat_save_conflict" }, 409);
+          const record = {
+            uid: user.uid, chatId, kind: "secret", label: "Secret chat",
+            primary, recovery, createdAt: existing?.createdAt || now, updatedAt: now
+          };
+          try {
+            await firestoreCommit([{
+              path,
+              data: record,
+              ...(existing ? { updateTime: existing.__updateTime } : { create: true })
+            }]);
+            return json({ ok: true, chat: { id: chatId, updatedAt: now } });
+          } catch {
+            if (attempt === 3) {
+              const latest = await firestoreGet(path);
+              if (latest && latest.uid !== user.uid) return json({ error: "secret_chat_not_found" }, 404);
+              return json({ error: "secret_chat_save_conflict" }, 409);
+            }
+          }
+        }
+        return json({ error: "secret_chat_save_conflict" }, 409);
       }
       if (url.pathname === "/secret-chats" && request.method === "DELETE") {
         const user = await verifyFirebaseUser(request);
