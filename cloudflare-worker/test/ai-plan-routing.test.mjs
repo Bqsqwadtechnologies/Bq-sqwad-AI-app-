@@ -64,7 +64,8 @@ test("TruthGuard plan cards fall back to the canonical catalog when Firestore ov
   const legacy = await read("../src/legacy-native.js");
   assert.match(legacy, /import \{ COMMERCIAL_CATALOG, mergeCommercialCatalog \} from "\.\/plan-catalog-native\.js"/);
   assert.match(legacy, /const catalog = mergeCommercialCatalog\(saved\?\.catalog \|\| COMMERCIAL_CATALOG\)/);
-  assert.match(legacy, /truthGuardPlans/);
+  assert.match(legacy, /export async function truthguardCatalog\(user,env\)/);
+  assert.match(legacy, /section\(\"truthguard\"\)/);
 });
 
 test("Live Voice has one actionable Realtime error handler and no stale removed response flag", async () => {
