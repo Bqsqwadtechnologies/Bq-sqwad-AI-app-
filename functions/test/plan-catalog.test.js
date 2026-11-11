@@ -41,13 +41,12 @@ test("complete canonical catalog validates and has no underscore commercial IDs"
   }
 });
 
-test("one-time services are not recurring and add-ons have no trial", () => {
-  const setup = COMMERCIAL_CATALOG.sections.businessAddOns.find(x => x.id === "bizaosupsetup");
-  assert.equal(setup.productType, "inapp");
-  assert.equal(setup.recurring, false);
-  const addon = COMMERCIAL_CATALOG.sections.businessAddOns.find(x => x.id === "bizaoadvmultimodal");
-  assert.equal(addon.trialEligible, false);
-  assert.equal(addon.offerId, null);
+test("business add-ons are admin-managed and the canonical fallback is explicit", async () => {
+  assert.deepEqual(COMMERCIAL_CATALOG.sections.businessAddOns, []);
+  const source = await readFile(new URL("../business-phases.js", import.meta.url), "utf8");
+  assert.match(source, /collection\("addOns"\)\.where\("enabled", "==", true\)/);
+  assert.match(source, /const fallback = COMMERCIAL_CATALOG\.sections\.businessAddOns \|\| \[\]/);
+  assert.match(source, /configured\.empty \? fallback : configured\.docs\.map/);
 });
 
 test("credit subscriptions use internal credit IDs with weekly monthly base plans", () => {
