@@ -10,7 +10,7 @@ test("TruthGuard Free has its own visible plan card and a five-check saved histo
   const legacy = await read("../src/legacy-native.js");
   assert.match(ui, /TruthGuardPlanStrip\(plans, activePlanId, isAdmin, onOpenPlans\)/);
   assert.match(ui, /activePlanId == "truthguardfree"/);
-  assert.match(worker, /const historyLimit=catalog\.adminTestMode\?100:\(String\(catalog\.activePlanId\|\|"\)\.toLowerCase\(\)==="truthguardfree"\?5:100\)/);
+  assert.match(worker, /const historyLimit=catalog\.adminTestMode\?100:\(String\(catalog\.activePlanId\|\|""\)\.toLowerCase\(\)==="truthguardfree"\?5:100\)/);
   assert.match(legacy, /truthguardHistory\(uid,limit=100\)/);
   assert.match(legacy, /a\.slice\(0,safeLimit\)/);
 });
@@ -55,7 +55,7 @@ test("Live voice lets Realtime server VAD create replies; transcription stays Sm
 
 test("workspace subscriptions are resolved from their own plan entitlements, not another module's root plan", async () => {
   const legacy = await read("../src/legacy-native.js");
-  assert.match(legacy, /firestoreQuery\("plans",\{parent:"entitlements\/"+user\.uid,limit:100\}\)/);
+  assert.match(legacy, /firestoreQuery\("plans",\{parent:"entitlements\/"\+user\.uid,limit:100\}\)/);
   assert.match(legacy, /const modulePlans=\(Array\.isArray\(rows\)\?rows:\[\]\)\s*\.filter\(isActive\)/);
   assert.match(legacy, /rootMatchesWorkspace=Boolean\(workspace&&allowed\[workspace\]\?\.has\(rootPlanId\)&&\(!rootModule\|\|rootModule===workspace\)\)/);
 });
@@ -119,7 +119,7 @@ test("Life Mathis, Learning Studio and Frontier use their own verified plan reco
 
 test("Business plans use module-scoped entitlements and canonical catalog fallback", async () => {
   const business = await read("../src/business-native.js");
-  assert.match(business, /firestoreQuery\("plans",\{parent:"entitlements\/"+uid,limit:100\}\)/);
+  assert.match(business, /firestoreQuery\("plans",\{parent:"entitlements\/"\+uid,limit:100\}\)/);
   assert.match(business, /module==="business"/);
   assert.match(business, /mergeCommercialCatalog\(catalog\?\.catalog\|\|COMMERCIAL_CATALOG\)/);
 });
