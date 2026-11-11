@@ -3354,9 +3354,10 @@ export default {
             typeof salt !== "string" || salt.length !== 24 ||
             typeof iv !== "string" || iv.length !== 16 ||
             typeof ciphertext !== "string" || ciphertext.length < 24 || ciphertext.length > 900000 ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(salt) ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(iv) ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(ciphertext)
+            !/^[A-Za-z0-9+/]{22}==$/.test(salt) ||
+            !/^[A-Za-z0-9+/]{16}$/.test(iv) ||
+            ciphertext.length % 4 !== 0 ||
+            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(ciphertext)
           ) return null;
           return { salt, iv, ciphertext };
         };
