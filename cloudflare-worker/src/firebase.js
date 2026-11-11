@@ -186,6 +186,11 @@ export async function verifyFirebaseUser(request) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.users?.[0]?.localId) throw new Error("Invalid or expired authentication token");
   const user = body.users[0];
+  const uid = String(user.localId);
+  const accountStatus = await firestoreGet("userAccountStatus/" + uid);
+  if (accountStatus?.status === "deleting" || accountStatus?.status === "deleted") {
+    throw Object.assign(new Error("account_unavailable"), { httpStatus: 403, safeError: "account_unavailable" });
+  }
   let customAttributes = {};
   try { customAttributes = user.customAttributes ? JSON.parse(user.customAttributes) : {}; } catch { customAttributes = {}; }
   return {
