@@ -276,7 +276,7 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, { ok: true, planId: plan.plan.id, answer: result.text, creditsCharged: reservation?.amount || 0 });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability: "business_plan_builder", action: "plan_generated", status: "error", metadata: { workspaceId: workspace.workspaceId, error: error?.message || "plan_builder_failed" } });
+          await writeActivity({ uid: user.uid, capability: "business_plan_builder", action: "plan_generated", status: "error", metadata: { workspaceId: workspace.workspaceId, error: "plan_builder_failed" } });
           throw error;
         } finally {
           await gate.release();
@@ -801,7 +801,7 @@ export const bqSqwadApi = onRequest(
            return send(res, 200, { answer: result.text, providerId: result.providerId || null, amountChargedCents: wallet.chargedCents, balanceCents: wallet.balanceCents, lowBalance: wallet.lowBalance });
         } catch (error) {
 
-          await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "error", metadata: { error: error?.message || "organization_request_failed" } });
+          await writeActivity({ uid: user.uid, capability: "organization_studio", action: "organization_assistant", status: "error", metadata: { error: "organization_request_failed" } });
           throw error;
         } finally {
           await gate.release();
@@ -1191,7 +1191,7 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, { answer: result.text, providerId: result.providerId || null, creditsCharged: reservation?.amount || 0, planId: plan.plan.id });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "error", metadata: { error: error?.message || "business_request_failed", workspaceId: workspace.workspaceId } });
+          await writeActivity({ uid: user.uid, capability: "chat", action: "business_assistant", status: "error", metadata: { error: "business_request_failed", workspaceId: workspace.workspaceId } });
           throw error;
         } finally {
           await gate.release();
@@ -1701,7 +1701,7 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0, incidentId: crypto.randomUUID() });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "error", metadata: { error: error?.message || "request_failed" } });
+          await writeActivity({ uid: user.uid, capability, action: "ai_request", status: "error", metadata: { error: "request_failed" } });
           throw error;
         } finally {
           await gate.release();
@@ -1763,7 +1763,7 @@ export const bqSqwadApi = onRequest(
           return res.end();
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "error", metadata: { error: error?.message || "stream_failed" } });
+          await writeActivity({ uid: user.uid, capability, action: "ai_stream", status: "error", metadata: { error: "stream_failed" } });
           if (!res.headersSent) return send(res, 400, { error: error instanceof Error ? error.message : "stream_failed" });
           res.write("data: " + JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "stream_failed" }) + "\n\n");
           return res.end();
@@ -1800,7 +1800,7 @@ export const bqSqwadApi = onRequest(
           return send(res, 200, { ...result, creditsCharged: reservation?.amount || 0 });
         } catch (error) {
           await reverseCredits(user.uid, reservation?.reservationId);
-          await writeActivity({ uid: user.uid, capability: "live_camera", action: "live_camera_vision", status: "error", metadata: { error: error?.message || "vision_failed" } });
+          await writeActivity({ uid: user.uid, capability: "live_camera", action: "live_camera_vision", status: "error", metadata: { error: "vision_failed" } });
           throw error;
         } finally {
           await gate.release();
