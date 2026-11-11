@@ -13,6 +13,7 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(routes, /fieldPath: "uid"[\s\S]*?stringValue: user\.uid/);
   assert.match(routes, /if \(!row \|\| row\.uid !== user\.uid\)/);
   assert.match(routes, /\["messages", "plaintext", "text", "transcript", "title", "parts"\]/);
+  assert.match(routes, /readBodyLimited\(request, 2_000_000\)/);
   assert.match(routes, /salt\.length !== 24/);
   assert.match(routes, /iv\.length !== 16/);
   assert.match(routes, /ciphertext\.length > 900000/);
