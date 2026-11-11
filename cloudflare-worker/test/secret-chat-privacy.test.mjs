@@ -29,7 +29,7 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
     '"/generated-images/"',
     '"/uploads/"',
     '"/generated-files/"',
-    '"/avatars/"',
+    '"avatars/"',
     '"business-training/"'
   ]) assert.ok(deletion.includes(prefix), `missing account deletion storage prefix ${prefix}`);
   assert.ok(deletion.includes("await deleteFirebaseStoragePrefix(prefix)"));
