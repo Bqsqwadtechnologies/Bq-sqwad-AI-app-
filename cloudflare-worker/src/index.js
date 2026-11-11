@@ -3094,14 +3094,22 @@ async function stream(request, user, body) {
 
 
 async function permanentlyDeleteAccount(uid) {
-  // Remove generated images before deleting the Firebase Auth identity.
-  await deleteFirebaseStoragePrefix("users/" + uid + "/generated-images/").catch(error => {
-    console.warn("generated_image_cleanup_failed");
-  });
+  // Remove every user-owned Storage namespace before deleting the Auth identity.
+  // Do not swallow failures: the scheduler retries deletion instead of marking
+  // an account deleted while private uploads or generated files remain behind.
+  const storagePrefixes = [
+    "users/" + uid + "/generated-images/",
+    "users/" + uid + "/uploads/",
+    "users/" + uid + "/generated-files/",
+    "avatars/" + uid + "/",
+    "business-training/" + uid + "/"
+  ];
+  for (const prefix of storagePrefixes) await deleteFirebaseStoragePrefix(prefix);
+
   // Remove private File Box objects before the account identity is deleted.
   const fileBoxBeforeDeletion = await firestoreGet("fileBox/" + uid);
   for (const item of (Array.isArray(fileBoxBeforeDeletion?.items) ? fileBoxBeforeDeletion.items : [])) {
-    if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath)).catch(() => {});
+    if (item.objectPath) await deleteTrainingAssetObject(String(item.objectPath));
   }
   // Delete Auth first for the rest of the account-deletion operation; retries are safe.
   await deleteFirebaseAuthUser(uid);
