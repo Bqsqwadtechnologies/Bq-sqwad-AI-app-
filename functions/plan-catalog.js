@@ -112,6 +112,9 @@ export const COMMERCIAL_CATALOG = {
   },
   sections: {
     business: businessPlans,
+    // Business add-ons are admin-managed in Firestore. Keep an explicit empty
+    // canonical fallback so callers and validators have a stable section.
+    businessAddOns: [],
     companion: companionPlans,
     learning: learningPlans,
     truthGuard: truthGuardPlans,
