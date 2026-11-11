@@ -18,4 +18,12 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.match(routes, /ciphertext\.length > 900000/);
   assert.ok(routes.includes('"secretChats/" + user.uid + "_" + chatId'));
   assert.match(routes, /if \(!existing \|\| existing\.uid !== user\.uid\)/);
+
+  const deletionStart = source.indexOf("async function permanentlyDeleteAccount(uid)");
+  const deletionEnd = source.indexOf("\\nasync function ", deletionStart + 10);
+  assert.ok(deletionStart >= 0 && deletionEnd > deletionStart, "account deletion function exists");
+  const deletion = source.slice(deletionStart, deletionEnd);
+  assert.match(deletion, /"chats"/);
+  assert.match(deletion, /"chatDeletionTombstones"/);
+  assert.match(deletion, /"secretChats"/);
 });
