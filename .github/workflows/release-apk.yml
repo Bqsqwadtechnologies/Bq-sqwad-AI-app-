@@ -12,6 +12,7 @@ on:
       - 'gradle.properties'
       - 'gradlew'
       - 'gradlew.bat'
+      - '.github/workflows/release-apk.yml'
   workflow_dispatch:
 
 permissions:
@@ -55,6 +56,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.5.0"
+
+      - name: Run Android unit tests
+        run: gradle :app:testDebugUnitTest
 
       - name: Build Signed Release APK and AAB
         run: gradle :app:assembleRelease :app:bundleRelease
