@@ -26,7 +26,7 @@ object SecretChatCrypto {
     private const val IV_BYTES = 12
     private const val KEY_BYTES = 32
     private const val GCM_TAG_BITS = 128
-    private const val MAX_CIPHERTEXT_BYTES = 25 * 1024 * 1024
+    private const val MAX_CIPHERTEXT_BYTES = 675_000
     private val secureRandom = SecureRandom()
 
     data class EncryptedBlob(
