@@ -70,6 +70,7 @@ async function deleteUserCollectionRecords(db, collection, uid, options = {}) {
 async function deleteUserAccountData(uid) {
   const db = getFirestore();
   const directDocs = [
+    ["users", uid],
     ["userConsents", uid],
     ["businessWorkspaces", uid],
     ["userMemory", uid],
@@ -90,7 +91,11 @@ async function deleteUserAccountData(uid) {
   await batch.commit();
 
   const queryCollections = [
+    // Remove all current and legacy chat stores, including ciphertext-only Secret Chats.
+    "chats",
     "chatHistory",
+    "secretChats",
+    "chatDeletionTombstones",
     "businessTrainingAssets",
     "aiFeedback",
     "contactSalesRequests",
@@ -124,10 +129,16 @@ async function deleteUserAccountData(uid) {
     await deleteUserCollectionRecords(db, collection, uid);
   }
 
-  try {
-    await getStorage().bucket().deleteFiles({ prefix: "business-training/" + uid + "/" });
-  } catch (error) {
-    console.error("account_storage_cleanup_failed");
+  // Do not report account deletion as complete if private object cleanup fails.
+  // The authenticated account remains available for a safe retry.
+  const bucket = getStorage().bucket();
+  for (const prefix of [
+    "business-training/" + uid + "/",
+    "users/" + uid + "/uploads/",
+    "users/" + uid + "/generated-files/",
+    "avatars/" + uid + "/"
+  ]) {
+    await bucket.deleteFiles({ prefix });
   }
 }
 
