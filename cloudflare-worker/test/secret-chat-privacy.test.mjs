@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+test("secret chats are authenticated, owner-scoped and ciphertext-only", async () => {
+  const source = await readFile(new URL("../src/index.js", import.meta.url), "utf8");
+  const routeStart = source.indexOf('if (url.pathname === "/secret-chats" && request.method === "GET")');
+  const routeEnd = source.indexOf('if (url.pathname === "/ai" && request.method === "POST")', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart, "secret-chat route block exists");
+  const routes = source.slice(routeStart, routeEnd);
+
+  assert.match(routes, /const user = await verifyFirebaseUser\(request\)/);
+  assert.match(routes, /fieldPath: "uid"[\s\S]*?stringValue: user\.uid/);
+  assert.match(routes, /if \(!row \|\| row\.uid !== user\.uid\)/);
+  assert.match(routes, /\["messages", "plaintext", "text", "transcript", "title", "parts"\]/);
+  assert.match(routes, /salt\.length !== 24/);
+  assert.match(routes, /iv\.length !== 16/);
+  assert.match(routes, /ciphertext\.length > 900000/);
+  assert.match(routes, /"secretChats/" \+ user\.uid \+ "_" \+ chatId/);
+  assert.match(routes, /if \(!existing \|\| existing\.uid !== user\.uid\)/);
+});
