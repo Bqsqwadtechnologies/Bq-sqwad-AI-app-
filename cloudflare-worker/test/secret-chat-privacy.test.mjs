@@ -9,6 +9,8 @@ test("secret chats are authenticated, owner-scoped and ciphertext-only", async (
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "secret-chat route block exists");
   const routes = source.slice(routeStart, routeEnd);
 
+  assert.match(source, /const accountStatus = await firestoreGet\("userAccountStatus\/" \+ uid\)/);
+  assert.match(source, /accountStatus\?\.status === "deleting" \|\| accountStatus\?\.status === "deleted"/);
   assert.match(routes, /const user = await verifyFirebaseUser\(request\)/);
   assert.match(routes, /fieldPath: "uid"[\s\S]*?stringValue: user\.uid/);
   assert.match(routes, /if \(!row \|\| row\.uid !== user\.uid\)/);
