@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { PLAN_CATALOG, COMMERCIAL_CATALOG, canonicalPlayProductId, validateCommercialCatalog } from "../plan-catalog.js";
 
 test("canonical plan/product IDs contain no underscores or spaces", () => {
