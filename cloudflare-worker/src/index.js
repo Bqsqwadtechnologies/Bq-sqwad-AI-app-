@@ -3096,7 +3096,7 @@ async function stream(request, user, body) {
 async function permanentlyDeleteAccount(uid) {
   // Remove generated images before deleting the Firebase Auth identity.
   await deleteFirebaseStoragePrefix("users/" + uid + "/generated-images/").catch(error => {
-    console.warn("generated_image_cleanup_failed", String(error?.message || "unknown").replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 80));
+    console.warn("generated_image_cleanup_failed");
   });
   // Remove private File Box objects before the account identity is deleted.
   const fileBoxBeforeDeletion = await firestoreGet("fileBox/" + uid);
@@ -3218,7 +3218,7 @@ export default {
             } else if (item?.objectPath) {
               // Expiry must remove the stored object as well as the Firestore index.
               await deleteTrainingAssetObject(String(item.objectPath)).catch(error => {
-                console.error("file_box_object_expiry_failed", String(item.id || "").slice(0, 80), error?.message || "unknown");
+                console.error("file_box_object_expiry_failed");
               });
             }
           }
@@ -3235,7 +3235,7 @@ export default {
       }
       await firestoreSet("adminAdvancedOptions/fileBoxCleanupCursor", { offset, updatedAt:new Date() }, true);
     } catch (error) {
-      console.error("file_box_expiry_cleanup_failed", error?.message || "unknown");
+      console.error("file_box_expiry_cleanup_failed");
     }
     // Remove abandoned upload sessions and any uploaded object after 24 hours.
     try {
@@ -3261,7 +3261,7 @@ export default {
         if (removed === 0) break;
       }
     } catch (error) {
-      console.error("file_box_upload_cleanup_failed", error?.message || "unknown");
+      console.error("file_box_upload_cleanup_failed");
     }
   },
   async fetch(request, env) {
@@ -3281,7 +3281,7 @@ export default {
           await seedAdminPricingDefaults();
           adminPricingSeeded = true;
         } catch (error) {
-          console.error("admin_pricing_seed_failed", error?.message || "unknown");
+          console.error("admin_pricing_seed_failed");
         }
       }
       // The Worker is the sole active backend. Never proxy requests to retired Firebase Functions.
@@ -5398,7 +5398,7 @@ export default {
             console.warn("[contact-sales] email notification unavailable; request remains saved.");
           }
         } catch (error) {
-          console.error("[contact-sales] canonical sales inbox mirror failed; request queue retained", error);
+          console.error("[contact-sales] canonical sales inbox mirror failed; request queue retained");
         }
         return json({ ok: true, requestId: id, status: "new" });
       }
