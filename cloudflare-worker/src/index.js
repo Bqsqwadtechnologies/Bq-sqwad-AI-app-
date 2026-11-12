@@ -1200,12 +1200,12 @@ function generationCreditsPerMinute(rule) {
 
 
 
-const TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions/bq_token_credit_pricing_defaults_v7";
+const TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions/bq_token_credit_pricing_defaults_v8";
 const TOKEN_CREDIT_DEFAULTS = [
   { id: "default-openai-gpt-6-luna", model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 } },
-  { id: "default-openai-gpt-5-6-luna", model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000029166666666666667 } },
+  { id: "default-openai-gpt-5-6-luna", model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000069345667 } },
   { id: "default-openai-gpt-image-2-5-sunburst", model: "gpt-image-2.5-sunburst", credits: { inputCreditsPerToken: 0.0002916666666666667, cachedInputCreditsPerToken: 0.00007291666666666667, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0, inputImageCreditsPerToken: 0.00046666666666666666, cachedInputImageCreditsPerToken: 0.00011666666666666667, outputImageCreditsPerToken: 0.00175 } },
-  { id: "default-openai-gpt-realtime-2-1-mini", model: "gpt-realtime-2.1-mini", credits: { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014, reasoningCreditsPerToken: 0.00014, inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668, inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 } },
+  { id: "default-openai-gpt-realtime-2-1-mini", model: "gpt-realtime-2.1-mini", credits: { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014, reasoningCreditsPerToken: 0.0002, liveVoiceReasoningCreditsPerToken: 0.0002, liveCameraReasoningCreditsPerToken: 0.0006, inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668, inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 } },
   { id: "default-openai-gpt-image-1-mini", model: "gpt-image-1-mini", credits: { inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666, reasoningCreditsPerToken: 0.00046666666666666666, inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 } },
   { id: "default-openai-gpt-4o-mini-transcribe", model: "gpt-4o-mini-transcribe", credits: { inputCreditsPerToken: 0, cachedInputCreditsPerToken: 0, outputCreditsPerToken: 0.0002916666666666667, reasoningCreditsPerToken: 0.0002916666666666667, inputAudioCreditsPerToken: 0.00007291666666666667 } },
   { id: "default-openai-gpt-4o-mini-tts", model: "gpt-4o-mini-tts", credits: { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0, outputAudioCreditsPerToken: 0.0007 } },
@@ -1214,7 +1214,7 @@ const TOKEN_CREDIT_DEFAULTS = [
 ];
 async function seedTokenCreditDefaultsOnce() {
   const marker = await firestoreGet(TOKEN_CREDIT_DEFAULTS_MARKER).catch(() => null);
-  if (!shouldSeedPricingDefaults(marker, 7)) return;
+  if (!shouldSeedPricingDefaults(marker, 8)) return;
   const existing = await firestoreQuery("tokenPricingRules", { limit: 500 }).catch(() => []);
   for (const rule of TOKEN_CREDIT_DEFAULTS) {
     const found = (existing || []).find(row =>
@@ -1232,12 +1232,12 @@ async function seedTokenCreditDefaultsOnce() {
       outputCreditsPer1k: rule.credits.outputCreditsPerToken * 1000,
       minimumCredits: 0, plans: Array.isArray(found?.plans) ? found.plans : [],
       features: Array.isArray(found?.features) ? found.features : [],
-      effectiveFrom: String(found?.effectiveFrom || ""), version: Math.max(7, Number(found?.version || 0) + 1),
-      seededDefaultVersion: 7, source: "BQ customer credit defaults", updatedAt: new Date().toISOString()
+      effectiveFrom: String(found?.effectiveFrom || ""), version: Math.max(8, Number(found?.version || 0) + 1),
+      seededDefaultVersion: 8, source: "BQ customer credit defaults", updatedAt: new Date().toISOString()
     };
     await firestoreSet("tokenPricingRules/" + id, doc, true);
   }
-  await firestoreSet(TOKEN_CREDIT_DEFAULTS_MARKER, { applied: true, version: 7, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
+  await firestoreSet(TOKEN_CREDIT_DEFAULTS_MARKER, { applied: true, version: 8, source: "BQ customer credit defaults", updatedAt: new Date().toISOString() }, true);
 }
 const STRIP_USD_MARKER = "adminAdvancedOptions/bq_strip_provider_usd_v2";
 const PROVIDER_USD_FIELD = /UsdPer(Million|Token)/i;
