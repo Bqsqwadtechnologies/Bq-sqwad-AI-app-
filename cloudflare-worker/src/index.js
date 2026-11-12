@@ -4762,10 +4762,15 @@ export default {
         if (!isSuperAdmin(admin, env)) throw new Error("Admin access required");
         const body = await readBody(request);
         const email = String(body.email || "").trim().toLowerCase();
-        const amount = Number(body.amount);
+        const amountInput = Number(body.amount);
+        const amount = Math.round(amountInput * 1e7) / 1e7;
         const reason = String(body.reason || "admin_grant").trim().slice(0, 200);
+        const requestId = String(body.requestId || request.headers.get("Idempotency-Key") || "").trim();
         if (!email || !email.includes("@") || !Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
           return json({ error: "valid_email_and_credit_amount_required" }, 400);
+        }
+        if (!requestId || requestId.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(requestId)) {
+          return json({ error: "valid_idempotency_key_required" }, 400);
         }
         const matches = await firestoreQuery("users", {
           filters: [{ field: { fieldPath: "email" }, op: "EQUAL", value: { stringValue: email } }],
@@ -4774,27 +4779,48 @@ export default {
         const target = matches[0];
         const targetUid = String(target?.uid || String(target?.__name || "").split("/").pop() || "");
         if (!targetUid) return json({ error: "credit_recipient_not_found" }, 404);
+        const entryId = "admin_grant_" + requestId;
+        const requestPath = "adminCreditGrantRequests/" + entryId;
+        const existingRequest = await firestoreGet(requestPath);
+        if (existingRequest) {
+          if (String(existingRequest.uid || "") !== targetUid || Number(existingRequest.amount) !== amount) {
+            return json({ error: "idempotency_key_conflict" }, 409);
+          }
+          const current = await firestoreGet("users/" + targetUid);
+          return json({ ok: true, duplicate: true, uid: targetUid, email, amount, available: canonicalUserBalance(current).total });
+        }
+
         const profile = await firestoreGet("users/" + targetUid);
         if (!profile) return json({ error: "credit_recipient_not_found" }, 404);
+        if (profile.suspended === true) return json({ error: "credit_recipient_suspended" }, 409);
         const oldBalance = canonicalUserBalance(profile);
-        const nextPermanent = oldBalance.permanent + amount;
+        const nextPermanent = Math.round((oldBalance.permanent + amount) * 1e7) / 1e7;
+        const before = Math.round(oldBalance.total * 1e7) / 1e7;
+        const after = Math.round((before + amount) * 1e7) / 1e7;
         const legacy = await firestoreGet("creditBalances/" + targetUid);
-        const entryId = crypto.randomUUID();
-        const before = Number(oldBalance.total || 0);
-        const after = before + amount;
         const createdAt = new Date();
-        await firestoreCommit([
-          { path: "users/" + targetUid, data: { credits: nextPermanent, updatedAt: createdAt }, updateTime: profile.__updateTime },
-          { path: "creditBalances/" + targetUid, data: { uid: targetUid, available: nextPermanent + oldBalance.subscription, reserved: Math.max(0, Number(legacy?.reserved || 0)), updatedAt: createdAt }, merge: true },
-          { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt }, exists: false },
-          { path: "creditTransactions/" + entryId, data: {
-            uid: targetUid, type: "admin_grant", feature: "admin_grant",
-            credits: amount, balanceBefore: before, balanceAfter: after,
-            source: "android", platform: "android", reason, actorUid: admin.uid,
-            requestId: entryId, createdAt
-          }, exists: false }
-        ]);
-        return json({ ok: true, uid: targetUid, email, amount, available: nextPermanent + oldBalance.subscription });
+        try {
+          await firestoreCommit([
+            { path: "users/" + targetUid, data: { credits: nextPermanent, updatedAt: createdAt }, updateTime: profile.__updateTime },
+            { path: "creditBalances/" + targetUid, data: { uid: targetUid, available: Math.round((nextPermanent + oldBalance.subscription) * 1e7) / 1e7, reserved: Math.max(0, Number(legacy?.reserved || 0)), updatedAt: createdAt }, merge: true },
+            { path: "creditLedger/" + entryId, data: { uid: targetUid, capability: "admin_grant", amount, kind: "admin_grant", reason, actorUid: admin.uid, createdAt }, exists: false },
+            { path: "creditTransactions/" + entryId, data: {
+              uid: targetUid, type: "admin_grant", feature: "admin_grant",
+              credits: amount, balanceBefore: before, balanceAfter: after,
+              source: "android", platform: "android", reason, actorUid: admin.uid,
+              requestId, createdAt
+            }, exists: false },
+            { path: requestPath, data: { uid: targetUid, email, amount, reason, actorUid: admin.uid, availableAfter: after, createdAt }, exists: false }
+          ]);
+        } catch (error) {
+          const racedRequest = await firestoreGet(requestPath).catch(() => null);
+          if (racedRequest && String(racedRequest.uid || "") === targetUid && Number(racedRequest.amount) === amount) {
+            const current = await firestoreGet("users/" + targetUid);
+            return json({ ok: true, duplicate: true, uid: targetUid, email, amount, available: canonicalUserBalance(current).total });
+          }
+          throw error;
+        }
+        return json({ ok: true, duplicate: false, uid: targetUid, email, amount, available: after });
       }
 
       if (url.pathname === "/admin/training/contributions" && request.method === "GET") {
