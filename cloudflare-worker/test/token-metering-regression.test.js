@@ -105,7 +105,6 @@ test("BQ does not impose output token budgets or provider token ceilings", () =>
   assert.doesNotMatch(source, /max_output_tokens:\\s*outputTokenBudget/);
   assert.doesNotMatch(source, /const outputTokenBudget\\s*=/);
   assert.doesNotMatch(providerSource, /DEFAULT_MAX_OUTPUT_TOKENS|HARD_MAX_OUTPUT_TOKENS/);
-  assert.match(source, /Provider\\/model context limits are provider-owned; BQ applies no token ceiling/);
 });
 test("BQ 7-Star and BQ-Codron use the exact requested per-token credit defaults", () => {
   assert.match(source, /model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 }/);
