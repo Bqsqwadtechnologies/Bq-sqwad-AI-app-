@@ -4454,7 +4454,7 @@ export default {
         }
         await Promise.all([
           ...rows.map(row => {
-            const id = String(row.id || row.__name || "");
+            const id = String(row.id || row.__name || "").split("/").pop();
             return id ? firestoreDelete("aiMemories/" + id) : Promise.resolve();
           }),
           firestoreSet("userMemory/" + user.uid, {
