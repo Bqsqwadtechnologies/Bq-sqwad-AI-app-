@@ -67,7 +67,7 @@ test("version-five seed guards run before writes so later dashboard edits surviv
   const generationSeed = index.slice(generationSeedStart, generationSeedEnd);
   assert.ok(generationSeedStart >= 0 && generationSeedEnd > generationSeedStart);
   assert.match(generationSeed, /if \(!shouldSeedPricingDefaults\(marker\)\) \{[\s\S]*?return;[\s\S]*?\}/);
-  assert.ok(generationSeed.indexOf("if (!shouldSeedPricingDefaults(marker, 7))") < generationSeed.indexOf("for (const defaults of ADMIN_SEED_DEFAULTS)"));
+  assert.ok(generationSeed.indexOf("if (!shouldSeedPricingDefaults(marker, 8))") < generationSeed.indexOf("for (const defaults of ADMIN_SEED_DEFAULTS)"));
   const tokenSeedStart = index.indexOf("async function seedTokenCreditDefaultsOnce()");
   const tokenSeedEnd = index.indexOf("\nconst STRIP_USD_MARKER", tokenSeedStart);
   const tokenSeed = index.slice(tokenSeedStart, tokenSeedEnd);
