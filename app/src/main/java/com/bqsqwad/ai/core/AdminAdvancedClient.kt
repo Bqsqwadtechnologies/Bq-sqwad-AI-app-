@@ -164,12 +164,17 @@ class AdminAdvancedClient(
         }
     }
 
-    suspend fun grantCredits(email: String, amount: Double, reason: String = "admin_grant"): JSONObject =
-        request("POST", "/admin/credits/grant", JSONObject().apply {
-            put("email", email.trim())
-            put("amount", amount)
-            put("reason", reason.trim().ifBlank { "admin_grant" })
-        })
+    suspend fun grantCredits(
+        email: String,
+        amount: Double,
+        reason: String = "admin_grant",
+        requestId: String = java.util.UUID.randomUUID().toString()
+    ): JSONObject = request("POST", "/admin/credits/grant", JSONObject().apply {
+        put("email", email.trim())
+        put("amount", amount)
+        put("reason", reason.trim().ifBlank { "admin_grant" })
+        put("requestId", requestId)
+    })
 
     suspend fun creditTrial(): JSONObject = request("GET", "/admin/credit-trial", null)
 
