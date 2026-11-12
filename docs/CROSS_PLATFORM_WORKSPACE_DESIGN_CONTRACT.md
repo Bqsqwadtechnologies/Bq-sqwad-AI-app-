@@ -3,6 +3,7 @@
 ## Product rules
 
 - Main Chat is the primary entry point for general AI tasks. Image generation and image editing are invoked from the Main Chat composer/tool menu and their results stay in the conversation. There is no standalone Image Generation workspace.
+- Video generation is retired from the user-facing product on both platforms. Do not expose a generator route, workspace action, Main Chat tool, or plan-workspace button for it. Main Chat retains image generation and editing; organization live streaming and analysis are separate capabilities.
 - Android and website use the same workspace names, capability labels, plan IDs, feature identifiers, and access states. Visual layouts may adapt to each platform, but the product model must not diverge.
 - Firebase-backed plan catalog and verified entitlements are authoritative. A workspace may display a feature as available only when its catalog/entitlement state and any required provider connection permit it. Never infer paid access from a client-side plan label.
 - Every visible action must have a real destination or operation, a loading state, a success state, and a recoverable error state. If an operation is not implemented or a provider is not connected, show a clear unavailable/connection state instead of a dead button.
