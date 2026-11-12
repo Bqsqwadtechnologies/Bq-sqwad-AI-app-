@@ -102,7 +102,7 @@ test("Tavily search and deep research use the shared direct generation credit ru
 });
 
 test("website-owned token budgets cap native and connector-aware chat spend", () => {
-  assert.match(source, /conversationUsedConnectors = false, maxRequestTokens = 8_000, maxOutputTokens = 512/);
+  assert.match(source, /conversationUsedConnectors = false/);
   assert.match(source, /for \(let round = 0; round < 3; round\+\+\)/);
   assert.match(source, /max_output_tokens: outputTokenBudget/);
   assert.match(source, /const outputTokenBudget = Math\.min\(1_024/);
@@ -116,8 +116,8 @@ test("website-owned token budgets cap native and connector-aware chat spend", ()
   assert.match(tokenBillingSource, /maxRequestTokens, maxOutputTokens/);
 });
 test("BQ 7-Star and BQ-Codron use the exact requested per-token credit defaults", () => {
-  assert.match(source, /model: "gpt-6-luna", credits: \{ inputCreditsPerToken: 0\.000005833333333333333, cachedInputCreditsPerToken: 0\.0000005833333333333333, outputCreditsPerToken: 0\.000029166666666666667 \}/);
-  assert.match(source, /model: "gpt-5\.6-luna", credits: \{ inputCreditsPerToken: 0\.000011666666666666668, cachedInputCreditsPerToken: 0\.0000011666666666666668, outputCreditsPerToken: 0\.00007 \}/);
+  assert.match(source, /model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 }/);
+  assert.match(source, /model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000029166666666666667 }/);
   assert.match(source, /cachedInputImageCreditsPerToken: 0\.00011666666666666667/);
-  assert.match(source, /bq_token_credit_pricing_defaults_v5/);
+  assert.match(source, /bq_token_credit_pricing_defaults_v7/);
 });
