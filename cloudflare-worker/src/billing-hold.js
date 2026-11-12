@@ -5,8 +5,8 @@
  */
 const EPS = 1e-9;
 
-export function round5(n) {
-  return Math.round((Number(n) || 0) * 1e5) / 1e5;
+export function round7(n) {
+  return Math.round(((Number(n) || 0) + Number.EPSILON) * 1e7) / 1e7;
 }
 
 /**
@@ -35,18 +35,18 @@ export function splitCreditBuckets({ daily, subscription, permanent, amount, pur
 export function computeHold({ balanceTotal, estimate }) {
   const spendable = Math.max(0, Number(balanceTotal) || 0);
   if (spendable <= EPS) return { ok: false, hold: 0 };
-  return { ok: true, hold: round5(Math.min(spendable, Math.max(0, Number(estimate) || 0))) };
+  return { ok: true, hold: round7(Math.min(spendable, Math.max(0, Number(estimate) || 0))) };
 }
 
 /** Settle to measured usage. Never reject a reply that was already delivered. */
 export function computeSettlement({ held, actual, balanceAfterHold }) {
-  const want = Math.max(0, round5(actual));
+  const want = Math.max(0, round7(actual));
   const canTake = Math.max(0, held + Math.max(0, balanceAfterHold));
   const charge = Math.min(want, canTake);
   return {
-    charge: round5(charge),
-    refund: round5(Math.max(0, held - charge)),
-    extraTaken: round5(Math.max(0, charge - held)),
-    shortfall: round5(Math.max(0, want - charge))
+    charge: round7(charge),
+    refund: round7(Math.max(0, held - charge)),
+    extraTaken: round7(Math.max(0, charge - held)),
+    shortfall: round7(Math.max(0, want - charge))
   };
 }
