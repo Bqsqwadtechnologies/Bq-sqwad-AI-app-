@@ -191,6 +191,15 @@ function isSuperAdmin(user, env) {
   );
 }
 
+async function adminBypassEnabled(user, env) {
+  if (!isSuperAdmin(user, env)) return false;
+  if (!user?.uid) return false;
+  // Admin Plan Test Mode disables automatic all-access so the same verified
+  // subscription and balance checks apply on Android and the website.
+  const planTest = await firestoreGet("adminPlanTest/" + user.uid);
+  return planTest?.enabled !== true;
+}
+
 export function assertSuperAdminIdentity(user, env) {
   if (!isSuperAdmin(user, env)) {
     throw Object.assign(new Error("Admin access required"), { httpStatus: 403, safeError: "admin_access_required" });
@@ -1768,13 +1777,13 @@ function isSubscriptionCoveredCapability(profile, capabilityName) {
 
 async function chargeCredits(uid, amount, capabilityName, adminUser = null, options = {}) {
   // The caller supplies the final customer price. Fixed-price features use the
-  // shared five-decimal rounding; measured token requests preserve fractional
+  // shared seven-decimal rounding; measured token requests preserve fractional
   // pricing and keep a tiny reservation so they never fall through to a
   // legacy capability price (commonly 1 credit per chat).
   const requestedCharge = Number(amount);
   if (!Number.isFinite(requestedCharge) || requestedCharge < 0) throw Object.assign(new Error("invalid_credit_price"), { httpStatus: 409, safeError: "provider_unavailable" });
-  let charge = options.allowFractional ? Math.round((requestedCharge + Number.EPSILON) * 1e10) / 1e10 : computeFixedCredits(requestedCharge);
-  if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
+  let charge = options.allowFractional ? Math.round(requestedCharge * 1e7) / 1e7 : computeFixedCredits(requestedCharge);
+  if (await adminBypassEnabled(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
   await ensureWelcomeCredits(adminUser || { uid });
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
@@ -2566,7 +2575,7 @@ async function enforceChatModelEligibility(uid, body, control, user) {
     balance: balance?.total || 0,
     hasPurchasedCredits: balance?.hasPurchasedCredits === true
   }, catalogModel);
-  const adminBypass = isSuperAdmin(user, globalThis.__bqEnv);
+  const adminBypass = await adminBypassEnabled(user, globalThis.__bqEnv);
   if (!eligibility.ok && (!adminBypass || eligibility.reason === "model_unavailable")) {
     throw Object.assign(new Error(eligibility.reason), {
       httpStatus: eligibility.reason === "model_unavailable" ? 403 : 402,
@@ -2600,7 +2609,7 @@ async function ai(request, user, body) {
   if (["life_matters", "frontier_lab", "learning_studio"].includes(capabilityName)) {
     const env = globalThis.__bqEnv || {};
     const testing = await firestoreGet("adminAdvancedOptions/admin_testing_mode").catch(() => null);
-    const adminTest = isSuperAdmin(user, env) && testing?.enabled === true;
+    const adminTest = await adminBypassEnabled(user, env) && testing?.enabled === true;
     const planScope = {
       life_matters: { module: "life-mathis", ids: new Set(["lifemathisfree", "lmstandard", "lmultimate"]) },
       frontier_lab: { module: "frontier", ids: new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]) },
