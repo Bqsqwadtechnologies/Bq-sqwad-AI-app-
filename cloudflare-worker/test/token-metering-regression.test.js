@@ -117,7 +117,7 @@ test("website-owned token budgets cap native and connector-aware chat spend", ()
 });
 test("BQ 7-Star and BQ-Codron use the exact requested per-token credit defaults", () => {
   assert.match(source, /model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 }/);
-  assert.match(source, /model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000029166666666666667 }/);
+  assert.match(source, /model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000069345667 }/);
   assert.match(source, /cachedInputImageCreditsPerToken: 0\.00011666666666666667/);
-  assert.match(source, /bq_token_credit_pricing_defaults_v7/);
+  assert.match(source, /bq_token_credit_pricing_defaults_v8/);
 });
