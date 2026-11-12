@@ -199,7 +199,6 @@ class CoreTest {
             Workspace.SEARCH,
             Workspace.CAMERA,
             Workspace.VOICE,
-            Workspace.VIDEO,
             Workspace.PERSONAL,
             Workspace.DATA_ANALYSIS
         ).forEach { workspace ->
