@@ -6,7 +6,7 @@
 const EPS = 1e-9;
 
 export function round7(n) {
-  return Math.round(((Number(n) || 0) + Number.EPSILON) * 1e7) / 1e7;
+  return Math.round((Number(n) || 0) * 1e7) / 1e7;
 }
 
 /**
