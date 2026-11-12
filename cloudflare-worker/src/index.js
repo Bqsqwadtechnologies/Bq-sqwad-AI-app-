@@ -3115,10 +3115,11 @@ async function stream(request, user, body) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
+          const refCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
           const failureEvent = await recoverStreamFailure({
             deliveredChars,
             reverseCredits: () => reverseCredits(user.uid, reservation.reservationId),
-            notifyAdmin: () => notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed"),
+            notifyAdmin: () => notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed", "", "", refCode),
             providerId: provider.providerId,
             modelId: provider.modelId,
             safeError: error?.safeError || "service_temporarily_unavailable"
@@ -3126,7 +3127,7 @@ async function stream(request, user, body) {
           request.signal.removeEventListener("abort", onClientAbort);
           if (failureEvent.type === "completed") endTask("completed");
           else endTask("failed");
-          emit(failureEvent);
+          emit({ ...failureEvent, refCode });
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         }
