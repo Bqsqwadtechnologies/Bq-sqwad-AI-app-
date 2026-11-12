@@ -112,9 +112,9 @@ export async function reserveCredits(uid, amount, capability) {
     // Subscription credits are consumed before permanent credits.
     const fromSubscription = Math.min(balance.subscription, charge);
     const fromPermanent = charge - fromSubscription;
-    const nextPermanent = balance.permanent - fromPermanent;
-    const nextSubscription = balance.subscription - fromSubscription;
-    const nextTotal = nextPermanent + nextSubscription;
+    const nextPermanent = round7(balance.permanent - fromPermanent);
+    const nextSubscription = round7(balance.subscription - fromSubscription);
+    const nextTotal = round7(nextPermanent + nextSubscription);
 
     const legacySnap = await tx.get(balanceRef);
     const legacy = legacySnap.exists ? legacySnap.data() || {} : {};
@@ -252,13 +252,13 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
     const unused = round7(Math.max(0, reservedAmount - finalCharge));
     const costOverrunCredits = round7(Math.max(0, finalCharge - reservedAmount));
     // Refund unused reserved credits to their original buckets; actual overrun is debited from remaining credits.
-    const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
-    const refundSubscription = Math.max(0, unused - refundPermanent);
-    const overrunSubscription = Math.min(balance.subscription, costOverrunCredits);
-    const overrunPermanent = costOverrunCredits - overrunSubscription;
+    const refundPermanent = round7(Math.min(unused, Math.max(0, Number(data.fromPermanent || 0))));
+    const refundSubscription = round7(Math.max(0, unused - refundPermanent));
+    const overrunSubscription = round7(Math.min(balance.subscription, costOverrunCredits));
+    const overrunPermanent = round7(costOverrunCredits - overrunSubscription);
     if (overrunPermanent > balance.permanent) throw new Error("Insufficient credits for actual token usage.");
-    const nextPermanent = balance.permanent - overrunPermanent + refundPermanent;
-    const nextSubscription = balance.subscription - overrunSubscription + refundSubscription;
+    const nextPermanent = round7(balance.permanent - overrunPermanent + refundPermanent);
+    const nextSubscription = round7(balance.subscription - overrunSubscription + refundSubscription);
     const nextBalance = { permanent: nextPermanent, subscription: nextSubscription };
 
     tx.update(userRef, {
