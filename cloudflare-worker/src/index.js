@@ -30,7 +30,8 @@ import { retainFileBoxItems } from "./file-box-retention.js";
 import { computeFixedCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
 import { normalizeHistoryMessages } from "./history-policy.js";
-import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits, dailyFreeCreditGrant, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
+import { currentDailyFreeCredits, shouldRestoreDailyFreeCredits, DEFAULT_FREE_CREDIT_TIME_ZONE } from "./credit-cycle.js";
+import { WELCOME_CREDIT_AMOUNT, isEligibleForWelcomeCredits, firebaseCreatedAtMillis } from "./welcome-credit.js";
 import { playCatalog, verifyPlayPurchase } from "./google-play.js";
 import { handlePlayRtdn, reaggregateRootEntitlement } from "./play-rtdn.js";
 import { appendVaultMessage, exportBusinessVaultJsonl, redactForVault } from "./business-vault-native.js";
@@ -1551,13 +1552,12 @@ function canonicalUserBalance(profile) {
   const subscription = subscriptionLive ? Math.max(0, Number(profile.subCredits || 0)) : 0;
   const trial = 0;
   const timeZone = String(profile.dailyFreeCreditsTimeZone || globalThis.__bqEnv?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  // The daily allowance is universal: paid, free and previously paid accounts
-  // all receive the same one-credit daily bucket. It is separate from paid
-  // balances and expires at the next configured renewal boundary.
-  const daily = currentDailyFreeCredits(profile, new Date(), timeZone);
+  // Recurring daily free credits are retired. Only permanent welcome/purchased
+  // credits and active subscription credits are spendable.
+  const daily = 0;
   return {
     permanent, subscription, trial, daily,
-    dailyDate: String(profile.dailyFreeCreditsDate || ""),
+    dailyDate: "",
     dailyFreeCreditsTimeZone: timeZone,
     dailyFreeCreditsRenewalTime: String(profile.dailyFreeCreditsRenewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00"),
     total: permanent + subscription + trial + daily,
@@ -1567,80 +1567,99 @@ function canonicalUserBalance(profile) {
   };
 }
 
-async function applyConfiguredDailyFreeCredits(uid) {
-  const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
-  // The daily allowance is a product-wide entitlement, not a paid-plan perk
-  // or a configurable top-up. Every account receives exactly one credit.
-  const credits = 1;
-  const profile = await firestoreGet("users/" + uid);
-  if (!profile) return;
-  let everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
-    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
-  let historyChecked = everPaid || profile.dailyFreeCreditsEligibilityChecked === true;
-  if (!historyChecked) {
-    try {
-      const [purchases, playPurchases] = await Promise.all([
-        firestoreQuery("purchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 }),
-        firestoreQuery("playPurchases", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } }], limit: 20 })
-      ]);
-      everPaid = purchases.some(p => p.status === "completed" && ["package", "subscription"].includes(String(p.kind || ""))) ||
-        playPurchases.some(p => p.verified === true && ["inapp", "subs"].includes(String(p.productType || "")));
-      historyChecked = true;
-    } catch { /* Current account purchase markers remain the fallback for legacy records. */ }
-  }
-  const now = new Date();
-  // Keep the daily allowance date calculation identical to the website:
-  // an account's persisted timezone/renewal settings take precedence over
-  // Worker environment defaults, otherwise reopening the app can re-grant a
-  // daily credit when the Worker and website calculate different date keys.
-  const timeZone = String(config?.timeZone || profile.dailyFreeCreditsTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  const renewalTime = String(config?.renewalTime || profile.dailyFreeCreditsRenewalTime || "00:00");
-  const today = dailyCreditDateKey(now, timeZone, renewalTime);
-  if (!historyChecked) return;
-  const grantId = uid + "_" + today;
-  // Use the per-account/per-day receipt as the idempotency authority. The
-  // profile date alone is not enough: legacy paid-account records may already
-  // contain today's date with a zero balance but no actual grant receipt.
-  const existingGrant = await firestoreGet("dailyFreeCreditGrants/" + grantId).catch(() => null);
-  if (existingGrant && String(existingGrant.uid || "") === uid) return;
-  const grant = dailyFreeCreditGrant(credits, now, timeZone, renewalTime);
-  try {
-    await firestoreCommit([
-      { path: "users/" + uid, data: { ...grant, dailyFreeCreditsEligibilityChecked: historyChecked, ...(everPaid ? { hasEverPurchasedCredits: true } : {}), updatedAt: now }, updateTime: profile.__updateTime },
-      { path: "dailyFreeCreditGrants/" + grantId, data: { uid, date: today, timeZone, credits, grantedAt: now, source: "admin_configured_daily_allowance" }, exists: false },
-      { path: "creditTransactions/daily_" + grantId, data: {
-        uid, type: "grant", feature: "daily_free_credits", credits,
-        balanceBefore: canonicalUserBalance(profile)?.total ?? 0,
-        balanceAfter: (canonicalUserBalance(profile)?.total ?? 0) + credits,
-        source: "android", platform: "android",
-        reason: "Admin-configured daily allowance", createdAt: now
-      }, exists: false }
+async function ensureWelcomeCredits(user) {
+  const uid = String(user?.uid || "").trim();
+  if (!uid || !isEligibleForWelcomeCredits(user?.createdAt)) return false;
+  const userPath = "users/" + uid;
+  const grantPath = "welcomeCreditGrants/" + uid;
+  const ledgerPath = "creditTransactions/welcome_" + uid;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const [profile, existingGrant] = await Promise.all([
+      firestoreGet(userPath),
+      firestoreGet(grantPath).catch(() => null)
     ]);
-    // Persist an in-app notification only after the atomic daily grant succeeds.
-    // Device push tokens are managed separately; this does not invent recipients.
-    await notifyDailyFreeCredit(globalThis.__bqEnv || {}, {
-      projectId: String(globalThis.__bqEnv?.FIREBASE_PROJECT_ID || ""),
-      uid,
-      tokens: [],
-      credits,
-      dbWrite: (documentPath, data) => firestoreSet(documentPath, data, true),
-    }).catch(() => ({ notified: false }));
-  } catch {
-    // Concurrent requests can race for the same daily grant; only one may succeed.
+    if (existingGrant || profile?.welcomeCreditsGrantedAt) return false;
+    const permanent = Math.max(0, Number(profile?.credits || 0));
+    const expiresAt = profile?.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
+    const subscription = Number.isFinite(expiresAt) && expiresAt > Date.now()
+      ? Math.max(0, Number(profile?.subCredits || 0))
+      : 0;
+    const before = permanent + subscription;
+    const now = new Date();
+    const createdAtMs = firebaseCreatedAtMillis(user.createdAt);
+    const userData = {
+      credits: permanent + WELCOME_CREDIT_AMOUNT,
+      dailyFreeCredits: 0,
+      dailyFreeCreditsDate: "",
+      dailyFreeCreditsRetiredAt: now,
+      welcomeCreditsGrantedAt: now,
+      welcomeCreditPolicyVersion: 1,
+      email: profile?.email || user.email || "",
+      subscriptionPlan: profile?.subscriptionPlan || "free",
+      ...(!profile?.createdAt && createdAtMs ? { createdAt: new Date(createdAtMs) } : {}),
+      updatedAt: now
+    };
+    const writes = [
+      {
+        path: userPath,
+        data: userData,
+        ...(profile?.__updateTime ? { updateTime: profile.__updateTime } : { exists: false })
+      },
+      {
+        path: grantPath,
+        data: {
+          uid, credits: WELCOME_CREDIT_AMOUNT, policyVersion: 1,
+          authCreatedAt: createdAtMs ? new Date(createdAtMs) : null,
+          grantedAt: now, source: "new_account_signup"
+        },
+        exists: false
+      },
+      {
+        path: ledgerPath,
+        data: {
+          uid, type: "grant", feature: "welcome_credit",
+          credits: WELCOME_CREDIT_AMOUNT, balanceBefore: before,
+          balanceAfter: before + WELCOME_CREDIT_AMOUNT,
+          note: "One-time new-account welcome credits",
+          source: "system", platform: "shared",
+          policyVersion: 1, createdAt: now
+        },
+        exists: false
+      }
+    ];
+    try {
+      await firestoreCommit(writes);
+      return true;
+    } catch (error) {
+      const claimed = await firestoreGet(grantPath).catch(() => null);
+      if (claimed) return false;
+      if (attempt === 2) throw error;
+    }
   }
+  return false;
 }
 
+/** Legacy daily-free fields are retired and are never spendable or replenished. */
+async function applyConfiguredDailyFreeCredits(uid) {
+  const profile = await firestoreGet("users/" + uid);
+  if (!profile) return;
+  if (Number(profile.dailyFreeCredits || 0) > 0 || String(profile.dailyFreeCreditsDate || "")) {
+    await firestoreSet("users/" + uid, {
+      dailyFreeCredits: 0,
+      dailyFreeCreditsDate: "",
+      dailyFreeCreditsRetiredAt: profile.dailyFreeCreditsRetiredAt || new Date(),
+      updatedAt: new Date()
+    }, true);
+  }
+}
 async function resolveDailyFreeCreditPrice(uid, paidPrice, operationLabel) {
   await applyConfiguredDailyFreeCredits(uid);
   const profile = await readCanonicalUserBalance(uid);
   const balance = canonicalUserBalance(profile);
   if (!profile || !balance) throw new Error("Account not found.");
-  const everPaid = profile.hasEverPurchasedCredits === true || profile.hasEverSubscribed === true ||
-    (String(profile.subscriptionPlan || "free").toLowerCase() !== "free" && String(profile.subscriptionPlan || "").length > 0);
-  if (!everPaid && balance.daily >= 1) return 1;
-  if (everPaid || balance.permanent + balance.subscription > 0) return Math.max(0, Number(paidPrice) || 0);
-  throw Object.assign(new Error("You’ve used your free credit for today. Your free credit refreshes tomorrow. Buy credits to continue."), {
-    httpStatus: 402, safeError: "daily_free_credit_used"
+  if (balance.permanent + balance.subscription > 0) return Math.max(0, Number(paidPrice) || 0);
+  throw Object.assign(new Error("Your one-time welcome credits have been used. Add credits to continue."), {
+    httpStatus: 402, safeError: "out_of_credits"
   });
 }
 
@@ -1754,6 +1773,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (!Number.isFinite(requestedCharge) || requestedCharge < 0) throw Object.assign(new Error("invalid_credit_price"), { httpStatus: 409, safeError: "provider_unavailable" });
   let charge = options.allowFractional ? Math.round((requestedCharge + Number.EPSILON) * 1e10) / 1e10 : computeFixedCredits(requestedCharge);
   if (isSuperAdmin(adminUser, globalThis.__bqEnv)) return { reservationId: null, amount: 0, adminUnlimited: true };
+  await ensureWelcomeCredits(adminUser || { uid });
   const currentProfile = await readCanonicalUserBalance(uid);
   if (!currentProfile) throw new Error("Account not found.");
   if (Number(currentProfile.suspended || 0) === 1) throw new Error("Your account is suspended.");
@@ -3054,7 +3074,7 @@ async function stream(request, user, body) {
           } else {
             emitDelta(provider.text);
           }
-          emitTaskEvent("phase", { taskId, label: "Settling provider usage", at: Date.now() });
+          // Provider usage settlement is internal billing work; keep it out of the chat status UI.
           let creditsCharged = Number(reservation.amount || 0);
           let tokenUsage = null;
           if (tokenBilling) {
@@ -3707,7 +3727,8 @@ export default {
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
-            await applyConfiguredDailyFreeCredits(user.uid);
+        await ensureWelcomeCredits(user);
+        await applyConfiguredDailyFreeCredits(user.uid);
         // The website's Firebase backend is the canonical credit authority.
         // Both website and Android read the same users/{uid} balance.
         const profile = await readCanonicalUserBalance(user.uid);
@@ -6277,20 +6298,12 @@ export default {
       if (url.pathname === "/admin/daily-free-credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
-        const config = await firestoreGet("adminAdvancedOptions/daily_free_credits_config");
-        return json({ enabled: config == null ? true : config.enabled === true, credits: Math.max(0, Math.min(1, Number(config?.credits ?? 1))), resetTimeZone: "UTC" });
+        return json({ enabled: false, credits: 0, retired: true, welcomeCredits: WELCOME_CREDIT_AMOUNT, resetTimeZone: "UTC" });
       }
       if (url.pathname === "/admin/daily-free-credits" && request.method === "POST") {
         const user = await verifyFirebaseUser(request);
         if (!isSuperAdmin(user, env)) throw new Error("Admin access required");
-        const body = await readBody(request);
-        const credits = Number(body.credits);
-        if (!Number.isInteger(credits) || credits < 0 || credits > 1) {
-          return json({ error: "daily_free_credits_must_be_0_or_1" }, 400);
-        }
-        const config = { id: "daily_free_credits_config", enabled: body.enabled === true, credits, updatedBy: user.uid, updatedAt: new Date(), resetTimeZone: "UTC" };
-        await firestoreSet("adminAdvancedOptions/daily_free_credits_config", config, true);
-        return json({ ok: true, enabled: config.enabled, credits, resetTimeZone: "UTC" });
+        return json({ error: "daily_free_credits_retired", welcomeCredits: WELCOME_CREDIT_AMOUNT }, 410);
       }
 
       if (url.pathname === "/admin/credit-trial" && request.method === "GET") {
