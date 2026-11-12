@@ -4765,7 +4765,7 @@ export default {
         const amountInput = Number(body.amount);
         const amount = Math.round(amountInput * 1e7) / 1e7;
         const reason = String(body.reason || "admin_grant").trim().slice(0, 200);
-        const requestId = String(body.requestId || request.headers.get("Idempotency-Key") || "").trim();
+        const requestId = String(body.requestId || request.headers.get("Idempotency-Key") || crypto.randomUUID()).trim();
         if (!email || !email.includes("@") || !Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
           return json({ error: "valid_email_and_credit_amount_required" }, 400);
         }
