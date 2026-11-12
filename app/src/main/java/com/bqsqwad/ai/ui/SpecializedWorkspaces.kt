@@ -177,7 +177,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                         Text(activePlan.checks, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     }
                     if (activePlan.id != "truthguardfree") {
-                        AssistChip(onClick = {}, label = { Text("ACTIVE") })
+                        AssistChip(onClick = {}, enabled = false, label = { Text("ACTIVE") })
                     }
                 }
                 Text(
