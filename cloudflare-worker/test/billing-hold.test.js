@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeHold, computeSettlement, round5, splitCreditBuckets } from "../src/billing-hold.js";
+import { computeHold, computeSettlement, round7, splitCreditBuckets } from "../src/billing-hold.js";
 
 describe("billing-hold", () => {
   it("blocks when balance is empty", () => {
@@ -36,6 +36,12 @@ describe("billing-hold", () => {
     assert.equal(s.extraTaken, 0.03);
     assert.equal(s.shortfall, 0.03);
   });
+  it("settles measured usage to the shared seven-decimal credit precision", () => {
+    const s = computeSettlement({ held: 0.1, actual: 0.0123456789, balanceAfterHold: 0 });
+    assert.equal(s.charge, 0.0123457);
+    assert.equal(s.refund, 0.0876543);
+  });
+
   it("drains BQ-7-Star from daily, then subscription, then permanent credits", () => {
     const split = splitCreditBuckets({
       daily: 0.2,
