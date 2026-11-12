@@ -207,3 +207,11 @@ The Worker/website video-generation backend and its policy configuration were no
 - No local Android build or emulator/physical-device test was possible in this session. The supplied screenshot is evidence of the original UI defect, not proof that the repaired APK is accepted.
 
 **Release gate:** the owner must manually run the existing Android build/test workflow, install the resulting APK/AAB on a device, and repeat the navigation/tap matrix before submitting a new Play review. This source repair must not be described as device-verified or Play-approved until those checks pass.
+### Additional source contract checks for this repair
+
+- Parsed 163 distinct endpoint path literals in Android WorkspaceApiClient and compared them with the current Worker router's exact/prefix route conditions; no unmatched path literals were found in that client.
+- Independently inspected Android HistoryApiClient: it intentionally calls the website host, not the Worker, and the website repository contains the authenticated /api/native/chats route with GET, POST, PATCH and DELETE handlers.
+- Added an Android unit regression test that asserts the Video Generation workspace and capability are absent from the native workspace enum, feature registry and workspace capability set.
+- Reviewed all empty-click status chips found by source search; they are now explicitly disabled. The chat header More action no longer has a default no-op callback.
+
+These are static source-contract checks only. They do not prove live server credentials, deployed configuration, device permissions, provider availability, Google Play billing behavior, or successful production requests.
