@@ -71,7 +71,7 @@ test("version-five seed guards run before writes so later dashboard edits surviv
   const tokenSeedStart = index.indexOf("async function seedTokenCreditDefaultsOnce()");
   const tokenSeedEnd = index.indexOf("\nconst STRIP_USD_MARKER", tokenSeedStart);
   const tokenSeed = index.slice(tokenSeedStart, tokenSeedEnd);
-  assert.match(tokenSeed, /if \(!shouldSeedPricingDefaults\(marker\)\) return;/);
+  assert.match(tokenSeed, /if \(!shouldSeedPricingDefaults\(marker, 8\)\) return;/);
 });
 
 test("thirty seconds of Smart Voice uses the combined live and transcription rate", () => {
