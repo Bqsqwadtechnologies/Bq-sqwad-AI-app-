@@ -1,6 +1,8 @@
 package com.bqsqwad.ai.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -761,8 +763,19 @@ private fun WorkspaceFrame(
                     shape = MaterialTheme.shapes.extraLarge
                 ) {
                     Column(
-                        Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        container,
+                                        scheme.surfaceVariant.copy(alpha = 0.88f),
+                                        scheme.surface.copy(alpha = 0.96f)
+                                    )
+                                )
+                            )
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             "BQ SQWAD AI  /  WORKSPACE",
@@ -838,12 +851,24 @@ private fun WorkspaceFrame(
                             color = onContainer
                         )
                         Divider(color = onContainer.copy(alpha = 0.18f))
-                        Text(
-                            "WORKSPACE CAPABILITIES",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = onContainer.copy(alpha = 0.72f)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "WORKSPACE AREAS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = onContainer.copy(alpha = 0.78f)
+                            )
+                            Text(
+                                "PLAN-AWARE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = onContainer.copy(alpha = 0.62f)
+                            )
+                        }
                         featureHighlights.chunked(2).forEach { rowFeatures ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -853,8 +878,8 @@ private fun WorkspaceFrame(
                                     Surface(
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(12.dp),
-                                        color = onContainer.copy(alpha = 0.07f),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, onContainer.copy(alpha = 0.10f))
+                                        color = onContainer.copy(alpha = 0.075f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, onContainer.copy(alpha = 0.16f))
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
@@ -880,7 +905,7 @@ private fun WorkspaceFrame(
                             }
                         }
                         Text(
-                            "Live access is confirmed by your signed-in account, plan entitlement and required service connections.",
+                            "Live access is verified against your signed-in account, active plan and required service connections.",
                             style = MaterialTheme.typography.labelSmall,
                             color = onContainer.copy(alpha = 0.68f)
                         )
