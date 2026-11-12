@@ -6,7 +6,7 @@ const DEFAULT_MODELS = {
 // Never silently route everyday chat to Codron.
 const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna", "gpt-5.6-luna"]);
 const DEFAULT_MAX_REQUEST_TOKENS = 8_000;
-const DEFAULT_MAX_OUTPUT_TOKENS = 512;
+const DEFAULT_MAX_OUTPUT_TOKENS = 256;
 const HARD_MAX_REQUEST_TOKENS = 16_000;
 const HARD_MAX_OUTPUT_TOKENS = 1_024;
 
