@@ -81,3 +81,19 @@ Source-only changes made on `main` for the current owner prompt:
 - `SOCIAL_OAUTH_CALLBACKS_AND_PROVIDER_SETUP.md`: callback documentation aligned to the current Worker; Facebook/Instagram are marked unsupported by the current Worker.
 
 **Verification:** changes are committed but source has not been built or tested here. No GitHub Actions workflow was triggered. No Cloudflare Worker deployment or website deployment was performed. Do not deploy the Worker until its test suite passes; the owner must register the canonical Worker callback in each supported provider console.
+
+## Google Play broken-functionality rejection — 2026-11-12
+
+The reviewer screenshot showed the retired Android Video Generation workspace underneath an overlapping workspace-redirect dialog. The Android source repair on main removes the native Video Generation workspace, its UI/API methods, and its native feature/admin catalogue entries. Unsupported redirect destinations now have a working Close action instead of an Open Main Chat fallback. Informational status chips that previously had empty click handlers are now disabled, and the chat header requires its More-menu callback.
+
+**Not changed:** Worker/website video policy, backend generation routes, Android package/application ID, Gradle configuration, app version, signing, Firebase configuration, billing product IDs, or API base URL.
+
+**Owner verification required before Play resubmission:**
+1. Manually run the existing Android build/test workflow (the assistant must not dispatch or rerun workflows).
+2. Install the exact resulting artifact on a physical Android device.
+3. Confirm no Video Generation workspace, menu item, feature card, or redirect prompt is reachable from the app.
+4. Tap every visible primary/secondary action in sign-in, Main Chat, history, settings, catalog/checkout, Learning, Companion, TruthGuard, Business and Organization screens; confirm each action navigates, performs its stated operation, or is visibly disabled.
+5. Exercise online/offline, signed-out/signed-in, insufficient-credit, permission-denied and backend-error states; confirm retry/close/back actions remain usable.
+6. Capture fresh evidence from the installed build before submitting the Play review.
+
+No build, workflow, device test, deployment, or Play resubmission is claimed by this source-only repair.
