@@ -179,3 +179,31 @@ The source tree contains substantial implementations, but it is not correct to c
 The Android screen-viewer path has now been added with explicit OS consent and media-projection foreground-service handling. The next implementation phases must close the remaining gaps rather than simply rename/configure them as complete.
 
 No billing/catalog work is included in this audit.
+
+## Google Play Broken Functionality rejection — Android source repair (2026-11-12)
+
+### Evidence and root cause
+
+The supplied Play Console evidence shows the Video Generation workspace still rendered with an overlay titled “Open the right workspace”. The overlay covered the workspace form and offered “Stay here” / “Open Main Chat”, while the underlying “Generate video” action remained visible. The Android client attempted the video-generation route even though the current project policy routes video generation away from the native app. This created a contradictory, confusing screen and exposed controls that could not complete the advertised action.
+
+### Android changes committed to main
+
+- Removed the VIDEO workspace from the native workspace enum and navigation-driven workspace list.
+- Removed the Video Generation screen and its Generate video, render status, retry, open and share controls.
+- Removed Android createVideo and videoJob API client methods and the unused VideoJob model.
+- Removed the video-generation capability from the native feature registry, workspace capability list, subscription-only app capability set, and Android admin capability catalogue.
+- Removed video-specific privacy/feature descriptions and workspace access/test references.
+- Changed unsupported workspace redirects to show a clear unavailable message and a working Close button; they no longer offer a misleading Open Main Chat fallback.
+- Marked informational status chips as disabled instead of presenting them as tappable controls with empty click handlers.
+- Made the chat header's More callback mandatory rather than silently defaulting to a no-op.
+
+The Worker/website video-generation backend and its policy configuration were not changed. Video analysis and video files used as ordinary supported input are separate capabilities and were not removed by this Android UI repair.
+
+### Verification status and remaining release gate
+
+- Source inspection confirms no remaining Workspace.VIDEO, VideoGenerationWorkspace, VideoJob, createVideo, videoJob, or video_generation references in the reviewed Android source/test files.
+- The Android manifest, application ID, package name, Gradle files, version/signing settings, Firebase configuration, Play product IDs, and API base URL were not changed.
+- No GitHub Actions workflow was dispatched or rerun; repository policy reserves workflow execution for the owner.
+- No local Android build or emulator/physical-device test was possible in this session. The supplied screenshot is evidence of the original UI defect, not proof that the repaired APK is accepted.
+
+**Release gate:** the owner must manually run the existing Android build/test workflow, install the resulting APK/AAB on a device, and repeat the navigation/tap matrix before submitting a new Play review. This source repair must not be described as device-verified or Play-approved until those checks pass.
