@@ -4927,7 +4927,6 @@ private fun FeatureInfoScreen(w: Workspace, onBack: () -> Unit) {
 }
 
 private fun featureLongDescription(w: Workspace): String = when (w) {
-    Workspace.VIDEO -> "AI video creation and video-focused workflows using the configured BQ Sqwad AI capabilities."
     Workspace.CHAT -> "General BQ Sqwad AI conversation with streaming responses, attachments, speech-to-text, response actions, history saving and account-gated protected requests."
     Workspace.SEARCH -> "Search the web with source-aware results and direct links that open in your browser."
     Workspace.TRUTH_GUARD -> "Review claims against web sources and separate evidence from unsupported conclusions."
@@ -4946,7 +4945,6 @@ private fun featureLongDescription(w: Workspace): String = when (w) {
 
 private fun featureHowItWorks(w: Workspace): String = when (w) {
     Workspace.CHAT -> "Chat streams responses, supports attachments and saves conversations to your history when possible."
-    Workspace.VIDEO -> "Create videos with BQ Sqwad AI and track your generated media in your account."
     Workspace.SEARCH -> "Search uses approved web sources and keeps source links available for you to open."
     Workspace.TRUTH_GUARD -> "TruthGuard can search the web first, then send the evidence to its configured AI capability for claim analysis."
     Workspace.FRONTIER_LAB -> "Frontier Lab combines AI research with relevant web evidence."
@@ -4964,7 +4962,6 @@ private fun featureHowItWorks(w: Workspace): String = when (w) {
 
 private fun featurePermissions(w: Workspace): String = when (w) {
     Workspace.CHAT -> "No camera or microphone permission is required just to read or type chat. Speech-to-text requests microphone access through Android when used; attachments use Android's document picker."
-    Workspace.VIDEO -> "Video generation does not require camera or microphone permission unless the user explicitly selects a capture or media input feature."
     Workspace.SEARCH -> "No special device permission is required for ordinary web search."
     Workspace.TRUTH_GUARD -> "No special device permission is required for web-based claim checking."
     Workspace.FRONTIER_LAB -> "No special device permission is required unless an enabled experiment explicitly requests one."
@@ -4982,7 +4979,6 @@ private fun featurePermissions(w: Workspace): String = when (w) {
 
 private fun featurePrivacyHeading(w: Workspace): String = when (w) {
     Workspace.CHAT -> "Main Chat"
-    Workspace.VIDEO -> "Video Generation"
     Workspace.SEARCH -> "Web Search"
     Workspace.TRUTH_GUARD -> "TruthGuard AI"
     Workspace.FRONTIER_LAB -> "Frontier Lab"
@@ -5240,7 +5236,6 @@ private fun FeatureHub(
         Workspace.SEARCH -> Icons.Default.Search
         Workspace.FRONTIER_LAB -> Icons.Default.Science
         Workspace.PERSONAL -> Icons.Default.Psychology
-        Workspace.VIDEO -> Icons.Default.VideoLibrary
         Workspace.ORGANIZATION_STUDIO -> Icons.Default.Dashboard
         else -> Icons.Default.AutoAwesome
     }
@@ -5463,7 +5458,6 @@ private fun WorkspaceScreen(
                     Workspace.FRONTIER_LAB -> "Explore emerging ideas, compare evidence and shape research into useful next steps."
                     Workspace.DATA_ANALYSIS -> "Bring a supported dataset, inspect its structure and turn findings into clear reports."
                     Workspace.PERSONAL -> "Organize personal goals, priorities and context in one focused intelligence workspace."
-                    Workspace.VIDEO -> "Create AI videos, edit existing clips, manage visual effects and review your saved productions."
                     Workspace.ORGANIZATION_STUDIO -> "Coordinate organizational work, shared knowledge and team operations."
                     Workspace.SEARCH -> "Search current information, review source evidence and explore topics more deeply."
                     else -> "Use the tools in this workspace to move from a question to a practical result."
@@ -5563,7 +5557,7 @@ private fun FeatureSettingsScreen(workspace: Workspace, onBack: () -> Unit) {
             "voice_responses" to (workspace == Workspace.VOICE || workspace == Workspace.COMPANION),
             "save_files" to true,
             "personalization" to (workspace == Workspace.PERSONAL || workspace == Workspace.COMPANION || workspace == Workspace.LIFE),
-            "background_jobs" to (workspace == Workspace.VIDEO || workspace == Workspace.ORGANIZATION_STUDIO)
+            "background_jobs" to (workspace == Workspace.ORGANIZATION_STUDIO)
         )
     }
     var values by remember(key) { mutableStateOf(defaults) }
@@ -8454,7 +8448,6 @@ item { SettingsSectionTitle("AI features", "Open any AI workspace from here inst
                         }
                     }
                     listOf(
-                        Workspace.VIDEO, Workspace.SEARCH, Workspace.TRUTH_GUARD, Workspace.FRONTIER_LAB,
                         Workspace.DATA_ANALYSIS, Workspace.PERSONAL, Workspace.LIFE,
                         Workspace.COMPANION, Workspace.LEARNING, Workspace.BUSINESS, Workspace.ORGANIZATION_STUDIO
                     ).forEach { feature ->
