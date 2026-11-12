@@ -89,9 +89,14 @@ export async function authorizeCapability(uid, controlId) {
   const adminUser = await getAuth().getUser(uid);
   const adminClaims = adminUser.customClaims || {};
   const isSuperAdmin = adminUser.email === "isaacoshiomole0@gmail.com" && (adminClaims.admin === true || adminClaims.superAdmin === true || adminClaims.role === "admin" || adminClaims.role === "super_admin");
-  const snap = await db.collection("adminAdvancedOptions").doc(controlId).get();
-  const testModeSnap = await db.collection("adminAdvancedOptions").doc("admin_testing_mode").get();
-  const adminTestMode = isSuperAdmin && testModeSnap.exists && testModeSnap.data()?.enabled === true;
+  const [snap, testModeSnap, planTestSnap] = await Promise.all([
+    db.collection("adminAdvancedOptions").doc(controlId).get(),
+    db.collection("adminAdvancedOptions").doc("admin_testing_mode").get(),
+    db.collection("adminPlanTest").doc(uid).get()
+  ]);
+  const adminPlanTest = isSuperAdmin && planTestSnap.exists && planTestSnap.data()?.enabled === true;
+  const adminTestMode = isSuperAdmin && testModeSnap.exists &&
+    testModeSnap.data()?.enabled === true && !adminPlanTest;
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
   if (!control && !isSuperAdmin && !DEFAULT_RUNTIME_CAPABILITIES.has(controlId)) {
@@ -108,7 +113,7 @@ export async function authorizeCapability(uid, controlId) {
   };
   // The sole super-admin is always entitled to operate without consuming customer credits.
   // Test Mode remains available for QA-specific behavior, but is not required for normal admin use.
-  if (isSuperAdmin) {
+  if (isSuperAdmin && !adminPlanTest) {
     const testSession = controlId === "capability_organization_studio"
       ? await getOrganizationTestSession(uid).catch(() => ({ enabled: false }))
       : null;
