@@ -308,11 +308,21 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
         planLoading = true
         runCatching {
             val api = WorkspaceApiClient()
-            val catalog = api.nativeCatalog()
-            val entitlements = api.entitlements()
-            val adminAllowed = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+            val coreData = withTimeoutOrNull(8_000L) {
+                coroutineScope {
+                    val catalogTask = async { api.nativeCatalog() }
+                    val entitlementTask = async { api.entitlements() }
+                    val adminTask = async {
+                        runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+                    }
+                    Triple(catalogTask.await(), entitlementTask.await(), adminTask.await())
+                }
+            } ?: throw IllegalStateException("Plan verification timed out. Please retry.")
+            val (catalog, entitlements, adminAllowed) = coreData
             adminTestMode = !entitlements.optBoolean("adminPlanTest", false) &&
-                adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
+                adminAllowed && (withTimeoutOrNull(2_000L) {
+                    runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
+                } == true)
             val plans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
             val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
             val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.filter {
