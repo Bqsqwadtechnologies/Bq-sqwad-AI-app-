@@ -23,8 +23,8 @@ class EntitlementsClient {
         val url = URL("${ApiConfig.websiteBaseUrl.trimEnd('/')}/api/native/entitlements")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 12000
-            readTimeout = 15000
+            connectTimeout = 4500
+            readTimeout = 6500
             doInput = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "application/json")
@@ -47,8 +47,8 @@ class EntitlementsClient {
         val url = URL("${ApiConfig.websiteBaseUrl.trimEnd('/')}/api/native/me")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 12000
-            readTimeout = 15000
+            connectTimeout = 4500
+            readTimeout = 6500
             doInput = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Accept", "application/json")
