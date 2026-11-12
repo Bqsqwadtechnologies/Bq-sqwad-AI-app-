@@ -844,13 +844,43 @@ private fun WorkspaceFrame(
                             fontWeight = FontWeight.Bold,
                             color = onContainer.copy(alpha = 0.72f)
                         )
+                        featureHighlights.chunked(2).forEach { rowFeatures ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowFeatures.forEach { feature ->
+                                    Surface(
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = onContainer.copy(alpha = 0.07f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, onContainer.copy(alpha = 0.10f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = onContainer.copy(alpha = 0.78f),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                feature,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = onContainer,
+                                                maxLines = 2
+                                            )
+                                        }
+                                    }
+                                }
+                                if (rowFeatures.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
                         Text(
-                            featureHighlights.joinToString("  •  "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = onContainer.copy(alpha = 0.9f)
-                        )
-                        Text(
-                            "Feature access follows your verified plan and required service connections.",
+                            "Live access is confirmed by your signed-in account, plan entitlement and required service connections.",
                             style = MaterialTheme.typography.labelSmall,
                             color = onContainer.copy(alpha = 0.68f)
                         )
