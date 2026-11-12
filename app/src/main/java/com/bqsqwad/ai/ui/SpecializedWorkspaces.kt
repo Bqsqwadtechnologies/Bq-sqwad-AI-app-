@@ -297,8 +297,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
             val catalog = api.nativeCatalog()
             val entitlements = api.entitlements()
             val adminAllowed = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
-            adminTestMode = entitlements.optBoolean("adminPlanTest", false) ||
-                (adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false))
+            adminTestMode = adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
             val plans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
             val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
             val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.filter {
