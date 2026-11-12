@@ -72,7 +72,7 @@ interface AuthRepository { suspend fun signIn(email:String,credential:String):Ac
 interface AiGateway { suspend fun send(request:AiRequest):AiResponse }
 data class AiRequest(
     val workspace:String,val message:String,val attachments:List<AiAttachment> = emptyList(),
-    val useWebSearch:Boolean=false,val generateImage:Boolean=false,val generateVideo:Boolean=false,val analyzeFiles:Boolean=false
+    val useWebSearch:Boolean=false,val generateImage:Boolean=false,val analyzeFiles:Boolean=false
 )
 data class AiResponse(
     val text:String,val providerId:String,val modelId:String,val usage:Map<String,Long> = emptyMap(),
