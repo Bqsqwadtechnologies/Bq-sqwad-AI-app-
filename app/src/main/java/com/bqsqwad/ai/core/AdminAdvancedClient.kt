@@ -114,7 +114,6 @@ class AdminAdvancedClient(
         val capabilityLabels = mapOf(
             "chat" to "Main Chat",
             "image_generation" to "Image Generation",
-            "video_generation" to "Video Generation",
             "live_camera" to "AI Live Camera",
             "live_voice" to "Live Voice AI",
             "truth_guard" to "TruthGuard AI",
