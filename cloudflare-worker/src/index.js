@@ -1555,7 +1555,7 @@ function canonicalUserBalance(profile) {
   // Recurring daily free credits are retired. Only permanent welcome/purchased
   // credits and active subscription credits are spendable.
   const daily = 0;
-  const hasPurchasedCredits = profile.hasEverPurchasedCredits === true || live ||
+  const hasPurchasedCredits = profile.hasEverPurchasedCredits === true || subscriptionLive ||
     subscription > 0 || (permanent > 0 && !profile.welcomeCreditsGrantedAt);
   return {
     permanent, subscription, trial, daily, hasPurchasedCredits,
@@ -3768,7 +3768,7 @@ export default {
 
       if (url.pathname === "/entitlements" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const [primary, playRows, canonicalRows] = await Promise.all([
+        const [primary, playRows, canonicalRows, adminPlanTest] = await Promise.all([
           firestoreGet("entitlements/" + user.uid),
           firestoreQuery("playEntitlements", {
             filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
@@ -3776,7 +3776,8 @@ export default {
           }),
           // Website Paystack/admin and verified Play purchases share this
           // canonical multi-plan subcollection.
-          firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 })
+          firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }),
+          firestoreGet("adminPlanTest/" + user.uid).catch(() => null)
         ]);
         const rows = new Map();
         if (primary) {
@@ -3793,6 +3794,7 @@ export default {
           rows.set(key, { ...row, id: key });
         }
         return json({
+          adminPlanTest: adminPlanTest?.enabled === true,
           items: Array.from(rows.values()).map(row => ({
             id: String(row.id || ""),
             planId: String(row.planId || ""),
