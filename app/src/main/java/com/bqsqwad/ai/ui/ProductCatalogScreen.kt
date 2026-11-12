@@ -132,7 +132,24 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         scope.launch {
             try {
                 val api=WorkspaceApiClient()
-                val live=api.nativeCatalog()
+                // Load the catalog and account state concurrently so plan display is not
+                // blocked by slower balance, entitlement, or contact-status requests.
+                val liveTask = kotlinx.coroutines.async { api.nativeCatalog() }
+                val creditsTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.credits() }.getOrNull() } else null
+                val entitlementTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.entitlement() }.getOrNull() } else null
+                val entitlementsTask = if (signedIn) kotlinx.coroutines.async { runCatching { parseUserEntitlements(api.entitlements()) }.getOrDefault(emptyList()) } else null
+                val playManagementTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.playSubscriptionManagement() }.getOrNull() } else null
+                val salesNoticeTask = if (signedIn) kotlinx.coroutines.async {
+                    runCatching {
+                        val a=api.contactSalesStatus().optJSONArray("requests")
+                        val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
+                        val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
+                        val seen=rows.firstOrNull { it.optString("status")=="seen" }
+                        contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
+                            ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by our sales team." }
+                    }.getOrNull()
+                } else null
+                val live=liveTask.await()
                 val livePlans = parsePlans(live)
                 val catalogWarnings = live.optJSONObject("catalogStatus")?.optJSONArray("warnings")
                     ?.let { warnings -> List(warnings.length()) { index -> warnings.optString(index) }.filter { it.isNotBlank() } }
@@ -160,18 +177,11 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                         .putString("catalog",live.toString()).apply()
                 }
                 if (signedIn) {
-                    credits=runCatching{api.credits()}.getOrNull()
-                    entitlement=runCatching{api.entitlement()}.getOrNull()
-                    entitlements=runCatching{parseUserEntitlements(api.entitlements())}.getOrDefault(emptyList())
-                    playManagement=runCatching{api.playSubscriptionManagement()}.getOrNull()
-                    salesNotice=runCatching {
-                        val a=api.contactSalesStatus().optJSONArray("requests")
-                        val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
-                        val contacted=rows.firstOrNull { it.optString("status")=="contacted" }
-                        val seen=rows.firstOrNull { it.optString("status")=="seen" }
-                        contacted?.let { "Sales has contacted you about "+it.optString("planName").ifBlank{"your request"}+". Check your email." }
-                            ?: seen?.let { "Your Contact Sales request for "+it.optString("planName").ifBlank{"your request"}+" has been seen by our sales team." }
-                    }.getOrNull()
+                    credits = creditsTask?.await()
+                    entitlement = entitlementTask?.await()
+                    entitlements = entitlementsTask?.await().orEmpty()
+                    playManagement = playManagementTask?.await()
+                    salesNotice = salesNoticeTask?.await()
                 } else {
                     credits = null
                     entitlement = null
