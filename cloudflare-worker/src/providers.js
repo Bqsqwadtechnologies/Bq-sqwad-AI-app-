@@ -5,37 +5,10 @@ const DEFAULT_MODELS = {
 // BQ-7-Star (default) + BQ-Codron when the user explicitly selects it (Prompt G / I).
 // Never silently route everyday chat to Codron.
 const ALLOWED_OPENAI_TEXT_MODELS = new Set(["gpt-6-luna", "gpt-5.6-luna"]);
-const DEFAULT_MAX_REQUEST_TOKENS = 8_000;
-const DEFAULT_MAX_OUTPUT_TOKENS = 256;
-const HARD_MAX_REQUEST_TOKENS = 16_000;
-const HARD_MAX_OUTPUT_TOKENS = 1_024;
-
-function boundedInteger(value, fallback, min, max) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
-}
-
-function capText(value, maxChars) {
-  const text = String(value ?? "");
-  if (text.length <= maxChars) return text;
-  const marker = "\n\n[Earlier text trimmed to BQ Sqwad AI's configured request budget.]\n\n";
-  const room = Math.max(0, maxChars - marker.length);
-  const start = Math.ceil(room * 0.65);
-  const end = room - start;
-  return text.slice(0, start) + marker + (end > 0 ? text.slice(-end) : "");
-}
-
-function requestBudgets(maxRequestTokens, maxOutputTokens) {
-  const inputTokens = boundedInteger(maxRequestTokens, DEFAULT_MAX_REQUEST_TOKENS, 1_000, HARD_MAX_REQUEST_TOKENS);
-  const outputTokens = boundedInteger(maxOutputTokens, DEFAULT_MAX_OUTPUT_TOKENS, 128, HARD_MAX_OUTPUT_TOKENS);
-  const inputChars = Math.min(56_000, Math.floor(inputTokens * 3.5));
-  const systemChars = Math.min(12_000, Math.floor(inputChars * 0.25));
-  return {
-    inputTokens,
-    outputTokens,
-    systemChars,
-    messageChars: Math.max(1_000, inputChars - systemChars)
-  };
+function requestBudgets() {
+  // No application-imposed prompt or output token ceilings. Provider/model context
+  // constraints remain authoritative and measured usage is billed after completion.
+  return null;
 }
 
 function resolveAllowedOpenAITextModel(model) {
@@ -102,9 +75,8 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
-  const budgets = requestBudgets(maxRequestTokens, maxOutputTokens);
-  const requestText = capText(String(message || "Analyze the attached content."), budgets.messageChars);
-  const systemText = capText(system, budgets.systemChars);
+  const requestText = String(message || "Analyze the attached content.");
+  const systemText = String(system || "");
   const content = [
     { type: "input_text", text: requestText },
     ...imageInputs.map(image => ({
@@ -122,7 +94,7 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     : String(message || "");
   const selectedModel = resolveAllowedOpenAITextModel(model);
   const effort = reasoningEffort === "none" && selectedModel !== "gpt-6-luna" ? "low" : reasoningEffort;
-  const body = { model: selectedModel, input, stream, max_output_tokens: budgets.outputTokens, reasoning: { effort: ["none", "low", "medium", "high", "xhigh", "max"].includes(effort) ? effort : "low" } };
+  const body = { model: selectedModel, input, stream, reasoning: { effort: ["none", "low", "medium", "high", "xhigh", "max"].includes(effort) ? effort : "low" } };
   if (systemText) body.instructions = systemText;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -137,9 +109,8 @@ export async function callGemini(env, { model, message, system, images = [], fil
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
   const fileInputs = Array.isArray(files) ? files : [];
-  const budgets = requestBudgets(maxRequestTokens, maxOutputTokens);
-  const requestText = capText(String(message || (imageInputs.length || fileInputs.length ? "Analyze the attached content." : "")), budgets.messageChars);
-  const systemText = capText(system, budgets.systemChars);
+  const requestText = String(message || (imageInputs.length || fileInputs.length ? "Analyze the attached content." : ""));
+  const systemText = String(system || "");
   const parts = [{ text: requestText }];
   imageInputs.forEach(image => {
     parts.push({ inlineData: {
@@ -153,7 +124,7 @@ export async function callGemini(env, { model, message, system, images = [], fil
       data: String(file.fileBase64 || "")
     }});
   });
-  const request = { contents: [{ role: "user", parts }], generationConfig: { maxOutputTokens: budgets.outputTokens } };
+  const request = { contents: [{ role: "user", parts }] };
   if (systemText) request.systemInstruction = { parts: [{ text: systemText }] };
   const result = await jsonFetch(
     "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelId) + ":generateContent",
