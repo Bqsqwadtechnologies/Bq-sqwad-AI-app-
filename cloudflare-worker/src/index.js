@@ -1494,7 +1494,7 @@ async function persistExplicitMemory(uid, message) {
 function shouldIncludeMemoryContext(message) {
   // Do not send a user's entire saved profile for ordinary greetings or
   // unrelated factual questions. Include it for personal/project follow-ups.
-  return /\\b(my|mine|me|i|we|our|ours|remember|previous|last time|continue|pick up|my project|our project)\\b/i.test(String(message || ""));
+  return /\b(my|mine|me|i|we|our|ours|remember|previous|last time|continue|pick up|my project|our project)\b/i.test(String(message || ""));
 }
 
 async function memoryContext(uid) {
