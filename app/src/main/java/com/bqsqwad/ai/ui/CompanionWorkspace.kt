@@ -139,7 +139,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         val (catalog, entitlementResponse) = coreData
         val plans = parseCompanionPlans(catalog)
         catalogPlans = plans
-        adminTestMode = catalog.optBoolean("adminTestMode", false)
+        adminTestMode = catalog.optBoolean("adminTestMode", false) || entitlementResponse.optBoolean("adminPlanTest", false)
 
         val items = entitlementResponse.optJSONArray("items") ?: JSONArray()
         val activeEntitlement = (0 until items.length())
