@@ -95,8 +95,6 @@ export async function authorizeCapability(uid, controlId) {
     db.collection("adminPlanTest").doc(uid).get()
   ]);
   const adminPlanTest = isSuperAdmin && planTestSnap.exists && planTestSnap.data()?.enabled === true;
-  const adminTestMode = isSuperAdmin && testModeSnap.exists &&
-    testModeSnap.data()?.enabled === true && !adminPlanTest;
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
   if (!control && !isSuperAdmin && !DEFAULT_RUNTIME_CAPABILITIES.has(controlId)) {
