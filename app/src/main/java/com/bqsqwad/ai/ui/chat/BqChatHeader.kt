@@ -36,7 +36,7 @@ fun BqChatHeader(
     drawerOpen: Boolean,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
-    onMore: () -> Unit = {},
+    onMore: () -> Unit,
     onSecretChats: (() -> Unit)? = null,
     logo: @Composable (size: androidx.compose.ui.unit.Dp) -> Unit
 ) {
