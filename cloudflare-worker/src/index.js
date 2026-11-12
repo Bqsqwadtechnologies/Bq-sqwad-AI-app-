@@ -1555,7 +1555,7 @@ function canonicalUserBalance(profile) {
   // Recurring daily free credits are retired. Only permanent welcome/purchased
   // credits and active subscription credits are spendable.
   const daily = 0;
-  const hasPurchasedCredits = profile.hasEverPurchasedCredits === true ||
+  const hasPurchasedCredits = profile.hasEverPurchasedCredits === true || live ||
     subscription > 0 || (permanent > 0 && !profile.welcomeCreditsGrantedAt);
   return {
     permanent, subscription, trial, daily, hasPurchasedCredits,
