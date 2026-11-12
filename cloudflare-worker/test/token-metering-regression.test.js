@@ -101,19 +101,11 @@ test("Tavily search and deep research use the shared direct generation credit ru
   assert.doesNotMatch(source, /\/admin\/ai-billing\/config/);
 });
 
-test("website-owned token budgets cap native and connector-aware chat spend", () => {
-  assert.match(source, /conversationUsedConnectors = false/);
-  assert.match(source, /for \(let round = 0; round < 3; round\+\+\)/);
-  assert.match(source, /max_output_tokens: outputTokenBudget/);
-  assert.match(source, /const outputTokenBudget = Math\.min\(1_024/);
-  assert.match(source, /toolDefs\.length >= 12/);
-  assert.match(source, /callIndex >= 3/);
-  assert.match(source, /tokenBilling \? tokenPricing\.maxRequestTokens : undefined/);
-  assert.match(source, /maxOutputTokens: outputBudget/);
-  assert.match(providerSource, /const DEFAULT_MAX_REQUEST_TOKENS = 8_000/);
-  assert.match(providerSource, /const DEFAULT_MAX_OUTPUT_TOKENS = 256/);
-  assert.match(providerSource, /const HARD_MAX_OUTPUT_TOKENS = 1_024/);
-  assert.match(tokenBillingSource, /maxRequestTokens, maxOutputTokens/);
+test("BQ does not impose output token budgets or provider token ceilings", () => {
+  assert.doesNotMatch(source, /max_output_tokens:\\s*outputTokenBudget/);
+  assert.doesNotMatch(source, /const outputTokenBudget\\s*=/);
+  assert.doesNotMatch(providerSource, /DEFAULT_MAX_OUTPUT_TOKENS|HARD_MAX_OUTPUT_TOKENS/);
+  assert.match(source, /Provider\\/model context limits are provider-owned; BQ applies no token ceiling/);
 });
 test("BQ 7-Star and BQ-Codron use the exact requested per-token credit defaults", () => {
   assert.match(source, /model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 }/);
