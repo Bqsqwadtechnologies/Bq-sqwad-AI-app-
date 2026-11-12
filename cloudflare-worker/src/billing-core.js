@@ -4,7 +4,7 @@
  * model-specific tokenPricingRules or generationCostRules records.
  */
 export function round7(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 10_000_000) / 10_000_000;
+  return Math.round(Number(value) * 10_000_000) / 10_000_000;
 }
 function nonNegative(value, fallback = 0) {
   const n = Number(value);
