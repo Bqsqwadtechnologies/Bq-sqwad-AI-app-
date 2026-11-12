@@ -69,9 +69,10 @@ export async function handleModelsCatalog(request, env, uid) {
         const timeZone = String(user.dailyFreeCreditsTimeZone || env?.FREE_CREDIT_TIME_ZONE || DEFAULT_FREE_CREDIT_TIME_ZONE);
         const daily = Math.max(0, Number(currentDailyFreeCredits(user, new Date(), timeZone)) || 0);
         balance = permanent + subscription + daily;
-        // Daily free allowance is spendable only by BQ-7-Star, never a
-        // qualification for BQ-Codron. Paid subscription credits count.
-        hasPurchasedCredits = permanent + subscription > 0;
+        // One-time welcome credits may fund BQ-7-Star, but do not unlock
+        // BQ-Codron; only purchased or active subscription credits do.
+        hasPurchasedCredits = user.hasEverPurchasedCredits === true ||
+          subscription > 0 || (permanent > 0 && !user.welcomeCreditsGrantedAt);
       }
     } catch {}
   }
