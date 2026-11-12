@@ -109,7 +109,7 @@ test("website-owned token budgets cap native and connector-aware chat spend", ()
   assert.match(source, /toolDefs\.length >= 12/);
   assert.match(source, /callIndex >= 3/);
   assert.match(source, /tokenBilling \? tokenPricing\.maxRequestTokens : undefined/);
-  assert.match(source, /tokenBilling \? tokenPricing\.maxOutputTokens : undefined/);
+  assert.match(source, /maxOutputTokens: outputBudget/);
   assert.match(providerSource, /const DEFAULT_MAX_REQUEST_TOKENS = 8_000/);
   assert.match(providerSource, /const DEFAULT_MAX_OUTPUT_TOKENS = 256/);
   assert.match(providerSource, /const HARD_MAX_OUTPUT_TOKENS = 1_024/);
