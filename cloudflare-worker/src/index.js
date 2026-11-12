@@ -2801,7 +2801,16 @@ async function ai(request, user, body) {
     const responseBody = {
       text: result.text.trim(), providerId: result.providerId, modelId: result.modelId,
       ...(memorySaveResult.saved ? { memorySaved: true } : {}),
-      creditsCharged, ...(usageSummary ? { tokenUsage: usageSummary } : {}),
+      creditsCharged, ...(usageSummary ? { tokenUsage: {
+        inputTokens: usageSummary.inputTokens,
+        outputTokens: usageSummary.outputTokens,
+        cachedInputTokens: usageSummary.cachedInputTokens,
+        inputAudioTokens: usageSummary.inputAudioTokens,
+        outputAudioTokens: usageSummary.outputAudioTokens,
+        inputImageTokens: usageSummary.inputImageTokens,
+        outputImageTokens: usageSummary.outputImageTokens,
+        creditsCharged: usageSummary.creditsCharged
+      } } : {}),
       incidentId: crypto.randomUUID()
     };
     if (idem?.hash) await firestoreSet("idempotency/" + idem.hash, { uid:user.uid, status:"completed", body:responseBody, httpStatus:200, completedAt:new Date(), expiresAt:new Date(Date.now()+600000) }, true);
