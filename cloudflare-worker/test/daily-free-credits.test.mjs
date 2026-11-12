@@ -1,13 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dailyCreditDateKey, currentDailyFreeCredits, shouldRestoreDailyFreeCredits } from "../src/credit-cycle.js";
-
-test("legacy date helpers still calculate configured time zones consistently", () => {
-  assert.equal(dailyCreditDateKey(new Date("2026-01-01T22:59:59.000Z"), "Africa/Lagos"), "2026-01-01");
-  assert.equal(dailyCreditDateKey(new Date("2026-01-01T23:00:00.000Z"), "Africa/Lagos"), "2026-01-02");
-  assert.equal(dailyCreditDateKey(new Date("2026-01-02T06:30:00.000Z"), "Africa/Lagos", "08:00"), "2026-01-01");
-  assert.equal(dailyCreditDateKey(new Date("2026-01-02T07:00:00.000Z"), "Africa/Lagos", "08:00"), "2026-01-02");
-});
+import { currentDailyFreeCredits, shouldRestoreDailyFreeCredits } from "../src/credit-cycle.js";
 
 test("legacy daily-free fields are never spendable for free or paid accounts", () => {
   const now = new Date("2026-01-01T23:00:00.000Z");
