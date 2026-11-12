@@ -143,7 +143,7 @@ export function calculateTokenCost({ usage, pricing }) {
     cachedInputTokens * cachedCreditRate +
     normalOutputTokens * outputCreditRate +
     reasoningTokens * reasoningCreditRate +
-    (inputAudio - cachedInputAudioTokens) * Number(meter.creditsPerInputAudioToken || 0) +
+    (inputAudioTokens - cachedInputAudioTokens) * Number(meter.creditsPerInputAudioToken || 0) +
     cachedInputAudioTokens * Number(meter.creditsPerCachedInputAudioToken || 0) +
     outputAudioTokens * Number(meter.creditsPerOutputAudioToken || 0) +
     (inputImageTokens - cachedInputImageTokens) * Number(meter.creditsPerInputImageToken || 0) +
