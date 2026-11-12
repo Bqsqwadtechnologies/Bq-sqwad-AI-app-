@@ -3035,33 +3035,37 @@ async function stream(request, user, body) {
             const decoder = new TextDecoder();
             let buffer = "";
             let completed = false;
+            const processProviderEvent = (event) => {
+              const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
+              if (!data || data === "[DONE]") return;
+              let parsed; try { parsed = JSON.parse(data); } catch { return; }
+              if (parsed.type === "response.output_text.delta" && parsed.delta) {
+                emitDelta(parsed.delta);
+              } else if (parsed.type === "response.completed") {
+                completed = true;
+                usageRaw = parsed.response?.usage || parsed.usage || usageRaw;
+                const finalText = parsed.response?.output_text ||
+                  (parsed.response?.output || []).flatMap(o => o.content || []).map(c => c.text || "").join("");
+                if (finalText && finalText !== streamedText) {
+                  streamedText = finalText;
+                  deliveredChars = Math.max(deliveredChars, finalText.length);
+                  emit({ type: "replace", text: finalText });
+                }
+              } else if (parsed.type === "error") {
+                throw new Error(parsed.error?.message || "Streaming failed");
+              }
+            };
             while (true) {
               const { value, done } = await reader.read();
               if (done) break;
               buffer += decoder.decode(value, { stream: true });
               const events = buffer.split(/\r?\n\r?\n/);
               buffer = events.pop() || "";
-              for (const event of events) {
-                const data = event.split(/\r?\n/).filter(x => x.startsWith("data:")).map(x => x.slice(5).trim()).join("\n");
-                if (!data || data === "[DONE]") continue;
-                let parsed; try { parsed = JSON.parse(data); } catch { continue; }
-                if (parsed.type === "response.output_text.delta" && parsed.delta) {
-                  emitDelta(parsed.delta);
-                } else if (parsed.type === "response.completed") {
-                  completed = true;
-                  usageRaw = parsed.response?.usage || parsed.usage || usageRaw;
-                  const finalText = parsed.response?.output_text ||
-                    (parsed.response?.output || []).flatMap(o => o.content || []).map(c => c.text || "").join("");
-                  if (finalText && finalText !== streamedText) {
-                    streamedText = finalText;
-                    deliveredChars = Math.max(deliveredChars, finalText.length);
-                    emit({ type: "replace", text: finalText });
-                  }
-                } else if (parsed.type === "error") {
-                  throw new Error(parsed.error?.message || "Streaming failed");
-                }
-              }
+              for (const event of events) processProviderEvent(event);
             }
+            // Flush a final SSE event even when the provider closes without a trailing blank line.
+            buffer += decoder.decode();
+            if (buffer.trim()) processProviderEvent(buffer);
             if (!completed) throw new Error("stream_incomplete");
           } else {
             emitDelta(provider.text);
