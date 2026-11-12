@@ -245,8 +245,12 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const customerInputCreditsPerToken = customerCreditsPerToken(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k");
   const customerCachedCreditsPerToken = customerCreditsPerToken(tokenRule, "cachedInputCreditsPerToken", "cachedInputCreditsPer1k");
   const customerOutputCreditsPerToken = customerCreditsPerToken(tokenRule, "outputCreditsPerToken", "outputCreditsPer1k");
-  const customerReasoningCreditsPerToken = Number.isFinite(Number(tokenRule?.reasoningCreditsPerToken))
-    ? Number(tokenRule.reasoningCreditsPerToken) : customerOutputCreditsPerToken;
+  const customerReasoningCreditsPerToken = featureKey === "live_voice" && Number.isFinite(Number(tokenRule?.liveVoiceReasoningCreditsPerToken))
+    ? Number(tokenRule.liveVoiceReasoningCreditsPerToken)
+    : featureKey === "live_camera" && Number.isFinite(Number(tokenRule?.liveCameraReasoningCreditsPerToken))
+      ? Number(tokenRule.liveCameraReasoningCreditsPerToken)
+      : Number.isFinite(Number(tokenRule?.reasoningCreditsPerToken))
+        ? Number(tokenRule.reasoningCreditsPerToken) : customerOutputCreditsPerToken;
   const hasCustomerCreditRule = !!tokenRule &&
     [customerInputCreditsPerToken, customerCachedCreditsPerToken, customerOutputCreditsPerToken, customerReasoningCreditsPerToken].every(rate => Number.isFinite(rate) && rate >= 0);
   if (isTokenMeteredFeature && !hasCustomerCreditRule) {
