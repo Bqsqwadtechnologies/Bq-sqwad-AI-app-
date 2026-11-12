@@ -3406,7 +3406,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             val current = messages.getOrNull(aiIndex)
                             if (current != null) messages[aiIndex] = current.copy(text = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(full))
                         }
-                    }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label -> scope.launch(Dispatchers.Main) { taskPhaseLabel = label } }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
+                    }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label ->
+                        // Provider settlement is an internal billing operation, not a chat status.
+                        val safeLabel = label.trim()
+                        if (!safeLabel.contains(Regex("provider|cost|settle|billing|usage", RegexOption.IGNORE_CASE))) {
+                            scope.launch(Dispatchers.Main) { taskPhaseLabel = safeLabel }
+                        }
+                    }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
                 }
                 var generatedPdfAttachment: ChatMessageAttachment? = null
                 var generatedPdfNotice = ""
