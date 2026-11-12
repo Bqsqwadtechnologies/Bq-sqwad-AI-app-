@@ -72,6 +72,7 @@ export async function handleModelsCatalog(request, env, uid) {
         // One-time welcome credits may fund BQ-7-Star, but do not unlock
         // BQ-Codron; only purchased or active subscription credits do.
         hasPurchasedCredits = user.hasEverPurchasedCredits === true ||
+          (Number.isFinite(expiry) && expiry > Date.now()) ||
           subscription > 0 || (permanent > 0 && !user.welcomeCreditsGrantedAt);
       }
     } catch {}
