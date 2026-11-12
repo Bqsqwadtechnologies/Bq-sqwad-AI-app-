@@ -98,9 +98,8 @@ fun LifeMathisPlanGate(
                     ?.takeIf { it.isNotBlank() }
 
                 val serverAdmin = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
-                val serverTestMode = if (serverAdmin) {
-                    runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
-                } else false
+                val serverTestMode = !entitlementResponse.optBoolean("adminPlanTest", false) &&
+                    serverAdmin && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
 
                 val freeAvailable = parsed.any { it.id == "lifemathisfree" }
                 val effectivePlanId = when {
