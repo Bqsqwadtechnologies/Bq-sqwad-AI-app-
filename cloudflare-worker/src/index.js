@@ -1200,7 +1200,7 @@ function generationCreditsPerMinute(rule) {
 
 
 
-const TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions/bq_token_credit_pricing_defaults_v6";
+const TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions/bq_token_credit_pricing_defaults_v7";
 const TOKEN_CREDIT_DEFAULTS = [
   { id: "default-openai-gpt-6-luna", model: "gpt-6-luna", credits: { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 } },
   { id: "default-openai-gpt-5-6-luna", model: "gpt-5.6-luna", credits: { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.000029166666666666667 } },
