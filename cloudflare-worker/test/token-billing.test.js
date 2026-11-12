@@ -199,7 +199,7 @@ test("token model defaults are stored as final per-token BQ credit rates", async
   assert.ok(defaults.includes('"gpt-image-2.5-sunburst"') && defaults.includes('cachedInputImageCreditsPerToken: 0.00011666666666666667'));
   assert.doesNotMatch(defaults, /UsdPer(Million|Token)/);
   assert.match(source, /source: "BQ customer credit defaults"/);
-  assert.match(source, /bq_token_credit_pricing_defaults_v5/);
+  assert.match(source, /bq_token_credit_pricing_defaults_v7/);
 });
 
 test("token pricing selects free and paid rules independently and prefers the exact class", async () => {
