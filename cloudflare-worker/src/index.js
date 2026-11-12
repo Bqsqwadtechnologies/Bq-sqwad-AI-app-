@@ -1590,6 +1590,7 @@ async function ensureWelcomeCredits(user) {
     const now = new Date();
     const createdAtMs = firebaseCreatedAtMillis(user.createdAt);
     const userData = {
+      uid,
       credits: permanent + WELCOME_CREDIT_AMOUNT,
       dailyFreeCredits: 0,
       dailyFreeCreditsDate: "",
