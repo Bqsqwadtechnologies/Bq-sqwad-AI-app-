@@ -43,6 +43,19 @@ function resolveAllowedOpenAITextModel(model) {
   return ALLOWED_OPENAI_TEXT_MODELS.has(requested) ? requested : DEFAULT_MODELS.openai;
 }
 
+export function resolveTextReasoningEffort(message, capability = "chat") {
+  const text = String(message || "").trim();
+  if (capability !== "chat") return "low";
+  if (/^(hi|hello|hey|how are you|good morning|good afternoon|good evening|thanks|thank you)[!.? ]*$/i.test(text) ||
+      (text.length <= 48 && /^(hi|hello|hey|how are you|what's up|whats up)[!.? ]*$/i.test(text))) {
+    return "none";
+  }
+  if (text.length > 700 || /\\b(debug|trace|fix|code|program|compare|analy[sz]e|research|plan|calculate|architecture|step[- ]by[- ]step|investigate|reason|design)\\b/i.test(text)) {
+    return "medium";
+  }
+  return "low";
+}
+
 function secret(env, name) {
   const value = env?.[name];
   if (!value) throw new Error(name + "_not_configured");
@@ -84,7 +97,7 @@ async function jsonFetch(url, options = {}) {
   return body;
 }
 
-export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false, maxRequestTokens, maxOutputTokens }) {
+export async function callOpenAI(env, { model, message, system, imageBase64, mimeType = "image/jpeg", images = [], files = [], stream = false, maxRequestTokens, maxOutputTokens, reasoningEffort = "low" }) {
   const imageInputs = Array.isArray(images) && images.length
     ? images
     : (imageBase64 ? [{ imageBase64, mimeType }] : []);
@@ -108,7 +121,8 @@ export async function callOpenAI(env, { model, message, system, imageBase64, mim
     ? [{ role: "user", content }]
     : String(message || "");
   const selectedModel = resolveAllowedOpenAITextModel(model);
-  const body = { model: selectedModel, input, stream, max_output_tokens: budgets.outputTokens };
+  const effort = reasoningEffort === "none" && selectedModel !== "gpt-6-luna" ? "low" : reasoningEffort;
+  const body = { model: selectedModel, input, stream, max_output_tokens: budgets.outputTokens, reasoning: { effort: ["none", "low", "medium", "high", "xhigh", "max"].includes(effort) ? effort : "low" } };
   if (systemText) body.instructions = systemText;
   return fetch("https://api.openai.com/v1/responses", {
     method: "POST",
