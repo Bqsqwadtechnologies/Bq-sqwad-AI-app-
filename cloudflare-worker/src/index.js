@@ -1580,7 +1580,7 @@ async function ensureWelcomeCredits(user) {
       firestoreGet(userPath),
       firestoreGet(grantPath).catch(() => null)
     ]);
-    if (existingGrant || profile?.welcomeCreditsGrantedAt) return false;
+    if (!profile || existingGrant || profile.welcomeCreditsGrantedAt) return false;
     const permanent = Math.max(0, Number(profile?.credits || 0));
     const expiresAt = profile?.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
     const subscription = Number.isFinite(expiresAt) && expiresAt > Date.now()
