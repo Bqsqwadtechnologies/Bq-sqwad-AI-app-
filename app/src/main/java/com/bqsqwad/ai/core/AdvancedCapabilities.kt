@@ -2,7 +2,6 @@ package com.bqsqwad.ai.core
 
 object AdvancedCapabilities {
     const val IMAGE_GENERATION = "image_generation"
-    const val VIDEO_GENERATION = "video_generation"
     const val FILE_ANALYSIS = "file_analysis"
     const val TRUTH_GUARD = "truth_guard"
     const val FRONTIER_LAB = "frontier_lab"
@@ -15,7 +14,7 @@ object AdvancedCapabilities {
     const val BUSINESS_TRAINING_STEP_BY_STEP = "business_training_step_by_step"
     const val BUSINESS_TRAINING_APPEARANCE = "business_training_appearance"
 
-    val subscriptionOnly = setOf(IMAGE_GENERATION, VIDEO_GENERATION, FILE_ANALYSIS)
+    val subscriptionOnly = setOf(IMAGE_GENERATION, FILE_ANALYSIS)
     const val CODRON_DEFAULT_ACTIVE = false
 
     val advanced = setOf(
