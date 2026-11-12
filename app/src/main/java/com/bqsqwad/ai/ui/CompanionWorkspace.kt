@@ -115,69 +115,107 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
 
     LaunchedEffect(accessRefresh) {
         loadingAccess = true
+        accessLoadedSuccessfully = false
         val api = WorkspaceApiClient()
-        val coreData = withTimeoutOrNull(15_000L) {
+
+        // Only the catalog and canonical entitlement snapshot are required to
+        // decide which exact Companion subscription is active. Settings,
+        // profile, history and memory are deliberately kept off this critical path.
+        val coreData = withTimeoutOrNull(8_000L) {
             coroutineScope {
                 val catalogRequest = async { api.companionCatalog() }
                 val entitlementRequest = async { api.entitlements() }
-                val settingsRequest = async { api.companionSettings() }
-                Triple(catalogRequest.await(), entitlementRequest.await(), settingsRequest.await())
+                catalogRequest.await() to entitlementRequest.await()
             }
         }
         if (coreData == null) {
             accessLoadedSuccessfully = false
-            notice = "Companion plan checks took too long. Check your connection and retry."
+            notice = "Your plan could not be refreshed quickly. Check your connection and retry."
             currentPlan = null
             loadingAccess = false
             return@LaunchedEffect
         }
-        val (catalog, entitlements, settingsResponse) = coreData
-        runCatching {
-            val companionSettings = settingsResponse.optJSONObject("settings") ?: JSONObject()
-            notifications = companionSettings.optBoolean("notifications", true)
-            saveHistory = companionSettings.optBoolean("saveHistory", true)
-            safeMode = companionSettings.optBoolean("safeMode", true)
-            val profile = runCatching { api.companionProfile().optJSONObject("profile") ?: JSONObject() }.getOrDefault(JSONObject())
-            personality = profile.optString("personality").takeIf { it in setOf("Caring", "Encouraging", "Calm") } ?: "Caring"
-            if (saveHistory) {
-                runCatching {
-                    val saved = api.companionHistory().optJSONArray("items") ?: JSONArray()
-                    messages.clear()
-                    for (index in saved.length() - 1 downTo 0) {
-                        val item = saved.optJSONObject(index) ?: continue
-                        messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
-                    }
-                }.onFailure { notice = safeUserFacingIssue(it, "Saved Companion history could not be loaded.") }
+
+        val (catalog, entitlementResponse) = coreData
+        val plans = parseCompanionPlans(catalog)
+        catalogPlans = plans
+        adminTestMode = catalog.optBoolean("adminTestMode", false)
+
+        val items = entitlementResponse.optJSONArray("items") ?: JSONArray()
+        val activeEntitlement = (0 until items.length())
+            .mapNotNull { items.optJSONObject(it) }
+            .filter { item ->
+                val planId = item.optString("planId").lowercase()
+                val module = item.optString("module").lowercase()
+                val state = item.optString("state").lowercase()
+                (module == "companion" || planId.startsWith("companion")) &&
+                    state in setOf("active", "grace")
             }
-            val plans = parseCompanionPlans(catalog)
-            catalogPlans = plans
-            adminTestMode = catalog.optBoolean("adminTestMode", false)
-            val items = entitlements.optJSONArray("items") ?: JSONArray()
-            val active = (0 until items.length())
-                .mapNotNull { items.optJSONObject(it) }
-                .firstOrNull {
-                    val id = it.optString("planId")
-                    val state = it.optString("state")
-                    id.startsWith("companion") && state in setOf("active", "grace", "on_hold", "paused")
-                }
-            val activePlanId = if (adminTestMode) "companionultimate" else catalog.optString("activePlanId").ifBlank { active?.optString("planId").orEmpty().ifBlank { "companionfree" } }
-            currentPlan = plans.firstOrNull { it.id == activePlanId }
-                ?: plans.firstOrNull { it.id == "companionfree" }
-            val memoryPlanEligible = adminTestMode || currentPlan?.id?.let { it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate") } == true
-            if (memoryPlanEligible) {
-                runCatching { api.companionMemory() }
-                    .onSuccess { memoryEnabled = it.optBoolean("enabled", false) }
-            } else {
-                memoryEnabled = false
+            .maxByOrNull { item ->
+                item.optString("updatedAt").ifBlank { item.optString("startDate") }
             }
-        }.onSuccess {
-            accessLoadedSuccessfully = true
-        }.onFailure {
-            accessLoadedSuccessfully = false
-            notice = safeUserFacingIssue(it, "Could not verify your Companion plan.")
-            currentPlan = null
+
+        // A verified account-level admin test grant takes precedence. Otherwise
+        // display the exact active Companion plan from the shared entitlement ledger.
+        val activePlanId = when {
+            adminTestMode -> "companionultimate"
+            activeEntitlement != null -> activeEntitlement.optString("planId").lowercase()
+            else -> "companionfree"
         }
+        currentPlan = plans.firstOrNull { it.id.equals(activePlanId, ignoreCase = true) }
+        val memoryPlanEligible = adminTestMode ||
+            currentPlan?.id?.lowercase() in setOf(
+                "companionbasic", "companionplus", "companionpremium", "companionultimate"
+            )
+
+        accessLoadedSuccessfully = currentPlan != null
         loadingAccess = false
+
+        // Ancillary data loads after the plan decision, so a slow history or
+        // settings request can no longer hold the workspace behind "Checking plan…".
+        scope.launch {
+            coroutineScope {
+                val settingsTask = async {
+                    withTimeoutOrNull(5_000L) { api.companionSettings() }
+                }
+                val profileTask = async {
+                    withTimeoutOrNull(5_000L) { api.companionProfile() }
+                }
+                val historyTask = if (currentPlan?.id != "companionfree" && currentPlan != null) async {
+                    withTimeoutOrNull(6_000L) { api.companionHistory() }
+                } else null
+                val memoryTask = if (memoryPlanEligible) async {
+                    withTimeoutOrNull(5_000L) { api.companionMemory() }
+                } else null
+
+                settingsTask.await()?.let { response ->
+                    val settings = response.optJSONObject("settings") ?: JSONObject()
+                    notifications = settings.optBoolean("notifications", true)
+                    saveHistory = settings.optBoolean("saveHistory", true)
+                    safeMode = settings.optBoolean("safeMode", true)
+                }
+                profileTask.await()?.let { response ->
+                    val profile = response.optJSONObject("profile") ?: JSONObject()
+                    personality = profile.optString("personality")
+                        .takeIf { it in setOf("Caring", "Encouraging", "Calm") } ?: "Caring"
+                }
+                if (saveHistory) {
+                    historyTask?.await()?.let { response ->
+                        val saved = response.optJSONArray("items") ?: JSONArray()
+                        messages.clear()
+                        for (index in saved.length() - 1 downTo 0) {
+                            val item = saved.optJSONObject(index) ?: continue
+                            messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
+                        }
+                    }
+                }
+                memoryTask?.await()?.let { response ->
+                    memoryEnabled = response.optBoolean("enabled", false)
+                } ?: run {
+                    if (!memoryPlanEligible) memoryEnabled = false
+                }
+            }
+        }
     }
 
     fun saveSettings() {
