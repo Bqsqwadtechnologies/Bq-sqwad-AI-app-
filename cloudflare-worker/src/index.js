@@ -3803,21 +3803,29 @@ export default {
         }
         return json({
           adminPlanTest: adminPlanTest?.enabled === true,
-          items: Array.from(rows.values()).map(row => ({
-            id: String(row.id || ""),
-            planId: String(row.planId || ""),
-            productId: String(row.productId || ""),
-            product: String(row.product || row.productId || ""),
-            module: String(row.module || ""),
-            basePlanId: row.basePlanId ? String(row.basePlanId) : null,
-            state: String(row.state || row.status || ""),
-            renewalState: String(row.renewalState || ""),
-            source: String(row.source || ""),
-            includedFeatures: Array.isArray(row.includedFeatures) ? row.includedFeatures : [],
-            startDate: row.startsAt || row.startDate || null,
-            endDate: row.expiresAt || row.endDate || null,
-            updatedAt: row.updatedAt || null
-          }))
+          items: Array.from(rows.values())
+            .filter(row => {
+              const state = String(row.state || row.status || "").toLowerCase();
+              const expiry = row.expiresAt || row.endDate || row.expiryTimeMillis || null;
+              const expiryMillis = typeof expiry === "number" ? expiry : Date.parse(String(expiry || ""));
+              return ["active", "trialing", "grace"].includes(state) &&
+                (!expiry || !Number.isFinite(expiryMillis) || expiryMillis > Date.now());
+            })
+            .map(row => ({
+              id: String(row.id || ""),
+              planId: String(row.planId || ""),
+              productId: String(row.productId || ""),
+              product: String(row.product || row.productId || ""),
+              module: String(row.module || ""),
+              basePlanId: row.basePlanId ? String(row.basePlanId) : null,
+              state: String(row.state || row.status || ""),
+              renewalState: String(row.renewalState || ""),
+              source: String(row.source || ""),
+              includedFeatures: Array.isArray(row.includedFeatures) ? row.includedFeatures : [],
+              startDate: row.startsAt || row.startDate || null,
+              endDate: row.expiresAt || row.endDate || row.expiryTimeMillis || null,
+              updatedAt: row.updatedAt || null
+            }))
         });
       }
 
