@@ -1261,7 +1261,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         val accessPrefs = accountPreferences(context, "workspace_access_cache")
         val cachedCatalog = accessPrefs.getString("catalog", null)
         val cachedEntitlements = accessPrefs.getString("entitlements", null)
-        if (!cachedCatalog.isNullOrBlank() && !cachedEntitlements.isNullOrBlank()) {
+        val hasCachedAccess = !cachedCatalog.isNullOrBlank() && !cachedEntitlements.isNullOrBlank()
+        if (hasCachedAccess) {
             workspaceAccess = runCatching {
                 WorkspaceAccessSnapshot.fromCatalog(
                     JSONObject(cachedCatalog),
@@ -1270,9 +1271,13 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     false
                 )
             }.getOrDefault(workspaceAccess)
+            // Cached entitlements keep navigation responsive while the server
+            // refresh runs in the background. Every protected action is still
+            // authorized by the Worker, never by this local snapshot.
+            accessLoading = !workspaceAccess.loaded
         }
         accessLoadFailed = false
-        accessLoading = true
+        if (!hasCachedAccess || !workspaceAccess.loaded) accessLoading = true
         val api = WorkspaceApiClient()
         runCatching {
             kotlinx.coroutines.withTimeoutOrNull(8_000L) {
