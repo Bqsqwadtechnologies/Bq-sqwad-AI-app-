@@ -23,7 +23,6 @@ object NativeFeatureRegistry {
         NativeFeatureEntry("chat", "Main Chat", "General BQ Sqwad AI conversation.", Workspace.CHAT, false, true),
         NativeFeatureEntry("image_generation", "Image Generation", "Generate images directly from Main Chat using the shared credit system.", Workspace.CHAT, false, true),
         NativeFeatureEntry("file_analysis", "File Analysis", "Analyze supported documents and attachments from Main Chat using the shared AI runtime.", Workspace.CHAT, false, true),
-        NativeFeatureEntry("video_generation", "Video Generation", "Dedicated AI video generation workspace.", Workspace.VIDEO, false, true),
         NativeFeatureEntry("web_search", "Web Search", "Current information with source-aware answers.", Workspace.SEARCH, true, true),
         NativeFeatureEntry("truth_guard", "TruthGuard AI", "Evidence-aware claim checking with web evidence.", Workspace.TRUTH_GUARD, true, true),
         NativeFeatureEntry("frontier_lab", "Frontier Lab", "Advanced AI experimentation and emerging capabilities.", Workspace.FRONTIER_LAB, true, true),
