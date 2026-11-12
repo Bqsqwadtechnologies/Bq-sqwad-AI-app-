@@ -313,18 +313,20 @@ export function buildFirestoreCommitBody(writes, documentName) {
       );
       const document = { name: documentName(write.path), fields };
       return {
-        ...(write.create
-          ? { create: document }
-          : {
-              update: document,
-              // An update without a mask replaces the entire Firestore document.
-              // Mask every update so partial credit writes cannot erase account
-              // metadata such as dailyFreeCreditsDate, email, plan or settings.
-              updateMask: { fieldPaths: Object.keys(fields) }
-            }),
-        ...(!write.create && write.updateTime ? { currentDocument: { updateTime: write.updateTime } } : {}),
-        ...(!write.create && write.exists === false ? { currentDocument: { exists: false } } : {}),
-        ...(!write.create && write.exists === true ? { currentDocument: { exists: true } } : {})
+        // Firestore REST Write has no `create` field. New documents use an
+        // update with exists:false; this also preserves exclusive creation for
+        // rate-limit windows, reservations, receipts and idempotency records.
+        update: document,
+        // An update without a mask replaces the entire Firestore document.
+        // Mask every update so partial writes cannot erase omitted fields.
+        updateMask: { fieldPaths: Object.keys(fields) },
+        ...(write.create || write.exists === false
+          ? { currentDocument: { exists: false } }
+          : write.exists === true
+            ? { currentDocument: { exists: true } }
+            : write.updateTime
+              ? { currentDocument: { updateTime: write.updateTime } }
+              : {})
       };
     })
   };
