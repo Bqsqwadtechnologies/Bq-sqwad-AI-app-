@@ -205,6 +205,7 @@ class ChatApiClient(
                     val raw = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     val body = runCatching { JSONObject(raw) }.getOrNull()
                     val detail = body?.optString("error").orEmpty().lowercase()
+                    val serverRef = body?.optString("refCode").orEmpty().takeIf { it.matches(Regex("[A-Fa-f0-9]{8}")) }
                     val friendly = when {
                         status >= 500 || detail == "route_not_migrated" || detail == "service_temporarily_unavailable" ->
                             "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it. Please try again shortly."
@@ -218,7 +219,7 @@ class ChatApiClient(
                         detail.contains("model_unavailable") -> "That model is not available right now."
                         else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                     }
-                    throw IllegalStateException(friendly)
+                    throw IllegalStateException(friendly + (serverRef?.let { " refCode=$it" } ?: "") + " errorCode=$detail")
                 }
 
                 val contentType = connection.contentType.orEmpty()
@@ -277,13 +278,15 @@ class ChatApiClient(
                             // Do not turn a successfully delivered answer into a visible error.
                             if (textBuilder.isNotBlank()) return
                             val detail = json.optString("message").lowercase()
+                            val refCode = json.optString("refCode").takeIf { it.matches(Regex("[A-Fa-f0-9]{8}")) }
+                            val errorCode = json.optString("message").take(80)
                             val friendly = when {
                                 detail.contains("insufficient credits") || detail.contains("credit_balance") -> "Your current usage allowance is unavailable for this request. Review plans and billing to continue."
                                 detail.contains("consent") -> "Please review and accept the required BQ Sqwad AI terms to continue."
                                 detail.contains("rate_limited") -> "BQ Sqwad AI is busy right now. Please wait a moment and try again."
                                 else -> "BQ Sqwad AI is experiencing a temporary issue. The BQ Sqwad AI team is working on it."
                             }
-                            throw IllegalStateException(friendly)
+                            throw IllegalStateException(friendly + (refCode?.let { " refCode=$it" } ?: "") + " errorCode=$errorCode")
                         }
                     }
                 }
