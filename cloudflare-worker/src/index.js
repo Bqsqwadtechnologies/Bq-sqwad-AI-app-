@@ -1555,8 +1555,10 @@ function canonicalUserBalance(profile) {
   // Recurring daily free credits are retired. Only permanent welcome/purchased
   // credits and active subscription credits are spendable.
   const daily = 0;
+  const hasPurchasedCredits = profile.hasEverPurchasedCredits === true ||
+    subscription > 0 || (permanent > 0 && !profile.welcomeCreditsGrantedAt);
   return {
-    permanent, subscription, trial, daily,
+    permanent, subscription, trial, daily, hasPurchasedCredits,
     dailyDate: "",
     dailyFreeCreditsTimeZone: timeZone,
     dailyFreeCreditsRenewalTime: String(profile.dailyFreeCreditsRenewalTime || globalThis.__bqEnv?.FREE_CREDIT_RENEWAL_TIME || "00:00"),
@@ -2562,7 +2564,7 @@ async function enforceChatModelEligibility(uid, body, control, user) {
   const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
   const eligibility = canUseModel({
     balance: balance?.total || 0,
-    hasPurchasedCredits: purchasedBalance > 0
+    hasPurchasedCredits: balance?.hasPurchasedCredits === true
   }, catalogModel);
   const adminBypass = isSuperAdmin(user, globalThis.__bqEnv);
   if (!eligibility.ok && (!adminBypass || eligibility.reason === "model_unavailable")) {
@@ -2572,7 +2574,7 @@ async function enforceChatModelEligibility(uid, body, control, user) {
     });
   }
   const persistedClass = String(profile?.customerClass || "").toLowerCase();
-  const customerClass = persistedClass === "paid" || purchasedBalance > 0 || Boolean(balance?.subscriptionExpiresAt)
+  const customerClass = persistedClass === "paid" || balance?.hasPurchasedCredits === true || Boolean(balance?.subscriptionExpiresAt)
     ? "paid"
     : "free";
   if (persistedClass !== customerClass) {
