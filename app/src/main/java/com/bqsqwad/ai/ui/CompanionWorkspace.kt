@@ -149,7 +149,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 val module = item.optString("module").lowercase()
                 val state = item.optString("state").lowercase()
                 (module == "companion" || planId.startsWith("companion")) &&
-                    state in setOf("active", "grace")
+                    state in setOf("active", "grace", "trialing")
             }
             .maxByOrNull { item ->
                 item.optString("updatedAt").ifBlank { item.optString("startDate") }
