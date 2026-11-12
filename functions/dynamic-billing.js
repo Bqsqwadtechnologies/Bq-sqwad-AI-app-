@@ -44,10 +44,13 @@ export function calculateTokenCreditsFromRule(rule, usage = {}) {
   const textIn = input - audioIn - imageIn;
   const textOut = output - audioOut - imageOut;
   const cachedTextTokens = Math.min(textIn, cachedText);
+  const reasoningTokens = Math.min(textOut, Math.max(0, Number(usage.reasoningTokens ?? usage.reasoning_tokens ?? outDetails.reasoning_tokens ?? 0)));
+  const normalOutputTokens = textOut - reasoningTokens;
   const rates = [
     [textIn - cachedTextTokens, rule.inputCreditsPerToken],
     [cachedTextTokens, rule.cachedInputCreditsPerToken],
-    [textOut, rule.outputCreditsPerToken],
+    [normalOutputTokens, rule.outputCreditsPerToken],
+    [reasoningTokens, rule.reasoningCreditsPerToken ?? rule.outputCreditsPerToken],
     [audioIn - cachedAudioIn, rule.inputAudioCreditsPerToken],
     [cachedAudioIn, rule.cachedInputAudioCreditsPerToken],
     [audioOut, rule.outputAudioCreditsPerToken],
