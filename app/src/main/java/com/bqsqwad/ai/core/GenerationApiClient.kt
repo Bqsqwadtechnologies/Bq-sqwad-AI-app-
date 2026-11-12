@@ -14,7 +14,6 @@ data class GeneratedImage(
     val modelId: String?,
     val imageBase64: String? = null
 )
-data class VideoJob(val jobId: String, val status: String, val progress: Int, val contentUrl: String?, val error: String?, val creditsCharged: Double = 0.0)
 
 internal fun parseGeneratedImage(
     imageUrl: String?,
@@ -100,30 +99,5 @@ class GenerationApiClient {
         })
         return parseGeneratedImage(body.optString("imageUrl"), body.optString("imageBase64"), body.optDouble("creditsCharged", 0.0), body.optString("modelId"))
     }
-    suspend fun createVideo(prompt: String, seconds: String = "8", size: String = "1280x720", modelRegistryId: String? = null): VideoJob {
-        val body = request("/video/generate", payload = JSONObject().apply {
-            put("prompt", prompt.take(12000)); put("seconds", seconds); put("size", size)
-            modelRegistryId?.trim()?.takeIf { it.isNotEmpty() }?.let { put("modelRegistryId", it) }
-        })
-        return VideoJob(
-            jobId = body.optString("jobId"),
-            status = body.optString("status", "queued"),
-            progress = body.optInt("progress", 0),
-            contentUrl = null,
-            error = null,
-            creditsCharged = body.optDouble("creditsCharged", 0.0)
-        )
-    }
 
-    suspend fun videoJob(jobId: String): VideoJob {
-        val body = request("/video/jobs/" + java.net.URLEncoder.encode(jobId, "UTF-8"), "GET")
-        return VideoJob(
-            jobId = body.optString("jobId", jobId),
-            status = body.optString("status", "queued"),
-            progress = body.optInt("progress", 0),
-            contentUrl = body.optString("contentUrl").takeIf { it.isNotBlank() },
-            error = body.optString("error").takeIf { it.isNotBlank() },
-            creditsCharged = body.optDouble("creditsCharged", 0.0)
-        )
-    }
 }
