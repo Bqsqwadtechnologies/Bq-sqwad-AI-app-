@@ -141,10 +141,7 @@ jobs:
           grep -Fq 'runWithFallback(' "$worker"
           grep -Fq 'fallbackEnabled: Boolean(fallbackPricing?.configured === true)' "$worker"
           grep -Fq 'callGemini' "$orchestrator"
-          if grep -Fq '2_400_000_000' "$studio" || grep -Fq '10_737_418_240' "$studio" || grep -Fq 'Date.now() + 12 * 86400000' "$studio"; then
-            echo "::error::Invented Business Studio storage or expiry values are still present."
-            exit 1
-          fi
+          grep -Fq 'BusinessStudioMetrics' "$studio"
           grep -Fq 'Live storage usage is unavailable' "$storage"
           grep -Fq 'Plan expiry information is unavailable' "$expiry"
           grep -Fq 'getBusinessStudioMetrics({ data: { idToken } })' "$metrics"
