@@ -1,7 +1,7 @@
 import { shouldSeedPricingDefaults } from "./pricing-seed-native.js";
 
 function sseFrame(event, data) {
-  return "event: " + event + "\\ndata: " + JSON.stringify(data) + "\\n\\n";
+  return "event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n";
 }
 
 const DEFAULT_REALTIME_MODEL = "gpt-realtime-2.1-mini";
