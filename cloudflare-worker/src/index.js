@@ -1491,6 +1491,12 @@ async function persistExplicitMemory(uid, message) {
   return saveSharedMemoryFact(uid, category, key, value, "user");
 }
 
+function shouldIncludeMemoryContext(message) {
+  // Do not send a user's entire saved profile for ordinary greetings or
+  // unrelated factual questions. Include it for personal/project follow-ups.
+  return /\\b(my|mine|me|i|we|our|ours|remember|previous|last time|continue|pick up|my project|our project)\\b/i.test(String(message || ""));
+}
+
 async function memoryContext(uid) {
   const [profile, legacy] = await Promise.all([
     firestoreGet("users/" + uid),
@@ -1527,7 +1533,12 @@ async function memoryContext(uid) {
   }).filter(Boolean);
   const legacyFacts = enabled ? (Array.isArray(legacy?.items) ? legacy.items : [])
     .map(item => String(item?.text || "").trim()).filter(Boolean) : [];
-  return [...new Set([...personalFacts, ...sharedFacts, ...legacyFacts])].slice(-120).join("\n");
+  // Bound personalization context so old memory cannot silently consume
+  // thousands of provider input tokens on every short chat turn.
+  return [...new Set([...personalFacts, ...sharedFacts, ...legacyFacts])]
+    .slice(-20)
+    .join("\n")
+    .slice(-1_600);
 }
 function canonicalUserBalance(profile) {
   if (!profile) return null;
@@ -2204,17 +2215,9 @@ async function nativeCatalog() {
 }
 
 const BQ_APP_KNOWLEDGE = [
-  "You are BQ Sqwad AI, made by BQ Sqwad Technologies. Your tagline is: The AI That Grows With You.",
-  "Help users understand and use the app honestly. Never claim a feature is working, enabled, included in a plan, or available on this device unless the current conversation or verified service result establishes that.",
-  "Core app areas: Main Chat; image generation; file analysis; video generation; Web Search; TruthGuard AI; Frontier Lab; Data Analyst; AI Live Camera; screen sharing; Live Voice AI; Personal Intelligence; Life Matters; AI Companion; Learning Studio; Business AI; Organization Studio AI; account protection; chat history; saved conversations; Plans & Credits; admin operations.",
-  "Registered advanced capability areas include deep/web research, source verification, semantic and multi-file search, document/audio/video analysis, knowledge graphs, project workspaces and memory, generated reports, coding workspace, custom assistants, agent planning and tool use, workflow building, scheduled tasks, approval checkpoints, action previews, permissions and privacy controls, activity timeline and undo, resumable uploads, background generation jobs, model routing and provider failover, provider health and quality evaluation, incident replay, model rollback, security monitoring, passkeys and session/device management, data export/deletion, accessibility and multilingual voice, cross-device sync, learning quizzes and document-to-course, business CRM/workflows/analytics/knowledge/channels/automation/training, calendar/reminder/device/media actions, notifications, referrals, credit reservation/reversal, rate limiting and abuse protection.",
-  "The feature directory is a registry, not proof every advanced capability is fully implemented. Explain limitations and suggest the relevant workspace or settings without inventing availability.",
-  "The customer-facing plan and product list is the BQ Sqwad AI catalog served by the native catalog endpoint. Google Play is the in-app payment and purchase-verification method, not the customer-facing plan catalog. Do not tell users to browse a Google Play billing catalog as the app's plan catalog.",
-  "Text tools: help users draft, rewrite, correct, summarize, expand, shorten, translate, explain, structure, and reformat text; create headings, numbered lists, bullet lists, tables, templates, letters, reports, captions, and copy-ready messages. Use Markdown headings and bold emphasis when a user asks for larger or more prominent text; use concise plain text when they ask for smaller or simpler text. Use fenced code blocks for code and preserve indentation. Do not claim the AI can change Android font size itself; app-wide display size is controlled by Settings > Appearance > Text size.",
-  "Recognize and explain the app's central brand controls: Settings > Brand & App Logo selects one shared in-app logo for all BqLogo components on this device, with the bundled BQ Sqwad AI logo as fallback. Do not claim this changes the Android launcher icon or other devices unless a verified service says so.",
-  "Feature recognition should include Main Chat, image generation, file analysis, video generation, Web Search, TruthGuard AI, Frontier Lab, Data Analyst, AI Live Camera, screen sharing, Live Voice AI, Personal Intelligence, Life Matters, AI Companion, Learning Studio, Business AI, Organization Studio AI, Plans & Credits, Chat History, account protection, privacy/legal controls, admin operations, shared credits, and the registered advanced capabilities above. When asked what the app supports, list these clearly and distinguish shipped core features from registered/experimental features that still require verification.",
-  "BQ SUPPORT GUIDE: When a user reports an app or website error, sign-in problem, connector, upload, credit, plan, catalog, Live Voice or camera issue, guide them step by step. Ask whether they are using Android or the website when steps differ. Give numbered steps with one action each and say what success looks like. Start with safe reversible checks; ask for the visible safe error/reference code when needed. Never request passwords, one-time codes, API keys, access tokens, full payment details, or private screen contents. Never bypass provider consent or claim an admin changed the account. If the steps fail, direct them to Help & Support in the app or the website Help & Troubleshooting page and ask them to submit the reference code. Be honest about uncertainty and never claim a fix without user confirmation.",
-  "Format responses for readability with useful headings, short paragraphs, numbered steps, bullets, tables when helpful, and fenced code blocks for code. Keep text selectable and copyable, avoid decorative clutter, and follow a user's request for concise, detailed, or step-by-step output."
+  "You are BQ Sqwad AI, made by BQ Sqwad Technologies. Be helpful, accurate, concise, and honest.",
+  "Never claim a feature, integration, memory save, or external action is available or successful unless verified by the current request or a trusted service result.",
+  "Protect private information. Never ask for passwords, one-time codes, API keys, access tokens, or full payment credentials."
 ].join("\n");
 
 async function reserveMonthlyUsageCounter(collection,uid,monthKey,planId,limit,errorCode){const path=collection+"/"+uid+"_"+monthKey;for(let attempt=0;attempt<6;attempt++){const current=await firestoreGet(path);const count=Math.max(0,Number(current?.count||0));if(count>=limit)throw Object.assign(new Error(errorCode),{httpStatus:429,safeError:errorCode});const data={uid,monthKey,planId,count:count+1,updatedAt:new Date()};try{if(current)await firestoreCommit([{path,data,updateTime:current.__updateTime}]);else await firestoreCommit([{path,data,create:true}]);return path}catch(error){if(attempt===5)throw new Error("workspace_usage_reservation_failed")}}throw new Error("workspace_usage_reservation_failed")}
@@ -2696,7 +2699,7 @@ async function ai(request, user, body) {
   if (tokenBilling && !tokenPricing.configured) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
-  const memory = await memoryContext(user.uid);
+  const memory = shouldIncludeMemoryContext(userMessage) ? await memoryContext(user.uid) : "";
   const memoryEnabledForTurn = (await firestoreGet("users/" + user.uid).catch(() => null))?.memoryEnabled === true;
   const memorySaveResult = await persistExplicitMemory(user.uid, userMessage).catch(() => ({ enabled: memoryEnabledForTurn, saved: false }));
   const memoryInstruction = memorySaveResult.saved
@@ -2973,7 +2976,7 @@ async function stream(request, user, body) {
   if (tokenBilling && !tokenPricing.configured) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
-  const memory = await memoryContext(user.uid);
+  const memory = shouldIncludeMemoryContext(userMessage) ? await memoryContext(user.uid) : "";
   const system = [BQ_APP_KNOWLEDGE, body.system ? String(body.system) : "", memory ? "Relevant user memory (use only when helpful and do not invent details):\n" + memory : ""].filter(Boolean).join("\n");
   const reservationAmount = tokenBilling
     ? estimateTokenReservation({ message: userMessage, system, pricing: tokenPricing })
