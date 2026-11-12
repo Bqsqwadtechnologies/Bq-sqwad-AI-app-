@@ -50,7 +50,7 @@ export function resolveTextReasoningEffort(message, capability = "chat") {
       (text.length <= 48 && /^(hi|hello|hey|how are you|what's up|whats up)[!.? ]*$/i.test(text))) {
     return "none";
   }
-  if (text.length > 700 || /\\b(debug|trace|fix|code|program|compare|analy[sz]e|research|plan|calculate|architecture|step[- ]by[- ]step|investigate|reason|design)\\b/i.test(text)) {
+  if (text.length > 700 || /\b(debug|trace|fix|code|program|compare|analy[sz]e|research|plan|calculate|architecture|step[- ]by[- ]step|investigate|reason|design)\b/i.test(text)) {
     return "medium";
   }
   return "low";
