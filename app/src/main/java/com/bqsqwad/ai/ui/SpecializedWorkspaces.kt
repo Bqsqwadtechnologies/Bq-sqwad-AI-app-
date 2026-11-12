@@ -84,8 +84,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                 val catalog = api.nativeCatalog()
                 val entitlements = api.entitlements()
                 val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
-                val adminTestMode = entitlements.optBoolean("adminPlanTest", false) ||
-                    catalog.optBoolean("adminTestMode", false)
+                val adminTestMode = catalog.optBoolean("adminTestMode", false)
                 val activeIds = buildSet {
                     for (i in 0 until items.length()) {
                         val item = items.optJSONObject(i) ?: continue
