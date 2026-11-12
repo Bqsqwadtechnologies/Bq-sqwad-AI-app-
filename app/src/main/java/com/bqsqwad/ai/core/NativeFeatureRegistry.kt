@@ -21,7 +21,7 @@ data class NativeFeatureEntry(
 object NativeFeatureRegistry {
     val core: List<NativeFeatureEntry> = listOf(
         NativeFeatureEntry("chat", "Main Chat", "General BQ Sqwad AI conversation.", Workspace.CHAT, false, true),
-        NativeFeatureEntry("image_generation", "Image Generation", "Generate images directly from Main Chat using the shared credit system.", Workspace.CHAT, false, true),
+        NativeFeatureEntry("image_generation", "Generate images in Main Chat", "Image generation is a built-in Main Chat capability; results stay in the conversation and use the shared credit system.", Workspace.CHAT, false, true),
         NativeFeatureEntry("file_analysis", "File Analysis", "Analyze supported documents and attachments from Main Chat using the shared AI runtime.", Workspace.CHAT, false, true),
         NativeFeatureEntry("web_search", "Web Search", "Current information with source-aware answers.", Workspace.SEARCH, true, true),
         NativeFeatureEntry("truth_guard", "TruthGuard AI", "Evidence-aware claim checking with web evidence.", Workspace.TRUTH_GUARD, true, true),
