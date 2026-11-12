@@ -2561,7 +2561,6 @@ async function enforceChatModelEligibility(uid, body, control, user) {
   }
   const profile = await readCanonicalUserBalance(uid);
   const balance = canonicalUserBalance(profile);
-  const purchasedBalance = (balance?.permanent || 0) + (balance?.subscription || 0);
   const eligibility = canUseModel({
     balance: balance?.total || 0,
     hasPurchasedCredits: balance?.hasPurchasedCredits === true
