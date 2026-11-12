@@ -119,7 +119,7 @@ export function calculateTokenCost({ usage, pricing }) {
   const cachedCreditRate = Number(meter.creditsPerCachedInputToken);
   const outputCreditRate = Number(meter.creditsPerOutputToken);
   const reasoningCreditRate = Number(meter.creditsPerReasoningToken ?? meter.creditsPerOutputToken);
-  const precision = 15;
+  const precision = 7;
   const modalityRates = [
     ["input audio", inputAudioTokens - cachedInputAudioTokens, meter.creditsPerInputAudioToken],
     ["cached input audio", cachedInputAudioTokens, meter.creditsPerCachedInputAudioToken],
@@ -270,7 +270,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     creditsPerOutputImageToken: typeof tokenRule.outputImageCreditsPerToken === "number" ? tokenRule.outputImageCreditsPerToken : null,
     minimumCredits: 0,
     fallbackCredits: 0,
-    precision: 15
+    precision: 7
   } : null;
   return {
     configured,
