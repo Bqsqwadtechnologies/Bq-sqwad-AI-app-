@@ -5465,7 +5465,26 @@ export default {
           reserved: 0, plan: balance.plan, updatedAt: profile.updatedAt || null, source: "firebase_users"
         });
       }
-      if (url.pathname === "/usage" && request.method === "GET") { const u=await verifyFirebaseUser(request),limit=Math.min(100,Math.max(1,Number(url.searchParams.get("limit")||50))); return json({items:(await firestoreQuery("creditLedger",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:u.uid}}],limit:100})).slice(0,limit)}); }
+      if (url.pathname === "/usage" && request.method === "GET") {
+        const u = await verifyFirebaseUser(request);
+        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
+        const filters = [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: u.uid } }];
+        // creditTransactions is the shared website + Worker ledger. Include the
+        // legacy creditLedger collection only for older historical entries.
+        const [sharedRows, legacyRows] = await Promise.all([
+          firestoreQuery("creditTransactions", { filters, limit: 100 }),
+          firestoreQuery("creditLedger", { filters, limit: 100 }).catch(() => [])
+        ]);
+        const byId = new Map();
+        for (const row of [...legacyRows, ...sharedRows]) {
+          const id = String(row.id || row.__name || "");
+          byId.set(id || JSON.stringify([row.uid, row.requestId, row.createdAt]), row);
+        }
+        const items = [...byId.values()]
+          .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+          .slice(0, limit);
+        return json({ items, source: "creditTransactions" });
+      }
       if (url.pathname === "/play/subscription-management" && request.method === "GET") { const u=await verifyFirebaseUser(request),e=await firestoreGet("entitlements/"+u.uid),play=String(e?.source||"")==="play"&&Boolean(e?.purchaseToken)&&Boolean(e?.productId);return json({ok:true,provider:"google_play",hasSubscription:play,autoRenewEnabled:play?e.autoRenewEnabled!==false:false,state:String(e?.state||""),renewalState:String(e?.renewalState||""),endDate:e?.endDate||null,managementUrl:play?"https://play.google.com/store/account/subscriptions?sku="+encodeURIComponent(String(e.productId))+"&package="+encodeURIComponent("com.bqsqwad.ai"):null,paymentMethodManagementUrl:play?"https://play.google.com/store/paymentmethods":null,note:"Google Play is authoritative for auto-renewal and payment methods."}); }
       if (url.pathname === "/contact-sales" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
