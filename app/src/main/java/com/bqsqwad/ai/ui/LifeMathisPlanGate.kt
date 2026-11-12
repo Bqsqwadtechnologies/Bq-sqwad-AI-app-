@@ -81,18 +81,25 @@ fun LifeMathisPlanGate(
                         features = features
                     )
                 }
-                val entitlementItems = api.entitlements().optJSONArray("items") ?: JSONArray()
-                val activeStates = setOf("active", "grace", "on_hold", "paused")
+                val entitlementResponse = api.entitlements()
+                val entitlementItems = entitlementResponse.optJSONArray("items") ?: JSONArray()
+                val activeStates = setOf("active", "grace", "trialing")
                 val verifiedPlanId = (0 until entitlementItems.length())
                     .mapNotNull { entitlementItems.optJSONObject(it) }
-                    .firstOrNull { activeStates.contains(it.optString("state")) && it.optString("planId") in setOf("lifemathisfree", "lmstandard", "lmultimate") }
+                    .filter { activeStates.contains(it.optString("state").lowercase()) && it.optString("planId") in setOf("lifemathisfree", "lmstandard", "lmultimate") }
+                    .maxByOrNull {
+                        when (it.optString("planId")) {
+                            "lmultimate" -> 3
+                            "lmstandard" -> 2
+                            else -> 1
+                        }
+                    }
                     ?.optString("planId")
                     ?.takeIf { it.isNotBlank() }
 
                 val serverAdmin = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
-                val serverTestMode = if (serverAdmin) {
-                    runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
-                } else false
+                val serverTestMode = entitlementResponse.optBoolean("adminPlanTest", false) ||
+                    (serverAdmin && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false))
 
                 val freeAvailable = parsed.any { it.id == "lifemathisfree" }
                 val effectivePlanId = when {
