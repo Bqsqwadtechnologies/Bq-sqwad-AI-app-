@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.AdminAdvancedClient
 import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -52,7 +55,17 @@ fun LifeMathisPlanGate(
             loading = true
             runCatching {
                 val api = WorkspaceApiClient()
-                val catalog = api.nativeCatalog()
+                val coreData = withTimeoutOrNull(8_000L) {
+                    coroutineScope {
+                        val catalogTask = async { api.nativeCatalog() }
+                        val entitlementTask = async { api.entitlements() }
+                        val adminTask = async {
+                            runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+                        }
+                        Triple(catalogTask.await(), entitlementTask.await(), adminTask.await())
+                    }
+                } ?: throw IllegalStateException("Plan verification timed out. Please retry.")
+                val (catalog, entitlementResponse, serverAdmin) = coreData
                 val planArray = catalog.optJSONArray("plans") ?: JSONArray()
                 val parsed = mutableListOf<LifeMathisGatePlan>()
                 for (i in 0 until planArray.length()) {
@@ -81,7 +94,6 @@ fun LifeMathisPlanGate(
                         features = features
                     )
                 }
-                val entitlementResponse = api.entitlements()
                 val entitlementItems = entitlementResponse.optJSONArray("items") ?: JSONArray()
                 val activeStates = setOf("active", "grace", "trialing")
                 val verifiedPlanId = (0 until entitlementItems.length())
@@ -97,9 +109,10 @@ fun LifeMathisPlanGate(
                     ?.optString("planId")
                     ?.takeIf { it.isNotBlank() }
 
-                val serverAdmin = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
                 val serverTestMode = !entitlementResponse.optBoolean("adminPlanTest", false) &&
-                    serverAdmin && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
+                    serverAdmin && (withTimeoutOrNull(2_000L) {
+                        runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
+                    } == true)
 
                 val freeAvailable = parsed.any { it.id == "lifemathisfree" }
                 val effectivePlanId = when {
