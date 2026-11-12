@@ -36,18 +36,30 @@ function totalBalance(balance) {
   return Math.max(0, Number(balance.permanent || 0)) + Math.max(0, Number(balance.subscription || 0));
 }
 
+function round7(value) {
+  return Math.round((Number(value) || 0) * 1e7) / 1e7;
+}
+
 /**
  * Firebase users/{uid} is the shared credit authority for the app and the
  * externally maintained website. creditBalances/{uid} remains a compatibility
  * mirror for older backend consumers.
  */
 export async function reserveCredits(uid, amount, capability) {
-  const requestedUnits = Math.max(0, Number(amount) || 0);
+  const requestedUnits = round7(Math.max(0, Number(amount) || 0));
   const pricing = await priceOperation(capability, requestedUnits);
   const adminExempt = await adminBypassEnabled(uid);
   const db = getFirestore();
   if (adminExempt) {
     const adminTransactionId = "admin_" + db.collection("aiBillingTransactions").doc().id;
+    const profileSnap = await db.collection("users").doc(uid).get();
+    const adminBalance = totalBalance(canonicalBalance(profileSnap.data() || {}));
+    await db.collection("creditTransactions").doc(adminTransactionId).create({
+      uid, type: "usage", feature: capability, credits: 0,
+      balanceBefore: adminBalance, balanceAfter: adminBalance,
+      source: "web", platform: "web", requestId: adminTransactionId,
+      status: "reserved", reason: "admin_exempt", createdAt: FieldValue.serverTimestamp()
+    });
     await recordBillingTransaction(adminTransactionId, {
       uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
       providerCostUsd: pricing.providerCostUsd, rateSnapshot: pricing.rateSnapshot || null,
@@ -59,10 +71,18 @@ export async function reserveCredits(uid, amount, capability) {
     });
     return { reservationId: adminTransactionId, amount: 0, adminUnlimited: true, billingEstimate: pricing };
   }
-  const finalCharge = Math.max(0, Number(pricing.credits || 0));
-  const charge = Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge));
+  const finalCharge = round7(Math.max(0, Number(pricing.credits || 0)));
+  const charge = round7(Math.max(finalCharge, Number(pricing.reservedCredits || finalCharge)));
   if (finalCharge === 0 && !TOKEN_METERED_CAPABILITIES.has(String(capability || "").toLowerCase())) {
     const includedTransactionId = "included_" + db.collection("aiBillingTransactions").doc().id;
+    const profileSnap = await db.collection("users").doc(uid).get();
+    const includedBalance = totalBalance(canonicalBalance(profileSnap.data() || {}));
+    await db.collection("creditTransactions").doc(includedTransactionId).create({
+      uid, type: "usage", feature: capability, credits: 0,
+      balanceBefore: includedBalance, balanceAfter: includedBalance,
+      source: "web", platform: "web", requestId: includedTransactionId,
+      status: "reserved", reason: "subscription_or_free", createdAt: FieldValue.serverTimestamp()
+    });
     await recordBillingTransaction(includedTransactionId, {
       uid, capability, providerId: pricing.providerId || null, modelId: pricing.modelId || null,
       providerCostUsd: pricing.providerCostUsd, rateSnapshot: pricing.rateSnapshot || null,
@@ -77,6 +97,7 @@ export async function reserveCredits(uid, amount, capability) {
   const userRef = db.collection("users").doc(uid);
   const balanceRef = db.collection("creditBalances").doc(uid);
   const reservationRef = db.collection("creditReservations").doc();
+  const reserveLedgerRef = db.collection("creditTransactions").doc("legacy_reserve_" + reservationRef.id);
 
   await db.runTransaction(async tx => {
     const userSnap = await tx.get(userRef);
@@ -109,6 +130,13 @@ export async function reserveCredits(uid, amount, capability) {
       reserved: Number(legacy.reserved || 0) + charge,
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
+    tx.create(reserveLedgerRef, {
+      uid, type: "spend", feature: capability, credits: -charge,
+      balanceBefore: total, balanceAfter: nextTotal,
+      source: "web", platform: "web", requestId: reservationRef.id + ":reserve",
+      reservationId: reservationRef.id, status: "reserved",
+      createdAt: FieldValue.serverTimestamp()
+    });
     tx.set(reservationRef, {
       uid,
       capability,
@@ -194,6 +222,7 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
         feature: initialData.capability
       })
     : null;
+  const settlementLedgerRef = db.collection("creditTransactions").doc("legacy_settlement_" + reservationId);
   await db.runTransaction(async tx => {
     const snap = await tx.get(reservationRef);
     if (!snap.exists || snap.data().uid !== uid || snap.data().status !== "reserved") return;
@@ -207,14 +236,15 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
 
     const profile = userSnap.data() || {};
     const balance = canonicalBalance(profile);
+    const balanceBefore = totalBalance(balance);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
-    const reservedAmount = Math.max(0, Number(data.amount || 0));
+    const reservedAmount = round7(Math.max(0, Number(data.amount || 0)));
     const requestedFinalCharge = tokenPricing
-      ? Math.max(0, Number(tokenPricing.credits || 0))
-      : Math.max(0, Number(data.finalCharge ?? reservedAmount));
+      ? round7(Math.max(0, Number(tokenPricing.credits || 0)))
+      : round7(Math.max(0, Number(data.finalCharge ?? reservedAmount)));
     const finalCharge = requestedFinalCharge;
-    const unused = Math.max(0, reservedAmount - finalCharge);
-    const costOverrunCredits = Math.max(0, finalCharge - reservedAmount);
+    const unused = round7(Math.max(0, reservedAmount - finalCharge));
+    const costOverrunCredits = round7(Math.max(0, finalCharge - reservedAmount));
     // Refund unused reserved credits to their original buckets; actual overrun is debited from remaining credits.
     const refundPermanent = Math.min(unused, Math.max(0, Number(data.fromPermanent || 0)));
     const refundSubscription = Math.max(0, unused - refundPermanent);
@@ -234,6 +264,13 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       available: totalBalance(nextBalance),
       reserved: Math.max(0, Number(legacy.reserved || 0) - reservedAmount),
       updatedAt: FieldValue.serverTimestamp()
+    });
+    tx.create(settlementLedgerRef, {
+      uid, type: finalCharge < reservedAmount ? "refund" : "usage",
+      feature: data.capability, credits: round7(totalBalance(nextBalance) - balanceBefore),
+      balanceBefore, balanceAfter: totalBalance(nextBalance),
+      source: "web", platform: "web", requestId: reservationId + ":settlement",
+      reservationId, status: "committed", createdAt: FieldValue.serverTimestamp()
     });
     tx.update(reservationRef, {
       status: "committed",
@@ -337,6 +374,7 @@ export async function reverseCredits(uid, reservationId) {
     return;
   }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
+  const reversalLedgerRef = db.collection("creditTransactions").doc("legacy_reversal_" + reservationId);
 
   await db.runTransaction(async tx => {
     const snap = await tx.get(reservationRef);
@@ -350,10 +388,11 @@ export async function reverseCredits(uid, reservationId) {
 
     const profile = userSnap.data() || {};
     const balance = canonicalBalance(profile);
+    const balanceBefore = totalBalance(balance);
     const legacy = balanceSnap.exists ? balanceSnap.data() || {} : {};
 
-    const restoredPermanent = balance.permanent + Number(data.fromPermanent || 0);
-    const restoredSubscription = balance.subscription + Number(data.fromSubscription || 0);
+    const restoredPermanent = round7(balance.permanent + Number(data.fromPermanent || 0));
+    const restoredSubscription = round7(balance.subscription + Number(data.fromSubscription || 0));
 
     tx.update(userRef, {
       credits: restoredPermanent,
@@ -366,6 +405,13 @@ export async function reverseCredits(uid, reservationId) {
       reserved: Math.max(0, Number(legacy.reserved || 0) - Number(data.amount || 0)),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
+    tx.create(reversalLedgerRef, {
+      uid, type: "refund", feature: data.capability,
+      credits: round7(totalBalance({ permanent: restoredPermanent, subscription: restoredSubscription }) - balanceBefore),
+      balanceBefore, balanceAfter: totalBalance({ permanent: restoredPermanent, subscription: restoredSubscription }),
+      source: "web", platform: "web", requestId: reservationId + ":reversal",
+      reservationId, status: "reversed", createdAt: FieldValue.serverTimestamp()
+    });
     tx.update(reservationRef, {
       status: "reversed",
       reversedAt: FieldValue.serverTimestamp()
