@@ -201,6 +201,7 @@ export async function verifyFirebaseUser(request) {
     uid: String(user.localId),
     email: user.email ? String(user.email) : null,
     emailVerified: user.emailVerified === true,
+    createdAt: user.createdAt ? String(user.createdAt) : null,
     customAttributes
   };
 }
