@@ -24,18 +24,14 @@ export function dailyCreditDateKey(date = new Date(), timeZone = DEFAULT_FREE_CR
   catch { return format(DEFAULT_FREE_CREDIT_TIME_ZONE); }
 }
 
-export function currentDailyFreeCredits(profile, now = new Date(), fallbackTimeZone = DEFAULT_FREE_CREDIT_TIME_ZONE) {
-  if (!profile) return 0;
-  const zone = String(profile.dailyFreeCreditsTimeZone || fallbackTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  return String(profile.dailyFreeCreditsDate || "") === dailyCreditDateKey(now, zone, profile.dailyFreeCreditsRenewalTime || "00:00") ? Math.max(0, Number(profile.dailyFreeCredits || 0)) : 0;
+/** Daily free credits were retired; legacy Firestore fields are never spendable. */
+export function currentDailyFreeCredits(_profile, _now = new Date(), _fallbackTimeZone = DEFAULT_FREE_CREDIT_TIME_ZONE) {
+  return 0;
 }
 
-export function shouldRestoreDailyFreeCredits(profile, reservation, now = new Date(), fallbackTimeZone = DEFAULT_FREE_CREDIT_TIME_ZONE) {
-  if (!profile || !reservation) return false;
-  const zone = String(profile.dailyFreeCreditsTimeZone || reservation.dailyFreeCreditsTimeZone || fallbackTimeZone || DEFAULT_FREE_CREDIT_TIME_ZONE);
-  const renewalTime = String(profile.dailyFreeCreditsRenewalTime || reservation.dailyFreeCreditsRenewalTime || "00:00");
-  const today = dailyCreditDateKey(now, zone, renewalTime);
-  return String(profile.dailyFreeCreditsDate || "") === today && String(reservation.dailyFreeCreditsDate || "") === today;
+/** Legacy reservations must never restore a retired daily-free bucket. */
+export function shouldRestoreDailyFreeCredits(_profile, _reservation, _now = new Date(), _fallbackTimeZone = DEFAULT_FREE_CREDIT_TIME_ZONE) {
+  return false;
 }
 
 export function dailyFreeCreditGrant(credits, now = new Date(), timeZone = DEFAULT_FREE_CREDIT_TIME_ZONE, renewalTime = "00:00") {
