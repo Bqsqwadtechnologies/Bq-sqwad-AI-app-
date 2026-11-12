@@ -226,3 +226,15 @@ Customer token prices are canonical **credits per one token**: `inputCreditsPerT
 - Website saves use the canonical Firestore `tokenPricingRules` and `generationCostRules` collections. Fixed-price legacy capability mirrors are maintained by the website server function for older Worker feature paths. Android usage is charged by the Cloudflare Worker against shared pricing records; it must not use a local pricing table.
 - Token settlement has no minimum charge in the website usage billing engine or Cloudflare Worker token billing engine. A configured zero remains free; tiny usage may round to zero at configured precision. The legacy `minimumCredits` field is retained for compatibility but is not applied to token deductions.
 - Source implementation only. Website/Worker deployment workflows, builds, integration tests, and authenticated Android/web billing checks must succeed before production propagation is considered verified.
+
+
+## Billing and plan synchronization invariants — 2026-11-12
+
+- `users/{uid}` is the shared balance authority. `creditTransactions/{id}` is the canonical customer credit ledger for website, Android Worker, and legacy Firebase Functions billing paths.
+- Balance changes and their canonical ledger entries must be committed in the same Firestore transaction/commit. Reservation, settlement, and reversal rows must remain idempotent and carry a stable request or reservation reference.
+- Customer credit arithmetic uses seven decimal places across website and Worker token, fixed-price, hold, settlement, and legacy Firebase Functions paths. Display formatting may be shorter; stored balances and transaction values must not be rounded to display precision.
+- `welcomeCreditGrants/{uid}` and `creditTransactions/welcome_{uid}` are the one-time shared receipt and ledger. Website signup and Worker first-use grants must compete on those same paths; no second welcome grant path is permitted.
+- `entitlements/{uid}/plans/{planId}` and verified Play entitlement mirrors are the cross-platform plan source. Only active, trialing, or grace entitlements that have not expired may unlock a workspace. Paused, on-hold, canceled, and expired records must not grant access.
+- Admin Plan Test Mode is a per-admin switch that disables automatic all-access bypass so the admin is evaluated against the same real plan and balance records as a customer. It is not a paid-plan grant to another user. Grant another user an exact product plan through the audited Plans & Test Access workflow.
+- Provider USD costs, margins, and cost-status diagnostics remain internal billing telemetry. Customer chat responses may expose customer credits charged and safe token counts, but must not expose provider-cost fields.
+- `creditBalances/{uid}` and `creditLedger/{id}` are legacy compatibility records, not alternate balance authorities. New billing paths must use `users/{uid}` and `creditTransactions/{id}`.
