@@ -237,17 +237,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   })[0] || null;
   const applyFeeToUsage = false;
 
-  // Request-size limits are read from the shared configuration; customer prices
-  // come only from the active model-specific token rule.
-  const sharedAiConfig = await firestoreGet("config/aiModels").catch(() => null);
-  const sharedMetering = sharedAiConfig?.metering && typeof sharedAiConfig.metering === "object" ? sharedAiConfig.metering : { maxRequestTokens: 8_000, maxOutputTokens: 512 };
-  const boundedLimit = (value, fallback, min, max) => {
-    const number = Number(value);
-    return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
-  };
-  const maxRequestTokens = boundedLimit(sharedMetering.maxRequestTokens, 8_000, 1_000, 16_000);
-  const maxOutputTokens = boundedLimit(sharedMetering.maxOutputTokens, 512, 128, 1_024);
-  // Input/output ceilings are enforced by the shared website-admin token budget.
+  // Provider/model context limits are provider-owned; BQ applies no token ceiling.
   const featureKey = String(feature || "").toLowerCase();
   const isTokenMeteredFeature = ["chat", "text-chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"].includes(featureKey);
   // Website tokenPricingRules are the canonical customer-credit prices for
@@ -255,8 +245,10 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const customerInputCreditsPerToken = customerCreditsPerToken(tokenRule, "inputCreditsPerToken", "inputCreditsPer1k");
   const customerCachedCreditsPerToken = customerCreditsPerToken(tokenRule, "cachedInputCreditsPerToken", "cachedInputCreditsPer1k");
   const customerOutputCreditsPerToken = customerCreditsPerToken(tokenRule, "outputCreditsPerToken", "outputCreditsPer1k");
+  const customerReasoningCreditsPerToken = Number.isFinite(Number(tokenRule?.reasoningCreditsPerToken))
+    ? Number(tokenRule.reasoningCreditsPerToken) : customerOutputCreditsPerToken;
   const hasCustomerCreditRule = !!tokenRule &&
-    [customerInputCreditsPerToken, customerCachedCreditsPerToken, customerOutputCreditsPerToken].every(rate => Number.isFinite(rate) && rate >= 0);
+    [customerInputCreditsPerToken, customerCachedCreditsPerToken, customerOutputCreditsPerToken, customerReasoningCreditsPerToken].every(rate => Number.isFinite(rate) && rate >= 0);
   if (isTokenMeteredFeature && !hasCustomerCreditRule) {
     throw Object.assign(new Error("token_pricing_not_configured"), { httpStatus: 503, safeError: "feature_temporarily_unavailable" });
   }
@@ -264,6 +256,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
   const sharedCreditMetering = isTokenMeteredFeature ? {
     creditsPerInputToken: customerInputCreditsPerToken,
     creditsPerOutputToken: customerOutputCreditsPerToken,
+    creditsPerReasoningToken: customerReasoningCreditsPerToken,
     creditsPerCachedInputToken: customerCachedCreditsPerToken,
     creditsPerInputAudioToken: typeof tokenRule.inputAudioCreditsPerToken === "number" ? tokenRule.inputAudioCreditsPerToken : null,
     creditsPerCachedInputAudioToken: typeof tokenRule.cachedInputAudioCreditsPerToken === "number" ? tokenRule.cachedInputAudioCreditsPerToken : null,
@@ -276,7 +269,7 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     precision: 15
   } : null;
   return {
-    maxRequestTokens, maxOutputTokens, configured,
+    configured,
     sharedCreditMetering,
     billingMode: isTokenMeteredFeature && hasCustomerCreditRule ? "token" : String(model.billingMode || control.billingMode || "fixed_credit"),
     modelRegistryId: model.id || null
