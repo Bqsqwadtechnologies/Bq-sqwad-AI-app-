@@ -191,6 +191,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       sellingPriceUsd: 0, exemptType: "admin_exempt",
       committedAt: FieldValue.serverTimestamp()
     });
+    await db.collection("creditTransactions").doc(reservationId).set({
+      status: "committed", updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
     return;
   }
   if (String(reservationId).startsWith("included_")) {
@@ -207,6 +210,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       exemptType: includedData.exemptType || "subscription_or_free",
       committedAt: FieldValue.serverTimestamp()
     });
+    await db.collection("creditTransactions").doc(reservationId).set({
+      status: "committed", updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
     return;
   }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
@@ -314,46 +320,64 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
   }
 }
 
-export async function grantCredits(adminUid, targetUid, amount, reason = "admin_grant") {
+export async function grantCredits(adminUid, targetUid, amount, reason = "admin_grant", requestId = null) {
   if (!(await isSuperAdmin(adminUid))) throw new Error("Admin access required");
-  const charge = Number(amount);
+  const charge = round7(Number(amount));
   if (!Number.isFinite(charge) || charge <= 0) throw new Error("credit_amount_must_be_positive");
 
   const db = getFirestore();
+  const safeRequestId = requestId == null ? null : String(requestId).trim();
+  if (safeRequestId && (!/^[a-zA-Z0-9_-]{1,128}$/.test(safeRequestId))) throw new Error("invalid_idempotency_key");
+  const transactionId = safeRequestId
+    ? "legacy_admin_grant_" + safeRequestId
+    : "legacy_admin_grant_" + db.collection("creditTransactions").doc().id;
+  const transactionRef = db.collection("creditTransactions").doc(transactionId);
   const userRef = db.collection("users").doc(targetUid);
   const balanceRef = db.collection("creditBalances").doc(targetUid);
 
-  await db.runTransaction(async tx => {
+  const duplicate = await db.runTransaction(async tx => {
+    const transactionSnap = await tx.get(transactionRef);
+    if (transactionSnap.exists) {
+      const existing = transactionSnap.data() || {};
+      if (existing.uid === targetUid && round7(Number(existing.requestedCredits ?? existing.credits)) === charge) return true;
+      throw new Error("idempotency_key_conflict");
+    }
     const userSnap = await tx.get(userRef);
     if (!userSnap.exists) throw new Error("Account not found.");
     const profile = userSnap.data() || {};
     const balance = canonicalBalance(profile);
+    const balanceBefore = totalBalance(balance);
     const legacySnap = await tx.get(balanceRef);
     const legacy = legacySnap.exists ? legacySnap.data() || {} : {};
-    const nextPermanent = balance.permanent + charge;
+    const nextPermanent = round7(balance.permanent + charge);
+    const balanceAfter = round7(nextPermanent + balance.subscription);
 
     tx.update(userRef, {
       credits: nextPermanent,
       updatedAt: FieldValue.serverTimestamp()
     });
     tx.set(balanceRef, {
-      uid: targetUid,
-      available: nextPermanent + balance.subscription,
+      uid: targetUid, available: balanceAfter,
       reserved: Number(legacy.reserved || 0),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
-    tx.create(db.collection("creditLedger").doc(), {
-      uid: targetUid,
-      capability: "admin_grant",
-      amount: charge,
-      kind: "admin_grant",
+    tx.create(transactionRef, {
+      uid: targetUid, type: "admin_grant", feature: "admin_grant",
+      credits: charge, requestedCredits: charge, balanceBefore, balanceAfter,
+      source: "web", platform: "web", requestId: safeRequestId,
       reason: String(reason || "admin_grant").slice(0, 200),
-      actorUid: adminUid,
+      actorUid: adminUid, status: "committed",
       createdAt: FieldValue.serverTimestamp()
     });
+    tx.create(db.collection("creditLedger").doc(), {
+      uid: targetUid, capability: "admin_grant", amount: charge,
+      kind: "admin_grant", reason: String(reason || "admin_grant").slice(0, 200),
+      actorUid: adminUid, createdAt: FieldValue.serverTimestamp()
+    });
+    return false;
   });
 
-  return { ok: true, uid: targetUid, amount: charge };
+  return { ok: true, uid: targetUid, amount: charge, duplicate };
 }
 
 export async function reverseCredits(uid, reservationId) {
@@ -363,6 +387,9 @@ export async function reverseCredits(uid, reservationId) {
       status: "failed", creditsCharged: 0, creditsRefunded: 0,
       errorClass: "provider_or_operation_failed", updatedAt: FieldValue.serverTimestamp()
     });
+    await getFirestore().collection("creditTransactions").doc(reservationId).set({
+      status: "failed", updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
     return;
   }
   const db = getFirestore();
@@ -371,6 +398,9 @@ export async function reverseCredits(uid, reservationId) {
       status: "failed", creditsCharged: 0, creditsRefunded: 0,
       errorClass: "provider_or_operation_failed", updatedAt: FieldValue.serverTimestamp()
     });
+    await getFirestore().collection("creditTransactions").doc(reservationId).set({
+      status: "failed", updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
     return;
   }
   const reservationRef = db.collection("creditReservations").doc(reservationId);
