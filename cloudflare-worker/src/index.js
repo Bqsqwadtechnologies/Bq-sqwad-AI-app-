@@ -2992,10 +2992,19 @@ async function stream(request, user, body) {
     const providerRoute = await buildProviderExecutionRoute(
       control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
     );
+    const configuredOutputBudget = Number(tokenPricing?.maxOutputTokens) || 256;
+    // Keep short conversational turns inexpensive. This caps visible output plus
+    // hidden reasoning tokens together; longer prompts receive a larger ceiling.
+    const chatOutputCeiling = userMessage.length <= 80 ? 128
+      : userMessage.length <= 400 ? 256
+      : userMessage.length <= 1200 ? 512 : 768;
+    const outputBudget = tokenBilling
+      ? Math.max(128, Math.min(configuredOutputBudget, chatOutputCeiling))
+      : undefined;
     const provider = await runWithFallback(globalThis.__bqEnv, providerRoute, {
       message: userMessage, system, stream: true,
       maxRequestTokens: tokenBilling ? tokenPricing.maxRequestTokens : undefined,
-      maxOutputTokens: tokenBilling ? tokenPricing.maxOutputTokens : undefined,
+      maxOutputTokens: outputBudget,
       reasoningEffort: resolveTextReasoningEffort(userMessage, capabilityName)
     });
     const encoder = new TextEncoder();
@@ -3092,6 +3101,7 @@ async function stream(request, user, body) {
             creditsCharged = Number(settled.amount || 0);
             tokenUsage = {
               inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+              reasoningTokens: usage.reasoningTokens,
               cachedInputTokens: usage.cachedInputTokens, providerCostUsd: calculation.providerCostUsd,
               providerCostCredits: calculation.providerCostCredits, creditsCharged,
               grossUsageValueUsd: calculation.grossUsageValueUsd,
