@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.SearchSource
 import com.bqsqwad.ai.core.AdminAdvancedClient
 import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 private data class WorkspaceTurn(val user: Boolean, val text: String)
@@ -81,8 +84,14 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
             loadingPlan = true
             runCatching {
                 val api = WorkspaceApiClient()
-                val catalog = api.nativeCatalog()
-                val entitlements = api.entitlements()
+                val coreData = withTimeoutOrNull(8_000L) {
+                    coroutineScope {
+                        val catalogTask = async { api.nativeCatalog() }
+                        val entitlementTask = async { api.entitlements() }
+                        catalogTask.await() to entitlementTask.await()
+                    }
+                } ?: throw IllegalStateException("Plan verification timed out. Please retry.")
+                val (catalog, entitlements) = coreData
                 val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
                 val adminTestMode = catalog.optBoolean("adminTestMode", false)
                 val activeIds = buildSet {
@@ -101,13 +110,19 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                 }
                 val catalogPlans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
                 if (catalogPlans.length() == 0) throw IllegalStateException("TruthGuard catalog is unavailable.")
-                history = api.truthGuardHistory().mapNotNull { row ->
-                    TruthGuardHistoryItem(
-                        id = row.optString("id"),
-                        claim = row.optString("claim"),
-                        analysis = row.optString("analysis"),
-                        createdAt = row.optString("createdAt")
-                    ).takeIf { it.claim.isNotBlank() && it.analysis.isNotBlank() }
+                loadingPlan = false
+                scope.launch {
+                    withTimeoutOrNull(5_000L) { runCatching { api.truthGuardHistory() }.getOrNull() }
+                        ?.let { rows ->
+                            history = rows.mapNotNull { row ->
+                                TruthGuardHistoryItem(
+                                    id = row.optString("id"),
+                                    claim = row.optString("claim"),
+                                    analysis = row.optString("analysis"),
+                                    createdAt = row.optString("createdAt")
+                                ).takeIf { it.claim.isNotBlank() && it.analysis.isNotBlank() }
+                            }
+                        }
                 }
             }.onFailure {
                 error = safeUserFacingIssue(it, "Could not refresh TruthGuard access.")
