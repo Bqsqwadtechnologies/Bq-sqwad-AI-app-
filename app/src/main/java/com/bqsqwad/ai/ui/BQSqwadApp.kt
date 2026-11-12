@@ -2249,8 +2249,8 @@ internal fun BqSqwadLoadingIndicator(modifier: Modifier = Modifier) {
         // legacy JPEG drawable, whose dark matte appeared as a black tile
         // in small loading indicators.
         BqLogo(
-            size = 48.dp,
-            modifier = Modifier.fillMaxSize().graphicsLayer {
+            size = 24.dp,
+            modifier = Modifier.graphicsLayer {
                 alpha = pulse
                 scaleX = 0.92f + 0.08f * pulse
                 scaleY = 0.92f + 0.08f * pulse
@@ -4221,13 +4221,25 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 }
                 }
                 if (busy && (messages.lastOrNull()?.mine != false || messages.lastOrNull()?.text.isNullOrBlank())) item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = com.bqsqwad.ai.ui.theme.bubbleAi,
+                        tonalElevation = 0.dp
                     ) {
-                        BqSqwadLoadingIndicator(Modifier.size(24.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BqSqwadLoadingIndicator(Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "BQ Sqwad AI is thinking…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 error?.let { message ->
