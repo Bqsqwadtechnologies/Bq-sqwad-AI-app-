@@ -29,6 +29,7 @@ import com.bqsqwad.ai.core.NativeFeatureRegistry
 import com.bqsqwad.ai.core.PlayBillingClient
 import com.bqsqwad.ai.core.BrandCopy
 import com.bqsqwad.ai.core.WorkspaceApiClient
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -134,12 +135,12 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 val api=WorkspaceApiClient()
                 // Load the catalog and account state concurrently so plan display is not
                 // blocked by slower balance, entitlement, or contact-status requests.
-                val liveTask = kotlinx.coroutines.async { api.nativeCatalog() }
-                val creditsTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.credits() }.getOrNull() } else null
-                val entitlementTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.entitlement() }.getOrNull() } else null
-                val entitlementsTask = if (signedIn) kotlinx.coroutines.async { runCatching { parseUserEntitlements(api.entitlements()) }.getOrDefault(emptyList()) } else null
-                val playManagementTask = if (signedIn) kotlinx.coroutines.async { runCatching { api.playSubscriptionManagement() }.getOrNull() } else null
-                val salesNoticeTask = if (signedIn) kotlinx.coroutines.async {
+                val liveTask = async { api.nativeCatalog() }
+                val creditsTask = if (signedIn) async { runCatching { api.credits() }.getOrNull() } else null
+                val entitlementTask = if (signedIn) async { runCatching { api.entitlement() }.getOrNull() } else null
+                val entitlementsTask = if (signedIn) async { runCatching { parseUserEntitlements(api.entitlements()) }.getOrDefault(emptyList()) } else null
+                val playManagementTask = if (signedIn) async { runCatching { api.playSubscriptionManagement() }.getOrNull() } else null
+                val salesNoticeTask = if (signedIn) async {
                     runCatching {
                         val a=api.contactSalesStatus().optJSONArray("requests")
                         val rows=a?.let { (0 until it.length()).map { i -> it.getJSONObject(i) } } ?: emptyList()
