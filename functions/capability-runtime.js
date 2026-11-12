@@ -89,12 +89,15 @@ export async function authorizeCapability(uid, controlId) {
   const adminUser = await getAuth().getUser(uid);
   const adminClaims = adminUser.customClaims || {};
   const isSuperAdmin = adminUser.email === "isaacoshiomole0@gmail.com" && (adminClaims.admin === true || adminClaims.superAdmin === true || adminClaims.role === "admin" || adminClaims.role === "super_admin");
-  const [snap, testModeSnap, planTestSnap] = await Promise.all([
+  const [snap, testModeSnap] = await Promise.all([
     db.collection("adminAdvancedOptions").doc(controlId).get(),
-    db.collection("adminAdvancedOptions").doc("admin_testing_mode").get(),
-    db.collection("adminPlanTest").doc(uid).get()
+    db.collection("adminAdvancedOptions").doc("admin_testing_mode").get()
   ]);
-  const adminPlanTest = isSuperAdmin && planTestSnap.exists && planTestSnap.data()?.enabled === true;
+  const planTestSnap = isSuperAdmin
+    ? await db.collection("adminPlanTest").doc(uid).get()
+    : null;
+  const adminPlanTest = isSuperAdmin && planTestSnap?.exists === true &&
+    planTestSnap.data()?.enabled === true;
   const control = snap.exists ? { id: controlId, ...snap.data() } : null;
 
   if (!control && !isSuperAdmin && !DEFAULT_RUNTIME_CAPABILITIES.has(controlId)) {
