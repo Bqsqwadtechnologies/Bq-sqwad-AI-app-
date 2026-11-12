@@ -527,7 +527,7 @@ function sanitizeProviderMessage(message) {
     .slice(0, 180);
 }
 
-async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage = "", timelineStatus = "") {
+async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage = "", timelineStatus = "", referenceCode = "") {
   try {
     const issueId = crypto.randomUUID();
     const safeMessage = sanitizeProviderMessage(providerMessage);
@@ -551,6 +551,7 @@ async function notifyAdminOfIssue(env, route, status, errorCode, providerMessage
         route: String(route || "/").split("?")[0].slice(0, 120),
         status: Number(status || 500),
         code: safeDiagnosticCode(errorCode),
+        ...(referenceCode ? { refCode: String(referenceCode).slice(0, 8) } : {}),
         ...(safeMessage ? { providerMessage: safeMessage } : {}),
         ...(timelineStatus ? { timelineStatus: String(timelineStatus).slice(0, 24), source: "client_timeline" } : {}),
         createdAt: new Date()
@@ -6747,12 +6748,13 @@ export default {
     } catch(error) {
       const message = error?.message || "backend_unavailable";
       const status = error?.httpStatus || (/Authentication required|Invalid or expired authentication token|admin_session_required/.test(message) ? 401 : /required_consent_missing|consent_required|Admin access required/.test(message) ? 403 : /Insufficient credits|insufficient_credits/.test(message) ? 402 : /select_replacement_model_before_/.test(message) ? 409 : /model_|selected_model|provider_model|provider_not_supported_for_feature|default_model_must_be_enabled|default_model_must_be_published/.test(message) ? 400 : /message_required/.test(message) ? 400 : /disabled/.test(message) ? 403 : /rate_limited/.test(message) ? 429 : /idempotency_in_progress/.test(message) ? 409 : 500);
-      if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message);
+      const refCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+      if (status >= 500) await notifyAdminOfIssue(env, url.pathname, status, message, "", "", refCode);
       const candidateCode = error?.safeError || (/required_consent_missing|consent_required/.test(message) ? "consent_required" : /Insufficient credits|insufficient_credits/.test(message) ? "insufficient_credits" : /Authentication required|Invalid or expired authentication token/.test(message) ? "auth_required" : /Admin access required|admin_session_required/.test(message) ? "admin_access_required" : /rate_limited/.test(message) ? "rate_limited" : status >= 500 ? "service_temporarily_unavailable" : "request_failed");
-      // Public responses contain only stable, machine-readable codes. Never send
-      // arbitrary exception text, URLs, account details, or provider messages to clients.
+      // Public responses contain only stable, machine-readable codes and a
+      // short correlation reference. Never send arbitrary provider details.
       const code = /^[a-z0-9_.-]{1,80}$/i.test(String(candidateCode)) ? String(candidateCode) : (status >= 500 ? "service_temporarily_unavailable" : "request_failed");
-      const body = { error: code };
+      const body = { error: code, refCode };
       return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(request), "Retry-After": String(error?.retryAfter || ""), "content-type":"application/json; charset=utf-8" } });
     }
   }
