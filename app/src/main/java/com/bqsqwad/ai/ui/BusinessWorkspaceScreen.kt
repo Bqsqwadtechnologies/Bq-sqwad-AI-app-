@@ -158,7 +158,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 if (features.length() > 0) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items((0 until minOf(features.length(), 8)).map { features.optString(it) }) { feature ->
-                            AssistChip(onClick = {}, label = { Text(feature) })
+                            AssistChip(onClick = {}, enabled = false, label = { Text(feature) })
                         }
                     }
                 }
