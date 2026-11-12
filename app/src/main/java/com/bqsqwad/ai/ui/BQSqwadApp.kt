@@ -1010,7 +1010,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         "Credits: Unlimited"
                     } else {
                         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
-                        "Credits: " + String.format(java.util.Locale.US, "%.2f", available)
+                        "Credits: " + String.format(java.util.Locale.US, "%.7f", available).trimEnd('0').trimEnd('.')
                     }
                 }
                 .onFailure {
@@ -2727,8 +2727,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }
     }
     var creditNotice by remember { mutableStateOf<String?>(null) }
-    var creditNoticeDismissed by remember(FirebaseAuth.getInstance().currentUser?.uid) { mutableStateOf(false) }
-    var dailyRenewalNotice by remember { mutableStateOf("Free credits renew daily at 12:00 AM Africa/Lagos time.") }
     var creditBalanceLabel by remember { mutableStateOf(if (FirebaseAuth.getInstance().currentUser == null) "Sign in for credits" else "Loading balance…") }
     var creditBalanceLoaded by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser == null) }
     var creditsExhausted by remember { mutableStateOf(false) }
@@ -2842,27 +2840,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             return
         }
         val available = snapshot.optDouble("available", 0.0).coerceAtLeast(0.0)
-        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.2f", available).trimEnd('0').trimEnd('.')
+        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.7f", available).trimEnd('0').trimEnd('.')
         creditsExhausted = available <= 0.0
-        val renewalTime = snapshot.optString("dailyFreeCreditsRenewalTime", "00:00").ifBlank { "00:00" }
-        val renewalZone = snapshot.optString("dailyFreeCreditsTimeZone", "Africa/Lagos").ifBlank { "Africa/Lagos" }
-        dailyRenewalNotice = "Your usage allowance renews daily at " + (if (renewalTime == "00:00") "12:00 AM" else renewalTime) + " " + renewalZone + " time."
-        val userKey = FirebaseAuth.getInstance().currentUser?.uid?.take(12) ?: "guest"
-        val creditPrefs = accountPreferences(context, "bq_ui")
-        val baselineKey = "credit_cycle_baseline_$userKey"
-        val cycleDate = snapshot.optString("dailyFreeCreditsDate").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
-        val cycleDateKey = "credit_cycle_date_$userKey"
-        val previousCycleDate = creditPrefs.getString(cycleDateKey, "").orEmpty()
-        val previousBaseline = creditPrefs.getFloat(baselineKey, -1f).toDouble()
-        val dismissedKey = "credit_notice_dismissed_${userKey}_${cycleDate}"
-        creditNoticeDismissed = creditPrefs.getBoolean(dismissedKey, false)
-        if (available > 0.0) creditNotice = null
-        val newCycle = cycleDate.isNotBlank() && cycleDate != previousCycleDate
-        val baseline = if (newCycle || previousBaseline <= 0.0 || available > previousBaseline) available else previousBaseline
-        creditPrefs.edit().putString(cycleDateKey, cycleDate).apply()
-        if (baseline > 0.0) creditPrefs.edit().putFloat(baselineKey, baseline.toFloat()).apply()
-        val used = (baseline - available).coerceAtLeast(0.0)
-        val usedPercent = if (baseline > 0.0) (used / baseline).coerceIn(0.0, 1.0) else 0.0
         val expiryMillis = listOf("subscriptionExpiresAt", "trialExpiresAt")
             .mapNotNull { key ->
                 snapshot.optString(key).takeIf { it.isNotBlank() && it != "null" }?.let { value ->
@@ -2874,9 +2853,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             .minOrNull()
         val daysToExpiry = expiryMillis?.let { kotlin.math.ceil((it - System.currentTimeMillis()) / 86_400_000.0).toInt() }
         creditNotice = when {
-            available <= 0.0 -> "Your current usage allowance is unavailable. Eligible AI actions are paused until your allowance renews or you update your plan. Your active plan remains active."
-            baseline > 0.0 && usedPercent >= 0.90 -> "You've used ${(usedPercent * 100).toInt()}% of your credits (${String.format(java.util.Locale.US, "%.1f", used)} of ${String.format(java.util.Locale.US, "%.1f", baseline)} used). ${String.format(java.util.Locale.US, "%.1f", available)} remain."
-            daysToExpiry != null && daysToExpiry <= 5 -> "Your plan or usage allowance expires in ${daysToExpiry.coerceAtLeast(1)} day(s). Review plans and billing to keep using BQ Sqwad AI."
+            available <= 0.0 -> "You're out of credits. Add credits or activate a plan to continue using BQ Sqwad AI. New-account welcome credits are granted once and do not renew."
+            daysToExpiry != null && daysToExpiry <= 5 -> "Your plan or subscription credits expire in ${daysToExpiry.coerceAtLeast(1)} day(s). Review plans and billing to keep using BQ Sqwad AI."
             else -> null
         }
     }
