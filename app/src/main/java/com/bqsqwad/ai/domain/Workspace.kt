@@ -2,7 +2,6 @@ package com.bqsqwad.ai.domain
 
 enum class Workspace(val title: String, val description: String) {
     CHAT("Main Chat", "Fast AI conversation, voice input and image generation"),
-    VIDEO("Video Generation", "Dedicated AI video generation workspace with credit-controlled render jobs"),
     SEARCH("Web Search", "Current information with source-aware answers"),
     TRUTH_GUARD("TruthGuard AI", "Evidence-aware fact checking, source analysis and claim review"),
     FRONTIER_LAB("Frontier Lab", "Advanced AI experimentation, research and emerging capability workflows"),
