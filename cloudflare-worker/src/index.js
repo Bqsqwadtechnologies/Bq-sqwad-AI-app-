@@ -3691,6 +3691,8 @@ export default {
 
       if (url.pathname === "/models/catalog" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
+        await ensureWelcomeCredits(user);
+        await applyConfiguredDailyFreeCredits(user.uid);
         return handleModelsCatalog(request, env, user.uid);
       }
 
