@@ -164,9 +164,9 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         }
         currentPlan = plans.firstOrNull { it.id.equals(activePlanId, ignoreCase = true) }
         val memoryPlanEligible = adminTestMode ||
-            currentPlan?.id?.lowercase() in setOf(
-                "companionbasic", "companionplus", "companionpremium", "companionultimate"
-            )
+            (currentPlan?.id?.lowercase()?.let {
+                it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate")
+            } == true)
 
         accessLoadedSuccessfully = currentPlan != null
         loadingAccess = false
