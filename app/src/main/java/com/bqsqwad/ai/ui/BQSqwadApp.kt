@@ -1818,30 +1818,42 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Open the right workspace", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(redirect.optString("message").ifBlank { "This request belongs in another BQ Sqwad AI workspace." })
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TextButton(onClick = { WorkspaceRedirectStore.clear() }) { Text("Stay here") }
-                        Button(
-                            onClick = {
-                                WorkspaceRedirectStore.clear()
-                                workspace = targetWorkspace
-                                plans = false
-                                settings = false
-                                history = false
-                                featureHub = false
-                                advancedFeature = null
-                                featureSettings = null
-                                featureInfo = null
-                                featurePrivacy = null
-                                legalCenter = false
-                                accountProtection = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) { Text(if (targetWorkspace == null) "Open Main Chat" else "Open ${targetWorkspace.title}") }
+                    Text(
+                        if (targetWorkspace == null) "Workspace unavailable"
+                        else "Open the right workspace",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (targetWorkspace == null) "This destination is not available in the Android app. You can continue using the available workspaces."
+                        else redirect.optString("message").ifBlank { "This request belongs in another BQ Sqwad AI workspace." }
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        if (targetWorkspace != null) {
+                            TextButton(onClick = { WorkspaceRedirectStore.clear() }) { Text("Stay here") }
+                            Button(
+                                onClick = {
+                                    WorkspaceRedirectStore.clear()
+                                    workspace = targetWorkspace
+                                    plans = false
+                                    settings = false
+                                    history = false
+                                    featureHub = false
+                                    advancedFeature = null
+                                    featureSettings = null
+                                    featureInfo = null
+                                    featurePrivacy = null
+                                    legalCenter = false
+                                    accountProtection = false
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) { Text("Open ${targetWorkspace.title}") }
+                        } else {
+                            Button(onClick = { WorkspaceRedirectStore.clear() }) { Text("Close") }
+                        }
                     }
                 }
             }
