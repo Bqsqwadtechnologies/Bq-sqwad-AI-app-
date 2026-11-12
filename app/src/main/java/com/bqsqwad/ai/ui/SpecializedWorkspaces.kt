@@ -727,6 +727,13 @@ private fun WorkspaceFrame(
         WorkspaceVisualStyle.PERSONAL -> scheme.onSurfaceVariant
         WorkspaceVisualStyle.FRONTIER -> scheme.onPrimaryContainer
     }
+    val featureHighlights = when (style) {
+        WorkspaceVisualStyle.TRUTH_GUARD -> listOf("Claim checks", "Verdicts & confidence", "Cited evidence", "Source reliability", "Bias signals", "Verification history", "Deep checks on eligible plans")
+        WorkspaceVisualStyle.LEARNING -> listOf("Subjects", "AI tutor", "Lessons", "Homework support", "Revision", "Practice quizzes", "Progress")
+        WorkspaceVisualStyle.LIFE -> listOf("Planning", "Goals", "Routines", "Tasks", "Decision support", "Practical next steps")
+        WorkspaceVisualStyle.PERSONAL -> listOf("Projects", "Goals", "Notes", "Account-controlled memory")
+        WorkspaceVisualStyle.FRONTIER -> listOf("Research", "Experiments", "Prototypes", "Sourced briefs", "Market maps", "Feasibility reviews")
+    }
 
     Scaffold(
         topBar = {
@@ -829,6 +836,23 @@ private fun WorkspaceFrame(
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = onContainer
+                        )
+                        Divider(color = onContainer.copy(alpha = 0.18f))
+                        Text(
+                            "WORKSPACE CAPABILITIES",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = onContainer.copy(alpha = 0.72f)
+                        )
+                        Text(
+                            featureHighlights.joinToString("  •  "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onContainer.copy(alpha = 0.9f)
+                        )
+                        Text(
+                            "Feature access follows your verified plan and required service connections.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = onContainer.copy(alpha = 0.68f)
                         )
                     }
                 }
