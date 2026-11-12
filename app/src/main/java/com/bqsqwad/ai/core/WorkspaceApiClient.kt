@@ -159,7 +159,7 @@ class WorkspaceApiClient {
                 serverError == "provider_usage_unavailable" ->
                     "The AI provider did not return usage details, so this request was not charged. Please try again or contact support."
                 serverError == "media_provider_cost_not_configured" ->
-                    "The selected image or video model needs a valid provider cost and billing unit in the admin dashboard."
+                    "The selected image model needs a valid provider cost and billing unit in the admin dashboard."
                 serverError.startsWith("learning_feature_locked") ->
                     "That Learning feature is not included in the currently active plan. Review Learning plans to unlock it."
                 serverError.startsWith("daily_capability_limit_reached") ->
