@@ -10,6 +10,14 @@ async function isSuperAdmin(uid) {
   return String(user.email || "").trim().toLowerCase() === ADMIN_EMAIL && (claims.admin === true || claims.superAdmin === true || claims.role === "admin" || claims.role === "super_admin");
 }
 
+async function adminBypassEnabled(uid) {
+  if (!(await isSuperAdmin(uid))) return false;
+  // Admin Plan Test Mode disables the automatic credit exemption so the
+  // administrator is charged against the same real balance as customers.
+  const test = await getFirestore().collection("adminPlanTest").doc(uid).get();
+  return !(test.exists && test.data()?.enabled === true);
+}
+
 function liveSubscriptionCredits(profile) {
   const expiresAt = profile?.subExpiresAt ? Date.parse(String(profile.subExpiresAt)) : NaN;
   return Number.isFinite(expiresAt) && expiresAt > Date.now()
@@ -36,7 +44,7 @@ function totalBalance(balance) {
 export async function reserveCredits(uid, amount, capability) {
   const requestedUnits = Math.max(0, Number(amount) || 0);
   const pricing = await priceOperation(capability, requestedUnits);
-  const adminExempt = await isSuperAdmin(uid);
+  const adminExempt = await adminBypassEnabled(uid);
   const db = getFirestore();
   if (adminExempt) {
     const adminTransactionId = "admin_" + db.collection("aiBillingTransactions").doc().id;
