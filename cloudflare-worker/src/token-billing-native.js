@@ -103,6 +103,8 @@ export function calculateTokenCost({ usage, pricing }) {
   }
   const textInputTokens = inputTokens - inputAudioTokens - inputImageTokens;
   const textOutputTokens = outputTokens - outputAudioTokens - outputImageTokens;
+  const reasoningTokens = Math.min(textOutputTokens, Math.max(0, Number(usage?.reasoningTokens || 0)));
+  const normalOutputTokens = textOutputTokens - reasoningTokens;
   const cachedInputTokens = Math.min(textInputTokens, Math.max(0, Number(usage?.cachedInputTokens || 0)));
   const uncachedInputTokens = Math.max(0, textInputTokens - cachedInputTokens);
   const providerCostUsd = 0;
@@ -116,6 +118,7 @@ export function calculateTokenCost({ usage, pricing }) {
   const inputCreditRate = Number(meter.creditsPerInputToken);
   const cachedCreditRate = Number(meter.creditsPerCachedInputToken);
   const outputCreditRate = Number(meter.creditsPerOutputToken);
+  const reasoningCreditRate = Number(meter.creditsPerReasoningToken ?? meter.creditsPerOutputToken);
   const precision = 15;
   const modalityRates = [
     ["input audio", inputAudioTokens - cachedInputAudioTokens, meter.creditsPerInputAudioToken],
@@ -130,16 +133,17 @@ export function calculateTokenCost({ usage, pricing }) {
       throw Object.assign(new Error("modality_token_pricing_not_configured:" + label), { httpStatus: 409, safeError: "provider_unavailable" });
     }
   }
-  const values = [inputCreditRate, cachedCreditRate, outputCreditRate, precision];
-  if (!values.every(Number.isFinite) || inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 ||
+  const values = [inputCreditRate, cachedCreditRate, outputCreditRate, reasoningCreditRate, precision];
+  if (!values.every(Number.isFinite) || inputCreditRate < 0 || cachedCreditRate < 0 || outputCreditRate < 0 || reasoningCreditRate < 0 ||
       !Number.isInteger(precision) || precision < 0 || precision > 15) {
     throw Object.assign(new Error("shared_token_metering_invalid"), { httpStatus: 409, safeError: "provider_unavailable" });
   }
   const rawCredits =
     uncachedInputTokens * inputCreditRate +
     cachedInputTokens * cachedCreditRate +
-    textOutputTokens * outputCreditRate +
-    (inputAudioTokens - cachedInputAudioTokens) * Number(meter.creditsPerInputAudioToken || 0) +
+    normalOutputTokens * outputCreditRate +
+    reasoningTokens * reasoningCreditRate +
+    (inputAudio - cachedInputAudioTokens) * Number(meter.creditsPerInputAudioToken || 0) +
     cachedInputAudioTokens * Number(meter.creditsPerCachedInputAudioToken || 0) +
     outputAudioTokens * Number(meter.creditsPerOutputAudioToken || 0) +
     (inputImageTokens - cachedInputImageTokens) * Number(meter.creditsPerInputImageToken || 0) +
@@ -153,7 +157,7 @@ export function calculateTokenCost({ usage, pricing }) {
   const providerCostCredits = 0;
   const estimatedGrossProfitUsd = 0;
   return {
-    inputTokens, outputTokens, cachedInputTokens, inputAudioTokens, outputAudioTokens, inputImageTokens, outputImageTokens,
+    inputTokens, outputTokens, cachedInputTokens, normalOutputTokens, reasoningTokens, inputAudioTokens, outputAudioTokens, inputImageTokens, outputImageTokens,
     inputCostUsd, cachedInputCostUsd, outputCostUsd, providerCostUsd,
     creditReferenceValueUsd: 0, customerMultiplier: 1, estimatedFeePercent: 0, estimatedFeeUsd: 0,
     providerCostCredits, customerCredits: roundedCredits, grossUsageValueUsd, estimatedGrossProfitUsd,
@@ -282,9 +286,8 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
 export function estimateTokenReservation({ message, system, pricing }) {
   const inputTokens = Math.max(0, Math.ceil((String(message || "").length + String(system || "").length) / 3.5));
   // Reservation output estimate only; this value is not sent as a provider output cap.
-  const outputTokens = Math.max(128, Number(pricing.maxOutputTokens || 1_024));
   const estimated = calculateTokenCost({
-    usage: { inputTokens, outputTokens, cachedInputTokens: 0 },
+    usage: { inputTokens, outputTokens: 0, cachedInputTokens: 0 },
     pricing,
   });
   // Reserve a safety margin for tokenizer differences, then settle to exact
@@ -332,6 +335,7 @@ export async function recordTokenUsage({ uid, feature, providerId, modelId, usag
     totalTokens: Number(usage?.inputTokens || 0) + Number(usage?.outputTokens || 0),
     inputTokens: Number(usage?.inputTokens || 0),
     outputTokens: Number(usage?.outputTokens || 0),
+    normalOutputTokens: Math.max(0, Number(usage?.outputTokens || 0) - Number(usage?.reasoningTokens || 0)),
     cachedInputTokens: Number(usage?.cachedInputTokens || 0),
     reasoningTokens: Number(usage?.reasoningTokens || 0),
     inputAudioTokens: Number(usage?.inputAudioTokens || 0),
