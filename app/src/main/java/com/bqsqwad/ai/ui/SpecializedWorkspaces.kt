@@ -84,18 +84,22 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                 val catalog = api.nativeCatalog()
                 val entitlements = api.entitlements()
                 val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
+                val adminTestMode = entitlements.optBoolean("adminPlanTest", false) ||
+                    catalog.optBoolean("adminTestMode", false)
                 val activeIds = buildSet {
                     for (i in 0 until items.length()) {
                         val item = items.optJSONObject(i) ?: continue
-                        val state = item.optString("state")
-                        if (state in setOf("active", "grace", "on_hold", "paused")) {
+                        val state = item.optString("state").lowercase()
+                        if (state in setOf("active", "grace", "trialing")) {
                             item.optString("planId").takeIf { it.isNotBlank() }?.let(::add)
                         }
                     }
                 }
-                activePlanId = listOf("tgteam", "tgpro", "tgplus", "truthguardfree")
-                    .firstOrNull { activeIds.contains(it) }
-                    ?: "truthguardfree"
+                activePlanId = when {
+                    adminTestMode -> "tgteam"
+                    else -> listOf("tgteam", "tgpro", "tgplus", "truthguardfree")
+                        .firstOrNull { activeIds.contains(it) } ?: "truthguardfree"
+                }
                 val catalogPlans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
                 if (catalogPlans.length() == 0) throw IllegalStateException("TruthGuard catalog is unavailable.")
                 history = api.truthGuardHistory().mapNotNull { row ->
@@ -290,13 +294,14 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
         planLoading = true
         runCatching {
             val api = WorkspaceApiClient()
-            val adminAllowed = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
-            adminTestMode = adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false)
             val catalog = api.nativeCatalog()
             val entitlements = api.entitlements()
+            val adminAllowed = runCatching { api.adminAccess().optBoolean("allowed", false) }.getOrDefault(false)
+            adminTestMode = entitlements.optBoolean("adminPlanTest", false) ||
+                (adminAllowed && runCatching { AdminAdvancedClient().testMode() }.getOrDefault(false))
             val plans = catalog.optJSONArray("plans") ?: org.json.JSONArray()
             val items = entitlements.optJSONArray("items") ?: org.json.JSONArray()
-            val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.firstOrNull {
+            val active = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.filter {
                 val id = it.optString("planId")
                 val state = it.optString("state")
                 val expiry = it.optString("expiresAt").ifBlank { it.optString("expiryTimeMillis") }
@@ -305,7 +310,7 @@ fun FrontierLabWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: () -> Uni
                     ?: runCatching { java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(expiry)?.time }.getOrNull()
                 val notExpired = expiry.isBlank() || expiry == "null" || (expiryMillis != null && expiryMillis > System.currentTimeMillis())
                 id.startsWith("frontier") && state in setOf("active", "grace", "trialing") && notExpired
-            }
+            }.maxByOrNull { it.optString("updatedAt").ifBlank { it.optString("startDate") } }
             planAccessGranted = adminTestMode || active != null
             val id = if (adminTestMode) "frontierenterprise" else active?.optString("planId").orEmpty()
             val plan = (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
