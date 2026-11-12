@@ -278,6 +278,9 @@ export async function commitCredits(uid, reservationId, providerId, metadata = {
       source: "web", platform: "web", requestId: reservationId + ":settlement",
       reservationId, status: "committed", createdAt: FieldValue.serverTimestamp()
     });
+    tx.update(db.collection("creditTransactions").doc("legacy_reserve_" + reservationId), {
+      status: "committed", settledAt: FieldValue.serverTimestamp()
+    });
     tx.update(reservationRef, {
       status: "committed",
       finalCharge,
@@ -441,6 +444,9 @@ export async function reverseCredits(uid, reservationId) {
       balanceBefore, balanceAfter: totalBalance({ permanent: restoredPermanent, subscription: restoredSubscription }),
       source: "web", platform: "web", requestId: reservationId + ":reversal",
       reservationId, status: "reversed", createdAt: FieldValue.serverTimestamp()
+    });
+    tx.update(db.collection("creditTransactions").doc("legacy_reserve_" + reservationId), {
+      status: "reversed", reversedAt: FieldValue.serverTimestamp()
     });
     tx.update(reservationRef, {
       status: "reversed",
