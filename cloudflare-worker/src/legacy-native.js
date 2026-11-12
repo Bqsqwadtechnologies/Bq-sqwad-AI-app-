@@ -109,7 +109,7 @@ async function section(name){
   const catalog = mergeCommercialCatalog(saved?.catalog || COMMERCIAL_CATALOG);
   return Array.isArray(catalog?.sections?.[name]) ? catalog.sections[name] : [];
 }
-async function adminTest(user,env){const claims=user?.customAttributes||{},email=String(user?.email||"").toLowerCase(),owner=String(env?.SUPER_ADMIN_EMAIL||"").toLowerCase();const root=(Boolean(owner)&&email===owner&&user?.emailVerified===true)||claims.superAdmin===true||claims.role==="super_admin";if(!root)return false;return (await firestoreGet("adminAdvancedOptions/admin_testing_mode"))?.enabled===true}
+async function adminTest(user,env){const claims=user?.customAttributes||{},email=String(user?.email||"").toLowerCase(),owner=String(env?.SUPER_ADMIN_EMAIL||"").toLowerCase();const root=(Boolean(owner)&&email===owner&&user?.emailVerified===true)||claims.superAdmin===true||claims.role==="super_admin";if(!root)return false;const [testing,planTest]=await Promise.all([firestoreGet("adminAdvancedOptions/admin_testing_mode"),firestoreGet("adminPlanTest/"+user.uid)]);return testing?.enabled===true&&planTest?.enabled!==true}
 async function gate(user,env,fallback){
   const workspace=fallback==="companionfree"?"companion":fallback==="explorer"?"learning":fallback==="truthguardfree"?"truthguard":"";
   const allowed={
