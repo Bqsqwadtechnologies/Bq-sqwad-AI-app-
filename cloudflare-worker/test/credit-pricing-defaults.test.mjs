@@ -37,10 +37,10 @@ test("all fixed and per-second launch prices are present in generation seed data
   }
 });
 
-test("seed defaults contain no stored cost-rate fields and the marker is version seven", async () => {
+test("seed defaults contain no stored cost-rate fields and the marker is version eight", async () => {
   assert.doesNotMatch(auxiliaryDefaults, /UsdPer(Million|Token)/);
   assert.doesNotMatch(generationDefaults, /UsdPer(Million|Token)/);
-  assert.match(index, /TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_token_credit_pricing_defaults_v7"/);
+  assert.match(index, /TOKEN_CREDIT_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_token_credit_pricing_defaults_v8"/);
   assert.match(index, /seedTokenCreditDefaultsOnce\(\)/);
   assert.match(index, /PRICING_DEFAULTS_MARKER = "adminAdvancedOptions\/bq_live_credit_pricing_defaults_v5"/);
   const seedGuard = await readFile(new URL("../src/pricing-seed-native.js", import.meta.url), "utf8");
