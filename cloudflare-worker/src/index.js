@@ -1785,7 +1785,8 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   if (await isCanonicalPlanCovered(uid, capabilityName) || isSubscriptionCoveredCapability(currentProfile, capabilityName)) {
     return { reservationId: null, amount: 0, planCovered: true };
   }
-  // No trial-credit pool exists. Grant only the single daily free credit.
+  // Recurring daily-free buckets are retired; clear legacy fields before
+  // reserving against the shared permanent/subscription balance.
   await applyConfiguredDailyFreeCredits(uid);
   // Fixed feature prices are final customer prices. Markup belongs only in
   // the canonical measured token/minute pricing engine, never in this ledger layer.
@@ -1807,8 +1808,8 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
       charge = h.hold;
     }
     // The website's users/{uid} document is the shared credit authority.
-    // Bucket splitting is shared/tested: BQ-7-Star drains daily, subscription,
-    // then permanent; BQ-Codron drains subscription then permanent only.
+    // Daily is always zero; BQ-7-Star can spend one-time welcome credits,
+    // while BQ-Codron requires purchased or active subscription credits.
     const split = splitCreditBuckets({
       daily: balance.daily,
       subscription: balance.subscription,
