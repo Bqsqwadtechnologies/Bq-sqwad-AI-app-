@@ -1,6 +1,8 @@
 package com.bqsqwad.ai
 
 import com.bqsqwad.ai.core.ApiConfig
+import com.bqsqwad.ai.core.NativeFeatureRegistry
+import com.bqsqwad.ai.core.WorkspaceCapabilities
 import com.bqsqwad.ai.core.WorkspaceAccessSnapshot
 import com.bqsqwad.ai.core.WorkspaceRedirectStore
 import com.bqsqwad.ai.domain.Workspace
@@ -190,6 +192,13 @@ class CoreTest {
         assertTrue(isImageGenerationRequest("Draw a superhero with lightning powers"))
         assertFalse(isImageGenerationRequest("How do I create an image in Blender?"))
         assertFalse(isImageGenerationRequest("What is image generation?"))
+    }
+
+    @Test fun androidAppDoesNotExposeVideoGeneration() {
+        assertFalse(Workspace.values().any { it.title.equals("Video Generation", ignoreCase = true) })
+        assertFalse(NativeFeatureRegistry.core.any { it.id == "video_generation" })
+        assertFalse(NativeFeatureRegistry.advanced.any { it.id == "video_generation" })
+        assertFalse(WorkspaceCapabilities.all.contains("video_generation"))
     }
 
     @Test fun creditOnlyWorkspacesNeverWaitForOrRequireAPlan() {
