@@ -194,8 +194,8 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, label = { Text("$lessonsCompleted lessons") })
-                    AssistChip(onClick = {}, label = { Text("$quizzesCompleted quizzes") })
+                    AssistChip(onClick = {}, enabled = false, label = { Text("$lessonsCompleted lessons") })
+                    AssistChip(onClick = {}, enabled = false, label = { Text("$quizzesCompleted quizzes") })
                 }
                 if (!isAdminBypass) {
                     OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
