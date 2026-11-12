@@ -314,10 +314,10 @@ fun OrganizationStudioWorkspace() {
                         fontWeight = FontWeight.SemiBold
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SuggestionChip(onClick = {}, label = { Text("Production") })
-                        SuggestionChip(onClick = {}, label = { Text("AI Director") })
-                        SuggestionChip(onClick = {}, label = { Text("YouTube Live") })
-                        SuggestionChip(onClick = {}, label = { Text("USD PAYG") })
+                        SuggestionChip(onClick = {}, enabled = false, label = { Text("Production") })
+                        SuggestionChip(onClick = {}, enabled = false, label = { Text("AI Director") })
+                        SuggestionChip(onClick = {}, enabled = false, label = { Text("YouTube Live") })
+                        SuggestionChip(onClick = {}, enabled = false, label = { Text("USD PAYG") })
                     }
                     activePlan?.optJSONArray("features")?.let { features ->
                         if (features.length() > 0) Text(
