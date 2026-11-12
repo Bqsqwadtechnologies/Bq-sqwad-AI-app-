@@ -1299,7 +1299,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             val current = workspace
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
+                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
                 ) && !it.hasVerifiedAccess(current)) {
                 paywallWorkspace = current
                 workspace = null
@@ -1312,7 +1312,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                 workspaceAccess.planModules["data-analysis"].orEmpty().isNotEmpty()
             if (current != null && current !in setOf(
                     Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-                    Workspace.VIDEO, Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
+                    Workspace.PERSONAL, Workspace.ORGANIZATION_STUDIO
                 ) && (current != Workspace.DATA_ANALYSIS || dataAnalystIsPlanGated)) {
                 accessRetryWorkspace = current
             }
@@ -1332,7 +1332,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             signInRequired = true
         } else if (selected in setOf(
             Workspace.CHAT, Workspace.SEARCH, Workspace.CAMERA, Workspace.VOICE,
-            Workspace.VIDEO, Workspace.PERSONAL
+            Workspace.PERSONAL
         ) || (selected == Workspace.DATA_ANALYSIS && workspaceAccess.planModules["data-analysis"].isNullOrEmpty())) {
             // These destinations are free or credit-metered; entitlement loading
             // must never block opening them or show a plan dialog.
@@ -1801,7 +1801,6 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         val destination = redirect.optString("workspace").uppercase()
         val targetWorkspace = when (destination) {
             "WEB_SEARCH", "SEARCH" -> Workspace.SEARCH
-            "VIDEO_GENERATION", "VIDEO" -> Workspace.VIDEO
             "DATA_ANALYST", "DATA_ANALYSIS" -> Workspace.DATA_ANALYSIS
             "PERSONAL_INTELLIGENCE", "PERSONAL" -> Workspace.PERSONAL
             "TRUTHGUARD", "TRUTH_GUARD" -> Workspace.TRUTH_GUARD
@@ -5474,7 +5473,6 @@ private fun WorkspaceScreen(
                 }
             }
             when (w) {
-                Workspace.VIDEO -> VideoGenerationWorkspace()
                 Workspace.SEARCH -> SearchWorkspace(onOpenSettings = onOpenAppSettings)
                 Workspace.TRUTH_GUARD -> CompleteTruthGuardWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
                 Workspace.FRONTIER_LAB -> FrontierLabWorkspace(onOpenPlans = onOpenPlans, onOpenSettings = onOpenAppSettings)
