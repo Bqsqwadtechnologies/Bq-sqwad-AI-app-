@@ -33,14 +33,29 @@ test("each update gets its own mask and exclusive creation preconditions survive
   assert.deepEqual(body.writes[1].currentDocument, { exists: false });
 });
 
-test("an explicit create stays a create and has no update mask", () => {
+test("an explicit create becomes a masked update with an exists:false precondition", () => {
   const body = buildFirestoreCommitBody([
     { path: "creditTransactions/transaction-a", data: { uid: "user-a" }, create: true },
   ], documentName);
 
-  assert.equal(body.writes[0].update, undefined);
-  assert.equal(body.writes[0].updateMask, undefined);
-  assert.equal(body.writes[0].create.fields.uid.stringValue, "user-a");
+  assert.equal(body.writes[0].create, undefined);
+  assert.equal(body.writes[0].update.fields.uid.stringValue, "user-a");
+  assert.deepEqual(body.writes[0].updateMask, { fieldPaths: ["uid"] });
+  assert.deepEqual(body.writes[0].currentDocument, { exists: false });
+});
+
+test("a new rate-limit window uses the valid Firestore REST creation contract", () => {
+  const body = buildFirestoreCommitBody([
+    {
+      path: "rateLimits/worker_hash",
+      data: { subjectHash: "hash", count: 1, startedAt: 1 },
+      create: true,
+    },
+  ], documentName);
+
+  assert.equal("create" in body.writes[0], false);
+  assert.equal(body.writes[0].update.fields.count.integerValue, "1");
+  assert.deepEqual(body.writes[0].currentDocument, { exists: false });
 });
 
 test("commit preserves reservation status updates without unmasking unrelated fields", () => {
