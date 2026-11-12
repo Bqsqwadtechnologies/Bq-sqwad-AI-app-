@@ -63,7 +63,6 @@ import { handleTeamsSqwadRoutes } from "./teams-routes-handler.js";
 import { getNativeMonthlyFeedbackState, submitNativeMonthlyFeedback, getNativeMonthlyFeedbackAdmin, saveNativeMonthlyFeedbackAdmin } from "./monthly-feedback-native.js";
 import { buildTrainingCandidates, exportApprovedTrainingJsonl, exportBusinessConversationJsonl, listTrainingCandidates, setTrainingCandidateStatus } from "./training-pipeline-native.js";
 import { writePresence } from "./presence-usage-native.js";
-import { notifyDailyFreeCredit } from "./free-credit-notify-native.js";
 import { handleModelsCatalog, resolveModelCatalogEntry } from "./ai-model-catalog-route.js";
 import { canUseModel } from "./ai-model-catalog.ts";
 
