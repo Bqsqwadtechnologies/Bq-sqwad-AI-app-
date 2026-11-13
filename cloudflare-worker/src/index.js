@@ -3762,7 +3762,7 @@ export default {
         // Match the exact bypass decision used by chargeCredits(). Admin Plan Test
         // Mode must expose and spend the administrator's real gifted/purchased balance.
         if (await adminBypassEnabled(user, env)) {
-          return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+          return json({ available: 0, reserved: 0, adminUnlimited: true, billingStatus: "admin_exempt", updatedAt: null, source: "admin_unlimited" });
         }
         await ensureWelcomeCredits(user);
         await applyConfiguredDailyFreeCredits(user.uid);
@@ -3775,6 +3775,7 @@ export default {
           available: balance.total,
           reserved: 0,
           adminUnlimited: false,
+          billingStatus: "balance",
           permanent: balance.permanent,
           subscription: balance.subscription,
           trial: balance.trial,
