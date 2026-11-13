@@ -70,11 +70,12 @@ class CoreTest {
         assertEquals(28, anniversary.get(Calendar.DAY_OF_MONTH))
     }
 
-    @Test fun remoteImagesEmbeddedInAiTextAreNotRendered() {
-        val blocks = parseBlocks("![private repository](https://github.com/private/repo/worker.png)")
-        assertFalse(blocks.any { it is MdBlock.Image })
-        assertFalse(blocks.toString().contains("github.com"))
-        assertTrue(blocks.toString().contains("External image preview hidden for privacy."))
+    @Test fun remoteHttpsImagesEmbeddedInAiTextAreRendered() {
+        val blocks = parseBlocks("![generated preview](https://storage.googleapis.com/bq-test/generated.png)")
+        assertEquals(1, blocks.size)
+        assertTrue(blocks[0] is MdBlock.Image)
+        assertEquals("generated preview", (blocks[0] as MdBlock.Image).alt)
+        assertEquals("https://storage.googleapis.com/bq-test/generated.png", (blocks[0] as MdBlock.Image).url)
     }
 
 
@@ -249,11 +250,11 @@ class CoreTest {
         assertTrue(blocks[2] is MdBlock.Code)
     }
 
-    @Test fun markdownHidesRemoteImageLinksForPrivacy() {
+    @Test fun markdownRendersHttpsImageLinks() {
         val blocks = parseBlocks("![preview](https://example.com/image.png)")
         assertEquals(1, blocks.size)
-        assertTrue(blocks[0] is MdBlock.Para)
-        assertEquals("External image preview hidden for privacy.", (blocks[0] as MdBlock.Para).text)
+        assertTrue(blocks[0] is MdBlock.Image)
+        assertEquals("https://example.com/image.png", (blocks[0] as MdBlock.Image).url)
     }
 
     @Test fun csvDimensionsRespectQuotedCommasAndMultilineFields() {
