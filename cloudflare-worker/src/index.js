@@ -5272,7 +5272,10 @@ export default {
            throw Object.assign(new Error("live_session_not_found"), { httpStatus: 409, safeError: "provider_unavailable" });
          }
          const serverNow = Date.now();
-         const lastBilledAt = new Date(liveSession.lastBilledAt || liveSession.startedAt || serverNow).getTime();
+         const parsedLastBilledAt = Date.parse(String(liveSession.lastBilledAt || liveSession.startedAt || ""));
+         // Corrupt or legacy timestamps must never turn elapsed billing into NaN
+         // (which would silently skip charging and poison the session heartbeat).
+         const lastBilledAt = Number.isFinite(parsedLastBilledAt) ? parsedLastBilledAt : serverNow;
          const elapsedSeconds = Math.min(120, Math.max(0, Math.floor((serverNow - lastBilledAt) / 1000)));
          const smartTranscribeRule = heartbeatBody.smart === true
            ? await activeGenerationRule("speech.transcribe")
@@ -5296,10 +5299,14 @@ export default {
              updatedAt: new Date(serverNow).toISOString()
            }, true);
          }
-         const updatedBalance = canonicalUserBalance(await readCanonicalUserBalance(user.uid));
+         // Billing has already been committed. A transient balance-read failure
+         // must not turn a successful heartbeat into HTTP 500 or prompt a client
+         // retry for an interval that has already been charged.
+         const balanceSnapshot = await readCanonicalUserBalance(user.uid).catch(() => null);
+         const updatedBalance = balanceSnapshot ? canonicalUserBalance(balanceSnapshot) : null;
          return json({
            ok: true,
-           available: isSuperAdmin(user, env) ? null : Number(updatedBalance?.total || 0),
+           available: isSuperAdmin(user, env) || !updatedBalance ? null : Number(updatedBalance.total || 0),
            charged: Number(charge.amount || 0),
            free: rate === 0,
            billingIntervalSeconds: 30,
