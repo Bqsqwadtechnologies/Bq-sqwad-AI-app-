@@ -49,9 +49,14 @@ internal fun parseBlocks(src: String): List<MdBlock> {
         val trimmed = line.trimStart()
         when {
             MARKDOWN_IMAGE.matchEntire(trimmed) != null -> {
-                // Remote images in ordinary AI text are not trusted UI attachments.
-                // Keep a neutral placeholder; generated images use the dedicated image result.
-                out += MdBlock.Para("External image preview hidden for privacy.")
+                val match = MARKDOWN_IMAGE.matchEntire(trimmed)!!
+                val alt = match.groupValues.getOrNull(1).orEmpty()
+                val url = match.groupValues.getOrNull(2).orEmpty()
+                if (url.startsWith("https://", ignoreCase = true)) {
+                    out += MdBlock.Image(alt = alt, url = url)
+                } else {
+                    out += MdBlock.Para(trimmed)
+                }
             }
             trimmed.startsWith("```") -> {
                 val lang = trimmed.removePrefix("```").trim()
