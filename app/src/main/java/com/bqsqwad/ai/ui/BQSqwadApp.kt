@@ -3379,7 +3379,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
                 ).filterNotNull().joinToString("\n\n")
-                var rawStreamText = ""
                 val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
                     val firstImage = imageParts.firstOrNull()
                     ChatApiClient().analyzeCameraFrame(
@@ -3392,13 +3391,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { delta ->
-                        // Buffer provider chunks privately; reveal one complete reply
-                        // after the server confirms final usage and credit settlement.
-                        rawStreamText += delta
-                    }, onReplace = { full ->
-                        rawStreamText = full
-                    }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label ->
+                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { /* Show only the final settled reply. */ },
+                        onReplace = { /* Replaced full text is rendered after completion. */ },
+                        onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label ->
                         // Provider settlement is an internal billing operation, not a chat status.
                         val safeLabel = label.trim()
                         if (!safeLabel.contains(Regex("provider|cost|settle|billing|usage", RegexOption.IGNORE_CASE))) {
