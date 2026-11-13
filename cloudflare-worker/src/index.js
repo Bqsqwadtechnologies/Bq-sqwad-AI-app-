@@ -2262,10 +2262,6 @@ const COMPOSIO_TOOLKITS = new Set([
   "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow", "salesforce", "servicenow"
 ]);
 
-function isConnectorRelatedPrompt(message) {
-  return /\b(gmail|e-?mail|google drive|drive files?|calendar|meetings?|github|repositories|repos|pull requests?|issues|dropbox|notion|slack|trello|linear|figma|jira|airtable|outlook|onedrive|google docs?|google sheets?|spreadsheets?|connected services?|connected connectors?|connected apps?|use my connector|use my connected|my cloud files?|my inbox|my email|my files|my repository|my repo)\b/i.test(String(message || ""));
-}
-
 function connectorToolSchema(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { type: "object", properties: {}, additionalProperties: false };
   const schema = raw;
