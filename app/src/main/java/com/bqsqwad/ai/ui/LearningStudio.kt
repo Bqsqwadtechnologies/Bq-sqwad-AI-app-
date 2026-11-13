@@ -213,6 +213,32 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
             }
         }
 
+        if (school) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text("School & Tutor Command Centre", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("Teacher-focused learning operations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Text("Your School & Tutor plan includes up to 60 learner seats, teacher dashboards, classes, assignments, bulk onboarding, curriculum mapping, coverage reports, verifiable certificates, safeguarding and data-protection reporting.", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BqStatusBadge("School & Tutor")
+                        BqStatusBadge("$lessonsCompleted lessons")
+                        BqStatusBadge("$quizzesCompleted quizzes")
+                    }
+                    Text("Teacher dashboard requests use the existing Learning Studio service. Classroom administration, assignment publishing, bulk import and compliance-report endpoints still require backend completion before they can be marked live.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
         Text("Learning mode", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(listOf("Tutor", "Lesson", "Revision", "Quiz", "Exam")) { item ->
