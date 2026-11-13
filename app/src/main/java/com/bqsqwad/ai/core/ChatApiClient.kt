@@ -252,9 +252,17 @@ class ChatApiClient(
                     if (trimmed.isEmpty() || trimmed == "[DONE]") return
                     val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
                     when (event) {
-                        "taskStarted" -> { onTaskStarted(json.optLong("startedAt", System.currentTimeMillis())); return }
-                        "phase" -> { onPhase(json.optString("label").ifBlank { "Working" }); return }
-                        "taskEnded" -> { onTaskEnded(); return }
+                        // Main Chat intentionally has no separate "streaming response" status row.
+                        // Keep task timing/status callbacks for specialized capabilities only.
+                        "taskStarted" -> {
+                            if (capability != "chat") onTaskStarted(json.optLong("startedAt", System.currentTimeMillis()))
+                            return
+                        }
+                        "phase" -> {
+                            if (capability != "chat") onPhase(json.optString("label").ifBlank { "Working" })
+                            return
+                        }
+                        "taskEnded" -> { if (capability != "chat") onTaskEnded(); return }
                     }
                     when (json.optString("type")) {
                         "delta" -> {
