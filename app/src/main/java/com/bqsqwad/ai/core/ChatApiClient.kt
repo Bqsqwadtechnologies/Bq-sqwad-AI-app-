@@ -259,7 +259,8 @@ class ChatApiClient(
                             return
                         }
                         "phase" -> {
-                            if (capability != "chat") onPhase(json.optString("label").ifBlank { "Working" })
+                            val label = json.optString("label").ifBlank { "Working" }
+                            if (capability != "chat" || label.contains("connector", ignoreCase = true) || label.contains("connected service", ignoreCase = true)) onPhase(label)
                             return
                         }
                         "taskEnded" -> { if (capability != "chat") onTaskEnded(); return }
