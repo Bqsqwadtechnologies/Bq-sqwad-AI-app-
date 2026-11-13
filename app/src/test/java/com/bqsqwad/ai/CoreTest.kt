@@ -376,7 +376,7 @@ class CoreTest {
         assertTrue(shouldAutoSaveChat(privateChat = false, historyEnabled = true, autoSaveEnabled = true))
     }
 
-    @Test fun testModeBypassesWorkspacePlanGateOnlyForAuthorizedAdmin() {
+    @Test fun adminBypassAppliesOnlyWhenPlanTestModeIsOff() {
         // Keep this policy test independent of Android's mocked org.json methods.
         // Catalog parsing has separate integration coverage; this test focuses on
         // the access decision once the verified catalog snapshot has been loaded.
@@ -389,13 +389,13 @@ class CoreTest {
             loaded = true
         )
 
-        val normalUser = snapshot(admin = false, testMode = true)
+        val normalUser = snapshot(admin = false, testMode = false)
         val adminWithoutTestMode = snapshot(admin = true, testMode = false)
-        val authorizedAdminTestMode = snapshot(admin = true, testMode = true)
+        val adminWithTestMode = snapshot(admin = true, testMode = true)
 
         assertFalse(normalUser.hasVerifiedAccess(Workspace.BUSINESS))
-        assertFalse(adminWithoutTestMode.hasVerifiedAccess(Workspace.BUSINESS))
-        assertTrue(authorizedAdminTestMode.hasVerifiedAccess(Workspace.BUSINESS))
+        assertTrue(adminWithoutTestMode.hasVerifiedAccess(Workspace.BUSINESS))
+        assertFalse(adminWithTestMode.hasVerifiedAccess(Workspace.BUSINESS))
     }
 
     @Test fun verifiedProductPlanOpensWorkspaceEvenWhenProviderAndCatalogPlanIdsDiffer() {
