@@ -2845,6 +2845,18 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     }
 
 
+    fun applyStreamBalance(balanceAfter: Double) {
+        val available = balanceAfter.coerceAtLeast(0.0)
+        creditBalanceLoaded = true
+        creditBalanceLabel = "Credits: " + String.format(java.util.Locale.US, "%.7f", available).trimEnd('0').trimEnd('.')
+        creditsExhausted = available <= 0.0
+        if (available <= 0.0) {
+            creditNotice = "You're out of credits. Add credits or activate a plan to continue using BQ Sqwad AI. New-account welcome credits are granted once and do not renew."
+        } else if (creditNotice?.startsWith("You're out of credits.") == true) {
+            creditNotice = null
+        }
+    }
+
     fun applyCreditSnapshot(snapshot: JSONObject) {
         creditBalanceLoaded = true
         if (snapshot.optBoolean("adminUnlimited")) {
@@ -3443,6 +3455,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             billingStatus = reply.billingStatus,
                             balanceAfter = reply.balanceAfter
                         )
+                        // Reflect the authoritative stream settlement immediately;
+                        // the following /credits refresh remains a reconciliation check.
+                        reply.balanceAfter?.let { applyStreamBalance(it) }
                     }
                     error = null
                     taskStartedAtMs = null
