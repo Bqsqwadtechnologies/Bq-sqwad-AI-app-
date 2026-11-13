@@ -20,7 +20,6 @@ const OPENAI_MODEL_BY_CAPABILITY = {
   embeddings: "text-embedding-3-small",
   moderation: "omni-moderation-latest",
   device_commands: "gpt-6-luna",
-  video_generation: null
 };
 function allowedModelForCapability(capability, providerId, configuredModel) {
   if (providerId !== "openai") return configuredModel || DEFAULT_MODELS[providerId] || null;
@@ -51,16 +50,15 @@ export async function getRoute(capability) {
         ? config.fallbackProviderIds
         : ((data.providerId || "openai") === "openai" ? ["gemini"] : [])),
       fallbackModels: config.fallbackModels && typeof config.fallbackModels === "object" ? config.fallbackModels : {},
-      enabled: capability !== "video_generation" && data.enabled !== false && data.killSwitch !== true
+      enabled: data.enabled !== false && data.killSwitch !== true
     };
   }
   const defaults = {
     chat: { primaryProviderId: "openai", primaryModelId: DEFAULT_MODELS.openai, fallbackProviderIds: [], enabled: true },
     device_commands: { primaryProviderId: "openai", primaryModelId: "gpt-6-luna", fallbackProviderIds: [], enabled: true },
     web_search: { primaryProviderId: "tavily", primaryModelId: null, fallbackProviderIds: [], enabled: true },
-    video_generation: { primaryProviderId: "openai", primaryModelId: null, fallbackProviderIds: [], enabled: false }
   };
-  return defaults[capability] || { primaryProviderId: "openai", primaryModelId: allowedModelForCapability(capability, "openai"), fallbackProviderIds: [], enabled: capability !== "video_generation" };
+  return defaults[capability] || { primaryProviderId: "openai", primaryModelId: allowedModelForCapability(capability, "openai"), fallbackProviderIds: [], enabled: true };
 }
 
 export async function callOpenAI({ model, message, system }) {
