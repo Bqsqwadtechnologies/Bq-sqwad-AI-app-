@@ -54,7 +54,7 @@ fun BqChatHeader(
         }
     }
     Row(
-        Modifier.fillMaxWidth().height(40.dp).padding(start = 4.dp, end = 12.dp),
+        Modifier.fillMaxWidth().padding(top = 10.dp).height(40.dp).padding(start = 4.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BqDashMenuIcon(open = drawerOpen, onClick = onMenu)
