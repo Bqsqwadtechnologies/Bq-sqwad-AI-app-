@@ -18,6 +18,7 @@ object BusinessToolCatalog {
         BusinessTool("notion", "Notion", "Productivity", "Notes, wikis, and tickets."),
         BusinessTool("hubspot", "HubSpot", "CRM", "Contacts, deals, and tickets."),
         BusinessTool("salesforce", "Salesforce", "CRM", "CRM records and cases."),
+        BusinessTool("servicenow", "ServiceNow", "Support", "IT service records and workflows."),
         BusinessTool("stripe", "Stripe", "Payments", "Payments, invoices, refunds."),
         BusinessTool("paystack", "Payments", "Payments", "Local payments and customers."),
         BusinessTool("shopify", "Shopify", "Payments", "Orders and store customers."),
