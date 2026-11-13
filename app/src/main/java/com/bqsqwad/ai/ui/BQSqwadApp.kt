@@ -3457,7 +3457,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         )
                         // Reflect the authoritative stream settlement immediately;
                         // the following /credits refresh remains a reconciliation check.
-                        reply.balanceAfter?.let { applyStreamBalance(it) }
+                        if (reply.billingStatus != "admin_exempt") {
+                            reply.balanceAfter?.let { applyStreamBalance(it) }
+                        }
                     }
                     error = null
                     taskStartedAtMs = null
