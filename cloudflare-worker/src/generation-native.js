@@ -215,11 +215,3 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:finalCredits,...(usage?{usage}:{})};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
-export async function createVideoNative() {
-  throw Object.assign(new Error("video_generation_model_not_allowed_by_project_policy"), {
-    httpStatus: 503,
-    safeError: "feature_temporarily_unavailable"
-  });
-}
-export async function getVideoNative(env,user,jobId){const x=await firestoreGet("videoGenerationJobs/"+jobId);if(!x||x.uid!==user.uid)throw new Error("video_job_not_found");const z=await openai(env,"/videos/"+encodeURIComponent(String(x.providerVideoId)),{method:"GET"});return {jobId,...x,status:String(z.status||x.status||"queued"),progress:Number(z.progress||0),error:z.error?.message||null}}
-export async function getVideoContentNative(env,user,jobId){const x=await firestoreGet("videoGenerationJobs/"+jobId);if(!x||x.uid!==user.uid)throw new Error("video_job_not_found");const r=await fetch("https://api.openai.com/v1/videos/"+encodeURIComponent(String(x.providerVideoId))+"/content",{headers:{Authorization:"Bearer "+String(env.OPENAI_API_KEY||"")},signal:AbortSignal.timeout(30000)});if(!r.ok)throw new Error("video_content_download_failed");return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"video/mp4","cache-control":"private, no-store"}})}
