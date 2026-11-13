@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,7 +91,10 @@ fun WebSourceChip(source: SearchSource, onOpen: (String) -> Unit, modifier: Modi
                     }
                 }
             }
-            Text(domain, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(source.title.ifBlank { domain }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text(domain, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
         }
     }
 
@@ -98,7 +102,11 @@ fun WebSourceChip(source: SearchSource, onOpen: (String) -> Unit, modifier: Modi
         AlertDialog(
             onDismissRequest = { showTitle = false },
             title = { Text(source.title.ifBlank { domain }) },
-            confirmButton = { TextButton(onClick = { showTitle = false }) { Text("Close") } }
+            text = { Text(source.url) },
+            confirmButton = {
+                TextButton(onClick = { showTitle = false }) { Text("Close") }
+                TextButton(onClick = { showTitle = false; if (safeUrl) onOpen(source.url) }, enabled = safeUrl) { Text("Open source") }
+            }
         )
     }
 }
