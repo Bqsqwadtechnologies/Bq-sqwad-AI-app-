@@ -6449,6 +6449,11 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
                 ) {
                     OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
                     OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active && !screenActive) { Text(if (smartMode) "Smart Practice: ON" else "Smart Practice") }
+                    if (active && liveServiceMode == LiveMediaForegroundService.MODE_CAMERA) {
+                        OutlinedButton(onClick = { LiveMediaForegroundService.setMicrophoneMuted(!liveUiState.microphoneMuted) }) {
+                            Text(if (liveUiState.microphoneMuted) "Unmute mic" else "Mute mic")
+                        }
+                    }
                     var voiceExpanded by remember { mutableStateOf(false) }
                     Box {
                         OutlinedButton(onClick = { voiceExpanded = true }) {
