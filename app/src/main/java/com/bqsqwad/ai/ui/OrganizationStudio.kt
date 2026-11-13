@@ -281,9 +281,20 @@ fun OrganizationStudioWorkspace() {
         contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)
     ) {
         item {
-            Card(Modifier.fillMaxWidth()) {
+            val activePlanId = organizationAccess?.optString("planId").orEmpty()
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = when (activePlanId) {
+                        "orgcore" -> MaterialTheme.colorScheme.primaryContainer
+                        "orgproduction" -> MaterialTheme.colorScheme.secondaryContainer
+                        "orgbroadcast" -> MaterialTheme.colorScheme.tertiaryContainer
+                        "orgenterprise" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                        else -> MaterialTheme.colorScheme.surfaceContainer
+                    }
+                )
+            ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val activePlanId = organizationAccess?.optString("planId").orEmpty()
                     val activePlan = organizationCatalog?.let { plans ->
                         (0 until plans.length()).mapNotNull { plans.optJSONObject(it) }.firstOrNull { it.optString("id") == activePlanId }
                     }
@@ -314,10 +325,10 @@ fun OrganizationStudioWorkspace() {
                         fontWeight = FontWeight.SemiBold
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SuggestionChip(onClick = {}, enabled = false, label = { Text("Production") })
-                        SuggestionChip(onClick = {}, enabled = false, label = { Text("AI Director") })
-                        SuggestionChip(onClick = {}, enabled = false, label = { Text("YouTube Live") })
-                        SuggestionChip(onClick = {}, enabled = false, label = { Text("USD PAYG") })
+                        BqStatusBadge("Production")
+                        BqStatusBadge("AI Director")
+                        BqStatusBadge("YouTube Live")
+                        BqStatusBadge("USD PAYG")
                     }
                     activePlan?.optJSONArray("features")?.let { features ->
                         if (features.length() > 0) Text(
