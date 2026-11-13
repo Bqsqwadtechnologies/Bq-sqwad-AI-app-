@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import kotlinx.coroutines.launch
@@ -41,6 +42,7 @@ fun PlanToolsConnectScreen(
     val scope = rememberCoroutineScope()
     val connectedById = remember { mutableStateMapOf<String, Boolean>() }
     val statusById = remember { mutableStateMapOf<String, String>() }
+    val accountNameById = remember { mutableStateMapOf<String, String>() }
     var refreshing by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
@@ -50,20 +52,29 @@ fun PlanToolsConnectScreen(
                 .onSuccess { response ->
                     val connected = response.optBoolean("connected", false)
                     connectedById[tool.id] = connected
-                    statusById[tool.id] = if (connected) {
-                        response.optString("accountName").takeIf { it.isNotBlank() }?.let { "Connected · $it" } ?: "Connected"
+                    if (connected) {
+                        response.optString("accountName").trim().takeIf { it.isNotBlank() }?.let {
+                            accountNameById[tool.id] = it
+                        }
+                        statusById[tool.id] = "Connected"
                     } else {
-                        "Not connected"
+                        accountNameById.remove(tool.id)
+                        statusById[tool.id] = "Not connected"
                     }
                 }
                 .onFailure { error ->
                     val message = error.message.orEmpty()
-                    statusById[tool.id] = if (message.contains("unsupported_connector")) {
-                        "Not yet supported by the secure connector service"
-                    } else {
-                        "Status unavailable · refresh to retry"
+                    val wasConnected = connectedById[tool.id] == true
+                    statusById[tool.id] = when {
+                        wasConnected -> "Connection confirmed earlier · status refresh unavailable"
+                        message.contains("unsupported_connector") -> "Not yet supported by the secure connector service"
+                        else -> "Status unavailable · refresh to retry"
                     }
-                    connectedById[tool.id] = false
+                    // A timeout or transient secondary lookup failure is not proof that
+                    // an already-confirmed OAuth connection has been revoked.
+                    if (!wasConnected && !message.contains("unsupported_connector")) {
+                        connectedById[tool.id] = false
+                    }
                 }
         }
         refreshing = false
@@ -88,7 +99,14 @@ fun PlanToolsConnectScreen(
                 val status = statusById[tool.id] ?: "Checking connection…"
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(tool.name, style = MaterialTheme.typography.titleMedium)
-                    Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (connected) {
+                            "● Connected" + accountNameById[tool.id]?.let { " as $it" }.orEmpty() +
+                                if (status == "Connected") "" else " · status refresh unavailable"
+                        } else status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (connected) Color(0xFF16834A) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     if (!status.startsWith("Not yet supported")) {
                         Button(onClick = { onConnect(tool.id) }) {
                             Text(if (connected) "Reconnect" else "Connect")
