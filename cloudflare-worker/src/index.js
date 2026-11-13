@@ -3880,12 +3880,18 @@ export default {
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
         const docs = await firestoreQuery("chatHistory", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }], limit: 100 });
         docs.sort((a,b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
-        return json({ items: docs.slice(0, limit).map(item => ({
+        return json({ items: docs.slice(0, limit).map(item => {
+          const storedTitle = String(item.title || "").trim();
+          const firstUserMessage = Array.isArray(item.messages) ? item.messages.find(message => message?.mine && String(message.text || "").trim()) : null;
+          const title = /^(private chat|secret chat|new chat|untitled chat)$/i.test(storedTitle)
+            ? String(firstUserMessage?.text || "Untitled chat").trim().slice(0, 180)
+            : (storedTitle || String(firstUserMessage?.text || "Untitled chat").trim().slice(0, 180));
+          return {
           id: String(item.__name || "").split("/").pop(),
-          title: String(item.title || "New chat"),
+          title,
           updatedAt: String(item.updatedAt || ""),
           messageCount: Array.isArray(item.messages) ? item.messages.length : 0
-        })) });
+        }; })) });
       }
 
       if (url.pathname.startsWith("/history/") && request.method === "GET") {
@@ -3894,7 +3900,13 @@ export default {
         if (!id || id.includes("/")) return json({ error: "invalid_history_id" }, 400);
         const item = await firestoreGet("chatHistory/" + id);
         if (!item || String(item.uid || "") !== user.uid) return json({ error: "history_not_found" }, 404);
-        return json({ id, title: String(item.title || "New chat"), messages: Array.isArray(item.messages) ? item.messages : [] });
+        const messages = Array.isArray(item.messages) ? item.messages : [];
+        const storedTitle = String(item.title || "").trim();
+        const firstUserMessage = messages.find(message => message?.mine && String(message.text || "").trim());
+        const title = /^(private chat|secret chat|new chat|untitled chat)$/i.test(storedTitle)
+          ? String(firstUserMessage?.text || "Untitled chat").trim().slice(0, 180)
+          : (storedTitle || String(firstUserMessage?.text || "Untitled chat").trim().slice(0, 180));
+        return json({ id, title, messages });
       }
 
       if (url.pathname === "/history" && request.method === "POST") {
@@ -3907,7 +3919,11 @@ export default {
         if (existing && String(existing.uid || "") !== user.uid) return json({ error: "history_forbidden" }, 403);
         const rawMessages = Array.isArray(body.messages) ? body.messages : [];
         const messages = normalizeHistoryMessages(rawMessages);
-        const title = String(body.title || messages.find(item => item.mine)?.text || "New chat").trim().slice(0, 180);
+        const requestedTitle = String(body.title || "").trim();
+        const firstUserMessage = messages.find(item => item.mine && String(item.text || "").trim());
+        const title = (/^(private chat|secret chat|new chat|untitled chat)$/i.test(requestedTitle) || !requestedTitle
+          ? String(firstUserMessage?.text || "Untitled chat")
+          : requestedTitle).trim().slice(0, 180);
         await firestoreSet("chatHistory/" + id, { uid:user.uid, title, messages, createdAt:existing?.createdAt || new Date(), updatedAt:new Date() }, true);
         return json({ ok:true, id, title, messageCount:messages.length });
       }
@@ -6773,7 +6789,9 @@ export default {
         // Deep research keeps its existing fixed rule and is not altered here.
         let reservation = { reservationId: null, amount: 0 };
         try {
-          const result = await callTavily(env, query, Number(body.maxResults || control.config?.maxResults || 10), deepResearch);
+          const configuredMaxResults = Number(body.maxResults || control.config?.maxResults || 3);
+          const focusedMaxResults = deepResearch ? configuredMaxResults : Math.min(configuredMaxResults, 3);
+          const result = await callTavily(env, query, focusedMaxResults, deepResearch);
           const uniqueSites = new Set();
           for (const source of result.sources || []) {
             try {
@@ -6785,7 +6803,7 @@ export default {
             ? searchRule.credits + (searchRule.unit === "none" ? 0 : searchRule.creditsPerUnit)
             : searchRule.credits + searchRule.creditsPerUnit * uniqueSites.size;
           if (charge > 0) reservation = await chargeCredits(user.uid, charge, capabilityName, user);
-          let answer = null;
+          let answer = result.answer || null;
           if (deepResearch && result.sources?.length) {
             const sources = result.sources.map((s,i) => "[" + (i + 1) + "] " + String(s.title || "") + "\nURL: " + String(s.url || "") + "\n" + String(s.snippet || "")).join("\n\n");
             const synthesis = await runProvider(env, {
