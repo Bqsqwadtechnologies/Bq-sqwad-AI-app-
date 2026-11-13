@@ -1958,12 +1958,8 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         (actionAtStart.containsMatchIn(q) && drawObjectRequest.containsMatchIn(q))
 }
 
-internal fun needsCurrentWebSearch(text: String): Boolean {
-    val query = text.trim().lowercase(java.util.Locale.ROOT)
-    if (query.isBlank()) return false
-    return Regex("\\b(latest|today|right now|currently|current|this week|this month|breaking|news|price|prices|cost|exchange rate|weather|score|scores|schedule|fixture|fixtures|standings|results|release date|recent update|as of|who is the current|president|prime minister|ceo of)\\b")
-        .containsMatchIn(query)
-}
+internal fun needsCurrentWebSearch(text: String): Boolean =
+    com.bqsqwad.ai.ui.chat.MainChatHelpers.needsCurrentWebSearch(text)
 
 private fun isPdfGenerationRequest(text: String): Boolean =
     Regex("""\b(create|generate|make|export|save|convert|turn)\b.{0,80}\bpdf\b|\bpdf\b.{0,60}\b(create|generate|make|export)\b""", RegexOption.IGNORE_CASE)
