@@ -10,6 +10,7 @@ export const BUSINESS_TOOL_CATALOG = [
   { id: "linear", name: "Linear", category: "productivity", composioApp: "linear" },
   { id: "hubspot", name: "HubSpot", category: "crm", composioApp: "hubspot" },
   { id: "salesforce", name: "Salesforce", category: "crm", composioApp: "salesforce" },
+  { id: "servicenow", name: "ServiceNow", category: "support", composioApp: "servicenow" },
   { id: "zoho", name: "Zoho CRM", category: "crm", composioApp: "zoho" },
   { id: "stripe", name: "Stripe", category: "payments", composioApp: "stripe" },
   { id: "paystack", name: "Paystack", category: "payments", composioApp: "paystack" },
