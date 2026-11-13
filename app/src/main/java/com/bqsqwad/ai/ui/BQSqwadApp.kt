@@ -4609,7 +4609,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                             PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
                                                 showAttachmentSourceDialog = true
                                             PlusAction.CreateImage -> message = "Create an image of "
-                                            PlusAction.CreateFile -> message = "Create a PDF document about "
+                                            PlusAction.CreateFile -> message = "Create a downloadable file (PDF, TXT, MD, CSV, JSON, HTML, XML, YAML, Python, JavaScript, TypeScript, Kotlin, Java, SQL, etc.). Describe what it should contain: "
                                             PlusAction.Connectors -> error = "Connectors are managed in the workspace tools."
                                         }
                                     }
