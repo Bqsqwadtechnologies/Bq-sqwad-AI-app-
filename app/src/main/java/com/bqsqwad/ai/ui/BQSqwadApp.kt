@@ -1025,18 +1025,21 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         bqTextScaleState.floatValue = accountPreferences(context).getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.8f)
     }
     LaunchedEffect(firebaseUser?.uid) {
-        val uid = firebaseUser?.uid ?: return@LaunchedEffect
+        if (firebaseUser == null) return@LaunchedEffect
         val uiPrefs = context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE)
-        runCatching { SettingsSyncClient.load() }.onSuccess { payload ->
-            val remote = payload.optJSONObject("settings") ?: return@onSuccess
-            val editor = uiPrefs.edit()
-            remote.optString("theme_mode").takeIf {
-                it in setOf("light", "system", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
-            }?.let { editor.putString("theme_mode", it) }
-            remote.optString("accent_palette").takeIf {
-                it in setOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
-            }?.let { editor.putString("accent_palette", it) }
-            editor.apply()
+        while (true) {
+            runCatching { SettingsSyncClient.load() }.onSuccess { payload ->
+                val remote = payload.optJSONObject("settings") ?: return@onSuccess
+                val editor = uiPrefs.edit()
+                remote.optString("theme_mode").takeIf {
+                    it in setOf("light", "system", "dark", "amoled", "midnight", "ocean", "aurora", "sunset")
+                }?.let { editor.putString("theme_mode", it) }
+                remote.optString("accent_palette").takeIf {
+                    it in setOf("signature", "blue", "indigo", "violet", "teal", "emerald", "rose", "amber", "graphite")
+                }?.let { editor.putString("accent_palette", it) }
+                editor.apply()
+            }
+            delay(30_000L)
         }
     }
 
