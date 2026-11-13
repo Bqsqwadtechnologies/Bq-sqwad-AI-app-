@@ -5,7 +5,6 @@ const FEATURE_CAPABILITIES = {
   "live-camera": "live_camera",
   "image-generation": "image_generation",
   "device-commands": "device_commands",
-  "video-generation": "video_generation",
   "live-voice": "live_voice", "transcription": "dictation", "text-to-speech": "text_to_speech", "embeddings": "embeddings", "moderation": "moderation"
 };
 
@@ -24,7 +23,6 @@ const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
   "text-to-speech": new Set(["gpt-4o-mini-tts"]),
   "embeddings": new Set(["text-embedding-3-small"]),
   "moderation": new Set(["omni-moderation-latest"]),
-  "video-generation": new Set()
 };
 function isAllowedOpenAiModel(modelId, feature) {
   return ALLOWED_OPENAI_MODELS_BY_FEATURE[String(feature || "").trim().toLowerCase()]?.has(String(modelId || "").trim().toLowerCase()) === true;
@@ -41,7 +39,6 @@ function normalizeModel(raw, actorUid) {
   if (!PROVIDERS.has(providerId)) throw new Error("model_provider_unsupported");
   if (!isAllowedProviderForFeature(providerId, feature)) throw new Error("provider_not_supported_for_feature");
   if (providerId === "openai" && !isAllowedOpenAiModel(modelId, feature)) throw new Error("openai_model_not_allowed_by_project_policy");
-  const requiredProvider = ["image-generation", "video-generation", "live-voice"].includes(feature) ? "openai" : null;
   if (requiredProvider && providerId !== requiredProvider) throw new Error("model_provider_incompatible_with_feature");
 
   if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(modelId)) throw new Error("provider_model_id_invalid");
@@ -52,7 +49,6 @@ function normalizeModel(raw, actorUid) {
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
     "device-commands": new Set(["openai"]),
-    "video-generation": new Set(["openai"]),
     "transcription": new Set(["openai"]),
     "text-to-speech": new Set(["openai"]),
     "embeddings": new Set(["openai"]),
@@ -108,10 +104,8 @@ export async function ensureCurrentModelRegistry(defaultModels = {}) {
       providerId = "openai";
       modelId = "gpt-6-luna";
     }
-    if (["live-camera", "live-voice", "image-generation", "video-generation"].includes(definition.feature)) providerId = "openai";
     if (["live-camera", "live-voice"].includes(definition.feature) && !/^gpt-realtime-2\.1-mini$/i.test(modelId)) modelId = definition.modelId;
     if (definition.feature === "image-generation" && !modelId.startsWith("gpt-image")) modelId = definition.modelId;
-    if (definition.feature === "video-generation" && !modelId.startsWith("sora")) modelId = definition.modelId;
     if (definition.feature === "device-commands") {
       providerId = "openai";
       modelId = "gpt-6-luna";
@@ -234,7 +228,6 @@ export async function validateAiModel(env, raw) {
     "image-generation": new Set(["openai"]),
     "live-voice": new Set(["openai"]),
     "device-commands": new Set(["openai", "gemini"]),
-    "video-generation": new Set(["openai"]),
     "transcription": new Set(["openai"]),
     "text-to-speech": new Set(["openai"]),
     "embeddings": new Set(["openai"]),
@@ -254,7 +247,6 @@ export async function validateAiModel(env, raw) {
     "embeddings": /^text-embedding/i,
     "moderation": /^omni-moderation/i,
     "image-generation": /^gpt-image/i,
-    "video-generation": /^sora/i,
   };
   if (prefixRules[feature] && !prefixRules[feature].test(modelId)) {
     throw Object.assign(new Error("model_id_does_not_match_feature"), { httpStatus: 400 });
