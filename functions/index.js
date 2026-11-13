@@ -1225,7 +1225,10 @@ export const bqSqwadApi = onRequest(
           gate.commit();
           return send(res, 200, { ...result, creditsCharged: reservation.amount });
         } catch (error) {
-          if (!organizationRealtime) await reverseCredits(user.uid, reservation?.reservationId);
+          // Image generation is always a user-credit reservation in this route.
+          // The previous organizationRealtime reference was out of scope here and
+          // could throw a ReferenceError before the reservation was reversed.
+          await reverseCredits(user.uid, reservation?.reservationId);
           throw error;
         } finally {
           await gate.release();
@@ -1831,10 +1834,17 @@ export const bqSqwadApi = onRequest(
           : { creditsPerSearch: 1, creditsPerDeepResearch: 7, maxResults: 10, dailyUserLimit: null };
         if (pricingDoc.exists && pricingDoc.data()?.enabled === false) return send(res, 403, { error: "web_search_disabled" });
         const deepResearch = Boolean(body.deepResearch);
-        const charge = deepResearch ? 7 : Number(pricing.creditsPerSearch ?? 1);
+        // Both search modes must honor the live admin-configured price. Do not
+        // hard-code Deep Research to 7 credits after the admin has changed pricing.
+        const configuredCharge = deepResearch
+          ? Number(pricing.creditsPerDeepResearch ?? 7)
+          : Number(pricing.creditsPerSearch ?? 1);
+        if (!Number.isFinite(configuredCharge) || configuredCharge < 0) {
+          return send(res, 503, { error: "web_search_pricing_not_configured" });
+        }
         const capability = deepResearch ? "deep_research" : "web_search";
         const gate = await authorizeCapability(user.uid, "capability_" + capability);
-        const effectiveCharge = deepResearch ? 7 : Math.max(charge, gate.creditCost);
+        const effectiveCharge = Math.max(configuredCharge, Number(gate.creditCost || 0));
         const reservation = await reserveCredits(user.uid, effectiveCharge, capability);
         try {
           const result = await callTavily({
