@@ -14,7 +14,7 @@ test("Main Chat discovers owned connector sessions without keyword gating", () =
 
 test("connector calls reserve and settle the configured per-call feature price", () => {
   assert.match(source, /activeGenerationRule\("feature\.connector_action"\)/);
-  assert.match(source, /chargeCredits\(uid, Number\(pricing\.credits\), "connector_action", user, \{ allowFractional: true \}\)/);
+  assert.match(source, /chargeCredits\(uid, Number\(pricing\.credits\), "feature\\.connector_action", user, \{ allowFractional: true \}\)/);
   assert.match(source, /commitCredits\(uid, reservation\.reservationId, "composio"\)/);
   assert.match(source, /reverseCredits\(uid, reservation\.reservationId\)/);
   assert.match(source, /execution\.httpStatus === 402/);
