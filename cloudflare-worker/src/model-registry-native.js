@@ -16,7 +16,7 @@ const SAFE_OPENAI_MODEL_BY_FEATURE = {"text-chat":"gpt-6-luna","device-commands"
 const ALLOWED_OPENAI_MODELS_BY_FEATURE = {
   "text-chat": new Set(["gpt-6-luna", "gpt-5.6-luna"]),
   "device-commands": new Set(["gpt-6-luna"]),
-  "image-generation": new Set(["gpt-image-2.5-sunburst", "gpt-image-1-mini"]),
+  "image-generation": new Set(["gpt-image-2.5-sunburst"]),
   "live-camera": new Set(["gpt-realtime-2.1-mini"]),
   "live-voice": new Set(["gpt-realtime-2.1-mini"]),
   "transcription": new Set(["whisper-1", "gpt-4o-mini-transcribe"]),
