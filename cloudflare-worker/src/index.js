@@ -2286,7 +2286,9 @@ function connectorToolSchema(raw) {
   return { type: "object", properties: safeProperties, required, additionalProperties: false };
 }
 
-async function executeComposioTool(uid, toolkit, toolSlug, args) {
+async function executeComposioTool(user, toolkit, toolSlug, args) {
+  const uid = String(user?.uid || "");
+  if (!uid) return { ok: false, error: "connector_user_required" };
   const cleanToolkit = String(toolkit || "").trim().toLowerCase();
   const cleanSlug = String(toolSlug || "").trim().toUpperCase();
   if (!COMPOSIO_TOOLKITS.has(cleanToolkit) || !/^[A-Z0-9_]{1,100}$/.test(cleanSlug)) {
@@ -2317,39 +2319,46 @@ async function executeComposioTool(uid, toolkit, toolSlug, args) {
   if (JSON.stringify(safeArgs).length > 12000) return { ok: false, error: "connector_arguments_too_large" };
   const env = globalThis.__bqEnv || {};
   if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return { ok: false, error: "connector_service_not_configured" };
-  const response = await fetch("https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute", {
-    method: "POST",
-    headers: composioHeaders(env, { "Content-Type": "application/json", "Accept": "application/json" }),
-    body: JSON.stringify({ tool_slug: cleanSlug, arguments: safeArgs }),
-    signal: AbortSignal.timeout(25000)
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result.result_type === "failed" || result.error) {
-    return { ok: false, error: "connector_tool_call_failed", providerStatus: response.status };
+  let reservation = null;
+  try {
+    const pricing = await activeGenerationRule("feature.connector_action");
+    reservation = await chargeCredits(uid, Number(pricing.credits), "connector_action", user, { allowFractional: true });
+  } catch (error) {
+    if (Number(error?.httpStatus) === 402 || /insufficient|credit_balance/i.test(String(error?.message || ""))) return { ok: false, error: "insufficient_credits", httpStatus: 402, message: "Insufficient credits to perform this connector action." };
+    throw error;
   }
-  return { ok: true, toolkit: cleanToolkit, tool: cleanSlug, data: result.data ?? null };
+  try {
+    const response = await fetch("https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute", {
+      method: "POST", headers: composioHeaders(env, { "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify({ tool_slug: cleanSlug, arguments: safeArgs }), signal: AbortSignal.timeout(25000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.result_type === "failed" || result.error) {
+      if (reservation?.reservationId) await reverseCredits(uid, reservation.reservationId);
+      return { ok: false, error: "connector_tool_call_failed", providerStatus: response.status };
+    }
+    if (reservation?.reservationId) await commitCredits(uid, reservation.reservationId, "composio");
+    return { ok: true, toolkit: cleanToolkit, tool: cleanSlug, data: result.data ?? null, connectorCreditsCharged: Number(reservation?.amount || 0), billingStatus: reservation?.adminUnlimited ? "admin_exempt" : reservation?.planCovered ? "plan_included" : reservation?.free ? "zero_price" : "charged" };
+  } catch (error) {
+    if (reservation?.reservationId) await reverseCredits(uid, reservation.reservationId).catch(() => {});
+    throw error;
+  }
 }
 
 async function runConnectorAwareOpenAI(env, user, control, message, system, conversationUsedConnectors = false, reasoningEffort = "low") {
   if (String(control?.providerId || "").toLowerCase() !== "openai" || !env?.OPENAI_API_KEY) return null;
   const memoryProfile = await firestoreGet("users/" + user.uid).catch(() => null);
   const memoryEnabled = memoryProfile?.memoryEnabled === true;
-  const connectorIntent = isConnectorRelatedPrompt(message) || conversationUsedConnectors === true;
-  if (!connectorIntent && !memoryEnabled) return null;
   let sessions = [];
-  if (connectorIntent) {
-    try {
-      sessions = await firestoreQuery("composioSessions", {
-        filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
-        limit: 30
-      });
-    } catch {
-      sessions = [];
-    }
-  }
+  try {
+    sessions = await firestoreQuery("composioSessions", {
+      filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+      limit: 30
+    });
+  } catch { sessions = []; }
   const owned = (Array.isArray(sessions) ? sessions : []).filter(item =>
     item && item.uid === user.uid && item.sessionId && COMPOSIO_TOOLKITS.has(String(item.toolkit || ""))
-  ).slice(0, 18);
+  ).filter(item => item.active !== false && !["disconnected", "revoked", "expired", "inactive"].includes(String(item.status || "").toLowerCase())).slice(0, 18);
   if (!owned.length && !memoryEnabled) return null;
   const connectedServiceEntries = await Promise.all(owned.map(async (session) => {
     const toolkit = String(session.toolkit || "");
@@ -2371,7 +2380,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       const data = await response.json().catch(() => ({}));
       const tools = Array.isArray(data.tools) ? data.tools : Array.isArray(data.items) ? data.items : [];
       for (const item of tools) {
-        if (toolDefs.length >= 12) break;
+        if (toolDefs.length >= 16) break;
         const slug = String(item.slug || item.name || "").trim().toUpperCase();
         if (!/^[A-Z0-9_]{1,100}$/.test(slug)) continue;
         const prefix = toolkit === "one_drive" ? "ONE_DRIVE_" : toolkit === "outlook" ? "OUTLOOK_" : toolkit.toUpperCase() + "_";
@@ -2395,7 +2404,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
     } catch {
       // One unavailable toolkit must not block other connected services.
     }
-    if (toolDefs.length >= 12) break;
+    if (toolDefs.length >= 16) break;
   }
   if (memoryEnabled && toolDefs.length < 12) {
     toolDefs.push({
@@ -2469,7 +2478,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       try { args = JSON.parse(String(call.arguments || "{}")); } catch {}
       const result = binding.memory
         ? await saveSharedMemoryFact(user.uid, args.category, args.key, args.value, "assistant").catch(() => ({ ok: false, saved: false, error: "memory_save_failed" }))
-        : await executeComposioTool(user.uid, binding.toolkit, binding.slug, args);
+        : await executeComposioTool(user, binding.toolkit, binding.slug, args);
       input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify(result).slice(0, 4_000) });
     }
   }
@@ -3014,12 +3023,12 @@ async function stream(request, user, body) {
     purchasedOnly: chatEligibility.purchasedOnly
   });
   try {
-    const providerRoute = await buildProviderExecutionRoute(
-      control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId
-    );
-    const provider = await runWithFallback(globalThis.__bqEnv, providerRoute, {
-      message: userMessage, system, stream: true,
-      reasoningEffort: resolveTextReasoningEffort(userMessage, capabilityName)
+    const providerRoute = await buildProviderExecutionRoute(control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId);
+    const connectorAwareResult = capabilityName === "chat"
+      ? await runConnectorAwareOpenAI(globalThis.__bqEnv, user, control, userMessage, system, true, resolveTextReasoningEffort(userMessage, capabilityName))
+      : null;
+    const provider = connectorAwareResult ? { ...connectorAwareResult, streamed: false } : await runWithFallback(globalThis.__bqEnv, providerRoute, {
+      message: userMessage, system, stream: true, reasoningEffort: resolveTextReasoningEffort(userMessage, capabilityName)
     });
     const encoder = new TextEncoder();
     const output = new ReadableStream({
@@ -3042,7 +3051,7 @@ async function stream(request, user, body) {
         };
         request.signal.addEventListener("abort", onClientAbort, { once: true });
         emitTaskEvent("taskStarted", { taskId, startedAt });
-        emitTaskEvent("phase", { taskId, label: "Streaming response", at: Date.now() });
+        emitTaskEvent("phase", { taskId, label: connectorAwareResult ? "Using connected services" : "Streaming response", at: Date.now() });
         let usageRaw = provider.usage || {};
         let deliveredChars = 0;
         let streamedText = "";
@@ -6714,18 +6723,10 @@ export default {
         }
         const args = body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments) ? body.arguments : {};
         if (JSON.stringify(args).length > 12000) return json({ error: "connector_arguments_too_large" }, 413);
-        const response = await fetch(
-          "https://backend.composio.dev/api/v3.1/tool_router/session/" + encodeURIComponent(String(saved.sessionId)) + "/execute",
-          {
-            method: "POST",
-            headers: composioHeaders(env, { "Content-Type": "application/json", "Accept": "application/json" }),
-            body: JSON.stringify({ tool_slug: toolSlug, arguments: args }),
-            signal: AbortSignal.timeout(30000)
-          }
-        );
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) return json({ error: "connector_tool_call_failed", providerStatus: response.status }, response.status === 429 ? 429 : 502);
-        return json({ ok: result.result_type !== "failed" && !result.error, resultType: result.result_type || null, data: result.data ?? null, error: result.error || null, logId: result.log_id || null });
+        const execution = await executeComposioTool(user, toolkit, toolSlug, args);
+        if (!execution.ok && execution.httpStatus === 402) return json({ error: "insufficient_credits", message: "Insufficient credits to perform this connector action." }, 402);
+        if (!execution.ok) return json({ error: execution.error || "connector_tool_call_failed" }, execution.error === "connector_write_requires_full_access" ? 403 : 502);
+        return json({ ok: true, resultType: "success", data: execution.data ?? null, logId: null, connectorCreditsCharged: execution.connectorCreditsCharged, billingStatus: execution.billingStatus });
       }
 
       if (url.pathname === "/web/favicon" && request.method === "GET") {
