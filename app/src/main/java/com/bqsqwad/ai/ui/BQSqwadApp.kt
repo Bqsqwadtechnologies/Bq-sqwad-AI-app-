@@ -1261,14 +1261,16 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         val accessPrefs = accountPreferences(context, "workspace_access_cache")
         val cachedCatalog = accessPrefs.getString("catalog", null)
         val cachedEntitlements = accessPrefs.getString("entitlements", null)
+        val cachedAdmin = accessPrefs.getBoolean("admin", false)
+        val cachedTestMode = accessPrefs.getBoolean("test_mode", false)
         val hasCachedAccess = !cachedCatalog.isNullOrBlank() && !cachedEntitlements.isNullOrBlank()
         if (hasCachedAccess) {
             workspaceAccess = runCatching {
                 WorkspaceAccessSnapshot.fromCatalog(
                     JSONObject(cachedCatalog),
                     JSONObject(cachedEntitlements),
-                    false,
-                    false
+                    cachedAdmin,
+                    cachedTestMode
                 )
             }.getOrDefault(workspaceAccess)
             // Cached entitlements keep navigation responsive while the server
@@ -1283,11 +1285,23 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
             kotlinx.coroutines.withTimeoutOrNull(8_000L) {
                 kotlinx.coroutines.coroutineScope {
                     val catalogTask = async(Dispatchers.IO) { api.nativeCatalog() }
-                    val entitlementsTask = async(Dispatchers.IO) { runCatching { EntitlementsClient().fetchEntitlements() }.getOrElse { api.entitlements() } }
+                    val entitlementsTask = async(Dispatchers.IO) {
+                        runCatching { EntitlementsClient().fetchEntitlements() }.getOrElse { api.entitlements() }
+                    }
+                    // /api/native/me is the website's verified account summary and
+                    // supplies the server-authorized administrator flag. The Worker
+                    // entitlement response remains the fallback source for plan-test state.
+                    val accountTask = async(Dispatchers.IO) {
+                        runCatching { EntitlementsClient().fetchMeWithPlans() }.getOrNull()
+                    }
                     val catalog = catalogTask.await()
                     val entitlements = entitlementsTask.await()
-                    val admin = false
-                    val testMode = false
+                    val account = accountTask.await()
+                    val admin = account?.optBoolean("isAdmin", false) ?: false
+                    val testMode = entitlements.optBoolean(
+                        "adminPlanTest",
+                        account?.optBoolean("adminPlanTest", false) ?: false
+                    )
                     accessPrefs.edit()
                         .putString("catalog", catalog.toString())
                         .putString("entitlements", entitlements.toString())
