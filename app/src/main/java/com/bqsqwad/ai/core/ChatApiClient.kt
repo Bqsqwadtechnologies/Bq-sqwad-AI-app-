@@ -197,6 +197,7 @@ class ChatApiClient(
                     it.write(JSONObject().apply {
                         put("capability", capability)
                         put("message", message)
+                        put("conversationUsedConnectors", true)
                         if (!system.isNullOrBlank()) put("system", system)
                         if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
                         if (!modelKey.isNullOrBlank()) put("modelKey", modelKey)
