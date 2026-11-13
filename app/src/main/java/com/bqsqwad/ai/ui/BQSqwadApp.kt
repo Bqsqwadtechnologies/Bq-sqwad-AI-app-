@@ -2462,7 +2462,7 @@ private fun ChatAttachmentPreview(
 }
 
 @Composable
-internal fun ChatRemoteImage(url: String, description: String = "Image") {
+internal fun ChatRemoteImage(url: String, description: String = "Image", onImageTap: ((String) -> Unit)? = null) {
     var loadFailed by remember(url) { mutableStateOf(false) }
     val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         loadFailed = false
@@ -2502,6 +2502,7 @@ internal fun ChatRemoteImage(url: String, description: String = "Image") {
             contentDescription = description,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(12.dp))
+                .then(if (onImageTap != null) Modifier.clickable { onImageTap(url) } else Modifier)
         )
     } else {
         Text(
@@ -4038,7 +4039,22 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                         // Prefer the in-memory image during this session; use the durable URL
                                         // only when restoring history or when no inline image bytes exist.
                                         if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
-                                            m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
+                                            m.imageUrl?.let { url ->
+                                                ChatRemoteImage(url, "Generated image") { imageUrl ->
+                                                    scope.launch {
+                                                        runCatching {
+                                                            val encoded = withContext(Dispatchers.IO) { downloadGeneratedImageBase64(imageUrl) }
+                                                            selectedImageBase64 = encoded
+                                                            selectedImageMimeType = "image/png"
+                                                            selectedImagePrompt = m.prompt.orEmpty()
+                                                            selectedImageMessageId = m.id
+                                                            showImageViewer = true
+                                                        }.onFailure {
+                                                            error = safeUserFacingIssue(it, "This image could not be opened.")
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
