@@ -136,18 +136,44 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
         item {
             Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, tonalElevation = 2.dp) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        when {
-                            isAdmin -> "TruthGuard Verification Console"
-                            activePlanId == "truthguardfree" -> "Quick Claim Check"
-                            activePlanId == "tgplus" -> "Evidence & Sources Desk"
-                            activePlanId == "tgpro" -> "Deep Evidence Lab"
-                            activePlanId == "tgteam" -> "Team Verification Command"
-                            else -> "TruthGuard Workspace"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                when {
+                                    isAdmin -> "TruthGuard Verification Console"
+                                    activePlanId == "truthguardfree" -> "Quick Verdict Desk"
+                                    activePlanId == "tgplus" -> "Live Evidence & Source Desk"
+                                    activePlanId == "tgpro" -> "Deep Evidence Research Lab"
+                                    activePlanId == "tgteam" -> "Team Verification Command"
+                                    else -> "TruthGuard Workspace"
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                when (activePlanId) {
+                                    "truthguardfree" -> "5 checks each month · verdict, confidence, explanation and up to 3 cited sources"
+                                    "tgplus" -> "150 checks each month · live evidence, source reliability, bias signals and history"
+                                    "tgpro" -> "1,000 checks each month · deep evidence sweeps and long-claim breakdowns"
+                                    "tgteam" -> "Fair-use unlimited · shared organization verification history"
+                                    else -> "Plan-aware evidence verification"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            when (activePlanId) {
+                                "truthguardfree" -> Icons.Default.FactCheck
+                                "tgplus" -> Icons.Default.ManageSearch
+                                "tgpro" -> Icons.Default.Science
+                                else -> Icons.Default.VerifiedUser
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
                     Text(
                         when {
                             activePlanId == "truthguardfree" -> "Concise claim verification with current evidence."
