@@ -81,7 +81,6 @@ export async function priceTokenUsage({ providerId = "openai", modelId, usage, f
 }
 
 const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
-  video_generation: "video.generate", video: "video.generate",
   chat_background_upload: "chat.background_upload", team_member_message: "team.member_message",
   connector_action: "feature.connector_action", resume: "resume.generate",
   web_search: "web.search", deep_research: "web.research",
