@@ -1875,7 +1875,7 @@ async function chargeCredits(uid, amount, capabilityName, adminUser = null, opti
   throw new Error("credit_reservation_failed");
 }
 
-async function commitCredits(uid, reservationId, providerId) {
+async function commitCredits(uid, reservationId, providerId, reason = "Cloudflare Worker AI request") {
   if (!reservationId) return;
   for (let attempt = 0; attempt < 5; attempt++) {
     const reservation = await firestoreGet("creditReservations/" + reservationId);
@@ -1906,7 +1906,7 @@ async function commitCredits(uid, reservationId, providerId) {
             balanceBefore: Number(reservation.balanceBefore ?? (balance.total + Number(reservation.amount || 0))),
             balanceAfter: balance.total,
             note: "Native app usage",
-            reason: "Cloudflare Worker AI request",
+            reason: String(reason || "Cloudflare Worker AI request").slice(0, 180),
             providerId: providerId || null,
             source: "android",
             platform: "android",
@@ -2333,7 +2333,7 @@ async function executeComposioTool(user, toolkit, toolSlug, args) {
       if (reservation?.reservationId) await reverseCredits(uid, reservation.reservationId);
       return { ok: false, error: "connector_tool_call_failed", providerStatus: response.status };
     }
-    if (reservation?.reservationId) await commitCredits(uid, reservation.reservationId, "composio");
+    if (reservation?.reservationId) await commitCredits(uid, reservation.reservationId, "composio", "Connector action · " + cleanToolkit + " · " + cleanSlug);
     return { ok: true, toolkit: cleanToolkit, tool: cleanSlug, data: result.data ?? null, connectorCreditsCharged: Number(reservation?.amount || 0), billingStatus: reservation?.adminUnlimited ? "admin_exempt" : reservation?.planCovered ? "plan_included" : reservation?.free ? "zero_price" : "charged" };
   } catch (error) {
     if (reservation?.reservationId) await reverseCredits(uid, reservation.reservationId).catch(() => {});
