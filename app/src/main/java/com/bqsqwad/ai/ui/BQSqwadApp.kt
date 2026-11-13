@@ -7268,6 +7268,16 @@ fun VoiceWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = fa
             Spacer(Modifier.width(8.dp))
             Text(if (active) "End conversation" else "Start conversation")
         }
+        if (active) {
+            OutlinedButton(
+                onClick = { LiveMediaForegroundService.setMicrophoneMuted(!liveUiState.microphoneMuted) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (liveUiState.microphoneMuted) "Turn microphone on" else "Mute microphone")
+            }
+        }
         Card(Modifier.fillMaxWidth().padding(horizontal = 8.dp), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("AI voice settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
