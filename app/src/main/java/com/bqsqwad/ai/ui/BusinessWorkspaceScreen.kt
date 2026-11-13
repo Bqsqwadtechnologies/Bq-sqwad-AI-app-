@@ -75,6 +75,8 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
         val groups = data.optJSONArray("enabledFeatureGroups") ?: JSONArray()
         buildSet<String> { for (i in 0 until groups.length()) add(groups.optString(i)) }
     }
+    val currentPlanId = data.optString("planId")
+        .ifBlank { data.optJSONObject("planContext")?.optString("id").orEmpty() }
     val tabs = buildList {
         add("Overview")
         add("Team")
@@ -111,11 +113,24 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.primaryContainer
+            color = when (currentPlanId) {
+                "bizstarter" -> MaterialTheme.colorScheme.primaryContainer
+                "bizbasic" -> MaterialTheme.colorScheme.secondaryContainer
+                "bizstandard" -> MaterialTheme.colorScheme.tertiaryContainer
+                "bizprofessional" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                "bizbusiness" -> MaterialTheme.colorScheme.surfaceContainerHighest
+                "bizenterprise" -> MaterialTheme.colorScheme.surfaceContainer
+                "businessenterprise" -> MaterialTheme.colorScheme.surfaceContainerLow
+                else -> MaterialTheme.colorScheme.primaryContainer
+            },
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+            )
         ) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val planContext = data.optJSONObject("planContext") ?: JSONObject()
-                val planId = data.optString("planId").ifBlank { planContext.optString("id") }
+                val planId = currentPlanId.ifBlank { planContext.optString("id") }
                 val planName = planContext.optString("name").ifBlank { "Business Workspace" }
                 val planSubtitle = when (planId) {
                     "bizstarter" -> "A focused AI workspace for getting your business online and organized."
