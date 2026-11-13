@@ -2106,7 +2106,8 @@ private data class ChatMessage(
     val webSearchAttempted: Boolean = false,
     val webSearchInProgress: Boolean = false,
     val creditsCharged: Double? = null,
-    val billingStatus: String? = null
+    val billingStatus: String? = null,
+    val balanceAfter: Double? = null
 ) {
     val attachmentNames: List<String> get() = attachments.map { it.name }
 }
@@ -2125,6 +2126,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("webSearchInProgress", message.webSearchInProgress)
                 message.creditsCharged?.let { put("creditsCharged", it) }
                 message.billingStatus?.let { put("billingStatus", it) }
+                message.balanceAfter?.let { put("balanceAfter", it) }
                 put("attachments", JSONArray().apply {
                     message.attachments.forEach { attachment ->
                         put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId).put("fileUri", attachment.fileUri))
@@ -2160,7 +2162,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                         webSearchAttempted = item.optBoolean("webSearchAttempted", false),
                         webSearchInProgress = item.optBoolean("webSearchInProgress", false),
                         creditsCharged = if (item.has("creditsCharged") && !item.isNull("creditsCharged")) item.optDouble("creditsCharged").coerceAtLeast(0.0) else null,
-                        billingStatus = item.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
+                        billingStatus = item.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" },
+                        balanceAfter = if (item.has("balanceAfter") && !item.isNull("balanceAfter")) item.optDouble("balanceAfter").coerceAtLeast(0.0) else null
                     )
                 }.getOrNull()?.let { add(it) }
             }
@@ -3437,7 +3440,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             webSearchAttempted = shouldSearchWeb && webSearchEnabled,
                             webSearchInProgress = false,
                             creditsCharged = reply.creditsCharged.coerceAtLeast(0.0),
-                            billingStatus = reply.billingStatus
+                            billingStatus = reply.billingStatus,
+                            balanceAfter = reply.balanceAfter
                         )
                     }
                     error = null
@@ -3991,8 +3995,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                                 "no_charge" -> "No credits charged"
                                                 else -> "Credits charged: " + String.format(java.util.Locale.US, "%.7f", charged).trimEnd('0').trimEnd('.') + " credits"
                                             }
+                                            val balanceLabel = m.balanceAfter?.let {
+                                                " · Balance after reply: " + String.format(java.util.Locale.US, "%.7f", it).trimEnd('0').trimEnd('.') + " credits"
+                                            }.orEmpty()
                                             Text(
-                                                billingLabel,
+                                                billingLabel + balanceLabel,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
