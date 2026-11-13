@@ -15,6 +15,7 @@ android {
         applicationId = "com.bqsqwad.ai"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", "\"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev\"")
+        buildConfigField("String", "WEBSITE_BASE_URL", "\"https://bqsqwadai.com\"")
         minSdk = 24
         targetSdk = 36
         versionCode = 20
