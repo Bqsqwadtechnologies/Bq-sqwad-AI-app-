@@ -234,7 +234,7 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                         BqStatusBadge("$lessonsCompleted lessons")
                         BqStatusBadge("$quizzesCompleted quizzes")
                     }
-                    Text("Teacher dashboard requests use the existing Learning Studio service. Classroom administration, assignment publishing, bulk import and compliance-report endpoints still require backend completion before they can be marked live.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("The website now supports authenticated classroom creation, learner assignment, assignment publishing, aggregate curriculum coverage and safeguarding records. These administration controls are being connected to the Android app next; they are not presented as active mobile actions yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
