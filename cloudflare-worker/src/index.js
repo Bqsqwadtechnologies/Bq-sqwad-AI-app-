@@ -2341,7 +2341,7 @@ async function executeComposioTool(user, toolkit, toolSlug, args) {
   }
 }
 
-async function runConnectorAwareOpenAI(env, user, control, message, system, conversationUsedConnectors = false, reasoningEffort = "low") {
+async function runConnectorAwareOpenAI(env, user, control, message, system, conversationUsedConnectors = false, reasoningEffort = "low", onToolCall = () => {}) {
   // Connector tool calling is currently implemented through the OpenAI Responses API. When a user has connected services, use that tool-capable route regardless of the ordinary chat provider selection; final token settlement uses the actual provider/model returned below.
   if (!env?.OPENAI_API_KEY) return null;
   const memoryProfile = await firestoreGet("users/" + user.uid).catch(() => null);
@@ -2475,7 +2475,10 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       }
       let args = {};
       try { args = JSON.parse(String(call.arguments || "{}")); } catch {}
-      if (!binding.memory) usedToolkits.add(binding.toolkit);
+      if (!binding.memory) {
+        usedToolkits.add(binding.toolkit);
+        try { onToolCall(binding.toolkit, binding.slug); } catch {}
+      }
       const result = binding.memory
         ? await saveSharedMemoryFact(user.uid, args.category, args.key, args.value, "assistant").catch(() => ({ ok: false, saved: false, error: "memory_save_failed" }))
         : await executeComposioTool(user, binding.toolkit, binding.slug, args);
@@ -3024,12 +3027,6 @@ async function stream(request, user, body) {
   });
   try {
     const providerRoute = await buildProviderExecutionRoute(control, tokenBilling ? tokenPricing : null, pricingFeature, control.providerId, control.modelId);
-    const connectorAwareResult = capabilityName === "chat"
-      ? await runConnectorAwareOpenAI(globalThis.__bqEnv, user, control, userMessage, system, true, resolveTextReasoningEffort(userMessage, capabilityName))
-      : null;
-    const provider = connectorAwareResult ? { ...connectorAwareResult, streamed: false } : await runWithFallback(globalThis.__bqEnv, providerRoute, {
-      message: userMessage, system, stream: true, reasoningEffort: resolveTextReasoningEffort(userMessage, capabilityName)
-    });
     const encoder = new TextEncoder();
     const output = new ReadableStream({
       async start(controller) {
@@ -3051,9 +3048,8 @@ async function stream(request, user, body) {
         };
         request.signal.addEventListener("abort", onClientAbort, { once: true });
         emitTaskEvent("taskStarted", { taskId, startedAt });
-        const usedConnectorNames = Array.isArray(connectorAwareResult?.connectorToolkits) ? connectorAwareResult.connectorToolkits : [];
-        emitTaskEvent("phase", { taskId, label: usedConnectorNames.length ? "Using " + usedConnectorNames.map(name => String(name).replace(/_/g, " ")).join(", ") + " connector" : "Streaming response", at: Date.now() });
-        let usageRaw = provider.usage || {};
+        let provider = null;
+        let usageRaw = {};
         let deliveredChars = 0;
         let streamedText = "";
         const emitDelta = (text) => {
@@ -3063,6 +3059,18 @@ async function stream(request, user, body) {
           emit({ type: "delta", text });
         };
         try {
+          const connectorAwareResult = capabilityName === "chat"
+            ? await runConnectorAwareOpenAI(globalThis.__bqEnv || {}, user, control, userMessage, system, true,
+                resolveTextReasoningEffort(userMessage, capabilityName),
+                (toolkit) => emitTaskEvent("phase", { taskId, label: "Using " + String(toolkit).replace(/_/g, " ") + " connector...", at: Date.now() }))
+            : null;
+          provider = connectorAwareResult ? { ...connectorAwareResult, streamed: false } : await runWithFallback(globalThis.__bqEnv || {}, providerRoute, {
+            message: userMessage, system, stream: true, reasoningEffort: resolveTextReasoningEffort(userMessage, capabilityName)
+          });
+          if (!connectorAwareResult || !Array.isArray(connectorAwareResult.connectorToolkits) || connectorAwareResult.connectorToolkits.length === 0) {
+            emitTaskEvent("phase", { taskId, label: "Streaming response", at: Date.now() });
+          }
+          usageRaw = provider.usage || {};
           if (provider.streamed) {
             activeReader = provider.response.body.getReader();
             const reader = activeReader;
@@ -3165,8 +3173,8 @@ async function stream(request, user, body) {
             deliveredChars,
             reverseCredits: () => reverseCredits(user.uid, reservation.reservationId),
             notifyAdmin: () => notifyAdminOfIssue(globalThis.__bqEnv, "/ai/stream", 500, error?.message || "stream_failed", "", "", refCode),
-            providerId: provider.providerId,
-            modelId: provider.modelId,
+            providerId: provider?.providerId || control.providerId,
+            modelId: provider?.modelId || control.modelId,
             safeError: error?.safeError || "service_temporarily_unavailable"
           });
           request.signal.removeEventListener("abort", onClientAbort);
