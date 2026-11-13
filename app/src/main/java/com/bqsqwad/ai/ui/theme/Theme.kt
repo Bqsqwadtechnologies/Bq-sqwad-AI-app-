@@ -186,8 +186,8 @@ fun BQSqwadTheme(content: @Composable () -> Unit) {
     val systemDark = isSystemInDarkTheme()
     val normalized = mode.lowercase()
     val dark = when (normalized) {
-        "dark", "amoled", "midnight", "aurora", "sunset" -> true
-        "system", "ocean" -> systemDark
+        "dark", "amoled", "midnight", "ocean", "aurora", "sunset" -> true
+        "system" -> systemDark
         else -> false
     }
     val paletteMode = if (normalized == "system") "system" else normalized
