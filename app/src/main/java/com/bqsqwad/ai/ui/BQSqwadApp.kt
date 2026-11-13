@@ -2105,7 +2105,8 @@ private data class ChatMessage(
     val privateSession: Boolean = false,
     val webSearchAttempted: Boolean = false,
     val webSearchInProgress: Boolean = false,
-    val creditsCharged: Double? = null
+    val creditsCharged: Double? = null,
+    val billingStatus: String? = null
 ) {
     val attachmentNames: List<String> get() = attachments.map { it.name }
 }
@@ -2123,6 +2124,7 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                 put("webSearchAttempted", message.webSearchAttempted)
                 put("webSearchInProgress", message.webSearchInProgress)
                 message.creditsCharged?.let { put("creditsCharged", it) }
+                message.billingStatus?.let { put("billingStatus", it) }
                 put("attachments", JSONArray().apply {
                     message.attachments.forEach { attachment ->
                         put(JSONObject().put("name", attachment.name.take(160)).put("mimeType", attachment.mimeType.take(100)).put("imageLocalId", attachment.imageLocalId).put("fileUri", attachment.fileUri))
@@ -2157,7 +2159,8 @@ private val ChatMessagesSaver = listSaver<androidx.compose.runtime.snapshots.Sna
                         privateSession = item.optBoolean("privateSession", false),
                         webSearchAttempted = item.optBoolean("webSearchAttempted", false),
                         webSearchInProgress = item.optBoolean("webSearchInProgress", false),
-                        creditsCharged = if (item.has("creditsCharged") && !item.isNull("creditsCharged")) item.optDouble("creditsCharged").coerceAtLeast(0.0) else null
+                        creditsCharged = if (item.has("creditsCharged") && !item.isNull("creditsCharged")) item.optDouble("creditsCharged").coerceAtLeast(0.0) else null,
+                        billingStatus = item.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
                     )
                 }.getOrNull()?.let { add(it) }
             }
@@ -3391,26 +3394,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     )
                 } else {
                     ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { delta ->
-                        scope.launch(Dispatchers.Main) {
-                            if (activeRequestId != requestId) return@launch
-                            rawStreamText += delta
-                            val now = android.os.SystemClock.uptimeMillis()
-                            if (now - lastUiPushMs >= 48L) {
-                                lastUiPushMs = now
-                                val current = messages.getOrNull(aiIndex)
-                                if (current != null) {
-                                    val shown = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(rawStreamText)
-                                    messages[aiIndex] = current.copy(text = if (webSources.isNotEmpty()) sanitizeWebAnswer(shown) else shown)
-                                }
-                            }
-                        }
+                        // Buffer provider chunks privately; reveal one complete reply
+                        // after the server confirms final usage and credit settlement.
+                        rawStreamText += delta
                     }, onReplace = { full ->
-                        scope.launch(Dispatchers.Main) {
-                            if (activeRequestId != requestId) return@launch
-                            rawStreamText = full
-                            val current = messages.getOrNull(aiIndex)
-                            if (current != null) messages[aiIndex] = current.copy(text = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(full))
-                        }
+                        rawStreamText = full
                     }, onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label ->
                         // Provider settlement is an internal billing operation, not a chat status.
                         val safeLabel = label.trim()
@@ -3454,7 +3442,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             sources = webSources,
                             webSearchAttempted = shouldSearchWeb && webSearchEnabled,
                             webSearchInProgress = false,
-                            creditsCharged = reply.creditsCharged.takeIf { it > 0.0 }
+                            creditsCharged = reply.creditsCharged.coerceAtLeast(0.0),
+                            billingStatus = reply.billingStatus
                         )
                     }
                     error = null
@@ -4000,9 +3989,16 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                         if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
                                             m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
                                         }
-                                        m.creditsCharged?.takeIf { !m.mine && it > 0.0 }?.let { charged ->
+                                        m.creditsCharged?.takeIf { !m.mine }?.let { charged ->
+                                            val billingLabel = when (m.billingStatus) {
+                                                "admin_exempt" -> "Admin testing · no credits charged"
+                                                "plan_included" -> "Included with your plan · no credits charged"
+                                                "zero_price" -> "No credits charged · this request is configured as free"
+                                                "no_charge" -> "No credits charged"
+                                                else -> "Credits charged: " + String.format(java.util.Locale.US, "%.7f", charged).trimEnd('0').trimEnd('.') + " credits"
+                                            }
                                             Text(
-                                                "Usage: " + String.format(java.util.Locale.US, "%.7f", charged).trimEnd('0').trimEnd('.') + " credits",
+                                                billingLabel,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
