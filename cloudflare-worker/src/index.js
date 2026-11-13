@@ -2259,7 +2259,7 @@ async function releaseMonthlyUsageCounter(path){for(let attempt=0;attempt<5;atte
 const COMPOSIO_TOOLKITS = new Set([
   "googledrive", "googlecalendar", "gmail", "github", "one_drive",
   "outlook", "dropbox", "notion", "slack", "trello", "linear",
-  "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"
+  "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"
 ]);
 
 function isConnectorRelatedPrompt(message) {
@@ -6551,7 +6551,7 @@ export default {
           "googledrive", "googlecalendar", "gmail", "github",
           "one_drive", "outlook", "dropbox", "notion",
           "slack", "trello", "linear", "googledocs", "googlesheets",
-          "googlemeet", "figma", "jira", "airtable"
+          "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"
         ]);
         if (!allowedToolkits.has(requestedToolkit)) return connectorJson({ error: "unsupported_connector" }, 400);
         if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return connectorJson({ error: "connector_service_not_configured" }, 503);
@@ -6630,7 +6630,7 @@ export default {
         await enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         const saved = await firestoreGet("composioPermissions/" + user.uid + "__" + toolkit).catch(() => null);
         const accessMode = saved && saved.uid === user.uid && saved.toolkit === toolkit && saved.accessMode === "full_access" ? "full_access" : "read_only";
@@ -6645,7 +6645,7 @@ export default {
         const accessMode = String(body.accessMode || "").trim().toLowerCase();
         if (!toolkit || !/^[a-z0-9_]+$/.test(toolkit)) return json({ error: "connector_toolkit_required" }, 400);
         if (!["read_only", "full_access"].includes(accessMode)) return json({ error: "connector_access_mode_invalid" }, 400);
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         await firestoreSet("composioPermissions/" + user.uid + "__" + toolkit, {
           uid: user.uid, toolkit, accessMode, updatedAt: new Date().toISOString()
@@ -6660,7 +6660,7 @@ export default {
           "googledrive", "googlecalendar", "gmail", "github",
           "one_drive", "outlook", "dropbox", "notion",
           "slack", "trello", "linear", "googledocs", "googlesheets",
-          "googlemeet", "figma", "jira", "airtable"
+          "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"
         ]);
         const sessions = await firestoreQuery("composioSessions", {
           filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
@@ -6686,7 +6686,7 @@ export default {
         const user = await verifyFirebaseUser(request);
         await enforceRateLimit(user.uid, 30);
         const toolkit = String(url.searchParams.get("toolkit") || "").trim().toLowerCase();
-        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable"]);
+        const allowedToolkits = new Set(["googledrive", "googlecalendar", "gmail", "github", "one_drive", "outlook", "dropbox", "notion", "slack", "trello", "linear", "googledocs", "googlesheets", "googlemeet", "figma", "jira", "airtable", "salesforce", "servicenow"]);
         if (!allowedToolkits.has(toolkit)) return json({ error: "unsupported_connector" }, 400);
         if (!env.COMPOSIO_API_KEY && !env.COMPOSIO_USER_API_KEY) return json({ error: "connector_service_not_configured" }, 503);
         const query = new URLSearchParams({ user_ids: user.uid, toolkit_slugs: toolkit, statuses: "ACTIVE", limit: "100" });
