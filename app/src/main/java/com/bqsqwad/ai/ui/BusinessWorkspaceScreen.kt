@@ -466,6 +466,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 val tools = BusinessToolCatalog.forPlan(toolIds).map { PlanToolUi(it.id, it.name, false) }
                 PlanToolsConnectScreen(
                     tools = tools,
+                    api = api,
                     onConnect = { toolId ->
                         val target = ApiConfig.websiteBaseUrl.trimEnd('/') +
                             "/settings#connectors"
