@@ -3315,7 +3315,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             .getBoolean("web_search_enabled", true)
         val requestId = UUID.randomUUID().toString()
         activeRequestId = requestId
-        var lastUiPushMs = 0L
         streamJob = scope.launch(Dispatchers.IO) {
             var webSources = emptyList<SearchSource>()
             var webSearchNotice: String? = null
