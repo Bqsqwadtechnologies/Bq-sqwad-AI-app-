@@ -3139,9 +3139,11 @@ async function stream(request, user, body) {
                 : creditsCharged > 0
                   ? "charged"
                   : "no_charge";
+          const balanceProfile = await readCanonicalUserBalance(user.uid).catch(() => null);
+          const balanceAfter = canonicalUserBalance(balanceProfile)?.total ?? null;
           emit({
             type: "completed", providerId: provider.providerId, modelId: provider.modelId,
-            creditsCharged, billingStatus, ...(tokenUsage ? { tokenUsage } : {})
+            creditsCharged, billingStatus, balanceAfter, ...(tokenUsage ? { tokenUsage } : {})
           });
           endTask("completed");
           request.signal.removeEventListener("abort", onClientAbort);
