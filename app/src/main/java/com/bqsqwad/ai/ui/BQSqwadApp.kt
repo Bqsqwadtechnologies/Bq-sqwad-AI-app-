@@ -1297,7 +1297,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                     val catalog = catalogTask.await()
                     val entitlements = entitlementsTask.await()
                     val account = accountTask.await()
-                    val admin = account?.optBoolean("isAdmin", false) ?: false
+                    val admin = account?.optBoolean(
+                        "isAdmin",
+                        entitlements.optBoolean("isAdmin", false)
+                    ) ?: entitlements.optBoolean("isAdmin", false)
                     val testMode = entitlements.optBoolean(
                         "adminPlanTest",
                         account?.optBoolean("adminPlanTest", false) ?: false
