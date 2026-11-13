@@ -2346,7 +2346,8 @@ async function executeComposioTool(user, toolkit, toolSlug, args) {
 }
 
 async function runConnectorAwareOpenAI(env, user, control, message, system, conversationUsedConnectors = false, reasoningEffort = "low") {
-  if (String(control?.providerId || "").toLowerCase() !== "openai" || !env?.OPENAI_API_KEY) return null;
+  // Connector tool calling is currently implemented through the OpenAI Responses API. When a user has connected services, use that tool-capable route regardless of the ordinary chat provider selection; final token settlement uses the actual provider/model returned below.
+  if (!env?.OPENAI_API_KEY) return null;
   const memoryProfile = await firestoreGet("users/" + user.uid).catch(() => null);
   const memoryEnabled = memoryProfile?.memoryEnabled === true;
   let sessions = [];
