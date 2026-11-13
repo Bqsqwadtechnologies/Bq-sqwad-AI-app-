@@ -83,6 +83,17 @@ test("plain chat settles with provider-reported token formula, not a hard-coded 
   assert.doesNotMatch(ai, /settleCreditReservation\(user\.uid, reservation\.reservationId,\s*1\s*,/);
 });
 
+test("streamed chat completion reports why credits were or were not charged", () => {
+  const start = source.indexOf("async function stream(request, user, body)");
+  const end = source.indexOf("\nasync function ", start + 10);
+  const handler = source.slice(start, end);
+  assert.match(handler, /const billingStatus = reservation\.adminUnlimited/);
+  assert.match(handler, /"admin_exempt"/);
+  assert.match(handler, /"plan_included"/);
+  assert.match(handler, /"zero_price"/);
+  assert.match(handler, /creditsCharged, billingStatus/);
+});
+
 test("fixed-price shared-charge helper rejects token-metered capabilities", () => {
   const start = source.indexOf("async function withSharedCreditCharge(");
   const end = source.indexOf("\nexport function isPublicCatalogPlan", start);
