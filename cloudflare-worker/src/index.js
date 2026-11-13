@@ -3130,9 +3130,18 @@ async function stream(request, user, body) {
           } else {
             await commitCredits(user.uid, reservation.reservationId, provider.providerId);
           }
+          const billingStatus = reservation.adminUnlimited
+            ? "admin_exempt"
+            : reservation.planCovered
+              ? "plan_included"
+              : reservation.free
+                ? "zero_price"
+                : creditsCharged > 0
+                  ? "charged"
+                  : "no_charge";
           emit({
             type: "completed", providerId: provider.providerId, modelId: provider.modelId,
-            creditsCharged, ...(tokenUsage ? { tokenUsage } : {})
+            creditsCharged, billingStatus, ...(tokenUsage ? { tokenUsage } : {})
           });
           endTask("completed");
           request.signal.removeEventListener("abort", onClientAbort);
