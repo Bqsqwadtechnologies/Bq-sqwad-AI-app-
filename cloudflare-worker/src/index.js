@@ -2318,7 +2318,7 @@ async function executeComposioTool(user, toolkit, toolSlug, args) {
   let reservation = null;
   try {
     const pricing = await activeGenerationRule("feature.connector_action");
-    reservation = await chargeCredits(uid, Number(pricing.credits), "connector_action", user, { allowFractional: true });
+    reservation = await chargeCredits(uid, Number(pricing.credits), "feature.connector_action", user, { allowFractional: true });
   } catch (error) {
     if (Number(error?.httpStatus) === 402 || /insufficient|credit_balance/i.test(String(error?.message || ""))) return { ok: false, error: "insufficient_credits", httpStatus: 402, message: "Insufficient credits to perform this connector action." };
     throw error;
