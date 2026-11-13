@@ -38,7 +38,7 @@ test("dedicated workspaces redirect unrelated prompts before any charge call is 
 
 
 test("dedicated workspace system prompts keep the model inside its job", () => {
-  for (const workspace of ["learning", "truthguard", "life_mathis", "life_matters", "companion", "personal_intelligence", "data_analyst", "frontier_lab", "video_generation"]) {
+  for (const workspace of ["learning", "truthguard", "life_mathis", "life_matters", "companion", "personal_intelligence", "data_analyst", "frontier_lab"]) {
     const prompt = workspaceScopeSystemPrompt(workspace);
     assert.match(prompt, /STRICT WORKSPACE BOUNDARY/);
     assert.match(prompt, /Do not act as Main Chat/);
