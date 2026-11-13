@@ -2444,7 +2444,7 @@ private fun ChatAttachmentPreview(
         ) {
             Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(if (attachment.mimeType.startsWith("image/")) Icons.Default.Image else Icons.Default.AttachFile, contentDescription = null)
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(attachment.name, style = MaterialTheme.typography.bodySmall, maxLines = 2)
                     Text(
                         when {
@@ -2455,6 +2455,24 @@ private fun ChatAttachmentPreview(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                attachment.fileUri?.let { rawUri ->
+                    val fileUri = Uri.parse(rawUri)
+                    IconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(fileUri, attachment.mimeType)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        runCatching { context.startActivity(Intent.createChooser(intent, "Open file")) }
+                            .onFailure { android.widget.Toast.makeText(context, "No compatible viewer is available.", android.widget.Toast.LENGTH_SHORT).show() }
+                    }) { Icon(Icons.Default.OpenInNew, contentDescription = "Open file") }
+                    IconButton(onClick = {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = attachment.mimeType
+                            putExtra(Intent.EXTRA_STREAM, fileUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        runCatching { context.startActivity(Intent.createChooser(intent, "Share file")) }
+                            .onFailure { android.widget.Toast.makeText(context, "Could not share this file.", android.widget.Toast.LENGTH_SHORT).show() }
+                    }) { Icon(Icons.Default.Share, contentDescription = "Share file") }
                 }
             }
         }
