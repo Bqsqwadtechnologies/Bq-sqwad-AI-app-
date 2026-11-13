@@ -276,9 +276,9 @@ fun OrganizationStudioWorkspace() {
     }
 
     LazyColumn(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(4.dp)
+        Modifier.fillMaxSize().padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)
     ) {
         item {
             Card(Modifier.fillMaxWidth()) {
