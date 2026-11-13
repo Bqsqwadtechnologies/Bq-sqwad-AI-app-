@@ -913,11 +913,24 @@ private fun WorkspaceFrame(
                 }
             }
             item {
-                Column(
-                    Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    content = content
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = scheme.surfaceContainerLow,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        scheme.outlineVariant.copy(alpha = 0.72f)
+                    ),
+                    tonalElevation = 1.dp
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        content = content
+                    )
+                }
             }
         }
     }
