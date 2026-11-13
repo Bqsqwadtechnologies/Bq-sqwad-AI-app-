@@ -43,7 +43,7 @@ import { listOrganizationScheduledTasks, createOrganizationScheduledTask, update
 import { getProduction, updateProductionConfig, upsertSource, removeSource, upsertScene, upsertDestination, setProductionState, updateHealth, addProductionEvent, getOrganizationAiLiveConfig, updateOrganizationAiLiveConfig } from "./production-native.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, requireBusinessFeature, requireBusinessRole, withBusinessAiUsage, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-native.js";
 import { companionCatalog, companionProfile, saveCompanionProfile, companionHistory, companionChat, companionCheckins, companionCheckin, companionSettings, saveCompanionSettings, learningCatalog, learningProgress, learningSession, truthguardCatalog, truthguardSettings, saveTruthguardSettings, truthguardHistory, truthguardCheck, organizationGet, organizationUpdate, organizationSettings, organizationChannel, organizationKnowledge, organizationMember, organizationMemberState, organizationChannelState, organizationAssistant, workspaceScopeRedirect, workspaceScopeSystemPrompt } from "./legacy-native.js";
-import { generateImageNative, editImageNative, createVideoNative, getVideoNative, getVideoContentNative } from "./generation-native.js";
+import { generateImageNative, editImageNative } from "./generation-native.js";
 import { listAiModels, saveAiModel, resolvePublishedModel, ensureCurrentModelRegistry, validateAiModel, checkAiModelStatus } from "./model-registry-native.js";
 import { normalizeProviderUsage, calculateTokenCost, resolveTokenPricing, estimateTokenReservation, recordTokenUsage, getTokenUsageReport, allocateReservationRefund } from "./token-billing-native.js";
 import { securityStatusNative, configurePasswordNative, beginTotpNative, confirmTotpNative, unlockAdminNative, biometricStatusNative, registerBiometricNative, removeBiometricNative, beginBiometricNative, verifyBiometricNative, adminSessionStatusNative, requireAdminSessionNative } from "./admin-security-native.js";
@@ -5702,6 +5702,7 @@ export default {
       if (url.pathname === "/ai/image" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
+        await enforceRateLimit(u.uid);
         let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
@@ -5731,6 +5732,7 @@ export default {
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
+        await enforceRateLimit(u.uid);
         let control = await capability(u.uid, "image_generation");
         const body = await readBody(request);
         const imageModel = await resolvePublishedModel(body.modelRegistryId || null, "image-generation");
@@ -5755,23 +5757,6 @@ export default {
         );
         return json({ ...result, billingUnit: "token", billingOperation: "image.edit" });
       }
-      if (url.pathname === "/ai/video" && request.method === "POST") {
-        const u = await verifyFirebaseUser(request);
-        await requireConsent(u.uid);
-        let control = await capability(u.uid, "video_generation");
-        const b = await readBody(request);
-        if (b.modelRegistryId) {
-          const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
-          control = { ...control, ...selected, config: control.config || {} };
-        }
-        b.creditCost = control.creditCost;
-        b.model = control.modelId;
-        const result = await createVideoNative(env, u, b,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
-          (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id), b.creditCost);
-        return json(result);
-      }
-      if (url.pathname.startsWith("/ai/video/") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/ai/video/".length)))); }
       if (url.pathname === "/social/oauth/callback" && request.method === "GET") { const state=String(url.searchParams.get("state")||""),code=String(url.searchParams.get("code")||""); if(!state||!code)return new Response("OAuth callback parameters required",{status:400}); const result=await socialCallback(env,state,code); return new Response("<!doctype html><html><body><h1>BQ Sqwad AI</h1><p>Account connected successfully. You can return to the app.</p></body></html>",{status:200,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}}); }
       if (url.pathname === "/organization/social/accounts" && request.method === "GET") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"channels"); const orgId=String(url.searchParams.get("organizationId")||u.uid); const org=await firestoreGet("organizationWorkspaces/"+orgId); const member=Array.isArray(org?.members)?org.members.find(x=>String(x.id||"")===u.uid&&x.status!=="inactive"):null;if(!member||!["owner","admin","editor"].includes(String(member.role||"")))throw new Error("organization_social_access_denied");return json({accounts:(await listSocialAccounts(u.uid,orgId)).filter(x=>["youtube","tiktok"].includes(x.platform))}); }
       if (url.pathname === "/organization/social/tiktok/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); await requireOrganizationFeature(u.uid,"channels"); const orgId=String(url.searchParams.get("organizationId")||""),accountId=String(url.searchParams.get("accountId")||""); const org=await firestoreGet("organizationWorkspaces/"+orgId);const member=Array.isArray(org?.members)?org.members.find(x=>String(x.id||"")===u.uid&&x.status!=="inactive"):null;if(!member)throw new Error("organization_social_access_denied");return json(await tiktokProfile(env,u.uid,accountId,orgId)); }
