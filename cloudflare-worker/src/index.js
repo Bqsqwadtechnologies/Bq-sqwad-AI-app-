@@ -5652,33 +5652,6 @@ export default {
       if (url.pathname === "/consent/training" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),trainingConsent=b.trainingConsent===true; await firestoreSet("userConsents/"+u.uid,{uid:u.uid,trainingConsent,trainingConsentAt:new Date(),updatedAt:new Date()},true); if(!trainingConsent)await firestoreDelete("aiTrainingContributions/"+u.uid); return json({ok:true,trainingConsent,contributionsDeleted:!trainingConsent}); }
       if (url.pathname === "/notifications/token" && request.method === "POST") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token||token.length>4096)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreSet("notificationTokens/"+u.uid+"_"+h,{uid:u.uid,token,tokenHash:h,platform:String(b.platform||"android").slice(0,40),enabled:true,updatedAt:new Date()},true); return json({ok:true,registered:true}); }
       if (url.pathname === "/notifications/token" && request.method === "DELETE") { const u=await verifyFirebaseUser(request),b=await readBody(request),token=String(b.token||"").trim(); if(!token)return json({error:"notification_token_required"},400); const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(token)); let h=""; for(const v of new Uint8Array(hash))h+=v.toString(16).padStart(2,"0"); await firestoreDelete("notificationTokens/"+u.uid+"_"+h); return json({ok:true,removed:true}); }
-      if (url.pathname === "/video/generate" && request.method === "POST") {
-        const u = await verifyFirebaseUser(request);
-        await requireConsent(u.uid);
-        const b = await readBody(request);
-        const videoPrompt = String(b.prompt || b.description || b.text || "").trim();
-        if (videoPrompt) {
-          const redirect = await workspaceScopeRedirect("video", videoPrompt);
-          if (redirect) return json({ ok: true, redirect });
-        }
-        let control = await capability(u.uid, "video_generation");
-        if (b.modelRegistryId) {
-          const selected = await resolvePublishedModel(b.modelRegistryId, "video-generation");
-          control = { ...control, ...selected, config: control.config || {} };
-        }
-        b.creditCost = control.creditCost;
-        b.model = control.modelId;
-        const result = await createVideoNative(env, u, b,(uid, cost, name, user) => chargeCredits(uid, cost, name, user),
-          (uid, id, provider) => commitCredits(uid, id, provider),
-          (uid, id) => reverseCredits(uid, id), b.creditCost);
-        return json(result);
-      }
-      if (url.pathname.startsWith("/video/jobs/") && !url.pathname.endsWith("/content") && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await getVideoNative(env,u,decodeURIComponent(url.pathname.slice("/video/jobs/".length)))); }
-      if (url.pathname.startsWith("/video/jobs/") && url.pathname.endsWith("/content") && request.method === "GET") {
-        const u = await verifyFirebaseUser(request);
-        await assertSharedCreditsAvailable(u);
-        return await getVideoContentNative(env, u, decodeURIComponent(url.pathname.slice("/video/jobs/".length, -8)));
-      }
       if (url.pathname === "/pdf/charge" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
         await requireConsent(u.uid);
