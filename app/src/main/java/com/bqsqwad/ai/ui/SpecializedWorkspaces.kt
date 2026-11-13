@@ -188,6 +188,22 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
+            color = when (activePlan.id) {
+                "truthguardfree" -> MaterialTheme.colorScheme.primaryContainer
+                "tgplus" -> MaterialTheme.colorScheme.secondaryContainer
+                "tgpro" -> MaterialTheme.colorScheme.tertiaryContainer
+                "tgteam" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                else -> MaterialTheme.colorScheme.surfaceContainer
+            },
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                when (activePlan.id) {
+                    "truthguardfree" -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    "tgplus" -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)
+                    "tgpro" -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
+                    else -> MaterialTheme.colorScheme.outlineVariant
+                }
+            ),
             tonalElevation = 2.dp
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -197,7 +213,7 @@ fun TruthGuardWorkspace(onOpenPlans: () -> Unit = {}) {
                         Text(activePlan.checks, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     }
                     if (activePlan.id != "truthguardfree") {
-                        AssistChip(onClick = {}, enabled = false, label = { Text("ACTIVE") })
+                        BqStatusBadge("ACTIVE")
                     }
                 }
                 Text(
