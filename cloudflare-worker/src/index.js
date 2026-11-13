@@ -3759,7 +3759,11 @@ export default {
 
       if (url.pathname === "/credits" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        if (isSuperAdmin(user, env)) return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+        // Match the exact bypass decision used by chargeCredits(). Admin Plan Test
+        // Mode must expose and spend the administrator's real gifted/purchased balance.
+        if (await adminBypassEnabled(user, env)) {
+          return json({ available: 0, reserved: 0, adminUnlimited: true, updatedAt: null, source: "admin_unlimited" });
+        }
         await ensureWelcomeCredits(user);
         await applyConfiguredDailyFreeCredits(user.uid);
         // The website's Firebase backend is the canonical credit authority.
@@ -3770,6 +3774,7 @@ export default {
         return json({
           available: balance.total,
           reserved: 0,
+          adminUnlimited: false,
           permanent: balance.permanent,
           subscription: balance.subscription,
           trial: balance.trial,
