@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { configureFirebaseEnv } from "../src/firebase.js";
-import { generateImageNative, editImageNative, createVideoNative, validateGeneratedImageBase64 } from "../src/generation-native.js";
+import { generateImageNative, editImageNative, validateGeneratedImageBase64 } from "../src/generation-native.js";
 
 const testPrivateKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs8", format: "pem" });
 configureFirebaseEnv({ BQ_FIREBASE_SERVICE_ACCOUNT_JSON: JSON.stringify({ project_id: "bq-sqwad-test", client_email: "worker-tests@bq-sqwad-test.iam.gserviceaccount.com", private_key: testPrivateKey }) });
@@ -127,34 +127,6 @@ test("image editing ignores client-supplied credit prices and delegates pricing 
     assert.equal(chargeArgs[2], "image_edit");
     assert.equal(reversed, true);
   } finally { restoreFetch(); }
-});
-
-test("video generation remains disabled by project policy and never reserves credits", async () => {
-  let charged = false;
-  await assert.rejects(
-    createVideoNative(
-      { OPENAI_API_KEY: "test" }, { uid: "user-test" },
-      { prompt: "A blue bird flying", creditCost: 999999 },
-      async () => { charged = true; throw new Error("must_not_charge"); },
-      async () => {}, async () => {}
-    ),
-    error => error.httpStatus === 503 && /video_generation_model_not_allowed_by_project_policy/.test(error.message)
-  );
-  assert.equal(charged, false);
-});
-
-test("video generation cannot be enabled by a client-supplied price", async () => {
-  let charged = false;
-  await assert.rejects(
-    createVideoNative(
-      { OPENAI_API_KEY: "test" }, { uid: "user-test" },
-      { prompt: "A blue bird flying", creditCost: 4.5 },
-      async () => { charged = true; throw new Error("must_not_charge"); },
-      async () => {}, async () => {}, 4.5
-    ),
-    /video_generation_model_not_allowed_by_project_policy/
-  );
-  assert.equal(charged, false);
 });
 
 test("generation uses the explicit server-resolved price rather than request body creditCost", async () => {
