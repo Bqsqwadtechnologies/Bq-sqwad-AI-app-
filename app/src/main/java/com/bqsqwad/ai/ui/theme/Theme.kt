@@ -168,7 +168,7 @@ private fun paletteScheme(p: ThemePalette, dark: Boolean) =
 fun BQSqwadTheme(content: @Composable () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("bq_sqwad_ui", Context.MODE_PRIVATE) }
-    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "light") ?: "light") }
+    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "amoled") ?: "amoled") }
     var accentName by remember { mutableStateOf(prefs.getString("accent_palette", "signature") ?: "signature") }
     var textScale by remember { mutableStateOf(prefs.getFloat("text_scale", 1.0f).coerceIn(0.85f, 1.4f)) }
 
