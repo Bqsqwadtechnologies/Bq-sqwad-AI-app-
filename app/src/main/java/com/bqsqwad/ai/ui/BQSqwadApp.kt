@@ -2434,6 +2434,16 @@ private fun ChatAttachmentPreview(
                     runCatching { context.startActivity(Intent.createChooser(intent, "Open PDF")) }
                         .onFailure { android.widget.Toast.makeText(context, "No PDF viewer is available on this device.", android.widget.Toast.LENGTH_SHORT).show() }
                 }) { Text("Open") }
+                IconButton(onClick = {
+                    val fileUri = Uri.parse(attachment.fileUri)
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(Intent.EXTRA_STREAM, fileUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching { context.startActivity(Intent.createChooser(share, "Share PDF")) }
+                        .onFailure { android.widget.Toast.makeText(context, "Could not share this PDF.", android.widget.Toast.LENGTH_SHORT).show() }
+                }) { Icon(Icons.Default.Share, contentDescription = "Share PDF") }
             }
         }
     } else {
