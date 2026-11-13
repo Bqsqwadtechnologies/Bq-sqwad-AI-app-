@@ -3481,7 +3481,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         // Provider settlement is an internal billing operation, not a chat status.
                         val safeLabel = label.trim()
                         if (!safeLabel.contains(Regex("provider|cost|settle|billing|usage", RegexOption.IGNORE_CASE))) {
-                            scope.launch(Dispatchers.Main) { taskPhaseLabel = safeLabel }
+                            scope.launch(Dispatchers.Main) { taskPhaseLabel = safeLabel; if (safeLabel.contains("connector", ignoreCase = true) || safeLabel.contains("connected service", ignoreCase = true)) taskStartedAtMs = System.currentTimeMillis() }
                         }
                     }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
                 }
