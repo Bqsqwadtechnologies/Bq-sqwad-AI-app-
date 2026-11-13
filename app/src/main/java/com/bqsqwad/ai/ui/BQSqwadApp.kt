@@ -6341,28 +6341,61 @@ fun CameraWorkspace(onOpenCredits: () -> Unit = {}, showDiagnostics: Boolean = f
         }
     }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(liveCameraPriceLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))
         ) {
-            OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
-            OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active && !screenActive) { Text(if (smartMode) "Smart Practice: ON" else "Smart Practice") }
-            var voiceExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(onClick = { voiceExpanded = true }) {
-                    Text("Voice: " + (liveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Icon(Icons.Default.CameraEnhance, contentDescription = null, modifier = Modifier.padding(12.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("AI Live Camera", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Live vision workspace · private camera session", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    BqStatusBadge(when {
+                        streamOnline -> "STREAMING"
+                        active -> "AI CONNECTED"
+                        granted -> "PREVIEW READY"
+                        else -> "CAMERA OFF"
+                    })
                 }
-                DropdownMenu(expanded = voiceExpanded, onDismissRequest = { voiceExpanded = false }) {
-                    liveVoices.forEach { (id, label) ->
-                        DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voiceExpanded = false })
+                Text(liveCameraPriceLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    when {
+                        streamOnline -> "Your selected stream transport is active."
+                        active -> "AI session is active. You can pause or stop it at any time."
+                        screenActive -> "Screen sharing is active. Stop it before starting the camera session."
+                        granted -> "Camera permission is available. Start an AI session when you are ready."
+                        else -> "Camera access is requested only when you choose to enable the preview."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = toggleFlashlight, enabled = granted) { Text(if (flashlightOn) "Flashlight On" else "Flashlight") }
+                    OutlinedButton(onClick = { smartMode = !smartMode }, enabled = !active && !screenActive) { Text(if (smartMode) "Smart Practice: ON" else "Smart Practice") }
+                    var voiceExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(onClick = { voiceExpanded = true }) {
+                            Text("Voice: " + (liveVoices.firstOrNull { it.first == selectedVoice }?.second ?: "Aurora"))
+                        }
+                        DropdownMenu(expanded = voiceExpanded, onDismissRequest = { voiceExpanded = false }) {
+                            liveVoices.forEach { (id, label) ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = { selectedVoice = id; voiceExpanded = false })
+                            }
+                        }
                     }
                 }
             }
         }
-        Text("Live camera viewer with secure frame analysis. Camera access stays visible while the session is active.")
         if (!granted) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Allow camera access to show a live preview. The AI session starts only when you choose Start AI session.")
