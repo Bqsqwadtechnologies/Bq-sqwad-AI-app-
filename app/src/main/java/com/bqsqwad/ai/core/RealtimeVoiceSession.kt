@@ -56,6 +56,8 @@ class RealtimeVoiceSession(
     private val sessionConfigured = AtomicBoolean(false)
     private val sessionCreated = AtomicBoolean(false)
     private val playing = AtomicBoolean(false)
+    // Explicit local microphone mute; independent from server VAD and audio playback.
+    private val microphoneMuted = AtomicBoolean(false)
     // Realtime accepts one active response at a time. Keep only the newest visual frame
     // while speech is being answered, then submit it when the current response finishes.
     private val responseInProgress = AtomicBoolean(false)
@@ -205,6 +207,14 @@ class RealtimeVoiceSession(
      * response stream, so requesting a response for every frame can collide with an active
      * speech response and terminate the session. Keep the newest frame and process it when idle.
      */
+    fun setMicrophoneMuted(muted: Boolean) {
+        microphoneMuted.set(muted)
+        onAudioLevel(0f)
+        onState(if (muted) "microphone_muted" else if (playing.get()) "speaking" else "listening")
+    }
+
+    fun isMicrophoneMuted(): Boolean = microphoneMuted.get()
+
     fun sendVisualFrame(jpegBytes: ByteArray) {
         if (!running.get() || jpegBytes.isEmpty()) return
         pendingVisualFrame.set(jpegBytes)
@@ -508,6 +518,14 @@ class RealtimeVoiceSession(
                 val count = activeRecorder.read(buffer, 0, buffer.size)
                 when {
                     count > 0 -> {
+                        // Do not feed speaker playback back into Realtime as fresh user speech.
+                        // On loudspeaker routes this prevents the assistant from transcribing and
+                        // answering its own voice. A headset remains eligible for true barge-in.
+                        if (microphoneMuted.get() || (!hasExternalAudioRoute() && (playing.get() || responseInProgress.get()))) {
+                            onAudioLevel(0f)
+                            delay(8L)
+                            continue
+                        }
                         onAudioLevel(pcmRms(buffer, count))
                         val payload = Base64.encodeToString(buffer.copyOf(count), Base64.NO_WRAP)
                         val sent = socket?.send(
@@ -582,6 +600,7 @@ class RealtimeVoiceSession(
     private fun stopInternal() {
         running.set(false)
         audioCaptureStarted.set(false)
+        microphoneMuted.set(false)
         sessionConfigured.set(false)
         responseInProgress.set(false)
         suppressAudioUntilResponse.set(false)
