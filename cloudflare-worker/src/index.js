@@ -3828,7 +3828,9 @@ export default {
           rows.set(key, { ...row, id: key });
         }
         return json({
+          isAdmin: isSuperAdmin(user, env),
           adminPlanTest: adminPlanTest?.enabled === true,
+          updatedAt: new Date().toISOString(),
           items: Array.from(rows.values())
             .filter(row => {
               const state = String(row.state || row.status || "").toLowerCase();
