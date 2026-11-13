@@ -115,7 +115,7 @@ test("native BQ catalog is browseable without sign-in and falls back to canonica
 });
 
 test("realtime voice and client issue reporting require Firebase auth", async () => {
-  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/admin/self-test", "POST"], ["/admin/test-mode", "GET"], ["/admin/test-mode", "POST"], ["/admin/credit-trial", "GET"], ["/admin/credit-trial", "POST"], ["/admin/daily-free-credits", "GET"], ["/admin/daily-free-credits", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"], ["/video/jobs/test/content", "GET"]]) {
+  for (const [path, method] of [["/realtime/session", "POST"], ["/realtime/heartbeat", "POST"], ["/admin/self-test", "POST"], ["/admin/test-mode", "GET"], ["/admin/test-mode", "POST"], ["/admin/credit-trial", "GET"], ["/admin/credit-trial", "POST"], ["/admin/daily-free-credits", "GET"], ["/admin/daily-free-credits", "POST"], ["/issues/report", "POST"], ["/business/plan-builder", "POST"], ["/business/advanced-ai", "POST"], ["/business/assistant", "POST"]]) {
     const res = await worker.fetch(new Request("https://x.dev" + path, {
       method,
       body: method === "POST" ? "{}" : undefined
@@ -125,11 +125,13 @@ test("realtime voice and client issue reporting require Firebase auth", async ()
 });
 
 test("unmigrated routes return a safe branded service error", async () => {
-  const res = await worker.fetch(new Request("https://x.dev/not-yet-migrated"), {});
-  assert.equal(res.status, 501);
-  const body = await res.json();
-  assert.equal(body.error, "service_temporarily_unavailable");
-  assert.equal(body.path, undefined);
+  for (const path of ["/not-yet-migrated", "/video/jobs/test/content"]) {
+    const res = await worker.fetch(new Request("https://x.dev" + path), {});
+    assert.equal(res.status, 501);
+    const body = await res.json();
+    assert.equal(body.error, "service_temporarily_unavailable");
+    assert.equal(body.path, undefined);
+  }
 });
 
 test("CORS preflight returns 204", async () => {
