@@ -28,7 +28,7 @@ import { enforceProtectedContentPolicy } from "./live-content-policy.js";
 import { securityStatus, configurePassword, beginTotpSetup, confirmTotpSetup, unlockAdmin, requireStepUp, biometricStatus, registerBiometric, beginBiometricChallenge, verifyBiometric, removeBiometric } from "./admin-security.js";
 import { businessWorkspace, createBusinessRecord, updateBusinessRecord, deleteBusinessRecord, addBusinessMember, requireBusinessAccess, requireBusinessPlan, listBusinessExtended, createBusinessExtended, updateBusinessExtended, businessKnowledgeForWorkspace, runBusinessAutomation, receiveBusinessAutomationWebhook, updateBusinessSettings, getBusinessTestSession, setBusinessTestSession, runBusinessPlanTestSuite, runBusinessUsageWarnings, listAdminBusinessSubscriptions, setAdminBusinessSubscriptionStatus } from "./business-phases.js";
 import { passkeyStatus, registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, removePasskey } from "./passkeys.js";
-import { generateImage, createVideo, getVideoJob } from "./generation.js";
+import { generateImage } from "./generation.js";
 import { getUserFeatureSettings, updateUserFeatureSettings } from "./user-settings.js";
 import { getOrganizationWallet, organizationWalletTopUps, chargeOrganizationWallet, startOrganizationLiveBilling, getOrganizationLiveBilling, heartbeatOrganizationLiveBilling, stopOrganizationLiveBilling, organizationBillingAdminConfig } from "./organization-billing.js";
 import { listOrganizationScheduledTasks, createOrganizationScheduledTask, updateOrganizationScheduledTask, runOrganizationScheduledTask, runDueOrganizationScheduledTasks } from "./organization-scheduler.js";
@@ -1230,34 +1230,6 @@ export const bqSqwadApi = onRequest(
         } finally {
           await gate.release();
         }
-      }
-
-      if (req.method === "POST" && path === "video/generate") {
-        const prompt = String(body.prompt || "").trim();
-        if (!prompt) return send(res, 400, { error: "video_prompt_required" });
-        const gate = await authorizeCapability(user.uid, "capability_video_generation");
-        let reservation = null;
-        try {
-          reservation = await reserveCredits(user.uid, Math.max(0, Number(body.seconds || 0)), "video_generation");
-          const result = await createVideo(user.uid, prompt, {
-            seconds: body.seconds,
-            size: body.size
-          });
-          await commitCredits(user.uid, reservation.reservationId, "openai");
-          gate.commit();
-          return send(res, 200, { ...result, creditsCharged: reservation.amount });
-        } catch (error) {
-          await reverseCredits(user.uid, reservation?.reservationId);
-          throw error;
-        } finally {
-          await gate.release();
-        }
-      }
-
-      if (req.method === "GET" && path.startsWith("video/jobs/")) {
-        const jobId = path.slice("video/jobs/".length).trim();
-        if (!jobId || jobId.includes("/")) return send(res, 400, { error: "invalid_video_job_id" });
-        return send(res, 200, await getVideoJob(user.uid, jobId));
       }
 
       if (req.method === "GET" && path === "truthguard/catalog") {
