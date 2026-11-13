@@ -3943,7 +3943,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             SecretChatsDialog(
                 open = showSecretChats,
                 chatId = historyId,
-                transcript = messages.filterNot { it.privateSession }.joinToString("\\n\\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text },
+                transcript = messages.filter { it.text.isNotBlank() || it.attachments.isNotEmpty() }.joinToString("\\n\\n") { (if (it.mine) "You: " else "BQ Sqwad AI: ") + it.text },
                 title = chatTitleOverride ?: messages.firstOrNull { it.mine }?.text?.take(72).orEmpty().ifBlank { "Secret chat" },
                 onClose = { showSecretChats = false },
                 onMoved = {
