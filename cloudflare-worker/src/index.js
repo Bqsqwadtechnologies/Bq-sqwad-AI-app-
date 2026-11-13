@@ -2459,7 +2459,7 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
       return { text: finalText, providerId: "openai", modelId: model, usage, connectorToolkits: [...usedToolkits] };
     }
     if (round === 2) {
-      if (finalText.trim()) return { text: finalText, providerId: "openai", modelId: model, usage };
+      if (finalText.trim()) return { text: finalText, providerId: "openai", modelId: model, usage, connectorToolkits: [...usedToolkits] };
       throw Object.assign(new Error("connector_tool_round_limit"), { httpStatus: 502, safeError: "provider_unavailable" });
     }
     input = [];
