@@ -8,7 +8,7 @@ test("Main Chat discovers owned connector sessions without keyword gating", () =
   assert.match(source, /async function runConnectorAwareOpenAI\([\s\S]*?conversationUsedConnectors = false[,)]/);
   assert.match(source, /firestoreQuery\("composioSessions",\s*\{[\s\S]*?fieldPath: "uid"[\s\S]*?user\.uid/);
   assert.doesNotMatch(source, /const connectorIntent = isConnectorRelatedPrompt/);
-  assert.match(source, /runConnectorAwareOpenAI\(globalThis\.__bqEnv, user, control, userMessage, system, true/);
+  assert.match(source, /runConnectorAwareOpenAI\(globalThis\.__bqEnv \|\| \{\}, user, control, userMessage, system, true,[\s\S]*?\(toolkit\) => emitTaskEvent\("phase"/);
   assert.match(source, /CONNECTED SERVICES FOR THIS ACCOUNT:[\s\S]*?do not tell the user it is disconnected/);
 });
 
