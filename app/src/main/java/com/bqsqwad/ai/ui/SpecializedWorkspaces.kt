@@ -441,15 +441,26 @@ Do not claim an experiment was executed unless the backend actually executed it.
         style = WorkspaceVisualStyle.FRONTIER,
         icon = Icons.Default.Science
     ) {
-        SurfaceCard(
-            if (adminTestMode) "Admin test access" else "Frontier plan access",
-            listOfNotNull(
-                planName,
-                planPrice,
-                planTrial,
-                planFeatures.takeIf { it.isNotEmpty() }?.joinToString(" • ")
-            ).joinToString(" | ")
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = when {
+                    adminTestMode -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    planName.contains("Explorer", ignoreCase = true) -> MaterialTheme.colorScheme.primaryContainer
+                    planName.contains("Pro", ignoreCase = true) -> MaterialTheme.colorScheme.secondaryContainer
+                    planName.contains("Enterprise", ignoreCase = true) -> MaterialTheme.colorScheme.tertiaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainer
+                }
+            ),
+            shape = MaterialTheme.shapes.extraLarge
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(if (adminTestMode) "Admin test access" else "Frontier plan access", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(planName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                listOfNotNull(planPrice, planTrial, planFeatures.takeIf { it.isNotEmpty() }?.joinToString(" • "))
+                    .forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
         if (planLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (!planLoading && !planAccessGranted) {
             SurfaceCard("Frontier plan required", "Frontier Lab is a paid workspace. Activate Frontier Explorer, Frontier Pro or Frontier Enterprise before running experiments.")
@@ -609,7 +620,15 @@ Use the plan context to tailor the experience, but never claim an unavailable to
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            colors = CardDefaults.cardColors(
+                containerColor = when (activePlanId) {
+                    "lifemathisfree" -> MaterialTheme.colorScheme.primaryContainer
+                    "lmstandard" -> MaterialTheme.colorScheme.secondaryContainer
+                    "lmultimate" -> MaterialTheme.colorScheme.tertiaryContainer
+                    "admin-unlimited" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    else -> MaterialTheme.colorScheme.surfaceContainer
+                }
+            )
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
