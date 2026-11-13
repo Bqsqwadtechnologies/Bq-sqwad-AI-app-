@@ -263,7 +263,7 @@ class ChatApiClient(
                             if (capability != "chat" || label.contains("connector", ignoreCase = true) || label.contains("connected service", ignoreCase = true)) onPhase(label)
                             return
                         }
-                        "taskEnded" -> { if (capability != "chat") onTaskEnded(); return }
+                        "taskEnded" -> { onTaskEnded(); return }
                     }
                     when (json.optString("type")) {
                         "delta" -> {
