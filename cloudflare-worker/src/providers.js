@@ -142,7 +142,7 @@ export async function callGemini(env, { model, message, system, images = [], fil
   };
 }
 
-export async function callTavily(env, query, maxResults = 10, deepResearch = false) {
+export async function callTavily(env, query, maxResults = 3, deepResearch = false) {
   if (!env?.TAVILY_API_KEY) {
     throw Object.assign(new Error("web_search_not_configured"), {
       httpStatus: 503,
@@ -158,14 +158,17 @@ export async function callTavily(env, query, maxResults = 10, deepResearch = fal
     },
     body: JSON.stringify({
       query: String(query || ""),
-      max_results: Math.min(Math.max(Number(maxResults) || 10, 1), 20),
+      // Keep ordinary Main Chat searches focused: return only the highest-ranked
+      // relevant pages, plus Tavily's concise answer when it can answer directly.
+      max_results: Math.min(Math.max(Number(maxResults) || 3, 1), deepResearch ? 20 : 3),
       search_depth: deepResearch ? "advanced" : "basic",
-      include_answer: false,
+      include_answer: true,
       include_raw_content: false
     })
   });
   return {
     providerId: "tavily",
+    answer: typeof result.answer === "string" ? result.answer : null,
     sources: (result.results || []).map(x => ({
       title: x.title,
       url: x.url,
