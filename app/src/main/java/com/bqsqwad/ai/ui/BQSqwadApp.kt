@@ -3423,7 +3423,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (pdfRequest) {
                         append("Create the complete, polished document requested below. Return the document content itself with a clear title, section headings, readable paragraphs, and useful lists. Do not merely explain how to make a PDF.\n\n")
                     } else if (fileRequest) {
-                        append("Create the complete contents of the requested downloadable file. Return only the file contents, without an introduction, explanation, or Markdown code fences. Follow the requested format exactly; for JSON return valid JSON, for CSV return valid CSV, and for code return a complete source file.\\n\\n")
+                        append("Create the complete contents of the requested downloadable file. Return only the file contents, without an introduction, explanation, or Markdown code fences. Follow the requested format exactly; for JSON return valid JSON, for CSV return valid CSV, and for code return a complete source file.\n\n")
                     }
                     append(actualPrompt)
                     if (webSources.isNotEmpty()) {
@@ -3509,7 +3509,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             mimeType = spec.mimeType,
                             fileUri = stagedUri.toString()
                         )
-                        generatedPdfNotice = "\\n\\nFile created and saved to Downloads/BQ Sqwad AI as " + spec.title + "." + spec.extension + "."
+                        generatedPdfNotice = "\n\nFile created and saved to Downloads/BQ Sqwad AI as " + spec.title + "." + spec.extension + "."
                     } catch (fileError: Throwable) {
                         stagedUri?.let { uri -> withContext(Dispatchers.IO) { runCatching { context.contentResolver.delete(uri, null, null) } } }
                         generatedPdfNotice = "\\n\\nI could not finish the file: " + (fileError.message?.take(180) ?: "the file could not be saved.")
