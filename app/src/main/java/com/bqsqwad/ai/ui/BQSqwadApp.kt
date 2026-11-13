@@ -3394,6 +3394,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         activeRequestId = requestId
         streamJob = scope.launch(Dispatchers.IO) {
             var webSources = emptyList<SearchSource>()
+            var webSearchAnswer: String? = null
             var webSearchNotice: String? = null
             try {
                 if (shouldSearchWeb) {
@@ -3408,8 +3409,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         }
                         try {
                             val search = WorkspaceApiClient().search(text.trim(), false)
-                            webSources = search.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(10)
-                            if (webSources.isEmpty()) webSearchNotice = "Web Search is unavailable right now. No current sources were returned."
+                            webSources = search.sources.filter { it.url.startsWith("https://", ignoreCase = true) }.take(3)
+                            webSearchAnswer = search.answer?.takeIf { it.isNotBlank() }
+                            if (webSources.isEmpty() && webSearchAnswer.isNullOrBlank()) webSearchNotice = "Web Search is unavailable right now. No relevant answer or sources were returned."
                         } catch (_: Throwable) {
                             webSearchNotice = "Web Search is unavailable right now. This answer may not include current information."
                         } finally {
@@ -3432,8 +3434,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         append("Create the complete contents of the requested downloadable file. Return only the file contents, without an introduction, explanation, or Markdown code fences. Follow the requested format exactly; for JSON return valid JSON, for CSV return valid CSV, and for code return a complete source file.\n\n")
                     }
                     append(actualPrompt)
+                    if (!webSearchAnswer.isNullOrBlank()) {
+                        append("\n\nWEB SEARCH ANSWER (use this concise answer when it directly answers the question; verify important claims against the source below):\n")
+                        append(webSearchAnswer)
+                    }
                     if (webSources.isNotEmpty()) {
-                        append("\n\nCURRENT WEB SEARCH SOURCES (use for facts; cite only with [1], [2], etc.; never reproduce URLs or Markdown links):\n")
+                        append("\n\nCURRENT WEB SEARCH SOURCES (use only these highly ranked relevant sources; cite only with [1], [2], etc.; never reproduce URLs or Markdown links):\n")
                         append(webSources.mapIndexed { index, source ->
                             "[${index + 1}] Title: ${source.title}\nSource URL for reference only (never output it): ${source.url}\nSnippet: ${source.snippet.orEmpty()}"
                         }.joinToString("\n\n"))
