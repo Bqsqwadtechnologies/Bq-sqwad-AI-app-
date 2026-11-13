@@ -101,20 +101,35 @@ fun MyTasksWorkspace() {
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("My Tasks", style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    "Tasks assigned to your signed-in account.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                BqLogo(44.dp)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("My Tasks", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Your assigned work, deadlines and progress.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(onClick = ::refresh, enabled = !loading) { Text("Refresh") }
             }
-            OutlinedButton(onClick = ::refresh, enabled = !loading) { Text("Refresh") }
+        }
+        if (tasks.isNotEmpty()) {
+            val completed = tasks.count { it.status == "done" }
+            val active = tasks.count { it.status == "in_progress" }
+            Text(
+                "$"+"completed completed  •  $active in progress  •  $"+"{tasks.size} total",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         error?.let {
