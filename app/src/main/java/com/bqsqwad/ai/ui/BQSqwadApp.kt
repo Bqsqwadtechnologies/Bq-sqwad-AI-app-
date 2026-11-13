@@ -3272,6 +3272,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             "Recent conversation context. Continue the conversation naturally and do not repeat questions already answered:\n" + it
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
+        val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
         val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
         if (imageRequest) {
             val promptText = text.trim()
@@ -3421,6 +3422,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                 val requestPrompt = buildString {
                     if (pdfRequest) {
                         append("Create the complete, polished document requested below. Return the document content itself with a clear title, section headings, readable paragraphs, and useful lists. Do not merely explain how to make a PDF.\n\n")
+                    } else if (fileRequest) {
+                        append("Create the complete contents of the requested downloadable file. Return only the file contents, without an introduction, explanation, or Markdown code fences. Follow the requested format exactly; for JSON return valid JSON, for CSV return valid CSV, and for code return a complete source file.\\n\\n")
                     }
                     append(actualPrompt)
                     if (webSources.isNotEmpty()) {
@@ -3446,6 +3449,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     activeSystem.takeIf { it.isNotBlank() },
                     personalizationSystem,
                     if (pdfRequest) "The user requested a downloadable PDF. Write finished document content, not instructions about PDFs. Use a suitable title and clear section headings." else null,
+                    if (fileRequest) "The user requested a downloadable file. Output only complete raw file content, with no preamble and no Markdown fences. Match the requested file format exactly and ensure structured formats are syntactically valid." else null,
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
                 ).filterNotNull().joinToString("\n\n")
@@ -3492,6 +3496,23 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         stagedUri?.let { uri -> withContext(Dispatchers.IO) { runCatching { context.contentResolver.delete(uri, null, null) } } }
                         generatedPdfNotice = "\n\nI could not finish the PDF: " +
                             (pdfError.message?.takeIf { it.contains("credits", ignoreCase = true) } ?: "the PDF service is temporarily unavailable. Your chat response is still available.")
+                    }
+                } else if (fileRequest && reply.text.isNotBlank()) {
+                    var stagedUri: Uri? = null
+                    try {
+                        val spec = chatGeneratedFileSpec(text)
+                        val fileContent = normalizeGeneratedFileContent(reply.text)
+                        stagedUri = withContext(Dispatchers.IO) { stageChatGeneratedFile(context, spec, fileContent) }
+                        withContext(Dispatchers.IO) { publishChatGeneratedFile(context, stagedUri!!) }
+                        generatedPdfAttachment = ChatMessageAttachment(
+                            name = spec.title.take(70) + "." + spec.extension,
+                            mimeType = spec.mimeType,
+                            fileUri = stagedUri.toString()
+                        )
+                        generatedPdfNotice = "\\n\\nFile created and saved to Downloads/BQ Sqwad AI as " + spec.title + "." + spec.extension + "."
+                    } catch (fileError: Throwable) {
+                        stagedUri?.let { uri -> withContext(Dispatchers.IO) { runCatching { context.contentResolver.delete(uri, null, null) } } }
+                        generatedPdfNotice = "\\n\\nI could not finish the file: " + (fileError.message?.take(180) ?: "the file could not be saved.")
                     }
                 }
                 scope.launch(Dispatchers.Main) {
