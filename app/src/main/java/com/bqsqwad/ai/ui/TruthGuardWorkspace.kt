@@ -122,9 +122,9 @@ fun CompleteTruthGuardWorkspace(onOpenPlans: () -> Unit = {}, onOpenSettings: ()
     }
 
     LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item { TruthGuardHero(activePlanId, isAdmin, plans.firstOrNull { it.id == activePlanId }, onOpenPlans) }
         item { TruthGuardPlanStrip(plans, activePlanId, isAdmin, onOpenPlans) }
