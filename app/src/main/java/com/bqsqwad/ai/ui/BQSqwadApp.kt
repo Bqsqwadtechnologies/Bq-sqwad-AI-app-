@@ -3521,8 +3521,12 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (current != null) {
                         val normalizedReply = com.bqsqwad.ai.ui.chat.MainChatHelpers.cleanAssistantReply(reply.text)
                         val cleanReply = if (webSources.isNotEmpty()) sanitizeWebAnswer(normalizedReply) else normalizedReply
+                        val visibleReply = if (fileRequest && cleanReply.isNotBlank()) {
+                            val language = chatGeneratedFileSpec(text).extension
+                            "```" + language + "\n" + cleanReply.trim() + "\n```"
+                        } else cleanReply
                         messages[aiIndex] = current.copy(
-                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + cleanReply + generatedPdfNotice,
+                            text = (webSearchNotice?.let { "$it\n\n" } ?: "") + visibleReply + generatedPdfNotice,
                             attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
                             sources = webSources,
                             webSearchAttempted = shouldSearchWeb && webSearchEnabled,
@@ -4609,7 +4613,7 @@ val composerShape = RoundedCornerShape(26.dp)
                                             PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
                                                 showAttachmentSourceDialog = true
                                             PlusAction.CreateImage -> message = "Create an image of "
-                                            PlusAction.CreateFile -> message = "Create a downloadable file (PDF, TXT, MD, CSV, JSON, HTML, XML, YAML, Python, JavaScript, TypeScript, Kotlin, Java, SQL, etc.). Describe what it should contain: "
+                                            PlusAction.CreateFile -> message = "Create a downloadable file (TXT, MD, CSV, JSON, HTML, XML, YAML, Python, JavaScript, TypeScript, Kotlin, Java, SQL, etc.). Describe what it should contain: "
                                             PlusAction.Connectors -> error = "Connectors are managed in the workspace tools."
                                         }
                                     }
