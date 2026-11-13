@@ -796,6 +796,8 @@ class WorkspaceApiClient {
         request("/organization/production/event", payload=payload)
 
     suspend fun businessWorkspace(): JSONObject = request("/business/workspace","GET")
+    suspend fun connectorStatus(toolkit: String): JSONObject =
+        request("/connectors/status?toolkit=" + java.net.URLEncoder.encode(toolkit, "UTF-8"), "GET")
     suspend fun listSecretChats(): JSONObject = request("/secret-chats", "GET")
     suspend fun getSecretChat(chatId: String): JSONObject =
         request("/secret-chats?chatId=" + java.net.URLEncoder.encode(chatId, "UTF-8"), "GET")
