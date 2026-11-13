@@ -4553,7 +4553,9 @@ val composerShape = RoundedCornerShape(26.dp)
                                         when (action) {
                                             PlusAction.Camera, PlusAction.Photos, PlusAction.Files ->
                                                 showAttachmentSourceDialog = true
-                                            else -> Unit
+                                            PlusAction.CreateImage -> message = "Create an image of "
+                                            PlusAction.CreateFile -> message = "Create a PDF document about "
+                                            PlusAction.Connectors -> error = "Connectors are managed in the workspace tools."
                                         }
                                     }
                                 )
