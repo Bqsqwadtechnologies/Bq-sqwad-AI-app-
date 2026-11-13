@@ -8,12 +8,13 @@ test("canonical Admin Control Center keeps exactly 40 advanced controls", () => 
 });
 
 test("core capability controls are distinct and routable", () => {
-  assert.equal(CORE_CAPABILITY_OPTIONS.length, 15);
+  assert.equal(CORE_CAPABILITY_OPTIONS.length, 14);
   const ids = CORE_CAPABILITY_OPTIONS.map(([id]) => id);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.includes("capability_chat"));
   assert.ok(ids.includes("capability_device_commands"));
   assert.ok(ids.includes("capability_web_search"));
+  assert.equal(ids.includes("capability_video_generation"), false);
 });
 
 test("Admin dashboard exposes the complete section model", () => {
