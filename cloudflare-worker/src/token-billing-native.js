@@ -235,6 +235,39 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     if (Number.isFinite(effective) && effective !== 0) return effective;
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
+
+  // Sunburst image generation needs explicit image-modality credit rates.
+  // Older Firestore pricing documents may predate these fields. Preserve every
+  // administrator-supplied numeric value (including zero), and only supply the
+  // established BQ defaults when a field is absent. Do not resurrect a rule
+  // that exists but is disabled or scoped to another customer class.
+  if (["image_generation", "image_edit"].includes(String(feature || "").toLowerCase()) &&
+      String(providerId || "").toLowerCase() === "openai" &&
+      String(modelId || "") === "gpt-image-2.5-sunburst") {
+    const hasAnySunburstRule = (Array.isArray(tokenRules) ? tokenRules : []).some(rule =>
+      String(rule.provider || "").toLowerCase() === "openai" &&
+      String(rule.model || "") === "gpt-image-2.5-sunburst"
+    );
+    const defaults = {
+      inputCreditsPerToken: 0.0002916666666666667,
+      cachedInputCreditsPerToken: 0.00007291666666666667,
+      outputCreditsPerToken: 0,
+      reasoningCreditsPerToken: 0,
+      inputImageCreditsPerToken: 0.00046666666666666666,
+      cachedInputImageCreditsPerToken: 0.00011666666666666667,
+      outputImageCreditsPerToken: 0.00175
+    };
+    if (!tokenRule && !hasAnySunburstRule) {
+      tokenRule = { provider: "openai", model: "gpt-image-2.5-sunburst", customerClass: "all", status: "active", ...defaults };
+    } else if (tokenRule) {
+      tokenRule = { ...tokenRule };
+      for (const [field, fallback] of Object.entries(defaults)) {
+        if (typeof tokenRule[field] !== "number" || !Number.isFinite(tokenRule[field])) {
+          tokenRule[field] = fallback;
+        }
+      }
+    }
+  }
   const applyFeeToUsage = false;
 
   // Provider/model context limits are provider-owned; BQ applies no token ceiling.
