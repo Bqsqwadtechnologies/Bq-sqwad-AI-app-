@@ -24,7 +24,8 @@ data class ChatReply(
     val providerId: String?,
     val modelId: String?,
     val creditsCharged: Double,
-    val billingStatus: String? = null
+    val billingStatus: String? = null,
+    val balanceAfter: Double? = null
 )
 
 class ChatApiClient(
@@ -241,6 +242,7 @@ class ChatApiClient(
                 var modelId: String? = null
                 var creditsCharged = 0.0
                 var billingStatus: String? = null
+                var balanceAfter: Double? = null
                 var eventData = StringBuilder()
                 var eventName = "message"
                 var completed = false
@@ -275,6 +277,7 @@ class ChatApiClient(
                             modelId = json.optString("modelId").takeIf { it.isNotBlank() }
                             creditsCharged = json.optDouble("creditsCharged", 0.0).coerceAtLeast(0.0)
                             billingStatus = json.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
+                            balanceAfter = if (json.has("balanceAfter") && !json.isNull("balanceAfter")) json.optDouble("balanceAfter").coerceAtLeast(0.0) else null
                             completed = true
                         }
                         "error" -> {
@@ -325,7 +328,8 @@ class ChatApiClient(
                     providerId = providerId,
                     modelId = modelId,
                     creditsCharged = creditsCharged,
-                    billingStatus = billingStatus
+                    billingStatus = billingStatus,
+                    balanceAfter = balanceAfter
                 )
             } finally {
                 cancellationHandle?.dispose()
