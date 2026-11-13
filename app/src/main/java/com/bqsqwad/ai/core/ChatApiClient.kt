@@ -23,7 +23,8 @@ data class ChatReply(
     val text: String,
     val providerId: String?,
     val modelId: String?,
-    val creditsCharged: Double
+    val creditsCharged: Double,
+    val billingStatus: String? = null
 )
 
 class ChatApiClient(
@@ -144,7 +145,8 @@ class ChatApiClient(
                 text = text,
                 providerId = body.optString("providerId").takeIf { it.isNotBlank() },
                 modelId = body.optString("modelId").takeIf { it.isNotBlank() },
-                creditsCharged = body.optDouble("creditsCharged", 0.0)
+                creditsCharged = body.optDouble("creditsCharged", 0.0),
+                billingStatus = body.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
             )
         } } }
 
@@ -238,6 +240,7 @@ class ChatApiClient(
                 var providerId: String? = null
                 var modelId: String? = null
                 var creditsCharged = 0.0
+                var billingStatus: String? = null
                 var eventData = StringBuilder()
                 var eventName = "message"
                 var completed = false
@@ -270,7 +273,8 @@ class ChatApiClient(
                         "completed" -> {
                             providerId = json.optString("providerId").takeIf { it.isNotBlank() }
                             modelId = json.optString("modelId").takeIf { it.isNotBlank() }
-                            creditsCharged = json.optDouble("creditsCharged", 0.0)
+                            creditsCharged = json.optDouble("creditsCharged", 0.0).coerceAtLeast(0.0)
+                            billingStatus = json.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
                             completed = true
                         }
                         "error" -> {
@@ -320,7 +324,8 @@ class ChatApiClient(
                     text = finalText,
                     providerId = providerId,
                     modelId = modelId,
-                    creditsCharged = creditsCharged
+                    creditsCharged = creditsCharged,
+                    billingStatus = billingStatus
                 )
             } finally {
                 cancellationHandle?.dispose()
