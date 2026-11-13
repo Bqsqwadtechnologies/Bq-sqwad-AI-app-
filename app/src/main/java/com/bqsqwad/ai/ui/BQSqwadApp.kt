@@ -3987,23 +3987,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                         if (m.attachments.none { !it.imageBase64.isNullOrBlank() }) {
                                             m.imageUrl?.let { url -> ChatRemoteImage(url, "Generated image") }
                                         }
-                                        m.creditsCharged?.takeIf { !m.mine }?.let { charged ->
-                                            val billingLabel = when (m.billingStatus) {
-                                                "admin_exempt" -> "Admin testing · no credits charged"
-                                                "plan_included" -> "Included with your plan · no credits charged"
-                                                "zero_price" -> "No credits charged · this request is configured as free"
-                                                "no_charge" -> "No credits charged"
-                                                else -> "Credits charged: " + String.format(java.util.Locale.US, "%.7f", charged).trimEnd('0').trimEnd('.') + " credits"
-                                            }
-                                            val balanceLabel = m.balanceAfter?.let {
-                                                " · Balance after reply: " + String.format(java.util.Locale.US, "%.7f", it).trimEnd('0').trimEnd('.') + " credits"
-                                            }.orEmpty()
-                                            Text(
-                                                billingLabel + balanceLabel,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
                                     }
                                 }
                             }
