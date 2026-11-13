@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -97,15 +99,19 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
         }
         if ("channels" in enabledGroups) {
             add("Inbox")
-            add("Channels")
-        }
+            add("Channels")        }
         if ("automation" in enabledGroups) add("Automation")
         if ("advanced" in enabledGroups) add("Advanced AI")
         if ("integrations" in enabledGroups) add("Integrations")
         if ("enterprise" in enabledGroups) add("Enterprise")
         add("Settings")
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
@@ -148,11 +154,11 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 )
                 Text(planSubtitle, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = { tab = "Overview" }, label = { Text("Dashboard") })
-                    AssistChip(onClick = { tab = "Settings" }, label = { Text("Settings") })
-                    AssistChip(onClick = { tab = "Inbox" }, label = { Text("Inbox") })
-                    AssistChip(onClick = { tab = "Channels" }, label = { Text("Channels") })
-                    AssistChip(onClick = { tab = "Advanced AI" }, label = { Text("AI") })
+                    listOf("Overview" to "Dashboard", "Settings" to "Settings", "Inbox" to "Inbox", "Channels" to "Channels", "Advanced AI" to "AI")
+                        .filter { (target, _) -> target in tabs }
+                        .forEach { (target, label) ->
+                            AssistChip(onClick = { tab = target }, label = { Text(label) })
+                        }
                 }
                 val features = planContext.optJSONArray("features") ?: JSONArray()
                 if (features.length() > 0) {
@@ -197,8 +203,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
 
         when (tab) {
             "Overview" -> {
-                SurfaceCard("Workspace", data.optString("name").ifBlank { "My Business" })
-                val planContext = data.optJSONObject("planContext") ?: JSONObject()
+                SurfaceCard("Workspace", data.optString("name").ifBlank { "My Business" })                val planContext = data.optJSONObject("planContext") ?: JSONObject()
                 val planName = planContext.optString("name").ifBlank { data.optString("planId").ifBlank { "Business Starter" } }
                 val storage = storageData.optJSONObject("storage") ?: JSONObject()
                 val expiresAt = storageData.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" }
@@ -297,8 +302,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 Text("Business Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("Live workspace metrics from the server. No fabricated numbers.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 listOf(
-                    "AI requests" to a.optInt("requests", 0),
-                    "Team members" to a.optInt("members", 0),
+                    "AI requests" to a.optInt("requests", 0),                    "Team members" to a.optInt("members", 0),
                     "Assistants" to a.optInt("assistants", 0),
                     "Knowledge items" to a.optInt("knowledge", 0),
                     "Contacts" to a.optInt("contacts", 0),
@@ -397,8 +401,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                                         for (i in 0 until additions.length()) merged.put(additions.optJSONObject(i))
                                         extended = JSONObject(extended.toString())
                                             .put("inbox", merged)
-                                            .put("inboxPage", nextPage.optJSONObject("inboxPage") ?: JSONObject())
-                                    }.onFailure { error = safeUserFacingIssue(it, "More inbox messages could not be loaded.") }
+                                            .put("inboxPage", nextPage.optJSONObject("inboxPage") ?: JSONObject())                                    }.onFailure { error = safeUserFacingIssue(it, "More inbox messages could not be loaded.") }
                                     saving = false
                                 }
                             }
@@ -497,8 +500,7 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(row.first)
                         Switch(row.second, onCheckedChange = row.third)
-                    }
-                }
+                    }                }
             }
             "Channels" -> {
                 SocialChannelsPanel(api, data.optString("workspaceId"), error = { error = it })
@@ -597,8 +599,7 @@ private fun RecordCreateForm(title: String, fields: List<String>, onSave: (List<
 
 @Composable
 private fun Records(array: JSONArray, title: String) {
-    if (array.length() == 0) SurfaceCard(title, "No records yet.")
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    if (array.length() == 0) SurfaceCard(title, "No records yet.")    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         (0 until minOf(array.length(), 50)).forEach { i ->
             SurfaceCard(title, (array.optJSONObject(i) ?: JSONObject()).toString())
         }
@@ -697,8 +698,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
                         }
                         connecting = null
                     }
-                }
-            ) { Text(if (connecting == "youtube") "Connecting…" else "Connect YouTube") }
+                }            ) { Text(if (connecting == "youtube") "Connecting…" else "Connect YouTube") }
 
             OutlinedButton(
                 modifier = Modifier.weight(1f),
@@ -797,8 +797,7 @@ private fun SocialChannelsPanel(api: WorkspaceApiClient, workspaceId: String, er
             onValueChange = { mediaUrl = it },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Media URL (required for TikTok/YouTube video publishing)") },
-            supportingText = { Text("Use an HTTPS media URL that the connected provider accepts.") }
-        )
+            supportingText = { Text("Use an HTTPS media URL that the connected provider accepts.") }        )
         Button(
             enabled = accountId.isNotBlank() && text.isNotBlank(),
             onClick = {
@@ -897,8 +896,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                             runCatching { api.socialAccounts(workspaceId) }.onSuccess { body ->
                                 val all = body.optJSONArray("accounts") ?: JSONArray()
                                 val filtered = JSONArray()
-                                for (j in 0 until all.length()) {
-                                    val account = all.optJSONObject(j)
+                                for (j in 0 until all.length()) {                                    val account = all.optJSONObject(j)
                                     if (account?.optString("platform") == "tiktok") filtered.put(account)
                                 }
                                 tiktokAccounts = filtered
@@ -997,8 +995,7 @@ private fun BusinessIntegrationsPanel(api: WorkspaceApiClient, workspaceId: Stri
                         }
                     }
 
-                    if (id == "rest_api") {
-                        SurfaceCard(
+                    if (id == "rest_api") {                        SurfaceCard(
                             "Authenticated API",
                             "Use the existing authenticated Business endpoints from your server or automation. No provider API key is stored in the app."
                         )
@@ -1055,13 +1052,3 @@ private fun BusinessPlanBuilderPanel(api: WorkspaceApiClient, workspaceId: Strin
             }
         ) { Text(if (busy) "Generating…" else "Generate Business Plan") }
         if (result.isNotBlank()) {
-            Surface(
-                Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 2.dp
-            ) {
-                Text(result, Modifier.padding(16.dp))
-            }
-        }
-    }
-}
