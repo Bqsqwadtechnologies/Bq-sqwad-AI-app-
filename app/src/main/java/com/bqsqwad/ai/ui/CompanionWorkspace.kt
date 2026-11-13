@@ -248,7 +248,14 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.secondaryContainer
+            color = when (currentPlan?.id) {
+                "companionfree" -> MaterialTheme.colorScheme.primaryContainer
+                "companionbasic" -> MaterialTheme.colorScheme.secondaryContainer
+                "companionplus" -> MaterialTheme.colorScheme.tertiaryContainer
+                "companionpremium" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                "companionultimate" -> MaterialTheme.colorScheme.surfaceContainerHighest
+                else -> MaterialTheme.colorScheme.secondaryContainer
+            }
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 CompanionFloatingWords(Modifier.fillMaxWidth().height(38.dp))
