@@ -22,6 +22,7 @@ data class LiveMediaUiState(
     val smartMode: Boolean = false,
     val audioLevel: Float = 0f,
     val microphoneLevel: Float = 0f,
+    val microphoneMuted: Boolean = false,
     val outputAudioLevel: Float = 0f,
     val onlineBroadcast: Boolean = false,
     val log: List<String> = emptyList()
@@ -56,6 +57,7 @@ class LiveMediaForegroundService : Service() {
         val uiState: StateFlow<LiveMediaUiState> = _uiState
         @Volatile private var instance: LiveMediaForegroundService? = null
         fun submitVisualFrame(bytes: ByteArray) { instance?.visualVoice?.sendVisualFrame(bytes) }
+        fun setMicrophoneMuted(muted: Boolean) { instance?.setLiveMicrophoneMuted(muted) }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -80,6 +82,13 @@ class LiveMediaForegroundService : Service() {
     private var lastVisualFrameAt = 0L
     private var voice = "marin"
     private var smartMode = false
+
+    private fun setLiveMicrophoneMuted(muted: Boolean) {
+        realtimeVoice?.setMicrophoneMuted(muted)
+        visualVoice?.setMicrophoneMuted(muted)
+        _uiState.value = _uiState.value.copy(microphoneMuted = muted, microphoneLevel = if (muted) 0f else _uiState.value.microphoneLevel)
+        appendLog(if (muted) "Microphone muted by user." else "Microphone unmuted by user.")
+    }
     private fun webSearchEnabledForAccount(): Boolean = getSharedPreferences("bq_sqwad_user_" + (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"), Context.MODE_PRIVATE).getBoolean("web_search_enabled", true)
 
     private fun switchSmartMode(enabled: Boolean) {
@@ -124,6 +133,7 @@ class LiveMediaForegroundService : Service() {
             return START_NOT_STICKY
         }
         val requestedMode = intent?.getStringExtra(EXTRA_MODE).orEmpty()
+        if (requestedMode.isNotBlank()) setLiveMicrophoneMuted(false)
         if (requestedMode.isNotBlank()) mode = requestedMode
         prompt = intent?.getStringExtra(EXTRA_PROMPT)?.takeIf { it.isNotBlank() } ?: prompt
         lens = intent?.getIntExtra(EXTRA_LENS, lens) ?: lens
@@ -764,7 +774,8 @@ class LiveMediaForegroundService : Service() {
             audioLevel = 0f,
             microphoneLevel = 0f,
             outputAudioLevel = 0f,
-            onlineBroadcast = false
+            onlineBroadcast = false,
+            microphoneMuted = false
         )
         stopForeground(STOP_FOREGROUND_REMOVE)
         instance = null
