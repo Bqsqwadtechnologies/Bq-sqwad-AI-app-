@@ -6790,8 +6790,33 @@ export default {
         let reservation = { reservationId: null, amount: 0 };
         try {
           const configuredMaxResults = Number(body.maxResults || control.config?.maxResults || 3);
-          const focusedMaxResults = deepResearch ? configuredMaxResults : Math.min(configuredMaxResults, 3);
-          const result = await callTavily(env, query, focusedMaxResults, deepResearch);
+          let result;
+          if (deepResearch) {
+            result = await callTavily(env, query, configuredMaxResults, true);
+          } else {
+            // Search ordinary Main Chat one page at a time. Stop as soon as
+            // Tavily can answer; only try another distinct site if it cannot.
+            result = { providerId: "tavily", answer: null, sources: [] };
+            const maxPages = Math.min(Math.max(configuredMaxResults || 3, 1), 3);
+            const searchedDomains = new Set();
+            for (let page = 0; page < maxPages; page++) {
+              const exclusions = [...searchedDomains].map(domain => "-site:" + domain).join(" ");
+              const next = await callTavily(env, [query, exclusions].filter(Boolean).join(" "), 1, false);
+              for (const source of next.sources || []) {
+                let domain = "";
+                try { domain = new URL(String(source.url || "")).hostname.toLowerCase().replace(/^www\./, ""); } catch {}
+                if (domain) searchedDomains.add(domain);
+                if (!result.sources.some(existing => String(existing.url || "") === String(source.url || ""))) {
+                  result.sources.push(source);
+                }
+              }
+              if (String(next.answer || "").trim()) {
+                result.answer = next.answer;
+                break;
+              }
+              if (!(next.sources || []).length) break;
+            }
+          }
           const uniqueSites = new Set();
           for (const source of result.sources || []) {
             try {
