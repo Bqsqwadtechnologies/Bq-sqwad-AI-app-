@@ -111,10 +111,10 @@ private fun darkPalette(primary: Color, mode: String): ThemePalette {
         else -> ThemePalette(
             primary, Color(0xFF9BB9D8), Color(0xFF74D7D1),
             if (key == "amoled") Color.Black else Color(0xFF070A10),
-            if (key == "amoled") Color.Black else Color(0xFF0D1119),
-            if (key == "amoled") Color(0xFF0A0A0A) else Color(0xFF18202D),
-            if (key == "amoled") Color(0xFF101010) else Color(0xFF202A38),
-            Color(0xFF202734), Color(0xFFE7ECF3), Color(0xFFB9C4D1), Color(0xFF4A5666)
+            Color.Black,
+            Color(0xFF0D1119),
+            Color(0xFF121824),
+            Color(0xFF161F2E), Color(0xFFF1F5F9), Color(0xFFB9C4D1), Color(0xFF4A5666)
         )
     }
 }
