@@ -13,7 +13,7 @@ data class WorkspaceAccessSnapshot(
     val loaded: Boolean = true
 ) {
     fun hasVerifiedAccess(workspace: Workspace): Boolean {
-        if (admin && adminTestMode) return true
+        if (admin && !adminTestMode) return true
         val module = workspaceModule(workspace) ?: return true
         val plans = planModules[module].orEmpty()
         if (plans.isEmpty()) {
