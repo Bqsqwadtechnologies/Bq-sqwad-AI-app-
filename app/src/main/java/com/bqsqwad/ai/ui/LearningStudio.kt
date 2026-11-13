@@ -152,7 +152,13 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.tertiaryContainer,
+            color = when (activePlanId) {
+                "explorer" -> MaterialTheme.colorScheme.primaryContainer
+                "learnscholar" -> MaterialTheme.colorScheme.secondaryContainer
+                "learnfamily" -> MaterialTheme.colorScheme.tertiaryContainer
+                "learnschool" -> MaterialTheme.colorScheme.surfaceContainerHigh
+                else -> MaterialTheme.colorScheme.primaryContainer
+            },
             tonalElevation = 4.dp
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -194,8 +200,8 @@ fun CompleteLearningStudioWorkspace(onOpenPlans: () -> Unit = {}, onOpenMainChat
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, enabled = false, label = { Text("$lessonsCompleted lessons") })
-                    AssistChip(onClick = {}, enabled = false, label = { Text("$quizzesCompleted quizzes") })
+                    BqStatusBadge("$lessonsCompleted lessons")
+                    BqStatusBadge("$quizzesCompleted quizzes")
                 }
                 if (!isAdminBypass) {
                     OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) {
