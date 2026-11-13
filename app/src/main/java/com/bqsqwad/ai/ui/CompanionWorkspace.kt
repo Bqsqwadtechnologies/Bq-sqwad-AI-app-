@@ -428,6 +428,47 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
             Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (messages.isEmpty()) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.extraLarge,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 1.dp
+                    ) {
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "Your space to think things through",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Start a conversation or choose a prompt. You stay in control of memory and settings.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    "Help me plan my day",
+                                    "Help me set a goal",
+                                    "I want to learn something"
+                                ).forEach { prompt ->
+                                    AssistChip(
+                                        onClick = { input = prompt },
+                                        label = { Text(prompt, maxLines = 1, softWrap = false) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             items(messages) { message ->
                 Surface(
                     color = if (message.fromUser) MaterialTheme.colorScheme.primaryContainer
