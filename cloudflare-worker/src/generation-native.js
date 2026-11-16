@@ -79,7 +79,7 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
   try {
     await firestoreCreate("mediaObjects/" + id, {
       id, uid: String(user.uid), bucket, objectPath, generationId: id, requestId: id,
-      contentType: "image/png", byteSize: bytes.byteLength, createdAt,
+      contentType: "image/png", byteSize: media.byteSize, createdAt,
       sourcePlatform: "android", originalFileName: "generated.png", status: "ready"
     });
     await firestoreCreate("generatedImages/" + id, {
@@ -96,7 +96,7 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
     console.warn("generated_image_metadata_write_failed");
     throw new Error("generated_image_metadata_write_failed");
   }
-  return { bucket, path: objectPath, signedUrl: uploaded.signedUrl, expiresIn: uploaded.expiresIn };
+  return { bucket, path: objectPath, signedUrl: uploaded.signedUrl, expiresIn: uploaded.expiresIn, byteSize: bytes.byteLength };
 }
 async function openai(env,path,init={}) {
   const r = await fetch("https://api.openai.com/v1" + path, {
@@ -173,7 +173,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       requestId: id, generationId: id, imageBase64: image.b64_json,
       imageUrl: media.signedUrl, displayUrl: media.signedUrl,
       storageBucket: media.bucket, storagePath: media.path,
-      contentType: "image/png", byteSize: bytes.byteLength,
+      contentType: "image/png", byteSize: media.byteSize,
       ...(dimensions ? { width: Number(dimensions[1]), height: Number(dimensions[2]) } : {}),
       mediaUrlExpiresIn: media.expiresIn, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
