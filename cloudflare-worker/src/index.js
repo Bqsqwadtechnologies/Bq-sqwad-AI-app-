@@ -25,7 +25,7 @@ async function pickAccessibleModel(env, preferred, pattern, exclude = /(preview|
 }
 const TOKEN_METERED = new Set(["chat", "vision", "chat_attachment", "personal_intelligence", "team_chat", "live_camera", "live_voice", "web_search", "image_generation", "image_edit"]);
 
-import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix } from "./firebase.js";
+import { configureFirebaseEnv, verifyFirebaseUser, firestoreGet, firestoreSet, firestoreCreate, firestoreCommit, firestoreDelete, firestoreQuery, deleteFirebaseAuthUser, deleteFirebaseStoragePrefix, createSupabaseStorageSignedReadUrl } from "./firebase.js";
 import { retainFileBoxItems } from "./file-box-retention.js";
 import { computeFixedCredits } from "./billing-core.js";
 import { assertPublicCapabilityAllowed } from "./capability-policy.js";
@@ -5712,6 +5712,26 @@ export default {
           if (reservation?.reservationId) await reverseCredits(u.uid, reservation.reservationId).catch(() => {});
           throw error;
         }
+      }
+      if (url.pathname === "/media/signed-url" && request.method === "POST") {
+        const u = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const generationId = String(body.generationId || "").trim();
+        if (!/^[A-Za-z0-9_-]{1,128}$/.test(generationId)) {
+          return json({ error: "invalid_media_id" }, 400);
+        }
+        const media = await firestoreGet("mediaObjects/" + generationId);
+        if (!media || String(media.uid || "") !== String(u.uid)) {
+          return json({ error: "media_not_found" }, 404);
+        }
+        const bucket = String(media.bucket || "");
+        const objectPath = String(media.objectPath || "");
+        if (!["photo", "files", "documents", "ai-training"].includes(bucket) ||
+            !objectPath.startsWith("users/" + String(u.uid) + "/")) {
+          return json({ error: "media_not_found" }, 404);
+        }
+        const signedUrl = await createSupabaseStorageSignedReadUrl(bucket, objectPath, 3600);
+        return json({ generationId, bucket, objectPath, signedUrl, expiresIn: 3600 });
       }
       if (url.pathname === "/ai/image" && request.method === "POST") {
         const u = await verifyFirebaseUser(request);
