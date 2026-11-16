@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { configureFirebaseEnv, uploadSupabaseStorageObject } from "../src/firebase.js";
+import { configureFirebaseEnv, uploadSupabaseStorageObject, createSupabaseStorageSignedReadUrl } from "../src/firebase.js";
 import { generateImageNative, editImageNative, validateGeneratedImageBase64 } from "../src/generation-native.js";
 
 const testPrivateKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs8", format: "pem" });
@@ -187,4 +187,24 @@ test("private media upload rejects unscoped paths and unapproved buckets", async
     uploadSupabaseStorageObject("photo", "other-user/user-test/images/gen-1/a.png", new Uint8Array([1]), "image/png"),
     /private_media_invalid_input/
   );
+});
+
+test("private media signed URL refresh helper signs only owner-scoped approved bucket paths", async () => {
+  const original = globalThis.fetch;
+  let requested = "";
+  globalThis.fetch = async (input) => {
+    requested = String(input);
+    return new Response(JSON.stringify({ signedURL: "/storage/v1/object/sign/photo/users/user-test/images/gen-1/generated.png?token=refreshed" }), { status: 200 });
+  };
+  try {
+    const signed = await createSupabaseStorageSignedReadUrl("photo", "users/user-test/images/gen-1/generated.png");
+    assert.match(signed, /^https:\/\/storage-test\.supabase\.co\/storage\/v1\/object\/sign\//);
+    assert.match(requested, /\/storage\/v1\/object\/sign\/photo\//);
+    await assert.rejects(
+      createSupabaseStorageSignedReadUrl("photo", "users/../other/images/gen-1/file.png"),
+      /private_media_invalid_path/
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
 });
