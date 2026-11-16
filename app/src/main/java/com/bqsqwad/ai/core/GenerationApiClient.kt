@@ -113,6 +113,14 @@ class GenerationApiClient {
         )
     }
 
+    /** Refresh an expired signed media URL after verifying the current Firebase owner. */
+    suspend fun refreshMediaUrl(generationId: String): String {
+        require(generationId.isNotBlank()) { "Generation ID is required." }
+        val body = request("/media/signed-url", payload = JSONObject().put("generationId", generationId))
+        return body.optString("signedUrl").takeIf { it.startsWith("https://") }
+            ?: error("The saved image link could not be refreshed.")
+    }
+
     suspend fun editImage(prompt: String, imageBase64: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null, mimeType: String = "image/png"): GeneratedImage {
         val body = request("/ai/image/edit", payload = JSONObject().apply {
             put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("mimeType", mimeType); put("size", size); put("quality", quality)
