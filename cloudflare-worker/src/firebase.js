@@ -132,7 +132,7 @@ export async function uploadSupabaseStorageObject(bucket, objectPath, bytes, con
       segments.some(part => !part || part === "." || part === ".." || /[\\\\\u0000-\u001f]/.test(part))) {
     throw new Error("private_media_invalid_input");
   }
-  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\/+$/, "");
   const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
   if (!base || !key) throw new Error("private_media_storage_not_configured");
   const url = base + "/storage/v1/object/" + encodeURIComponent(bucket) + "/" +
@@ -169,7 +169,7 @@ export async function uploadSupabaseStorageObject(bucket, objectPath, bytes, con
 export async function deleteSupabaseStorageObject(bucket, objectPath) {
   const allowed = new Set(["photo", "files", "documents", "ai-training"]);
   if (!allowed.has(String(bucket))) return;
-  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\/+$/, "");
   const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
   if (!base || !key) return;
   const path = String(objectPath || "").split("/").map(encodeURIComponent).join("/");
@@ -187,7 +187,7 @@ export async function createSupabaseStorageSignedReadUrl(bucket, objectPath, exp
       segments.some(part => !part || part === "." || part === ".." || /[\\\\\u0000-\u001f]/.test(part))) {
     throw new Error("private_media_invalid_path");
   }
-  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\/+$/, "");
   const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
   if (!base || !key) throw new Error("private_media_storage_not_configured");
   const response = await fetch(base + "/storage/v1/object/sign/" +
