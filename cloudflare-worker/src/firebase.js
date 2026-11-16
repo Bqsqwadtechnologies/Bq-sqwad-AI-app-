@@ -178,6 +178,30 @@ export async function deleteSupabaseStorageObject(bucket, objectPath) {
   });
 }
 
+
+/** Issue a short-lived read URL for an already persisted private media object. */
+export async function createSupabaseStorageSignedReadUrl(bucket, objectPath, expiresIn = 3600) {
+  const allowed = new Set(["photo", "files", "documents", "ai-training"]);
+  const segments = String(objectPath || "").split("/");
+  if (!allowed.has(String(bucket)) || segments.length < 5 || segments[0] !== "users" ||
+      segments.some(part => !part || part === "." || part === ".." || /[\\\\\u0000-\u001f]/.test(part))) {
+    throw new Error("private_media_invalid_path");
+  }
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
+  if (!base || !key) throw new Error("private_media_storage_not_configured");
+  const response = await fetch(base + "/storage/v1/object/sign/" +
+    encodeURIComponent(bucket) + "/" + segments.map(encodeURIComponent).join("/"), {
+    method: "POST",
+    headers: { authorization: "Bearer " + key, apikey: key, "content-type": "application/json" },
+    body: JSON.stringify({ expiresIn: Math.max(60, Math.min(3600, Number(expiresIn) || 3600)) })
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.signedURL) throw new Error("private_media_sign_failed_" + response.status);
+  const signedUrl = String(body.signedURL);
+  return signedUrl.startsWith("http") ? signedUrl : base + signedUrl;
+}
+
 /** Delete every object under a user's generated-media prefix during account removal. */
 export async function deleteFirebaseStoragePrefix(prefix) {
   const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
