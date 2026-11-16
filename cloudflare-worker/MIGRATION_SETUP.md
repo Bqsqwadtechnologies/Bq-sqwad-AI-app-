@@ -34,6 +34,29 @@ These steps require access to the Cloudflare dashboard and Google/Firebase crede
 4. Save/deploy the Worker from the Cloudflare dashboard.
 5. Do not remove Firebase Functions, Firestore, Auth, or existing service-account permissions yet.
 
+### Private Lovable Cloud media storage
+
+The native Android image-generation endpoints now write new generated images to the private
+Supabase Storage `photo` bucket using owner-scoped object paths:
+
+`users/{firebaseUid}/images/{generationId}/generated.png`
+
+The Worker uses the Supabase service role only on the server to upload and issue a one-hour
+signed read URL. It stores the bucket and object path in Firestore metadata. The permanent
+Firebase Storage download-token URL is no longer created for new image generations.
+
+Provision these two values as encrypted Worker secrets before testing or deploying this change:
+
+- `SUPABASE_URL` — the Lovable Cloud Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY` — the server-only service role key for that same project.
+
+Do not put either value in Android, website browser code, source control, or chat. Keep the
+`photo` bucket private. Apply the website repository migration
+`supabase/migrations/20261116000100_private_shared_media_buckets.sql` before enabling direct
+authenticated bucket access. The application continues to serve website media through its
+signed same-origin file route; Android receives a short-lived signed URL and should refresh it
+when it expires rather than persisting it as a permanent URL.
+
 ## Migration rule
 
 Firebase remains the data/auth source during the migration. Each subsystem is migrated to Cloudflare first, tested against the existing data model, and only then is the corresponding Firebase Function considered removable.
