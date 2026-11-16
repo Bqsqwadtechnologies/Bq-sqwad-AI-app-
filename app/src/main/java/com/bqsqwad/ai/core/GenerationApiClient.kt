@@ -12,20 +12,32 @@ data class GeneratedImage(
     val url: String,
     val creditsCharged: Double,
     val modelId: String?,
-    val imageBase64: String? = null
+    val imageBase64: String? = null,
+    val generationId: String? = null,
+    val storageBucket: String? = null,
+    val storagePath: String? = null,
+    val mediaUrlExpiresIn: Long? = null
 )
 
 internal fun parseGeneratedImage(
     imageUrl: String?,
     imageBase64: String?,
     creditsCharged: Double,
-    modelId: String?
+    modelId: String?,
+    generationId: String? = null,
+    storageBucket: String? = null,
+    storagePath: String? = null,
+    mediaUrlExpiresIn: Long? = null
 ): GeneratedImage =
     GeneratedImage(
         url = imageUrl?.takeIf { it.isNotBlank() }.orEmpty(),
         creditsCharged = creditsCharged,
         modelId = modelId?.takeIf { it.isNotBlank() },
-        imageBase64 = imageBase64?.takeIf { it.isNotBlank() }
+        imageBase64 = imageBase64?.takeIf { it.isNotBlank() },
+        generationId = generationId?.takeIf { it.isNotBlank() },
+        storageBucket = storageBucket?.takeIf { it.isNotBlank() },
+        storagePath = storagePath?.takeIf { it.isNotBlank() },
+        mediaUrlExpiresIn = mediaUrlExpiresIn?.takeIf { it > 0 }
     ).also { generated ->
         require(generated.url.isNotBlank() || !generated.imageBase64.isNullOrBlank()) {
             "Image generation returned no image data."
@@ -93,7 +105,11 @@ class GenerationApiClient {
             body.optString("imageUrl").takeUnless { it.isBlank() || it == "null" },
             body.optString("imageBase64").takeUnless { it.isBlank() || it == "null" },
             body.optDouble("creditsCharged", 0.0),
-            body.optString("modelId").takeUnless { it.isBlank() || it == "null" }
+            body.optString("modelId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("generationId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("storageBucket").takeUnless { it.isBlank() || it == "null" },
+            body.optString("storagePath").takeUnless { it.isBlank() || it == "null" },
+            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 }
         )
     }
 
@@ -106,7 +122,11 @@ class GenerationApiClient {
             body.optString("imageUrl").takeUnless { it.isBlank() || it == "null" },
             body.optString("imageBase64").takeUnless { it.isBlank() || it == "null" },
             body.optDouble("creditsCharged", 0.0),
-            body.optString("modelId").takeUnless { it.isBlank() || it == "null" }
+            body.optString("modelId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("generationId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("storageBucket").takeUnless { it.isBlank() || it == "null" },
+            body.optString("storagePath").takeUnless { it.isBlank() || it == "null" },
+            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 }
         )
     }
 
