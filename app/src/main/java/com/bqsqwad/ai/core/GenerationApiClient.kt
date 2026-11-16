@@ -16,7 +16,12 @@ data class GeneratedImage(
     val generationId: String? = null,
     val storageBucket: String? = null,
     val storagePath: String? = null,
-    val mediaUrlExpiresIn: Long? = null
+    val mediaUrlExpiresIn: Long? = null,
+    val requestId: String? = null,
+    val status: String = "completed",
+    val contentType: String = "image/png",
+    val width: Int? = null,
+    val height: Int? = null
 )
 
 internal fun parseGeneratedImage(
@@ -27,7 +32,12 @@ internal fun parseGeneratedImage(
     generationId: String? = null,
     storageBucket: String? = null,
     storagePath: String? = null,
-    mediaUrlExpiresIn: Long? = null
+    mediaUrlExpiresIn: Long? = null,
+    requestId: String? = null,
+    status: String = "completed",
+    contentType: String = "image/png",
+    width: Int? = null,
+    height: Int? = null
 ): GeneratedImage =
     GeneratedImage(
         url = imageUrl?.takeIf { it.isNotBlank() }.orEmpty(),
@@ -37,7 +47,12 @@ internal fun parseGeneratedImage(
         generationId = generationId?.takeIf { it.isNotBlank() },
         storageBucket = storageBucket?.takeIf { it.isNotBlank() },
         storagePath = storagePath?.takeIf { it.isNotBlank() },
-        mediaUrlExpiresIn = mediaUrlExpiresIn?.takeIf { it > 0 }
+        mediaUrlExpiresIn = mediaUrlExpiresIn?.takeIf { it > 0 },
+        requestId = requestId?.takeIf { it.isNotBlank() },
+        status = status.ifBlank { "completed" },
+        contentType = contentType.ifBlank { "image/png" },
+        width = width?.takeIf { it > 0 },
+        height = height?.takeIf { it > 0 }
     ).also { generated ->
         require(generated.url.isNotBlank() || !generated.imageBase64.isNullOrBlank()) {
             "Image generation returned no image data."
@@ -109,7 +124,12 @@ class GenerationApiClient {
             body.optString("generationId").takeUnless { it.isBlank() || it == "null" },
             body.optString("storageBucket").takeUnless { it.isBlank() || it == "null" },
             body.optString("storagePath").takeUnless { it.isBlank() || it == "null" },
-            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 }
+            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 },
+            body.optString("requestId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("status", "completed"),
+            body.optString("contentType", "image/png"),
+            body.optInt("width").takeIf { it > 0 },
+            body.optInt("height").takeIf { it > 0 }
         )
     }
 
@@ -134,7 +154,12 @@ class GenerationApiClient {
             body.optString("generationId").takeUnless { it.isBlank() || it == "null" },
             body.optString("storageBucket").takeUnless { it.isBlank() || it == "null" },
             body.optString("storagePath").takeUnless { it.isBlank() || it == "null" },
-            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 }
+            body.optLong("mediaUrlExpiresIn").takeIf { it > 0 },
+            body.optString("requestId").takeUnless { it.isBlank() || it == "null" },
+            body.optString("status", "completed"),
+            body.optString("contentType", "image/png"),
+            body.optInt("width").takeIf { it > 0 },
+            body.optInt("height").takeIf { it > 0 }
         )
     }
 
