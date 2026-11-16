@@ -32,42 +32,36 @@ fun BqGeneratingImagePlaceholder(
     modifier: Modifier = Modifier,
     aspect: Float = 1f
 ) {
-    val transition = rememberInfiniteTransition(label = "genOrbit")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart),
-        label = "orbitProgress"
-    )
-    val spin by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 720f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing), RepeatMode.Restart),
-        label = "orbitSpin"
-    )
-    BoxWithConstraints(
+    Box(
         modifier.fillMaxWidth().aspectRatio(aspect.coerceIn(0.25f, 4f))
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+        contentAlignment = Alignment.Center
     ) {
-        val w = constraints.maxWidth.toFloat()
-        val h = constraints.maxHeight.toFloat()
-        val logoPx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
-        val perimeter = 2f * (w + h)
-        val d = progress * perimeter
-        val (rawX, rawY) = when {
-            d < w -> d to 0f
-            d < w + h -> w to (d - w)
-            d < 2f * w + h -> (w - (d - w - h)) to h
-            else -> 0f to (h - (d - 2f * w - h))
+        // Keep the official brand mark compact and upright; animate only the
+        // neutral dots so the logo is never used as a rotating spinner.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            logo(18.dp)
+            val transition = rememberInfiniteTransition(label = "generationDots")
+            repeat(3) { index ->
+                val alpha by transition.animateFloat(
+                    initialValue = 0.25f,
+                    targetValue = 0.9f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(900, delayMillis = index * 150, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "generationDot$index"
+                )
+                Box(
+                    Modifier.size(4.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
+                )
+            }
         }
-        val x = rawX.coerceIn(logoPx / 2f, (w - logoPx / 2f).coerceAtLeast(logoPx / 2f))
-        val y = rawY.coerceIn(logoPx / 2f, (h - logoPx / 2f).coerceAtLeast(logoPx / 2f))
-        Box(
-            Modifier.offset { androidx.compose.ui.unit.IntOffset((x - logoPx / 2f).roundToInt(), (y - logoPx / 2f).roundToInt()) }
-                .size(22.dp).rotate(spin),
-            contentAlignment = Alignment.Center
-        ) { logo(22.dp) }
     }
 }
 
