@@ -3891,7 +3891,7 @@ export default {
           title,
           updatedAt: String(item.updatedAt || ""),
           messageCount: Array.isArray(item.messages) ? item.messages.length : 0
-        }; })) });
+        }; }) });
       }
 
       if (url.pathname.startsWith("/history/") && request.method === "GET") {
