@@ -1,4 +1,4 @@
-import { firestoreGet, firestoreCreate, firestoreCommit, uploadSupabaseStorageObject, deleteSupabaseStorageObject } from "./firebase.js";
+import { firestoreGet, firestoreCreate, firestoreDelete, firestoreCommit, uploadSupabaseStorageObject, deleteSupabaseStorageObject } from "./firebase.js";
 import { calculateTokenCost } from "./token-billing-native.js";
 
 const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
@@ -75,14 +75,24 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
   const uploaded = await uploadSupabaseStorageObject(bucket, objectPath, bytes, "image/png");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(prompt || "")));
   const promptHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+  const createdAt = new Date().toISOString();
   try {
+    await firestoreCreate("mediaObjects/" + id, {
+      id, uid: String(user.uid), bucket, objectPath, generationId: id, requestId: id,
+      contentType: "image/png", byteSize: bytes.byteLength, createdAt,
+      sourcePlatform: "android", originalFileName: "generated.png", status: "ready"
+    });
     await firestoreCreate("generatedImages/" + id, {
-      id, uid: String(user.uid), createdAt: new Date(), bytes: bytes.byteLength,
+      id, uid: String(user.uid), createdAt, bytes: bytes.byteLength,
       promptHash, operation, storageBucket: bucket, storagePath: objectPath,
       contentType: "image/png", status: "ready", sourcePlatform: "android"
     });
   } catch (error) {
-    await deleteSupabaseStorageObject(bucket, objectPath);
+    await Promise.all([
+      firestoreDelete("mediaObjects/" + id).catch(() => {}),
+      firestoreDelete("generatedImages/" + id).catch(() => {}),
+      deleteSupabaseStorageObject(bucket, objectPath)
+    ]);
     console.warn("generated_image_metadata_write_failed");
     throw new Error("generated_image_metadata_write_failed");
   }
