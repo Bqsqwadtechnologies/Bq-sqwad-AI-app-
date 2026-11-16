@@ -1,4 +1,4 @@
-import { firestoreGet, firestoreCreate, firestoreCommit, uploadFirebaseStorageObject } from "./firebase.js";
+import { firestoreGet, firestoreCreate, firestoreCommit, uploadSupabaseStorageObject, deleteSupabaseStorageObject } from "./firebase.js";
 import { calculateTokenCost } from "./token-billing-native.js";
 
 const ALLOWED_OPENAI_IMAGE_MODELS = new Set(["gpt-image-2.5-sunburst"]);
@@ -70,19 +70,23 @@ export function validateGeneratedImageBase64(encoded) {
 async function persistGeneratedImage(user, encoded, id, prompt, operation = "generate") {
   const binary = atob(String(encoded || ""));
   const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
-  const objectPath = "users/" + String(user.uid) + "/generated-images/" + id + ".png";
-  const uploaded = await uploadFirebaseStorageObject(objectPath, bytes, "image/png");
+  const bucket = "photo";
+  const objectPath = "users/" + String(user.uid) + "/images/" + id + "/generated.png";
+  const uploaded = await uploadSupabaseStorageObject(bucket, objectPath, bytes, "image/png");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(prompt || "")));
   const promptHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
   try {
     await firestoreCreate("generatedImages/" + id, {
       id, uid: String(user.uid), createdAt: new Date(), bytes: bytes.byteLength,
-      promptHash, operation, storagePath: objectPath, contentType: "image/png"
+      promptHash, operation, storageBucket: bucket, storagePath: objectPath,
+      contentType: "image/png", status: "ready", sourcePlatform: "android"
     });
-  } catch {
+  } catch (error) {
+    await deleteSupabaseStorageObject(bucket, objectPath);
     console.warn("generated_image_metadata_write_failed");
+    throw new Error("generated_image_metadata_write_failed");
   }
-  return uploaded.url;
+  return { bucket, path: objectPath, signedUrl: uploaded.signedUrl, expiresIn: uploaded.expiresIn };
 }
 async function openai(env,path,init={}) {
   const r = await fetch("https://api.openai.com/v1" + path, {
@@ -143,18 +147,20 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       finalCredits = Number(priced.customerCredits || 0);
     }
     const id = crypto.randomUUID();
-    const imageUrl = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
+    const media = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
     await firestoreCreate("imageGenerationJobs/" + id, {
       uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
       prompt, size, quality, creditsCharged: finalCredits,
       billingUnit: "image", billingOperation: String(b.billingOperation || "image.generate"),
-      createdAt: new Date(), updatedAt: new Date(), ...(imageUrl ? { imageUrl } : {})
+      storageBucket: media.bucket, storagePath: media.path, mediaUrlExpiresIn: media.expiresIn,
+      createdAt: new Date(), updatedAt: new Date(), imageUrl: media.signedUrl
     });
     if (typeof settle === "function") await settle(user.uid, reservation.reservationId, finalCredits, "openai");
     else await commit(user.uid, reservation.reservationId, "openai");
     return {
       providerId: "openai", modelId: model, imageBase64: image.b64_json,
-      ...(imageUrl ? { imageUrl } : {}), generationId: id, creditsCharged: finalCredits, ...(usage ? { usage } : {})
+      imageUrl: media.signedUrl, storageBucket: media.bucket, storagePath: media.path,
+      mediaUrlExpiresIn: media.expiresIn, generationId: id, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
   } catch (error) {
     await reverse(user.uid, reservation.reservationId);
@@ -208,10 +214,10 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
       finalCredits=Number(priced.customerCredits||0);
     }
     const id=crypto.randomUUID();
-    const imageUrl=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,createdAt:new Date(),updatedAt:new Date(),...(imageUrl?{imageUrl}: {})});
+    const media=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,createdAt:new Date(),updatedAt:new Date(),imageUrl:media.signedUrl});
     if(typeof settle==="function")await settle(user.uid,reservation.reservationId,finalCredits,"openai");
     else await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,...(imageUrl?{imageUrl}:{}),generationId:id,creditsCharged:finalCredits,...(usage?{usage}:{})};
+    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,imageUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,generationId:id,creditsCharged:finalCredits,...(usage?{usage}:{})};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
