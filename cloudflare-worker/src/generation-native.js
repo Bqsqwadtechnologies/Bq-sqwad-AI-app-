@@ -184,7 +184,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   } catch (error) {
     if (storedMedia && generationId) {
       await Promise.all([
-        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path),
+        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path).catch(() => {}),
         firestoreDelete("mediaObjects/" + generationId).catch(() => {}),
         firestoreDelete("generatedImages/" + generationId).catch(() => {}),
         firestoreDelete("imageGenerationJobs/" + generationId).catch(() => {})
@@ -254,7 +254,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   } catch(e) {
     if (storedMedia && generationId) {
       await Promise.all([
-        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path),
+        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path).catch(() => {}),
         firestoreDelete("mediaObjects/" + generationId).catch(() => {}),
         firestoreDelete("generatedImages/" + generationId).catch(() => {}),
         firestoreDelete("imageGenerationJobs/" + generationId).catch(() => {})
