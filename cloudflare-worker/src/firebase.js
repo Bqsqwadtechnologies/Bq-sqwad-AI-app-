@@ -120,6 +120,64 @@ export async function uploadFirebaseStorageObject(objectPath, bytes, contentType
 }
 
 
+
+/** Upload generated media to a private Lovable Cloud bucket. */
+export async function uploadSupabaseStorageObject(bucket, objectPath, bytes, contentType = "image/png") {
+  const allowed = new Set(["photo", "files", "documents", "ai-training"]);
+  const path = String(objectPath || "");
+  const segments = path.split("/");
+  if (!allowed.has(String(bucket)) || !(bytes instanceof Uint8Array) ||
+      bytes.byteLength < 1 || bytes.byteLength > 20 * 1024 * 1024 ||
+      segments.length < 5 || segments[0] !== "users" ||
+      segments.some(part => !part || part === "." || part === ".." || /[\\\\\u0000-\u001f]/.test(part))) {
+    throw new Error("private_media_invalid_input");
+  }
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
+  if (!base || !key) throw new Error("private_media_storage_not_configured");
+  const url = base + "/storage/v1/object/" + encodeURIComponent(bucket) + "/" +
+    segments.map(encodeURIComponent).join("/");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + key,
+      apikey: key,
+      "content-type": String(contentType || "application/octet-stream"),
+      "x-upsert": "false"
+    },
+    body: bytes
+  });
+  if (!response.ok) throw new Error("private_media_upload_failed_" + response.status);
+
+  const signedResponse = await fetch(base + "/storage/v1/object/sign/" +
+    encodeURIComponent(bucket) + "/" + segments.map(encodeURIComponent).join("/"), {
+    method: "POST",
+    headers: { authorization: "Bearer " + key, apikey: key, "content-type": "application/json" },
+    body: JSON.stringify({ expiresIn: 3600 })
+  });
+  const signed = await signedResponse.json().catch(() => ({}));
+  if (!signedResponse.ok || !signed.signedURL) {
+    await fetch(url, { method: "DELETE", headers: { authorization: "Bearer " + key, apikey: key } }).catch(() => {});
+    throw new Error("private_media_sign_failed_" + signedResponse.status);
+  }
+  const signedUrl = String(signed.signedURL).startsWith("http")
+    ? String(signed.signedURL)
+    : base + String(signed.signedURL);
+  return { bucket: String(bucket), path, signedUrl, expiresIn: 3600 };
+}
+
+export async function deleteSupabaseStorageObject(bucket, objectPath) {
+  const allowed = new Set(["photo", "files", "documents", "ai-training"]);
+  if (!allowed.has(String(bucket))) return;
+  const base = String(globalThis.__bqEnv?.SUPABASE_URL || "").replace(/\\/+$/, "");
+  const key = String(globalThis.__bqEnv?.SUPABASE_SERVICE_ROLE_KEY || "");
+  if (!base || !key) return;
+  const path = String(objectPath || "").split("/").map(encodeURIComponent).join("/");
+  await fetch(base + "/storage/v1/object/" + encodeURIComponent(bucket) + "/" + path, {
+    method: "DELETE", headers: { authorization: "Bearer " + key, apikey: key }
+  });
+}
+
 /** Delete every object under a user's generated-media prefix during account removal. */
 export async function deleteFirebaseStoragePrefix(prefix) {
   const bucket = String(globalThis.__bqEnv?.BQ_FIREBASE_STORAGE_BUCKET || "bqsqwadai.firebasestorage.app");
