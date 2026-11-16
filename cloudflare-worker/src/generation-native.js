@@ -167,10 +167,15 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     });
     if (typeof settle === "function") await settle(user.uid, reservation.reservationId, finalCredits, "openai");
     else await commit(user.uid, reservation.reservationId, "openai");
+    const dimensions = /^([0-9]+)x([0-9]+)$/.exec(size);
     return {
-      providerId: "openai", modelId: model, imageBase64: image.b64_json,
-      imageUrl: media.signedUrl, storageBucket: media.bucket, storagePath: media.path,
-      mediaUrlExpiresIn: media.expiresIn, generationId: id, creditsCharged: finalCredits, ...(usage ? { usage } : {})
+      status: "completed", providerId: "openai", modelId: model,
+      requestId: id, generationId: id, imageBase64: image.b64_json,
+      imageUrl: media.signedUrl, displayUrl: media.signedUrl,
+      storageBucket: media.bucket, storagePath: media.path,
+      contentType: "image/png", byteSize: bytes.byteLength,
+      ...(dimensions ? { width: Number(dimensions[1]), height: Number(dimensions[2]) } : {}),
+      mediaUrlExpiresIn: media.expiresIn, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
   } catch (error) {
     await reverse(user.uid, reservation.reservationId);
@@ -228,6 +233,7 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,createdAt:new Date(),updatedAt:new Date(),imageUrl:media.signedUrl});
     if(typeof settle==="function")await settle(user.uid,reservation.reservationId,finalCredits,"openai");
     else await commit(user.uid,reservation.reservationId,"openai");
-    return {providerId:"openai",modelId:model,imageBase64:x.b64_json,imageUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,generationId:id,creditsCharged:finalCredits,...(usage?{usage}:{})};
+    const dimensions=/^([0-9]+)x([0-9]+)$/.exec(size);
+    return {status:"completed",providerId:"openai",modelId:model,requestId:id,generationId:id,imageBase64:x.b64_json,imageUrl:media.signedUrl,displayUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,contentType:"image/png",byteSize:bytes.byteLength,...(dimensions?{width:Number(dimensions[1]),height:Number(dimensions[2])}:{}),mediaUrlExpiresIn:media.expiresIn,creditsCharged:finalCredits,...(usage?{usage}:{})};
   } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
 }
