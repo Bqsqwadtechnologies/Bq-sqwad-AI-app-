@@ -125,6 +125,8 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
   const quality = resolveImageQuality(b.quality);
   const dailyFree = await enforceFreeDailyImageGeneration(user.uid);
   let reservation;
+  let storedMedia = null;
+  let generationId = null;
   try {
     reservation = await charge(user.uid, dailyFree ? 1 : Math.max(0.00001, Number(trustedCreditCost ?? 0)), "image_generation", user);
   } catch (error) {
@@ -157,7 +159,9 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       finalCredits = Number(priced.customerCredits || 0);
     }
     const id = crypto.randomUUID();
-    const media = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
+    generationId = id;
+    storedMedia = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
+    const media = storedMedia;
     await firestoreCreate("imageGenerationJobs/" + id, {
       uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
       prompt, size, quality, creditsCharged: finalCredits,
@@ -178,6 +182,14 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       mediaUrlExpiresIn: media.expiresIn, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
   } catch (error) {
+    if (storedMedia && generationId) {
+      await Promise.all([
+        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path),
+        firestoreDelete("mediaObjects/" + generationId).catch(() => {}),
+        firestoreDelete("generatedImages/" + generationId).catch(() => {}),
+        firestoreDelete("imageGenerationJobs/" + generationId).catch(() => {})
+      ]);
+    }
     await reverse(user.uid, reservation.reservationId);
     throw error;
   }
@@ -198,6 +210,8 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
   if(encoded.length > 12000000) throw Object.assign(new Error("image_edit_input_too_large"), { httpStatus: 413 });
   const dailyFree=await enforceFreeDailyImageGeneration(user.uid);
   let reservation;
+  let storedMedia = null;
+  let generationId = null;
   try {
     reservation=await charge(user.uid,dailyFree?1:Math.max(0.00001,Number(trustedCreditCost??0)),"image_edit",user);
   } catch (error) {
@@ -229,11 +243,24 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
       finalCredits=Number(priced.customerCredits||0);
     }
     const id=crypto.randomUUID();
-    const media=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
+    generationId=id;
+    storedMedia=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
+    const media=storedMedia;
     await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,createdAt:new Date(),updatedAt:new Date(),imageUrl:media.signedUrl});
     if(typeof settle==="function")await settle(user.uid,reservation.reservationId,finalCredits,"openai");
     else await commit(user.uid,reservation.reservationId,"openai");
     const dimensions=/^([0-9]+)x([0-9]+)$/.exec(size);
     return {status:"completed",providerId:"openai",modelId:model,requestId:id,generationId:id,imageBase64:x.b64_json,imageUrl:media.signedUrl,displayUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,contentType:"image/png",byteSize:bytes.byteLength,...(dimensions?{width:Number(dimensions[1]),height:Number(dimensions[2])}:{}),mediaUrlExpiresIn:media.expiresIn,creditsCharged:finalCredits,...(usage?{usage}:{})};
-  } catch(e) { await reverse(user.uid,reservation.reservationId); throw e; }
+  } catch(e) {
+    if (storedMedia && generationId) {
+      await Promise.all([
+        deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path),
+        firestoreDelete("mediaObjects/" + generationId).catch(() => {}),
+        firestoreDelete("generatedImages/" + generationId).catch(() => {}),
+        firestoreDelete("imageGenerationJobs/" + generationId).catch(() => {})
+      ]);
+    }
+    await reverse(user.uid,reservation.reservationId);
+    throw e;
+  }
 }
