@@ -1964,7 +1964,7 @@ internal fun isImageGenerationRequest(text: String): Boolean {
             .containsMatchIn(q)) return false
 
     val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose)\\b|\\bshow me\\b")
-    val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?)\\b")
+    val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|emojis?|stickers?|memes?|cartoons?|mockups?|graphics?)\\b")
     val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|show me)\\b")
     val directCreationRequest = Regex("\\b(i want|i need|give me|make me|create for me|generate for me|please make|please create|please generate)\\b")
     val drawObjectRequest = Regex("\\b(draw|illustrate|paint)\\s+(me\\s+)?(a|an|the)\\s+[a-z0-9-]+\\b")
