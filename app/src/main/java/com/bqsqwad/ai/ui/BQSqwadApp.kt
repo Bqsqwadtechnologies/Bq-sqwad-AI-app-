@@ -3349,7 +3349,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             failedImagePrompt = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
-                    val generated = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {\n                        GenerationApiClient().editImage(promptText, sourceImageBase64, mimeType = sourceImage.mimeType)\n                    } else {\n                        GenerationApiClient().generateImage(promptText, modelRegistryId = null)\n                    }
+                    val generated = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
+                        GenerationApiClient().editImage(promptText, sourceImageBase64, mimeType = sourceImage.mimeType)
+                    } else {
+                        GenerationApiClient().generateImage(promptText, modelRegistryId = null)
+                    }
                     val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                         ?: generated.imageBase64?.let {
                             runCatching { uploadGeneratedImage(it) }
