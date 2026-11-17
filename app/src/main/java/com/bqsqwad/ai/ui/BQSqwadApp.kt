@@ -1982,7 +1982,15 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         """\b(i want to see|i'd like to see|id like to see|can i see|could i see|show me|let me see)\b.{0,100}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?)\b""",
         RegexOption.IGNORE_CASE
     )
-    return (action.containsMatchIn(q) && asset.containsMatchIn(q)) || wantsToSee.containsMatchIn(q)
+    // Drawing requests often name only the subject ("draw a superhero") and do
+    // not include the words image, picture, or artwork. Treat those as image
+    // requests too, while leaving ordinary "how do I draw..." questions alone.
+    val directDrawing = Regex(
+        """^(please\s+)?(can you\s+|could you\s+|would you\s+)?(help me\s+)?(draw|illustrate|paint|sketch)\s+(me\s+)?(a|an|the)\s+[a-z0-9-]+\b""",
+        RegexOption.IGNORE_CASE
+    )
+    return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
+        wantsToSee.containsMatchIn(q) || directDrawing.containsMatchIn(q)
 }
 
 internal fun needsCurrentWebSearch(text: String): Boolean =
