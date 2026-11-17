@@ -3371,6 +3371,21 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     } else {
                         GenerationApiClient().generateImage(promptText, modelRegistryId = null)
                     }
+                    // Match the website's tool flow: after the image is ready, let the
+                    // chat model provide a short natural follow-up. Failure here never
+                    // hides or discards the successfully generated image.
+                    val imageDescription = runCatching {
+                        ChatApiClient().streamMessage(
+                            message = "An image has just been generated successfully for this request: \"$promptText\". Briefly describe the intended visual result and tell the user it is displayed above. Do not generate another image.",
+                            capability = "chat",
+                            onDelta = {},
+                            system = listOf(
+                                activeSystem,
+                                "The image generation request has already succeeded and the image is displayed directly above this reply. Give a concise, natural follow-up about the requested composition. Do not substitute emojis or text-art for the image, and do not claim to inspect pixels you were not given."
+                            ).filter { it.isNotBlank() }.joinToString("\n\n"),
+                            modelKey = selectedModelKey
+                        ).text.trim().takeIf { it.isNotBlank() }
+                    }.getOrNull()
                     val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                         ?: generated.imageBase64?.let {
                             runCatching { uploadGeneratedImage(it) }
@@ -3379,7 +3394,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         }
                     scope.launch(Dispatchers.Main) {
                         messages[aiIndex] = messages[aiIndex].copy(
-                            text = "Image generated.",
+                            text = imageDescription ?: "Here’s the image you requested.",
                             prompt = promptText,
                             attachments = generated.imageBase64?.let {
                                 listOf(ChatMessageAttachment("Generated image.png", "image/png", it))
