@@ -1977,8 +1977,11 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         """\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|visualize|transform|edit|enhance|restyle|retouch|convert|turn)\b|\b(show me|let me see)\b""",
         RegexOption.IGNORE_CASE
     )
+    // Include the actual visual deliverables people commonly ask for. Android
+    // must route these to /ai/image instead of letting the text model answer with
+    // decorative emoji or text-art.
     val asset = Regex(
-        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?|emojis?|stickers?|memes?)\b""",
+        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?|emojis?|stickers?|memes?|renders?|mockups?|concept art|3d models?|product shots?|profile pictures?|album covers?|book covers?|social media graphics?|backgrounds?|mascots?|character designs?|icon sets?)\b""",
         RegexOption.IGNORE_CASE
     )
     val wantsToSee = Regex(
@@ -1988,7 +1991,7 @@ internal fun isImageGenerationRequest(text: String): Boolean {
     // Natural requests such as "I need a photo" or "give me an image"
     // should reach the image endpoint even when the verb "generate" is omitted.
     val directAssetRequest = Regex(
-        """\b(i want|i need|i'd like|id like|give me|can you give me|could you give me)\b.{0,40}\b(a|an|some|the)\s+(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?|icons?|stickers?|emojis?|memes?)\b""",
+        """\b(i want|i need|i'd like|id like|i want you to make|i want you to create|i want you to generate|give me|can you give me|could you give me|can i have|could i have|make me|create me)\b.{0,80}\b(a|an|some|the)?\s*(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?|icons?|stickers?|emojis?|memes?|renders?|mockups?|mascots?|thumbnails?|covers?|backgrounds?)\b""",
         RegexOption.IGNORE_CASE
     )
     // Drawing requests often name only the subject ("draw a superhero") and do
