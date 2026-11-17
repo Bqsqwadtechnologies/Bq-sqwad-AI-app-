@@ -20,6 +20,7 @@ import com.bqsqwad.ai.core.selectCameraIdForFacing
 import com.bqsqwad.ai.ui.MdBlock
 import com.bqsqwad.ai.ui.parseBlocks
 import com.bqsqwad.ai.ui.isImageGenerationRequest
+import com.bqsqwad.ai.ui.canUseImageAttachmentForGeneration
 import com.bqsqwad.ai.ui.sanitizeWebAnswer
 import com.bqsqwad.ai.ui.orderCanonicalCreditPackIds
 import com.bqsqwad.ai.ui.catalogCategoryHeaderIndex
