@@ -201,6 +201,9 @@ class CoreTest {
         assertTrue(isImageGenerationRequest("Make me a cartoon illustration of a friendly robot"))
         assertTrue(isImageGenerationRequest("Create a custom emoji sticker for my club"))
         assertTrue(isImageGenerationRequest("Generate a visual poster for a school event"))
+        assertTrue(isImageGenerationRequest("I need a photo of a golden retriever in a garden"))
+        assertTrue(isImageGenerationRequest("Give me an image of a quiet beach at sunrise"))
+        assertTrue(isImageGenerationRequest("I want a custom icon for my app"))
         assertFalse(isImageGenerationRequest("How do I create an image in Blender?"))
         assertFalse(isImageGenerationRequest("What is image generation?"))
     }
