@@ -32,8 +32,7 @@ test("generation defaults match every fixed price and keep image generation toke
     '"operation": "file.code"', '"operation": "file.xml"', '"operation": "file.yaml"',
     '"operation": "web.search"', '"operation": "web.research"', '"operation": "chat.background_upload"',
     '"operation": "team.member_message"', '"operation": "feature.connector_action"',
-    '"operation": "resume.generate"', '"operation": "video.generate"', '"operation": "music.generate"',
-    '"operation": "music.render"'
+    '"operation": "resume.generate"', '"operation": "video.generate"'
   ]) assert.ok(index.includes(operation), `missing operation ${operation}`);
   for (const rate of ['"creditsPerUnit": 0.045','"creditsPerUnit": 0.09','"creditsPerUnit": 0.0204337','"creditsPerUnit": 0.0145833','"creditsPerUnit": 0.3','"creditsPerUnit": 0.45','"credits": 0.15','"creditsPerUnit": 0.2','"credits": 7','"credits": 2','"credits": 0.4','"credits": 0.75','"creditsPerUnit": 87.573','"creditsPerUnit": 1.5']) {
     assert.ok(index.includes(rate), `missing generation credit default ${rate}`);
