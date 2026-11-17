@@ -3338,8 +3338,13 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         val sourceImage = attachments.singleOrNull()?.takeIf {
             canUseImageAttachmentForGeneration(it.mimeType, it.imageBase64, it.imageLocalId)
         }
-        val imageRequest = text.isNotBlank() && isImageGenerationRequest(text) &&
+        val imageIntent = text.isNotBlank() && isImageGenerationRequest(text)
+        val imageRequest = imageIntent &&
             (attachments.isEmpty() || (attachments.size == 1 && sourceImage != null))
+        if (imageIntent && !imageRequest) {
+            error = "For image generation, remove extra attachments or attach one reference image for editing, then send the prompt again."
+            return
+        }
         if (imageRequest) {
             val promptText = text.trim()
             val sourceImageBase64 = sourceImage?.let { selected ->
