@@ -187,7 +187,7 @@ class CoreTest {
         assertEquals("front" to 0, selectCameraIdForFacing(listOf("broken", "front"), 1) { id -> if (id == "broken") error("unreadable characteristics") else facings[id] })
     }
 
-    @Test fun imageGenerationAcceptsDeviceLocalReferenceImages() {
+    @Test fun imageGenerationAcceptsPreparedImageAttachments() {
         assertTrue(canUseImageAttachmentForGeneration("image/jpeg", "aGVsbG8="))
         assertFalse(canUseImageAttachmentForGeneration("application/pdf", "aGVsbG8="))
         assertFalse(canUseImageAttachmentForGeneration("image/png", null))
