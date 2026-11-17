@@ -81,15 +81,25 @@ class MainActivity : FragmentActivity() {
 
     private fun captureSharedText(source: Intent?) {
         if (source == null) return
-        val uri = source.data
-        if (uri?.scheme == "https" && uri.host == "bqsqwadai.com" && uri.path.orEmpty().startsWith("/connectors")) {
-            openConnectorsNonce += 1
-        }
-        val text = when (source.action) {
-            Intent.ACTION_SEND -> source.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
-            Intent.ACTION_PROCESS_TEXT -> source.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
-            else -> null
-        }?.trim()?.takeIf { it.isNotEmpty() }
+
+        // Intents from external apps and automated crawlers are untrusted. Accessing
+        // malformed URI or Parcelable extras can throw before Compose is displayed.
+        val uri = runCatching { source.data }.getOrNull()
+        val isConnectorsLink = runCatching {
+            uri?.scheme == "https" &&
+                uri.host == "bqsqwadai.com" &&
+                uri.path.orEmpty().startsWith("/connectors")
+        }.getOrDefault(false)
+        if (isConnectorsLink) openConnectorsNonce += 1
+
+        val action = runCatching { source.action }.getOrNull()
+        val text = runCatching {
+            when (action) {
+                Intent.ACTION_SEND -> source.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+                Intent.ACTION_PROCESS_TEXT -> source.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+                else -> null
+            }?.trim()?.takeIf { it.isNotEmpty() }
+        }.getOrNull()
         if (text != null) sharedText = text
     }
 }
