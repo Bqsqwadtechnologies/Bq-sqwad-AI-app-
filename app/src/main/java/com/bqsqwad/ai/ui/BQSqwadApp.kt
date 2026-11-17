@@ -1975,7 +1975,7 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         RegexOption.IGNORE_CASE
     )
     val asset = Regex(
-        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?)\b""",
+        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?|emojis?|stickers?|memes?)\b""",
         RegexOption.IGNORE_CASE
     )
     val wantsToSee = Regex(
@@ -3326,25 +3326,15 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
         val sourceImage = attachments.singleOrNull()?.takeIf {
-            it.mimeType.startsWith("image/", ignoreCase = true) &&
-                (!it.imageBase64.isNullOrBlank() || !it.imageLocalId.isNullOrBlank())
+            it.mimeType.startsWith("image/", ignoreCase = true) && !it.imageBase64.isNullOrBlank()
         }
         val imageRequest = text.isNotBlank() && isImageGenerationRequest(text) &&
             (attachments.isEmpty() || (attachments.size == 1 && sourceImage != null))
         if (imageRequest) {
             val promptText = text.trim()
-            val sourceImageBase64 = sourceImage?.let { selected ->
-                selected.imageBase64?.takeIf { it.isNotBlank() }
-                    ?: selected.imageLocalId?.let { localId ->
-                        runCatching { ChatImageStore.readBase64(context, localId) }.getOrNull()
-                    }
-            }
-            if (sourceImage != null && sourceImageBase64.isNullOrBlank()) {
-                error = "The attached image could not be loaded. Please remove it and attach it again."
-                return
-            }
-            val userImageAttachments = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
-                listOf(sourceImage.copy(imageBase64 = sourceImageBase64, imageLocalId = null))
+            val sourceImageBase64 = sourceImage?.imageBase64?.takeIf { it.isNotBlank() }
+            val userImageAttachments = if (sourceImage != null && sourceImageBase64 != null) {
+                listOf(ChatMessageAttachment(sourceImage.name, sourceImage.mimeType, sourceImageBase64))
             } else emptyList()
             message = ""
             attachments = emptyList()
