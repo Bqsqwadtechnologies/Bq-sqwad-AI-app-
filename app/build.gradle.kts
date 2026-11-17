@@ -18,8 +18,8 @@ android {
         buildConfigField("String", "WEBSITE_BASE_URL", "\"https://bqsqwadai.com\"")
         minSdk = 24
         targetSdk = 36
-        versionCode = 21
-        versionName = "1.0.20"
+        versionCode = 22
+        versionName = "1.0.21"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
     }
@@ -63,6 +63,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.04.01"))
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
