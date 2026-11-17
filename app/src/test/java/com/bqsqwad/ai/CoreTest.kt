@@ -186,6 +186,13 @@ class CoreTest {
         assertEquals("front" to 0, selectCameraIdForFacing(listOf("broken", "front"), 1) { id -> if (id == "broken") error("unreadable characteristics") else facings[id] })
     }
 
+    @Test fun imageGenerationAcceptsDeviceLocalReferenceImages() {
+        assertTrue(canUseImageAttachmentForGeneration("image/png", null, "123e4567-e89b-12d3-a456-426614174000"))
+        assertTrue(canUseImageAttachmentForGeneration("image/jpeg", "aGVsbG8=", null))
+        assertFalse(canUseImageAttachmentForGeneration("application/pdf", null, "123e4567-e89b-12d3-a456-426614174000"))
+        assertFalse(canUseImageAttachmentForGeneration("image/png", null, null))
+    }
+
     @Test fun imageGenerationRequestsAreDetectedWithoutModeChips() {
         assertTrue(isImageGenerationRequest("Generate a picture of a blue whale"))
         assertTrue(isImageGenerationRequest("Please create an image of a cozy reading room"))
