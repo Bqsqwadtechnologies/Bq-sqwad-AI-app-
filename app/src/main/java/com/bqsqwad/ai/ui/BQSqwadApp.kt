@@ -1125,7 +1125,11 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     var featureSettings by remember { mutableStateOf<Workspace?>(null) }
     var advancedFeature by remember { mutableStateOf<AppFeature?>(null) }
     var notificationsEnabled by remember(firebaseUser?.uid) { mutableStateOf(accountPreferences(context).getBoolean("notifications_enabled", true)) }
-    LaunchedEffect(notificationsEnabled) { BqLifecycleNotifications.onAppOpened(context, notificationsEnabled) }
+    // Device/OEM notification and alarm APIs must never be able to take down the
+    // main chat during startup. Notification setup is best-effort; core chat remains usable.
+    LaunchedEffect(notificationsEnabled) {
+        runCatching { BqLifecycleNotifications.onAppOpened(context.applicationContext, notificationsEnabled) }
+    }
     var notificationStatus by remember { mutableStateOf<String?>(null) }
     var workspaceAccess by remember { mutableStateOf(WorkspaceAccessSnapshot.empty()) }
     var accessLoading by remember { mutableStateOf(true) }
@@ -1158,14 +1162,18 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         if (uid.isNullOrBlank()) {
             onDispose { }
         } else {
-            val listener = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                .collection("entitlements")
-                .document(uid)
-                .collection("plans")
-                .addSnapshotListener { snapshot, error ->
-                    if (error == null && snapshot != null) entitlementRefreshNonce++
-                }
-            onDispose { listener.remove() }
+            // Firestore listener setup is optional for first paint. A transient SDK
+            // initialization/configuration problem must not crash the entire Compose shell.
+            val listener = runCatching {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("entitlements")
+                    .document(uid)
+                    .collection("plans")
+                    .addSnapshotListener { snapshot, error ->
+                        if (error == null && snapshot != null) entitlementRefreshNonce++
+                    }
+            }.getOrNull()
+            onDispose { runCatching { listener?.remove() } }
         }
     }
 
