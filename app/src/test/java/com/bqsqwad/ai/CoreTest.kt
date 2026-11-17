@@ -352,7 +352,11 @@ class CoreTest {
             "Can you generate an image of a superhero?",
             "Please create a flyer for my tailoring business",
             "Could you render an illustration of a city?",
-            "Design an image of a fantasy castle"
+            "Design an image of a fantasy castle",
+            "I'd like to see a photorealistic image of a mountain village",
+            "Transform this photo into a watercolor painting",
+            "Enhance this portrait with a clean studio background",
+            "Turn this into a cartoon illustration"
         ).forEach { request ->
             assertTrue("Expected image intent for: " + request, isImageGenerationRequest(request))
         }
@@ -367,7 +371,8 @@ class CoreTest {
             "Can you tell me about image generation?",
             "What is the best way to create a poster?",
             "Don't generate an image",
-            "Please do not create a logo"
+            "Please do not create a logo",
+            "Can you tell me how to generate a logo?"
         ).forEach { request ->
             assertFalse("Expected ordinary chat for: " + request, isImageGenerationRequest(request))
         }
