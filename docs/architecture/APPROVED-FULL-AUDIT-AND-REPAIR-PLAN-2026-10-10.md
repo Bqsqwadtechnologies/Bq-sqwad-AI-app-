@@ -281,3 +281,13 @@ This is a source-level findings and repair plan. It does not certify the current
 - Confirmed the Android chat renders in-session image attachments as previews, other files as attachment cards, generated-image results as in-chat images, and standalone Markdown image links using the shared HTTPS renderer.
 - The current GitHub Actions workflows are manual-dispatch workflows. The available GitHub connection in this session supports repository reads and file commits but does not expose a workflow-dispatch action, so I could not launch the build/test workflow from here. The latest successful APK run predates these attachment changes and does not validate them.
 - **Still unverified:** Kotlin compilation, Android unit tests, Worker test execution on the latest commit, deployed Worker configuration/provider credentials, chat-history round-trip against live Firestore, billing correctness under real requests, and real-device camera/voice/screen-share behavior. Do not label the entire app complete until those checks and the remaining approved audit phases pass.
+
+
+## 2026-11-17 — Android Main Chat image-generation parity repair
+
+- Compared the latest website image flow (`src/routes/api/chat.ts` forces the real `generate_image` tool for explicit image requests; `ChatWindow.tsx` renders the tool result) with the native Android path (`GenerationApiClient` calls the Worker `/ai/image` route and the Compose chat renders returned image bytes/URLs).
+- Confirmed a native routing regression in the latest Android source: reference images stored as device-local `imageLocalId` values were excluded from `sourceImage` detection. Since the image route also required an empty attachment list or a recognized single reference image, those requests fell through to ordinary text chat instead of reaching image generation.
+- Restored local-image loading through `ChatImageStore.readBase64`, added regression tests for base64/local-ID image sources, and made incompatible extra attachments return a clear instruction rather than silently falling through to emoji/text replies.
+- Added secure image-URL fallback when inline image decoding fails, including opening the image viewer from that fallback.
+- After a successful native image-generation call, the app now asks the chat model for a concise follow-up, matching the website's image-tool-then-assistant-response behavior. A follow-up failure does not discard the generated image.
+- Code is committed directly to `main`. Android build, automated workflow completion, deployed Worker request, and physical-device image-generation verification remain pending; do not treat source changes as proof of runtime success.
