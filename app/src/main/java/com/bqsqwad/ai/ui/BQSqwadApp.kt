@@ -1953,9 +1953,8 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
 }
 
-internal fun canUseImageAttachmentForGeneration(mimeType: String, imageBase64: String?, imageLocalId: String?): Boolean =
-    mimeType.startsWith("image/", ignoreCase = true) &&
-        (!imageBase64.isNullOrBlank() || !imageLocalId.isNullOrBlank())
+internal fun canUseImageAttachmentForGeneration(mimeType: String, imageBase64: String?): Boolean =
+    mimeType.startsWith("image/", ignoreCase = true) && !imageBase64.isNullOrBlank()
 
 internal fun isImageGenerationRequest(text: String): Boolean {
     val q = text.trim().lowercase().replace(Regex("\\s+"), " ")
@@ -3332,11 +3331,10 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
-        // Reference images may be held as device-local IDs to keep large image bytes
-        // out of Compose state. Treat those IDs as usable sources and load the bytes
-        // only when an image-edit request is actually sent.
+        // PreparedChatAttachment keeps the image bytes as base64 until this send
+        // operation. Only a real image payload can be used as an edit reference.
         val sourceImage = attachments.singleOrNull()?.takeIf {
-            canUseImageAttachmentForGeneration(it.mimeType, it.imageBase64, it.imageLocalId)
+            canUseImageAttachmentForGeneration(it.mimeType, it.imageBase64)
         }
         val imageIntent = text.isNotBlank() && isImageGenerationRequest(text)
         val imageRequest = imageIntent &&
@@ -3347,18 +3345,9 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }
         if (imageRequest) {
             val promptText = text.trim()
-            val sourceImageBase64 = sourceImage?.let { selected ->
-                selected.imageBase64?.takeIf { it.isNotBlank() }
-                    ?: selected.imageLocalId?.let { localId ->
-                        runCatching { ChatImageStore.readBase64(context, localId) }.getOrNull()
-                    }
-            }
-            if (sourceImage != null && sourceImageBase64.isNullOrBlank()) {
-                error = "The attached image could not be loaded. Please remove it and attach it again."
-                return
-            }
-            val userImageAttachments = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
-                listOf(sourceImage.copy(imageBase64 = sourceImageBase64, imageLocalId = null))
+            val sourceImageBase64 = sourceImage?.imageBase64?.takeIf { it.isNotBlank() }
+            val userImageAttachments = if (sourceImage != null && sourceImageBase64 != null) {
+                listOf(ChatMessageAttachment(sourceImage.name, sourceImage.mimeType, sourceImageBase64))
             } else emptyList()
             message = ""
             attachments = emptyList()
