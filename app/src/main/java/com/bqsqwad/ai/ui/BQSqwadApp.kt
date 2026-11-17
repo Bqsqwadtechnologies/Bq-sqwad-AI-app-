@@ -1965,7 +1965,7 @@ internal fun isImageGenerationRequest(text: String): Boolean {
     if (informational.containsMatchIn(q)) return false
 
     val negative = Regex(
-        """\b(don't|do not|never|avoid|stop)\b.{0,80}\b(generate|create|make|draw|design|produce|render|illustrate|paint|edit|transform|enhance)\b.{0,80}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|visuals?|graphics?|cartoons?|diagrams?)\b""",
+        """\b(don't|do not|never|avoid|stop)\b.{0,80}\b(generate|create|make|draw|design|produce|render|illustrate|paint|edit|transform|enhance)\b.{0,80}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|visuals?|graphics?|cartoons?|diagrams?|emojis?|stickers?|memes?)\b""",
         RegexOption.IGNORE_CASE
     )
     if (negative.containsMatchIn(q)) return false
