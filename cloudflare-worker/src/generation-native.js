@@ -79,7 +79,7 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
   try {
     await firestoreCreate("mediaObjects/" + id, {
       id, uid: String(user.uid), bucket, objectPath, generationId: id, requestId: id,
-      contentType: "image/png", byteSize: media.byteSize, createdAt,
+      contentType: "image/png", byteSize: bytes.byteLength, createdAt,
       sourcePlatform: "android", originalFileName: "generated.png", status: "ready"
     });
     await firestoreCreate("generatedImages/" + id, {
