@@ -4176,12 +4176,30 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                             attachment,
                                             fallbackImageUrl = m.imageUrl,
                                             onImageClick = {
-                                                if (!attachment.imageBase64.isNullOrBlank()) {
-                                                    selectedImageBase64 = attachment.imageBase64
+                                                val inlineImage = attachment.imageBase64
+                                                if (!inlineImage.isNullOrBlank()) {
+                                                    selectedImageBase64 = inlineImage
                                                     selectedImageMimeType = attachment.mimeType
                                                     selectedImagePrompt = m.prompt ?: messages.getOrNull((messages.indexOf(m) - 1).coerceAtLeast(0))?.text.orEmpty()
                                                     selectedImageMessageId = m.id
                                                     showImageViewer = true
+                                                } else {
+                                                    val remoteUrl = m.imageUrl
+                                                    if (!remoteUrl.isNullOrBlank()) {
+                                                        scope.launch {
+                                                            runCatching {
+                                                                withContext(Dispatchers.IO) { downloadGeneratedImageBase64(remoteUrl) }
+                                                            }.onSuccess { encoded ->
+                                                                selectedImageBase64 = encoded
+                                                                selectedImageMimeType = "image/png"
+                                                                selectedImagePrompt = m.prompt.orEmpty()
+                                                                selectedImageMessageId = m.id
+                                                                showImageViewer = true
+                                                            }.onFailure {
+                                                                error = safeUserFacingIssue(it, "This image could not be opened.")
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             },
                                             onRetry = {
