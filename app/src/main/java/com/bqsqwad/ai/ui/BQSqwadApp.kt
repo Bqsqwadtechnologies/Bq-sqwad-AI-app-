@@ -1959,27 +1959,27 @@ internal fun isImageGenerationRequest(text: String): Boolean {
 
     // Keep explanations and questions in ordinary chat.
     val informational = Regex(
-        """^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me about|could you tell me about|can you tell me how|could you tell me how|tell me about|tell me how|difference between|show me how|how do i|how can i|how would i|how does .* work|how can i learn|how to|do you know how to|does .* know how to|what is the best way to|what are the steps to|i want to know|i need to know|what should i|is there a way to|should i|do i need to|is it okay to|is it worth|would it be better)\\b""",
+        """^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me about|could you tell me about|can you tell me how|could you tell me how|tell me about|tell me how|difference between|show me how|how do i|how can i|how would i|how does .* work|how can i learn|how to|do you know how to|does .* know how to|what is the best way to|what are the steps to|i want to know|i need to know|what should i|is there a way to|should i|do i need to|is it okay to|is it worth|would it be better)\b""",
         RegexOption.IGNORE_CASE
     )
     if (informational.containsMatchIn(q)) return false
 
     val negative = Regex(
-        """\\b(don't|do not|never|avoid|stop)\\b.{0,80}\\b(generate|create|make|draw|design|produce|render|illustrate|paint|edit|transform|enhance)\\b.{0,80}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|visuals?|graphics?|cartoons?|diagrams?)\\b""",
+        """\b(don't|do not|never|avoid|stop)\b.{0,80}\b(generate|create|make|draw|design|produce|render|illustrate|paint|edit|transform|enhance)\b.{0,80}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|visuals?|graphics?|cartoons?|diagrams?)\b""",
         RegexOption.IGNORE_CASE
     )
     if (negative.containsMatchIn(q)) return false
 
     val action = Regex(
-        """\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|visualize|transform|edit|enhance|restyle|retouch|convert|turn)\\b|\\b(show me|let me see)\\b""",
+        """\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|visualize|transform|edit|enhance|restyle|retouch|convert|turn)\b|\b(show me|let me see)\b""",
         RegexOption.IGNORE_CASE
     )
     val asset = Regex(
-        """\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?)\\b""",
+        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?)\b""",
         RegexOption.IGNORE_CASE
     )
     val wantsToSee = Regex(
-        """\\b(i want to see|i'd like to see|id like to see|can i see|could i see|show me|let me see)\\b.{0,100}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?)\\b""",
+        """\b(i want to see|i'd like to see|id like to see|can i see|could i see|show me|let me see)\b.{0,100}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?)\b""",
         RegexOption.IGNORE_CASE
     )
     return (action.containsMatchIn(q) && asset.containsMatchIn(q)) || wantsToSee.containsMatchIn(q)
