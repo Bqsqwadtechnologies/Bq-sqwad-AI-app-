@@ -1957,20 +1957,32 @@ internal fun isImageGenerationRequest(text: String): Boolean {
     val q = text.trim().lowercase().replace(Regex("\\s+"), " ")
     if (q.isBlank()) return false
 
-    // Exclude informational questions about image concepts; "Can you create..." remains a request.
-    if (Regex("^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me about|could you tell me about|can you tell me how|could you tell me how|tell me about|tell me how|describe|difference between|show me how|how do i|how can i|how would i|how does .* work|how can i learn|how to|do you know how to|does .* know how to|what is the best way to|what are the steps to|i want to know|i need to know|what should i|is there a way to|should i|do i need to|is it okay to|is it worth|would it be better|can i|could i|may i|should we)\\b")
-            .containsMatchIn(q)) return false
-    if (Regex("\\b(don't|do not|never|avoid|stop)\\b.{0,50}\\b(generate|create|make|draw|design|produce|render|illustrate|paint)\\b.{0,50}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?)\\b")
-            .containsMatchIn(q)) return false
+    // Keep explanations and questions in ordinary chat.
+    val informational = Regex(
+        """^(what is|what are|why does|why is|explain|can you explain|could you explain|can you tell me about|could you tell me about|can you tell me how|could you tell me how|tell me about|tell me how|difference between|show me how|how do i|how can i|how would i|how does .* work|how can i learn|how to|do you know how to|does .* know how to|what is the best way to|what are the steps to|i want to know|i need to know|what should i|is there a way to|should i|do i need to|is it okay to|is it worth|would it be better)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+    if (informational.containsMatchIn(q)) return false
 
-    val action = Regex("\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose)\\b|\\bshow me\\b")
-    val asset = Regex("\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|emojis?|stickers?|memes?|cartoons?|mockups?|graphics?)\\b")
-    val actionAtStart = Regex("^(please )?(can you |could you |would you )?(help me )?(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|show me)\\b")
-    val directCreationRequest = Regex("\\b(i want|i need|give me|make me|create for me|generate for me|please make|please create|please generate)\\b")
-    val drawObjectRequest = Regex("\\b(draw|illustrate|paint)\\s+(me\\s+)?(a|an|the)\\s+[a-z0-9-]+\\b")
-    return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
-        (directCreationRequest.containsMatchIn(q) && asset.containsMatchIn(q)) ||
-        (actionAtStart.containsMatchIn(q) && drawObjectRequest.containsMatchIn(q))
+    val negative = Regex(
+        """\\b(don't|do not|never|avoid|stop)\\b.{0,80}\\b(generate|create|make|draw|design|produce|render|illustrate|paint|edit|transform|enhance)\\b.{0,80}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|visuals?|graphics?|cartoons?|diagrams?)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+    if (negative.containsMatchIn(q)) return false
+
+    val action = Regex(
+        """\\b(generate|create|make|draw|design|produce|render|illustrate|paint|craft|build|sketch|compose|visualize|transform|edit|enhance|restyle|retouch|convert|turn)\\b|\\b(show me|let me see)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+    val asset = Regex(
+        """\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+    val wantsToSee = Regex(
+        """\\b(i want to see|i'd like to see|id like to see|can i see|could i see|show me|let me see)\\b.{0,100}\\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+    return (action.containsMatchIn(q) && asset.containsMatchIn(q)) || wantsToSee.containsMatchIn(q)
 }
 
 internal fun needsCurrentWebSearch(text: String): Boolean =
@@ -2421,7 +2433,7 @@ private fun ChatAttachmentPreview(
                 bitmap = image!!,
                 contentDescription = attachment.name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.widthIn(max = 220.dp).heightIn(max = 180.dp).clip(RoundedCornerShape(12.dp)).then(if (onImageClick != null) Modifier.clickable(onClick = onImageClick) else Modifier)
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(12.dp)).then(if (onImageClick != null) Modifier.clickable(onClick = onImageClick) else Modifier)
             )
         }
     } else if (decoding) {
@@ -3305,11 +3317,30 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
-        val imageRequest = text.isNotBlank() && attachments.isEmpty() && isImageGenerationRequest(text)
+        val sourceImage = attachments.singleOrNull()?.takeIf {
+            it.mimeType.startsWith("image/", ignoreCase = true) &&
+                (!it.imageBase64.isNullOrBlank() || !it.imageLocalId.isNullOrBlank())
+        }
+        val imageRequest = text.isNotBlank() && isImageGenerationRequest(text) &&
+            (attachments.isEmpty() || (attachments.size == 1 && sourceImage != null))
         if (imageRequest) {
             val promptText = text.trim()
+            val sourceImageBase64 = sourceImage?.let { selected ->
+                selected.imageBase64?.takeIf { it.isNotBlank() }
+                    ?: selected.imageLocalId?.let { localId ->
+                        runCatching { ChatImageStore.readBase64(context, localId) }.getOrNull()
+                    }
+            }
+            if (sourceImage != null && sourceImageBase64.isNullOrBlank()) {
+                error = "The attached image could not be loaded. Please remove it and attach it again."
+                return
+            }
+            val userImageAttachments = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
+                listOf(sourceImage.copy(imageBase64 = sourceImageBase64, imageLocalId = null))
+            } else emptyList()
             message = ""
-            appendChatMessage(ChatMessage(true, promptText))
+            attachments = emptyList()
+            appendChatMessage(ChatMessage(true, promptText, attachments = userImageAttachments))
             val aiIndex = messages.size
             appendChatMessage(ChatMessage(false, "Generating image…"))
             busy = true
@@ -3318,7 +3349,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
             failedImagePrompt = null
             streamJob = scope.launch(Dispatchers.IO) {
                 try {
-                    val generated = GenerationApiClient().generateImage(promptText, modelRegistryId = null)
+                    val generated = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {\n                        GenerationApiClient().editImage(promptText, sourceImageBase64, mimeType = sourceImage.mimeType)\n                    } else {\n                        GenerationApiClient().generateImage(promptText, modelRegistryId = null)\n                    }
                     val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
                         ?: generated.imageBase64?.let {
                             runCatching { uploadGeneratedImage(it) }
