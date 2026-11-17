@@ -18,8 +18,8 @@ android {
         buildConfigField("String", "WEBSITE_BASE_URL", "\"https://bqsqwadai.com\"")
         minSdk = 24
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.0.21"
+        versionCode = 23
+        versionName = "1.0.22"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
     }
