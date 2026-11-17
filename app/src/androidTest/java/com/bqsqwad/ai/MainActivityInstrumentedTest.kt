@@ -80,4 +80,34 @@ class MainActivityInstrumentedTest {
         }
     }
 
+    @Test
+    fun malformedSharedTextExtraDoesNotCrashMainActivity() {
+        val intent = Intent(Intent.ACTION_SEND)
+            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, 12345)
+
+        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+            scenario.onActivity { activity ->
+                assertNotNull("Malformed share intent should still create an Activity window", activity.window)
+                assertFalse("Malformed share intent should not finish MainActivity", activity.isFinishing)
+            }
+        }
+    }
+
+    @Test
+    fun malformedProcessTextExtraDoesNotCrashMainActivity() {
+        val intent = Intent(Intent.ACTION_PROCESS_TEXT)
+            .setClassName("com.bqsqwad.ai", "com.bqsqwad.ai.MainActivity")
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_PROCESS_TEXT, 12345)
+
+        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+            scenario.onActivity { activity ->
+                assertNotNull("Malformed process-text intent should still create an Activity window", activity.window)
+                assertFalse("Malformed process-text intent should not finish MainActivity", activity.isFinishing)
+            }
+        }
+    }
+
 }
