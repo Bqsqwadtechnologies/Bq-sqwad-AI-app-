@@ -1985,6 +1985,12 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         """\b(i want to see|i'd like to see|id like to see|can i see|could i see|show me|let me see)\b.{0,100}\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?)\b""",
         RegexOption.IGNORE_CASE
     )
+    // Natural requests such as "I need a photo" or "give me an image"
+    // should reach the image endpoint even when the verb "generate" is omitted.
+    val directAssetRequest = Regex(
+        """\b(i want|i need|i'd like|id like|give me|can you give me|could you give me)\b.{0,40}\b(a|an|some|the)\s+(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|artwork|portraits?|scenes?|visuals?|graphics?|cartoons?|icons?|stickers?|emojis?|memes?)\b""",
+        RegexOption.IGNORE_CASE
+    )
     // Drawing requests often name only the subject ("draw a superhero") and do
     // not include the words image, picture, or artwork. Treat those as image
     // requests too, while leaving ordinary "how do I draw..." questions alone.
@@ -1993,7 +1999,8 @@ internal fun isImageGenerationRequest(text: String): Boolean {
         RegexOption.IGNORE_CASE
     )
     return (action.containsMatchIn(q) && asset.containsMatchIn(q)) ||
-        wantsToSee.containsMatchIn(q) || directDrawing.containsMatchIn(q)
+        wantsToSee.containsMatchIn(q) || directAssetRequest.containsMatchIn(q) ||
+        directDrawing.containsMatchIn(q)
 }
 
 internal fun needsCurrentWebSearch(text: String): Boolean =
