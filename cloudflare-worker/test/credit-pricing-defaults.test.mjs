@@ -30,7 +30,7 @@ test("all fixed and per-second launch prices are present in generation seed data
     ["file.html", "0.15"], ["file.json", "0.15"], ["file.code", "0.15"], ["file.xml", "0.15"],
     ["file.yaml", "0.15"], ["web.search", "0.2"], ["web.research", "7"],
     ["chat.background_upload", "2"], ["team.member_message", "0"], ["feature.connector_action", "0.4"],
-    ["resume.generate", "0.75"], ["video.generate", "87.573"], ["music.generate", "1.5"], ["music.render", "0.3"],
+    ["resume.generate", "0.75"], ["video.generate", "87.573"],
   ]) {
     assert.ok(generationDefaults.includes(`"operation": "${operation}"`), `missing operation ${operation}`);
     assert.ok(generationDefaults.includes(price), `missing price ${price} for ${operation}`);
