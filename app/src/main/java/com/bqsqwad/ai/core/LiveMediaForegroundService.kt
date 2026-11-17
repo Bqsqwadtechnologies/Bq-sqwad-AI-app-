@@ -181,7 +181,24 @@ class LiveMediaForegroundService : Service() {
                 android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             else -> 0
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) startForeground(NOTIFICATION_ID, notification, type) else startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (error: SecurityException) {
+            // A revoked camera/microphone permission or platform FGS restriction
+            // must end this optional live feature, not terminate the app process.
+            reportTimelineFailure(mode, "foreground_service_permission_denied")
+            stopSelf(startId)
+            return START_NOT_STICKY
+        } catch (error: RuntimeException) {
+            // Covers invalid/missing FGS type declarations on newer Android releases.
+            reportTimelineFailure(mode, "foreground_service_start_rejected")
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
 
         when (mode) {
             MODE_CAMERA -> startCamera()
