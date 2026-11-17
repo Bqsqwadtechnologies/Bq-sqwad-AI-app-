@@ -755,20 +755,6 @@ const ADMIN_SEED_DEFAULTS = [
     "unit": "second"
   },
   {
-    "operation": "music.generate",
-    "label": "Music generation",
-    "credits": 0,
-    "creditsPerUnit": 1.5,
-    "unit": "second"
-  },
-  {
-    "operation": "music.render",
-    "label": "Music rendering",
-    "credits": 0,
-    "creditsPerUnit": 0.3,
-    "unit": "second"
-  },
-  {
     "operation": "file.pdf",
     "label": "PDF files",
     "credits": 0,
