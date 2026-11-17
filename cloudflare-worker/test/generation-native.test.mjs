@@ -178,6 +178,62 @@ test("generated media uploads to private photo bucket and returns a short-lived 
   }
 });
 
+
+test("image generation completes and persists byte size metadata before returning image data", async () => {
+  const original = globalThis.fetch;
+  const storedDocuments = [];
+  const png = "iVBORw0KGgo=";
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.startsWith("https://oauth2.googleapis.com/token")) {
+      return new Response(JSON.stringify({ access_token: "test-firebase-token", expires_in: 3600 }), { status: 200 });
+    }
+    if (url.includes("/documents/users/user-test")) {
+      return new Response(JSON.stringify({
+        name: "projects/bq-sqwad-test/databases/(default)/documents/users/user-test",
+        fields: {
+          hasEverPurchasedCredits: { booleanValue: true },
+          subscriptionPlan: { stringValue: "free" }
+        }
+      }), { status: 200 });
+    }
+    if (url.startsWith("https://api.openai.com/v1/images/generations")) {
+      return new Response(JSON.stringify({ data: [{ b64_json: png }] }), { status: 200 });
+    }
+    if (url.includes("/storage/v1/object/sign/photo/")) {
+      return new Response(JSON.stringify({ signedURL: "/storage/v1/object/sign/photo/users/user-test/images/gen-1/generated.png?token=short-lived" }), { status: 200 });
+    }
+    if (url.includes("/storage/v1/object/photo/")) {
+      return new Response(JSON.stringify({ Key: "stored" }), { status: 200 });
+    }
+    if (url.includes("/documents/") && init.method === "POST") {
+      storedDocuments.push({ url, body: JSON.parse(init.body || "{}") });
+      return new Response(JSON.stringify({ name: url }), { status: 200 });
+    }
+    throw new Error("unexpected_test_fetch: " + url);
+  };
+  try {
+    const result = await generateImageNative(
+      { OPENAI_API_KEY: "test" },
+      { uid: "user-test" },
+      { prompt: "A blue whale" },
+      async () => ({ reservationId: "test-reservation", amount: 1, adminUnlimited: true }),
+      async () => {},
+      async () => { throw new Error("unexpected_credit_reversal"); }
+    );
+    assert.equal(result.status, "completed");
+    assert.equal(result.imageBase64, png);
+    assert.match(result.imageUrl, /^https:\/\/storage-test\.supabase\.co\//);
+    const mediaDoc = storedDocuments.find(item => item.url.includes("/documents/mediaObjects?"));
+    assert.ok(mediaDoc, "media metadata document should be persisted");
+    assert.equal(mediaDoc.body.fields.byteSize.integerValue, "8");
+    assert.ok(storedDocuments.some(item => item.url.includes("/documents/generatedImages?")));
+    assert.ok(storedDocuments.some(item => item.url.includes("/documents/imageGenerationJobs?")));
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("private media upload rejects unscoped paths and unapproved buckets", async () => {
   await assert.rejects(
     uploadSupabaseStorageObject("generations", "users/user-test/images/gen-1/a.png", new Uint8Array([1]), "image/png"),
