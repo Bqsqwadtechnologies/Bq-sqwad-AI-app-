@@ -57,4 +57,27 @@ class MainActivityInstrumentedTest {
             }
         }
     }
+    @Test
+    fun mainActivitySurvivesConfigurationRecreation() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.recreate()
+            scenario.onActivity { activity ->
+                assertNotNull("Recreated Activity window should be available", activity.window)
+                assertFalse("Recreated MainActivity should remain active", activity.isFinishing)
+            }
+        }
+    }
+
+    @Test
+    fun mainActivitySurvivesBackgroundAndForegroundLifecycle() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            scenario.onActivity { activity ->
+                assertNotNull("Resumed Activity window should be available", activity.window)
+                assertFalse("Resumed MainActivity should remain active", activity.isFinishing)
+            }
+        }
+    }
+
 }
