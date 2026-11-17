@@ -130,6 +130,13 @@ import kotlin.coroutines.resumeWithException
 import org.json.JSONArray
 import org.json.JSONObject
 
+internal fun parseEntitlementExpiryMillis(value: Any?): Long? = when (value) {
+    is com.google.firebase.Timestamp -> runCatching { value.toDate().time }.getOrNull()
+    is Number -> value.toLong()
+    is String -> runCatching { java.time.Instant.parse(value).toEpochMilli() }.getOrNull()
+    else -> null
+}
+
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
     val message = throwable.message.orEmpty().lowercase()
@@ -2751,23 +2758,34 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
     }
     DisposableEffect(signedInUid) {
         if (signedInUid.isBlank()) return@DisposableEffect onDispose { }
-        val registration = FirebaseFirestore.getInstance()
-            .collection("entitlements").document(signedInUid).collection("plans")
-            .addSnapshotListener { snapshot, error ->
-                if (error == null && snapshot != null) {
-                    val now = System.currentTimeMillis()
-                    chatIncludedInPlan = snapshot.documents.any { document ->
-                        val state = document.getString("state").orEmpty()
-                        val expiry = document.getTimestamp("expiresAt")?.toDate()?.time
-                            ?: document.getString("expiresAt")?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
-                        val features = document.get("includedFeatures") as? List<*>
-                        state in listOf("active", "trialing", "grace") &&
-                            (expiry == null || expiry > now) &&
-                            features.orEmpty().any { (it?.toString() ?: "").lowercase() in setOf("chat", "main_chat", "*") }
+        val registration = runCatching {
+            FirebaseFirestore.getInstance()
+                .collection("entitlements").document(signedInUid).collection("plans")
+                .addSnapshotListener { snapshot, error ->
+                    runCatching {
+                        if (error != null || snapshot == null) {
+                            chatIncludedInPlan = false
+                        } else {
+                            val now = System.currentTimeMillis()
+                            chatIncludedInPlan = snapshot.documents.any { document ->
+                                val state = document.get("state") as? String ?: ""
+                                val expiry = parseEntitlementExpiryMillis(document.get("expiresAt"))
+                                val features = document.get("includedFeatures") as? List<*>
+                                state in listOf("active", "trialing", "grace") &&
+                                    (expiry == null || expiry > now) &&
+                                    features.orEmpty().any { (it?.toString() ?: "").lowercase() in setOf("chat", "main_chat", "*") }
+                            }
+                        }
+                    }.onFailure {
+                        chatIncludedInPlan = false
                     }
                 }
-            }
-        onDispose { registration.remove() }
+        }.onFailure {
+            chatIncludedInPlan = false
+        }.getOrNull()
+        onDispose {
+            runCatching { registration?.remove() }
+        }
     }
     var pastedTextPreview by remember { mutableStateOf<String?>(null) }
     var pastedTextPreviewName by remember { mutableStateOf("Pasted text") }
