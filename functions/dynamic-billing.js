@@ -84,7 +84,6 @@ const CAPABILITY_TO_GENERATION_OPERATION = Object.freeze({
   chat_background_upload: "chat.background_upload", team_member_message: "team.member_message",
   connector_action: "feature.connector_action", resume: "resume.generate",
   web_search: "web.search", deep_research: "web.research",
-  music: "music.generate", music_render: "music.render",
   pdf: "file.pdf", file_pdf: "file.pdf", file_docx: "file.docx", file_xlsx: "file.xlsx",
   file_csv: "file.csv", file_txt: "file.txt", file_md: "file.md", file_html: "file.html",
   file_json: "file.json", file_code: "file.code", file_xml: "file.xml", file_yaml: "file.yaml"
