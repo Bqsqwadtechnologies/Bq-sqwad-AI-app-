@@ -188,10 +188,9 @@ class CoreTest {
     }
 
     @Test fun imageGenerationAcceptsDeviceLocalReferenceImages() {
-        assertTrue(canUseImageAttachmentForGeneration("image/png", null, "123e4567-e89b-12d3-a456-426614174000"))
-        assertTrue(canUseImageAttachmentForGeneration("image/jpeg", "aGVsbG8=", null))
-        assertFalse(canUseImageAttachmentForGeneration("application/pdf", null, "123e4567-e89b-12d3-a456-426614174000"))
-        assertFalse(canUseImageAttachmentForGeneration("image/png", null, null))
+        assertTrue(canUseImageAttachmentForGeneration("image/jpeg", "aGVsbG8="))
+        assertFalse(canUseImageAttachmentForGeneration("application/pdf", "aGVsbG8="))
+        assertFalse(canUseImageAttachmentForGeneration("image/png", null))
     }
 
     @Test fun imageGenerationRequestsAreDetectedWithoutModeChips() {
