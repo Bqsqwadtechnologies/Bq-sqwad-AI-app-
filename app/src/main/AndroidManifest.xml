@@ -15,7 +15,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
@@ -52,7 +51,7 @@
         <service
             android:name=".core.LiveMediaForegroundService"
             android:exported="false"
-            android:foregroundServiceType="camera|microphone|mediaProjection|connectedDevice" />
+            android:foregroundServiceType="camera|microphone|mediaProjection" />
         <receiver
             android:name=".core.BqInactivityReminderReceiver"
             android:enabled="true"
