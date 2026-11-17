@@ -1953,6 +1953,10 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
     }
 }
 
+internal fun canUseImageAttachmentForGeneration(mimeType: String, imageBase64: String?, imageLocalId: String?): Boolean =
+    mimeType.startsWith("image/", ignoreCase = true) &&
+        (!imageBase64.isNullOrBlank() || !imageLocalId.isNullOrBlank())
+
 internal fun isImageGenerationRequest(text: String): Boolean {
     val q = text.trim().lowercase().replace(Regex("\\s+"), " ")
     if (q.isBlank()) return false
@@ -2417,6 +2421,7 @@ private fun PendingImageThumbnail(
 @Composable
 private fun ChatAttachmentPreview(
     attachment: ChatMessageAttachment,
+    fallbackImageUrl: String? = null,
     onImageClick: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null
 ) {
@@ -2446,6 +2451,8 @@ private fun ChatAttachmentPreview(
         }
     } else if (decoding) {
         Text("Loading " + attachment.name + "…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else if (decodeFailed && attachment.mimeType.startsWith("image/") && !fallbackImageUrl.isNullOrBlank()) {
+        ChatRemoteImage(fallbackImageUrl, "Generated image") { onImageClick?.invoke() }
     } else if (decodeFailed && attachment.mimeType.startsWith("image/")) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Image could not be displayed.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -3325,16 +3332,28 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
+        // Reference images may be held as device-local IDs to keep large image bytes
+        // out of Compose state. Treat those IDs as usable sources and load the bytes
+        // only when an image-edit request is actually sent.
         val sourceImage = attachments.singleOrNull()?.takeIf {
-            it.mimeType.startsWith("image/", ignoreCase = true) && !it.imageBase64.isNullOrBlank()
+            canUseImageAttachmentForGeneration(it.mimeType, it.imageBase64, it.imageLocalId)
         }
         val imageRequest = text.isNotBlank() && isImageGenerationRequest(text) &&
             (attachments.isEmpty() || (attachments.size == 1 && sourceImage != null))
         if (imageRequest) {
             val promptText = text.trim()
-            val sourceImageBase64 = sourceImage?.imageBase64?.takeIf { it.isNotBlank() }
-            val userImageAttachments = if (sourceImage != null && sourceImageBase64 != null) {
-                listOf(ChatMessageAttachment(sourceImage.name, sourceImage.mimeType, sourceImageBase64))
+            val sourceImageBase64 = sourceImage?.let { selected ->
+                selected.imageBase64?.takeIf { it.isNotBlank() }
+                    ?: selected.imageLocalId?.let { localId ->
+                        runCatching { ChatImageStore.readBase64(context, localId) }.getOrNull()
+                    }
+            }
+            if (sourceImage != null && sourceImageBase64.isNullOrBlank()) {
+                error = "The attached image could not be loaded. Please remove it and attach it again."
+                return
+            }
+            val userImageAttachments = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
+                listOf(sourceImage.copy(imageBase64 = sourceImageBase64, imageLocalId = null))
             } else emptyList()
             message = ""
             attachments = emptyList()
@@ -4135,6 +4154,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                                         m.attachments.forEach { attachment ->
                                             ChatAttachmentPreview(
                                             attachment,
+                                            fallbackImageUrl = m.imageUrl,
                                             onImageClick = {
                                                 if (!attachment.imageBase64.isNullOrBlank()) {
                                                     selectedImageBase64 = attachment.imageBase64
