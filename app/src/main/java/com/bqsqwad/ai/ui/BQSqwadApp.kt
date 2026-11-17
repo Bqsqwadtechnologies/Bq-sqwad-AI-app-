@@ -1652,7 +1652,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
         } else {
             val showMainChat = !featureHub && featureSettings == null && advancedFeature == null &&
                 !plans && !helpOpen && !accountProtection && featureInfo == null && featurePrivacy == null &&
-                !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && workspace == null
+                !legalCenter && !settings && !history && !fileBoxOpen && !connectorsOpen && !teamsOpen && workspace == null
             Box(Modifier.fillMaxSize()) {
                 MonthlyFeedbackPrompt(eligible = firebaseUser?.isAnonymous == false)
                 key(firebaseUser?.uid, chatSessionNonce) {
