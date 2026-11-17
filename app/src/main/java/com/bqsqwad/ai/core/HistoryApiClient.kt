@@ -14,13 +14,25 @@ import java.util.UUID
 data class HistoryItem(val id: String, val title: String, val updatedAt: String, val messageCount: Int)
 data class HistoryMessage(val mine: Boolean, val text: String, val id: String, val prompt: String?, val attachmentNames: List<String> = emptyList(), val imageUrl: String? = null)
 
+private const val WEBSITE_BASE_URL = "https://bqsqwadai.com"
+
+/** Convert the website's private file-part links into secure Android image URLs. */
+internal fun normalizeHistoryImageUrl(value: String?): String? {
+    val url = value?.trim().orEmpty()
+    return when {
+        url.startsWith("https://", ignoreCase = true) -> url
+        url.startsWith("/api/file/") -> WEBSITE_BASE_URL + url
+        else -> null
+    }
+}
+
 /**
  * Uses the website's authenticated native-chat API so Android and the website
  * share the same Firestore chats/{chatId} records. The Cloudflare /history
  * endpoint is read only here for legacy migration on the website server.
  */
 class HistoryApiClient {
-    private val websiteBaseUrl = "https://bqsqwadai.com"
+    private val websiteBaseUrl = WEBSITE_BASE_URL
 
     private suspend fun request(path: String, method: String = "GET", payload: JSONObject = JSONObject()): JSONObject =
         withContext(Dispatchers.IO) {
@@ -87,6 +99,12 @@ class HistoryApiClient {
                     }
                 }
             }.ifBlank { item.optString("text") }
+            val imagePartUrl = (0 until parts.length()).asSequence().mapNotNull { partIndex ->
+                val part = parts.optJSONObject(partIndex) ?: return@mapNotNull null
+                if (part.optString("type") != "file") return@mapNotNull null
+                if (!part.optString("mediaType").startsWith("image/", ignoreCase = true)) return@mapNotNull null
+                normalizeHistoryImageUrl(part.optString("url"))
+            }.firstOrNull()
             val attachments = item.optJSONArray("attachments")?.let { array ->
                 List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
             } ?: emptyList()
@@ -96,7 +114,7 @@ class HistoryApiClient {
                 id = item.optString("id").ifBlank { "message-$i" },
                 prompt = item.optString("prompt").ifBlank { null },
                 attachmentNames = attachments,
-                imageUrl = item.optString("imageUrl").ifBlank { null }
+                imageUrl = normalizeHistoryImageUrl(item.optString("imageUrl")) ?: imagePartUrl
             )
         }
     }
@@ -147,7 +165,7 @@ class HistoryApiClient {
     }
 
     suspend fun rename(id: String, title: String): Boolean {
-        require(title.isNotBlank() && title.length <= 120) { "Conversation title must be between 1 and 120 characters." }
+        require(title.trim().length in 1..120) { "Conversation title must be between 1 and 120 characters." }
         request("/api/native/chats", "PATCH", JSONObject().put("chatId", id).put("title", title.trim()))
         return true
     }
