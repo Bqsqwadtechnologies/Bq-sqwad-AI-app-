@@ -140,6 +140,7 @@ internal fun parseEntitlementExpiryMillis(value: Any?): Long? = when (value) {
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
     val message = throwable.message.orEmpty().lowercase()
+    if (message.contains("card_verification_required")) return "A one-time $0.50 card verification is required to unlock free-tier features. This verification is used strictly to prevent multi-account abuse. Once a card is verified, it is permanently linked to this account and cannot be used to verify any other account across the entire app and website."
     // Preserve actionable domain-specific guidance while routing common failures
     // through the shared, privacy-safe issue mapper.
     if (message.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."

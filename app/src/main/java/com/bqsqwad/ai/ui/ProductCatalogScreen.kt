@@ -844,7 +844,7 @@ private fun LivePlanCard(
                 }
             }
             if (isFreePlan) {
-                Text("Included at no cost. No purchase is required.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text("Included at no cost (one-time $0.50 card verification unlocks free-tier features to prevent abuse).", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             } else {
                 purchaseBlockReason?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
