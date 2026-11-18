@@ -113,8 +113,8 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                 var failed = 0
                 selectedUris.forEachIndexed { index, uri ->
                     val name = names[index]
+                    val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
                     runCatching {
-                        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
                         val bytes = withContext(Dispatchers.IO) { readFileBoxUploadBytes(context, uri) }
                         api.uploadFileBoxAsset(name.take(180), name.take(160), mime, bytes)
                     }.onSuccess {

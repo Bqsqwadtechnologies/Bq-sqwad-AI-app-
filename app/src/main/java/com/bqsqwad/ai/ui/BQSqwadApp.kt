@@ -3659,28 +3659,8 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     activeRequestId = null
                     runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
                         .onSuccess { applyCreditSnapshot(it) }
-                    // For users who accepted training consent, route training contributions/files to training storage & vault
-                    if (trainingConsent && !privateMode) {
-                        val userPrompt = text.trim()
-                        val current = messages.getOrNull(aiIndex)
-                        val assistantReply = (current?.text ?: "").trim()
-                        val hasAttachments = messages.any { it.attachments.isNotEmpty() }
-                        val firstAttachment = messages.flatMap { it.attachments }.firstOrNull()?.name
-                        if (userPrompt.isNotBlank() && assistantReply.isNotBlank()) {
-                            scope.launch(Dispatchers.IO) {
-                                runCatching {
-                                    WorkspaceApiClient().submitTrainingContribution(
-                                        prompt = userPrompt,
-                                        response = assistantReply,
-                                        workspace = "main_chat",
-                                        privateMode = false,
-                                        dataType = if (hasAttachments) "file" else "chat",
-                                        fileId = firstAttachment
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Training contributions are never submitted automatically from chat.
+                    // A future explicit contribution action must submit only after fresh consent.
                     if (shouldAutoSaveHistory()) {
                         val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m -> HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl) }
                         runCatching {
