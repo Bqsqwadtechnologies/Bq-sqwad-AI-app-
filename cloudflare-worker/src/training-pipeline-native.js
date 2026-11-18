@@ -122,7 +122,8 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
     const uid = String(contribution.userId || "");
     if (!contributionId || importedIds.has(contributionId) || !uid || !consentedUids.has(uid)) continue;
     if (contribution.status === "withdrawn" || contribution.contentDeleted === true) continue;
-    if (String(contribution.dataType || "chat").toLowerCase() !== "chat") continue;
+    const dType = String(contribution.dataType || "chat").toLowerCase();
+    if (dType !== "chat" && dType !== "file" && dType !== "document") continue;
     if (!isTrainingChatEligible({ workspace: contribution.workspace || "main_chat" })) continue;
     const prompt = sanitizeText(contribution.prompt || "");
     const response = sanitizeText(contribution.response || "");
@@ -132,6 +133,8 @@ export async function buildTrainingCandidates({ limit = 50 } = {}) {
       id,
       sourceType: "consented_contribution",
       sourceContributionId: contributionId,
+      dataType: dType,
+      fileId: contribution.fileId || null,
       consentVersion: ACTIVE_CONSENT_VERSION,
       sanitizerVersion: SANITIZER_VERSION,
       createdAt: new Date().toISOString(),

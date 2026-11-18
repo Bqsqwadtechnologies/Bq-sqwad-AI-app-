@@ -980,12 +980,21 @@ class WorkspaceApiClient {
     suspend fun updateTrainingConsent(trainingConsent:Boolean):JSONObject =
         request("/consent/training",payload=JSONObject().put("trainingConsent",trainingConsent))
 
-    suspend fun submitTrainingContribution(prompt:String, response:String, workspace:String, privateMode:Boolean=false):JSONObject =
-        request("/training/contributions", payload=JSONObject().apply {
+    suspend fun submitTrainingContribution(
+        prompt: String,
+        response: String,
+        workspace: String,
+        privateMode: Boolean = false,
+        dataType: String = "chat",
+        fileId: String? = null
+    ): JSONObject =
+        request("/training/contributions", payload = JSONObject().apply {
             put("prompt", prompt.take(4000))
             put("response", response.take(4000))
             put("workspace", workspace.take(60))
             put("privateMode", privateMode)
+            put("dataType", dataType.take(24))
+            if (fileId != null) put("fileId", fileId.take(120))
         })
 
     suspend fun adminTrainingLibrary():JSONObject = request("/admin/training-library", "GET")

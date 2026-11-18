@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.bqsqwad.ai.core.WorkspaceApiClient
 import com.bqsqwad.ai.core.ApiConfig
 import com.bqsqwad.ai.core.BusinessToolCatalog
+import com.bqsqwad.ai.core.BusinessTrainingUploader
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import org.json.JSONArray
@@ -375,6 +376,38 @@ fun BusinessWorkspaceScreen(onOpenPlans: () -> Unit = {}) {
                 Records(extended.optJSONArray("faqs") ?: JSONArray(), "FAQ")
             }
             "Vault" -> {
+                val trainingLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                ) { uri: Uri? ->
+                    if (uri != null) {
+                        saving = true
+                        scope.launch {
+                            runCatching {
+                                BusinessTrainingUploader.upload(
+                                    resolver = context.contentResolver,
+                                    uri = uri,
+                                    type = "document",
+                                    title = "Vault Training File",
+                                    purpose = "Training storage & vault"
+                                )
+                            }.onFailure { error = safeUserFacingIssue(it, "Training file upload failed.") }
+                            .onSuccess {
+                                extended = api.businessExtended(data.optString("workspaceId"))
+                            }
+                            saving = false
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text("Vault & Training Storage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Button(onClick = { trainingLauncher.launch("*/*") }, enabled = !saving) {
+                        Text("Upload Training File")
+                    }
+                }
                 RecordCreateForm("Business Vault", listOf("title","content")) { values ->
                     saving = true
                     scope.launch {

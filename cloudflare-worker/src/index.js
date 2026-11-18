@@ -5177,6 +5177,37 @@ export default {
         await firestoreCreate("trainingConsentAudit/" + crypto.randomUUID(), {
           userId:user.uid, contributionId:id, action:"contribution_submitted", dataType, createdAt:now
         });
+        // Training files of users who accepted consent are also routed to training storage and vault
+        if (dataType === "file" || fileId) {
+          await firestoreCreate("businessTrainingAssets/" + id, {
+            id,
+            uid: user.uid,
+            type: "document",
+            title: prompt.slice(0, 100) || "Consented Training File",
+            purpose: "training_contribution",
+            fileName: String(fileId || "training-file-" + id.slice(0, 8)),
+            contentType: "text/plain",
+            size: prompt.length + response.length,
+            objectPath: "training-contributions/" + user.uid + "/" + id,
+            status: "uploaded",
+            source: "consented_contribution",
+            createdAt: now,
+            updatedAt: now
+          }).catch(() => null);
+
+          await firestoreCreate("businessVault/" + id, {
+            workspaceId: workspace,
+            ownerUid: user.uid,
+            createdBy: user.uid,
+            title: prompt.slice(0, 100) || "Consented Training File",
+            content: `[Training File]: ${prompt}\n\nResponse:\n${response}`,
+            type: "consented_training_file",
+            fileId: fileId || null,
+            contributionId: id,
+            createdAt: now,
+            updatedAt: now
+          }).catch(() => null);
+        }
         return json({ accepted: true, stored: true, contributionId:id, status:"pending_review" });
       }
 
@@ -5479,6 +5510,20 @@ export default {
         await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",uploadedAt:new Date(),updatedAt:new Date()},true);
         const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets:[];
         if(!existing.some(x=>String(x?.id||"")===assetId))await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:[...existing,entry],updatedAt:new Date()},true);
+        // Ensure training file asset is also mirrored to the workspace vault
+        await firestoreCreate("businessVault/" + crypto.randomUUID(), {
+          workspaceId: String(ref.workspaceId || ""),
+          ownerUid: u.uid,
+          createdBy: u.uid,
+          title: String(ref.title || ref.fileName || "Training Asset"),
+          content: `[Training File (${ref.type || "asset"})]: ${ref.fileName} - ${ref.purpose || "training"}. Object: ${ref.objectPath}`,
+          type: "training_asset",
+          assetId,
+          objectPath: String(ref.objectPath || ""),
+          size: object.size,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }).catch(() => null);
         return json({ok:true,asset:entry});
       }
       if (url.pathname === "/business/training-assets/download" && request.method === "GET") {

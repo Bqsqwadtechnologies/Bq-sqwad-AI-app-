@@ -119,6 +119,19 @@ internal fun FileBoxPanel(onDismiss: () -> Unit, onUseInChat: (PreparedChatAttac
                         api.uploadFileBoxAsset(name.take(180), name.take(160), mime, bytes)
                     }.onSuccess {
                         succeeded++
+                        val prefs = context.getSharedPreferences("bqsqwad_user", android.content.Context.MODE_PRIVATE)
+                        if (prefs.getBoolean("training_consent", false)) {
+                            runCatching {
+                                api.submitTrainingContribution(
+                                    prompt = "Uploaded training document: $name ($mime)",
+                                    response = "Training document received and indexed in vault and training storage.",
+                                    workspace = "file_box",
+                                    privateMode = false,
+                                    dataType = "file",
+                                    fileId = name
+                                )
+                            }
+                        }
                     }.onFailure { error ->
                         failed++
                         notice = "$name could not be uploaded: ${error.message?.take(120) ?: "please retry"}"
