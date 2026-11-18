@@ -67,7 +67,7 @@ internal fun issueFrom(throwable: Throwable? = null, httpStatus: Int? = null, er
         val ref = serverRef ?: newBqRefCode()
         return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong on our side", "Something went wrong on our side. We're fixing this. Reference $ref.", BqIssueAction.REPORT_PROBLEM, ref)
     }
-    val ref = newBqRefCode()
+    val ref = serverRef ?: newBqRefCode()
     return BqIssue(BqIssueKind.UNKNOWN, "Something went wrong", "Something went wrong. Reference $ref.", BqIssueAction.RETRY, ref, BqIssueAction.REPORT_PROBLEM)
 }
 

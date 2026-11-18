@@ -85,6 +85,7 @@ class GenerationApiClient {
                 val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
                 if (status !in 200..299) {
                     val code = body.optString("error").lowercase()
+                    val serverRef = body.optString("refCode").takeIf { it.isNotBlank() }
                     val message = when {
                         status == 401 || code.contains("auth") -> "Please sign in again to continue."
                         status == 402 || code.contains("credit") -> "You don't have enough credits for this request."
@@ -93,7 +94,11 @@ class GenerationApiClient {
                         status >= 500 -> "BQ Sqwad AI is temporarily unavailable. Please try again shortly."
                         else -> "BQ Sqwad AI couldn't complete that request. Please try again."
                     }
-                    error(message)
+                    val suffix = buildString {
+                        if (serverRef != null) append(" refCode=").append(serverRef)
+                        if (code.isNotBlank()) append(" errorCode=").append(code)
+                    }
+                    error(message + suffix)
                 }
                 body.optJSONObject("redirect")?.let { redirect ->
                     WorkspaceRedirectStore.publish(redirect)

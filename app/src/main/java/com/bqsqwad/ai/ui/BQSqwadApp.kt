@@ -3433,15 +3433,22 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                 } catch (t: Throwable) {
                     scope.launch(Dispatchers.Main) {
-                        if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
                         val cancelled = t is kotlinx.coroutines.CancellationException
                         if (cancelled) {
+                            if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
                             error = null
                             statusText = "Stopped."
                         } else {
-                            error = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
+                            val issue = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
+                            error = issue
                             failedImagePrompt = promptText
                             statusText = "Request failed. You can try again."
+                            if (messages.getOrNull(aiIndex)?.text == "Generating image…") {
+                                messages[aiIndex] = messages[aiIndex].copy(
+                                    text = issue.ifBlank { "Image generation couldn’t be completed. You can tap 'Retry image' below to try again." },
+                                    prompt = promptText
+                                )
+                            }
                         }
                         busy = false
                         streamJob = null

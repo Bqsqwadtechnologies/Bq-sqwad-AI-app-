@@ -49,6 +49,21 @@ function normalizeImageUsage(raw) {
   return { inputTokens, inputImageTokens, inputTextTokens, cachedInputImageTokens, cachedInputTokens, outputTokens, outputImageTokens };
 }
 
+
+function fallbackImageUsage(prompt, size) {
+  const textTokens = Math.max(1, Math.ceil(String(prompt || '').length / 4));
+  const outputImageTokens = size === '1536x1024' || size === '1024x1536' ? 1500 : 1000;
+  return {
+    inputTokens: textTokens,
+    inputImageTokens: 0,
+    inputTextTokens: textTokens,
+    cachedInputImageTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: outputImageTokens,
+    outputImageTokens
+  };
+}
+
 export function validateGeneratedImageBase64(encoded) {
   const value = String(encoded || "");
   if (!value || value.length > 28 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
@@ -72,31 +87,43 @@ async function persistGeneratedImage(user, encoded, id, prompt, operation = "gen
   const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
   const bucket = "photo";
   const objectPath = "users/" + String(user.uid) + "/images/" + id + "/generated.png";
-  const uploaded = await uploadSupabaseStorageObject(bucket, objectPath, bytes, "image/png");
+  let uploaded = null;
+  try {
+    uploaded = await uploadSupabaseStorageObject(bucket, objectPath, bytes, "image/png");
+  } catch (storageErr) {
+    console.warn("supabase_storage_upload_failed:", storageErr?.message);
+  }
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(prompt || "")));
   const promptHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
   const createdAt = new Date().toISOString();
-  try {
-    await firestoreCreate("mediaObjects/" + id, {
-      id, uid: String(user.uid), bucket, objectPath, generationId: id, requestId: id,
-      contentType: "image/png", byteSize: bytes.byteLength, createdAt,
-      sourcePlatform: "android", originalFileName: "generated.png", status: "ready"
-    });
-    await firestoreCreate("generatedImages/" + id, {
-      id, uid: String(user.uid), createdAt, bytes: bytes.byteLength,
-      promptHash, operation, storageBucket: bucket, storagePath: objectPath,
-      contentType: "image/png", status: "ready", sourcePlatform: "android"
-    });
-  } catch (error) {
-    await Promise.all([
-      firestoreDelete("mediaObjects/" + id).catch(() => {}),
-      firestoreDelete("generatedImages/" + id).catch(() => {}),
-      deleteSupabaseStorageObject(bucket, objectPath)
-    ]);
-    console.warn("generated_image_metadata_write_failed");
-    throw new Error("generated_image_metadata_write_failed");
+  if (uploaded?.signedUrl) {
+    try {
+      await firestoreCreate("mediaObjects/" + id, {
+        id, uid: String(user.uid), bucket, objectPath, generationId: id, requestId: id,
+        contentType: "image/png", byteSize: bytes.byteLength, createdAt,
+        sourcePlatform: "android", originalFileName: "generated.png", status: "ready"
+      });
+      await firestoreCreate("generatedImages/" + id, {
+        id, uid: String(user.uid), createdAt, bytes: bytes.byteLength,
+        promptHash, operation, storageBucket: bucket, storagePath: objectPath,
+        contentType: "image/png", status: "ready", sourcePlatform: "android"
+      });
+    } catch (error) {
+      await Promise.all([
+        firestoreDelete("mediaObjects/" + id).catch(() => {}),
+        firestoreDelete("generatedImages/" + id).catch(() => {}),
+        deleteSupabaseStorageObject(bucket, objectPath).catch(() => {})
+      ]);
+      console.warn("generated_image_metadata_write_failed:", error?.message);
+    }
   }
-  return { bucket, path: objectPath, signedUrl: uploaded.signedUrl, expiresIn: uploaded.expiresIn, byteSize: bytes.byteLength };
+  return {
+    bucket: uploaded ? bucket : null,
+    path: uploaded ? objectPath : null,
+    signedUrl: uploaded?.signedUrl || null,
+    expiresIn: uploaded?.expiresIn || null,
+    byteSize: bytes.byteLength
+  };
 }
 async function openai(env,path,init={}) {
   const r = await fetch("https://api.openai.com/v1" + path, {
@@ -139,42 +166,62 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
     const response = await openai(env, "/images/generations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, size, quality })
+      body: JSON.stringify({ model, prompt, size, quality, ...(b.response_format ? { response_format: b.response_format } : {}) })
     });
-    const image = response.data?.[0];
+    const item = response.data?.[0];
+    let b64 = item?.b64_json;
+    if (!b64 && item?.url) {
+      try {
+        const imgRes = await fetch(item.url);
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          const imgBytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < imgBytes.length; i++) binary += String.fromCharCode(imgBytes[i]);
+          b64 = btoa(binary);
+        }
+      } catch (fetchErr) {
+        console.warn("fetch_image_url_failed:", fetchErr?.message);
+      }
+    }
     const usage = normalizeImageUsage(response.usage);
-    if (!image?.b64_json) throw new Error("image_generation_returned_no_image");
-    validateGeneratedImageBase64(image.b64_json);
+    if (!b64) throw new Error("image_generation_returned_no_image");
+    validateGeneratedImageBase64(b64);
     const chargeCovered = reservation?.planCovered === true || reservation?.adminUnlimited === true || !reservation?.reservationId;
     let finalCredits = 0;
     if (!chargeCovered) {
-      if (!usage || !tokenPricing) throw Object.assign(new Error("image_token_usage_unavailable"), { httpStatus: 503, safeError: "provider_unavailable" });
-      const priced = calculateTokenCost({
-        usage: {
-          inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
-          inputImageTokens: usage.inputImageTokens, cachedInputImageTokens: usage.cachedInputImageTokens, cachedInputTokens: usage.cachedInputTokens, outputImageTokens: usage.outputImageTokens
-        },
-        pricing: tokenPricing
-      });
-      finalCredits = Number(priced.customerCredits || 0);
+      const activeUsage = usage || fallbackImageUsage(prompt, size);
+      if (tokenPricing) {
+        const priced = calculateTokenCost({
+          usage: {
+            inputTokens: activeUsage.inputTokens, outputTokens: activeUsage.outputTokens,
+            inputImageTokens: activeUsage.inputImageTokens, cachedInputImageTokens: activeUsage.cachedInputImageTokens, cachedInputTokens: activeUsage.cachedInputTokens, outputImageTokens: activeUsage.outputImageTokens
+          },
+          pricing: tokenPricing
+        });
+        finalCredits = Number(priced.customerCredits || 0);
+      } else {
+        finalCredits = Math.max(0, Number(trustedCreditCost ?? 0));
+      }
     }
     const id = crypto.randomUUID();
     generationId = id;
-    storedMedia = await persistGeneratedImage(user, image.b64_json, id, prompt, "generate");
+    storedMedia = await persistGeneratedImage(user, b64, id, prompt, "generate");
     const media = storedMedia;
     await firestoreCreate("imageGenerationJobs/" + id, {
       uid: user.uid, jobId: id, provider: "openai", modelId: model, status: "completed",
       prompt, size, quality, creditsCharged: finalCredits,
       billingUnit: "image", billingOperation: String(b.billingOperation || "image.generate"),
-      storageBucket: media.bucket, storagePath: media.path, mediaUrlExpiresIn: media.expiresIn,
-      createdAt: new Date(), updatedAt: new Date(), imageUrl: media.signedUrl
-    });
+      ...(media.bucket ? { storageBucket: media.bucket, storagePath: media.path, mediaUrlExpiresIn: media.expiresIn } : {}),
+      createdAt: new Date(), updatedAt: new Date(),
+      ...(media.signedUrl ? { imageUrl: media.signedUrl } : {})
+    }).catch(err => console.warn("image_job_create_failed:", err?.message));
     if (typeof settle === "function") await settle(user.uid, reservation.reservationId, finalCredits, "openai");
     else await commit(user.uid, reservation.reservationId, "openai");
     const dimensions = /^([0-9]+)x([0-9]+)$/.exec(size);
     return {
       status: "completed", providerId: "openai", modelId: model,
-      requestId: id, generationId: id, imageBase64: image.b64_json,
+      requestId: id, generationId: id, imageBase64: b64,
       imageUrl: media.signedUrl, displayUrl: media.signedUrl,
       storageBucket: media.bucket, storagePath: media.path,
       contentType: "image/png", byteSize: media.byteSize,
@@ -182,7 +229,7 @@ export async function generateImageNative(env, user, b, charge, commit, reverse,
       mediaUrlExpiresIn: media.expiresIn, creditsCharged: finalCredits, ...(usage ? { usage } : {})
     };
   } catch (error) {
-    if (storedMedia && generationId) {
+    if (storedMedia?.bucket && storedMedia?.path && generationId) {
       await Promise.all([
         deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path).catch(() => {}),
         firestoreDelete("mediaObjects/" + generationId).catch(() => {}),
@@ -232,27 +279,46 @@ export async function editImageNative(env,user,b,charge,commit,reverse,trustedCr
     form.append("image",new Blob([bytes],{type:mimeType}),"bq-sqwad-ai-image."+extensions[mimeType]);
     const z=await openai(env,"/images/edits",{method:"POST",body:form});
     const x=z.data?.[0];
+    let editB64 = x?.b64_json;
+    if (!editB64 && x?.url) {
+      try {
+        const imgRes = await fetch(x.url);
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer();
+          const imgBytes = new Uint8Array(buf);
+          let binary = "";
+          for (let i = 0; i < imgBytes.length; i++) binary += String.fromCharCode(imgBytes[i]);
+          editB64 = btoa(binary);
+        }
+      } catch (err) {
+        console.warn("fetch_image_url_failed:", err?.message);
+      }
+    }
     const usage = normalizeImageUsage(z.usage);
-    if(!x?.b64_json)throw new Error("image_edit_returned_no_image");
-    validateGeneratedImageBase64(x.b64_json);
+    if(!editB64)throw new Error("image_edit_returned_no_image");
+    validateGeneratedImageBase64(editB64);
     const chargeCovered=reservation?.planCovered===true||reservation?.adminUnlimited===true||!reservation?.reservationId;
     let finalCredits=0;
     if(!chargeCovered){
-      if(!usage||!tokenPricing)throw Object.assign(new Error("image_token_usage_unavailable"),{httpStatus:503,safeError:"provider_unavailable"});
-      const priced=calculateTokenCost({usage:{inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,inputImageTokens:usage.inputImageTokens,cachedInputImageTokens:usage.cachedInputImageTokens,cachedInputTokens:usage.cachedInputTokens,outputImageTokens:usage.outputImageTokens},pricing:tokenPricing});
-      finalCredits=Number(priced.customerCredits||0);
+      const activeUsage = usage || fallbackImageUsage(prompt, size);
+      if (tokenPricing) {
+        const priced=calculateTokenCost({usage:{inputTokens:activeUsage.inputTokens,outputTokens:activeUsage.outputTokens,inputImageTokens:activeUsage.inputImageTokens,cachedInputImageTokens:activeUsage.cachedInputImageTokens,cachedInputTokens:activeUsage.cachedInputTokens,outputImageTokens:activeUsage.outputImageTokens},pricing:tokenPricing});
+        finalCredits=Number(priced.customerCredits||0);
+      } else {
+        finalCredits = Math.max(0, Number(trustedCreditCost ?? 0));
+      }
     }
     const id=crypto.randomUUID();
     generationId=id;
-    storedMedia=await persistGeneratedImage(user,x.b64_json,id,prompt,"edit");
+    storedMedia=await persistGeneratedImage(user,editB64,id,prompt,"edit");
     const media=storedMedia;
-    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn,createdAt:new Date(),updatedAt:new Date(),imageUrl:media.signedUrl});
+    await firestoreCreate("imageGenerationJobs/"+id,{uid:user.uid,jobId:id,provider:"openai",modelId:model,status:"completed",prompt,operation:"edit",creditsCharged:finalCredits,...(media.bucket ? {storageBucket:media.bucket,storagePath:media.path,mediaUrlExpiresIn:media.expiresIn} : {}),createdAt:new Date(),updatedAt:new Date(),...(media.signedUrl ? {imageUrl:media.signedUrl} : {})}).catch(err => console.warn("image_job_create_failed:", err?.message));
     if(typeof settle==="function")await settle(user.uid,reservation.reservationId,finalCredits,"openai");
     else await commit(user.uid,reservation.reservationId,"openai");
     const dimensions=/^([0-9]+)x([0-9]+)$/.exec(size);
-    return {status:"completed",providerId:"openai",modelId:model,requestId:id,generationId:id,imageBase64:x.b64_json,imageUrl:media.signedUrl,displayUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,contentType:"image/png",byteSize:bytes.byteLength,...(dimensions?{width:Number(dimensions[1]),height:Number(dimensions[2])}:{}),mediaUrlExpiresIn:media.expiresIn,creditsCharged:finalCredits,...(usage?{usage}:{})};
+    return {status:"completed",providerId:"openai",modelId:model,requestId:id,generationId:id,imageBase64:editB64,imageUrl:media.signedUrl,displayUrl:media.signedUrl,storageBucket:media.bucket,storagePath:media.path,contentType:"image/png",byteSize:bytes.byteLength,...(dimensions?{width:Number(dimensions[1]),height:Number(dimensions[2])}:{}),mediaUrlExpiresIn:media.expiresIn,creditsCharged:finalCredits,...(usage?{usage}:{})};
   } catch(e) {
-    if (storedMedia && generationId) {
+    if (storedMedia?.bucket && storedMedia?.path && generationId) {
       await Promise.all([
         deleteSupabaseStorageObject(storedMedia.bucket, storedMedia.path).catch(() => {}),
         firestoreDelete("mediaObjects/" + generationId).catch(() => {}),

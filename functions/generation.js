@@ -62,7 +62,17 @@ export async function generateImage(uid, prompt, options = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  const encoded = result.data?.[0]?.b64_json;
+  const item = result.data?.[0];
+  let encoded = item?.b64_json;
+  if (!encoded && item?.url) {
+    try {
+      const imgRes = await fetch(item.url);
+      if (imgRes.ok) {
+        const arr = await imgRes.arrayBuffer();
+        encoded = Buffer.from(arr).toString("base64");
+      }
+    } catch {}
+  }
   if (!encoded) throw new Error("image_generation_returned_no_image");
   const buffer = Buffer.from(encoded, "base64");
   const id = cryptoRandomId();

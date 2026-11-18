@@ -264,3 +264,102 @@ test("private media signed URL refresh helper signs only owner-scoped approved b
     globalThis.fetch = original;
   }
 });
+
+
+test("image generation succeeds when provider returns no usage without throwing image_token_usage_unavailable", async () => {
+  const original = globalThis.fetch;
+  const png = "iVBORw0KGgo=";
+  let settled = false;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.startsWith("https://oauth2.googleapis.com/token")) {
+      return new Response(JSON.stringify({ access_token: "test-firebase-token", expires_in: 3600 }), { status: 200 });
+    }
+    if (url.includes("/documents/users/user-test")) {
+      return new Response(JSON.stringify({
+        name: "projects/bq-sqwad-test/databases/(default)/documents/users/user-test",
+        fields: { hasEverPurchasedCredits: { booleanValue: true }, subscriptionPlan: { stringValue: "paid" } }
+      }), { status: 200 });
+    }
+    if (url.startsWith("https://api.openai.com/v1/images/generations")) {
+      return new Response(JSON.stringify({ data: [{ b64_json: png }] }), { status: 200 });
+    }
+    if (url.includes("/storage/v1/object/sign/photo/")) {
+      return new Response(JSON.stringify({ signedURL: "https://storage.example.com/image.png" }), { status: 200 });
+    }
+    if (url.includes("/storage/v1/object/photo/")) {
+      return new Response(JSON.stringify({ Key: "stored" }), { status: 200 });
+    }
+    if (url.includes("/documents/") && init.method === "POST") {
+      return new Response(JSON.stringify({ name: url }), { status: 200 });
+    }
+    throw new Error("unexpected_test_fetch: " + url);
+  };
+  try {
+    const tokenPricing = {
+      sharedCreditMetering: {
+        creditsPerInputToken: 0.0001,
+        creditsPerCachedInputToken: 0.00005,
+        creditsPerOutputToken: 0.0002,
+        creditsPerOutputImageToken: 0.001
+      }
+    };
+    const result = await generateImageNative(
+      { OPENAI_API_KEY: "test" },
+      { uid: "user-test" },
+      { prompt: "A boy holding a flag" },
+      async () => ({ reservationId: "test-reservation", amount: 1, planCovered: false }),
+      async () => {},
+      async () => { throw new Error("unexpected_reversal"); },
+      1.5, tokenPricing,
+      async () => { settled = true; }
+    );
+    assert.equal(result.status, "completed");
+    assert.equal(result.imageBase64, png);
+    assert.equal(settled, true);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("image generation safely handles storage failure by returning inline base64", async () => {
+  const original = globalThis.fetch;
+  const png = "iVBORw0KGgo=";
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.startsWith("https://oauth2.googleapis.com/token")) {
+      return new Response(JSON.stringify({ access_token: "test-firebase-token", expires_in: 3600 }), { status: 200 });
+    }
+    if (url.includes("/documents/users/user-test")) {
+      return new Response(JSON.stringify({
+        name: "projects/bq-sqwad-test/databases/(default)/documents/users/user-test",
+        fields: { hasEverPurchasedCredits: { booleanValue: true }, subscriptionPlan: { stringValue: "free" } }
+      }), { status: 200 });
+    }
+    if (url.startsWith("https://api.openai.com/v1/images/generations")) {
+      return new Response(JSON.stringify({ data: [{ b64_json: png }] }), { status: 200 });
+    }
+    if (url.includes("/storage/v1/")) {
+      return new Response("storage error", { status: 500 });
+    }
+    if (url.includes("/documents/") && init.method === "POST") {
+      return new Response(JSON.stringify({ name: url }), { status: 200 });
+    }
+    throw new Error("unexpected_test_fetch: " + url);
+  };
+  try {
+    const result = await generateImageNative(
+      { OPENAI_API_KEY: "test" },
+      { uid: "user-test" },
+      { prompt: "A boy holding a flag" },
+      async () => ({ reservationId: "test-reservation", amount: 1, adminUnlimited: true }),
+      async () => {},
+      async () => { throw new Error("unexpected_reversal"); }
+    );
+    assert.equal(result.status, "completed");
+    assert.equal(result.imageBase64, png);
+    assert.equal(result.imageUrl, null);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
