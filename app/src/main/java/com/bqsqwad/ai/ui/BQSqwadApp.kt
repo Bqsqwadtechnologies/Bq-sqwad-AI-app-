@@ -1982,7 +1982,7 @@ internal fun isImageGenerationRequest(text: String): Boolean {
     // must route these to /ai/image instead of letting the text model answer with
     // decorative emoji or text-art.
     val asset = Regex(
-        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?|emojis?|stickers?|memes?|renders?|mockups?|concept art|3d models?|product shots?|profile pictures?|album covers?|book covers?|social media graphics?|backgrounds?|mascots?|character designs?|icon sets?)\b""",
+        """\b(images?|pictures?|photos?|logos?|posters?|illustrations?|wallpapers?|flyers?|banners?|artwork|portraits?|drawings?|scenes?|characters?|thumbnails?|covers?|icons?|emblems?|avatars?|visuals?|graphics?|cartoons?|comics?|paintings?|diagrams?|infographics?|emojis?|stickers?|memes?|renders?|mockups?|concept art|3d models?|product shots?|profile pictures?|album covers?|book covers?|social media graphics?|backgrounds?|mascots?|character designs?|icon sets?|flags?|national flags?|country flags?)\b""",
         RegexOption.IGNORE_CASE
     )
     val wantsToSee = Regex(
