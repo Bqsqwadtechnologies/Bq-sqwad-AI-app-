@@ -261,10 +261,16 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     LaunchedEffect(signedIn) {
         while (signedIn) {
             kotlinx.coroutines.delay(15_000)
-            runCatching { WorkspaceApiClient().credits() }
+            val api = WorkspaceApiClient()
+            runCatching { api.credits() }
                 .onSuccess { latest -> credits = latest }
+            runCatching { parseUserEntitlements(api.entitlements()) }
+                .onSuccess { latest -> entitlements = latest }
         }
-        if (!signedIn) credits = null
+        if (!signedIn) {
+            credits = null
+            entitlements = emptyList()
+        }
     }
 
     // Customer plans come only from the live/cached server catalog. Add-ons and
