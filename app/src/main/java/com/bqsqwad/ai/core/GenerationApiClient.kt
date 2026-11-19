@@ -62,6 +62,36 @@ internal fun parseGeneratedImage(
 class GenerationApiClient {
     private val baseUrl = "${ApiConfig.baseUrl}"
 
+    private suspend fun requestWebsitePayments(payload: JSONObject): JSONObject =
+        withContext(Dispatchers.IO) {
+            val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
+            val token = Tasks.await(user.getIdToken(false)).token ?: error("Authentication token unavailable")
+            val targetUrl = "${ApiConfig.websiteBaseUrl.trimEnd('/')}/api/native/payments"
+            val c = (URL(targetUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 20000
+                readTimeout = 120000
+                doInput = true
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            try {
+                c.outputStream.use { it.write(payload.toString().toByteArray()) }
+                val status = c.responseCode
+                val stream = if (status in 200..299) c.inputStream else c.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(raw) }.getOrElse { JSONObject().put("error", "Invalid server response") }
+                if (status !in 200..299 || body.optBoolean("ok") == false) {
+                    val errorMsg = body.optString("error").ifBlank { "Image generation could not be completed." }
+                    error(errorMsg)
+                }
+                body
+            } finally {
+                c.disconnect()
+            }
+        }
+
     private suspend fun request(path: String, method: String = "POST", payload: JSONObject = JSONObject()): JSONObject =
         withContext(Dispatchers.IO) {
             val user = FirebaseAuth.getInstance().currentUser ?: error("Sign in is required")
@@ -117,12 +147,28 @@ class GenerationApiClient {
         }
 
     suspend fun generateImage(prompt: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null): GeneratedImage {
-        val body = request("/ai/image", payload = JSONObject().apply {
-            put("prompt", prompt.take(12000)); put("size", size); put("quality", quality)
-            if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
-        })
+        val websiteQuality = if (quality.contains("high", ignoreCase = true) || quality.contains("hd", ignoreCase = true)) "hd" else "standard"
+        val websitePayload = JSONObject().apply {
+            put("action", "generate_image")
+            put("prompt", prompt.take(12000))
+            put("quality", websiteQuality)
+        }
+        val body = runCatching {
+            requestWebsitePayments(websitePayload)
+        }.getOrElse { webErr ->
+            val msg = webErr.message.orEmpty()
+            if (msg.contains("credit", ignoreCase = true) || msg.contains("sign in", ignoreCase = true) || msg.contains("verification", ignoreCase = true)) {
+                throw webErr
+            }
+            request("/ai/image", payload = JSONObject().apply {
+                put("prompt", prompt.take(12000)); put("size", size); put("quality", quality)
+                if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
+            })
+        }
+        val imgUrl = body.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" }
+            ?: body.optString("url").takeIf { it.isNotBlank() && it != "null" }
         return parseGeneratedImage(
-            body.optString("imageUrl").takeUnless { it.isBlank() || it == "null" },
+            imgUrl,
             body.optString("imageBase64").takeUnless { it.isBlank() || it == "null" },
             body.optDouble("creditsCharged", 0.0),
             body.optString("modelId").takeUnless { it.isBlank() || it == "null" },
@@ -147,12 +193,30 @@ class GenerationApiClient {
     }
 
     suspend fun editImage(prompt: String, imageBase64: String, size: String = "1024x1024", quality: String = "auto", modelRegistryId: String? = null, mimeType: String = "image/png"): GeneratedImage {
-        val body = request("/ai/image/edit", payload = JSONObject().apply {
-            put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("mimeType", mimeType); put("size", size); put("quality", quality)
-            if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
-        })
+        val websiteQuality = if (quality.contains("high", ignoreCase = true) || quality.contains("hd", ignoreCase = true)) "hd" else "standard"
+        val websitePayload = JSONObject().apply {
+            put("action", "generate_image")
+            put("prompt", prompt.take(12000))
+            put("imageBase64", imageBase64)
+            put("mimeType", mimeType)
+            put("quality", websiteQuality)
+        }
+        val body = runCatching {
+            requestWebsitePayments(websitePayload)
+        }.getOrElse { webErr ->
+            val msg = webErr.message.orEmpty()
+            if (msg.contains("credit", ignoreCase = true) || msg.contains("sign in", ignoreCase = true) || msg.contains("verification", ignoreCase = true)) {
+                throw webErr
+            }
+            request("/ai/image/edit", payload = JSONObject().apply {
+                put("prompt", prompt.take(12000)); put("imageBase64", imageBase64); put("mimeType", mimeType); put("size", size); put("quality", quality)
+                if (!modelRegistryId.isNullOrBlank()) put("modelRegistryId", modelRegistryId)
+            })
+        }
+        val imgUrl = body.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" }
+            ?: body.optString("url").takeIf { it.isNotBlank() && it != "null" }
         return parseGeneratedImage(
-            body.optString("imageUrl").takeUnless { it.isBlank() || it == "null" },
+            imgUrl,
             body.optString("imageBase64").takeUnless { it.isBlank() || it == "null" },
             body.optDouble("creditsCharged", 0.0),
             body.optString("modelId").takeUnless { it.isBlank() || it == "null" },
@@ -167,5 +231,4 @@ class GenerationApiClient {
             body.optInt("height").takeIf { it > 0 }
         )
     }
-
 }

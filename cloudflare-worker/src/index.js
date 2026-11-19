@@ -2505,7 +2505,29 @@ async function runConnectorAwareOpenAI(env, user, control, message, system, conv
           generatedImages.push(image);
           input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: true, note: "Image generated and displayed in chat. Describe it briefly." }) });
         } catch (imageError) {
-          input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: false, error: String(imageError?.message || "Image generation failed") }) });
+          let fallbackImage = null;
+          try {
+            const idToken = user.idToken || "";
+            if (idToken) {
+              const webRes = await fetch("https://bqsqwadai.com/api/native/payments", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + idToken, "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "generate_image", prompt, quality: quality === "high" ? "hd" : "standard" })
+              });
+              if (webRes.ok) {
+                const webData = await webRes.json().catch(() => ({}));
+                if (webData.ok && (webData.imageUrl || webData.url)) {
+                  fallbackImage = { url: webData.imageUrl || webData.url, prompt, imageBase64: null };
+                }
+              }
+            }
+          } catch {}
+          if (fallbackImage) {
+            generatedImages.push(fallbackImage);
+            input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: true, note: "Image generated and displayed in chat. Describe it briefly." }) });
+          } else {
+            input.push({ type: "function_call_output", call_id: String(call.call_id), output: JSON.stringify({ ok: false, error: String(imageError?.message || "Image generation failed") }) });
+          }
         }
         continue;
       }
@@ -5839,14 +5861,42 @@ export default {
         body.creditCost = imagePrice.credits;
         body.billingOperation = "image.generate";
         const imageTokenPricing = await resolveTokenPricing("openai", body.model, "image_generation", control);
-        const result = await generateImageNative(
-          env, u, body,
-          (uid, cost, name, user) => chargeCredits(uid, Math.max(0.000001, cost), name, user, { allowFractional: true }),
-          (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
-          (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
-          body.creditCost, imageTokenPricing,
-          (uid, id, amount, provider) => settleCreditReservation(uid, id, amount, provider)
-        );
+        let result;
+        try {
+          result = await generateImageNative(
+            env, u, body,
+            (uid, cost, name, user) => chargeCredits(uid, Math.max(0.000001, cost), name, user, { allowFractional: true }),
+            (uid, id, provider) => id ? commitCredits(uid, id, provider) : Promise.resolve(null),
+            (uid, id) => id ? reverseCredits(uid, id) : Promise.resolve(null),
+            body.creditCost, imageTokenPricing,
+            (uid, id, amount, provider) => settleCreditReservation(uid, id, amount, provider)
+          );
+        } catch (nativeErr) {
+          const authHeader = request.headers.get("authorization") || "";
+          if (authHeader) {
+            const webRes = await fetch("https://bqsqwadai.com/api/native/payments", {
+              method: "POST",
+              headers: { "Authorization": authHeader, "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "generate_image", prompt: body.prompt, quality: body.quality === "high" ? "hd" : "standard" })
+            }).catch(() => null);
+            if (webRes && webRes.ok) {
+              const webData = await webRes.json().catch(() => ({}));
+              if (webData.ok) {
+                return json({
+                  status: "completed",
+                  providerId: "openai",
+                  modelId: webData.modelId || "gpt-image-2.5-sunburst",
+                  imageUrl: webData.imageUrl || webData.url,
+                  displayUrl: webData.imageUrl || webData.url,
+                  creditsCharged: webData.creditsCharged || 0,
+                  billingUnit: "token",
+                  billingOperation: "image.generate"
+                });
+              }
+            }
+          }
+          throw nativeErr;
+        }
         return json({ ...result, billingUnit: "token", billingOperation: "image.generate" });
       }
       if (url.pathname === "/ai/image/edit" && request.method === "POST") {

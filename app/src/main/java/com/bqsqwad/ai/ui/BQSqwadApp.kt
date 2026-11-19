@@ -3342,6 +3342,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
+        val imageRequest = text.isNotBlank() && !pdfRequest && !fileRequest && isImageGenerationRequest(text)
         val selectedAttachments = attachments
         attachments = emptyList()
         message = ""
@@ -3368,11 +3369,11 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     ChatMessageAttachment(selected.name, selected.mimeType, if (localId != null) null else selected.imageBase64, localId)
                 }))
         val aiIndex = messages.size
-        appendChatMessage(ChatMessage(false, "", prompt = actualPrompt))
+        appendChatMessage(ChatMessage(false, if (imageRequest) "Generating image…" else "", prompt = actualPrompt))
         busy = true
         error = null
-        statusText = "Preparing your response…"
-        val shouldSearchWeb = selectedAttachments.isEmpty() && needsCurrentWebSearch(text)
+        statusText = if (imageRequest) "Generating image…" else "Preparing your response…"
+        val shouldSearchWeb = selectedAttachments.isEmpty() && !imageRequest && needsCurrentWebSearch(text)
         val webSearchEnabled = accountPreferences(context)
             .getBoolean("web_search_enabled", true)
         val requestId = UUID.randomUUID().toString()
@@ -3450,7 +3451,32 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
                     if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
                 ).filterNotNull().joinToString("\n\n")
-                val reply = if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
+                val reply = if (imageRequest) {
+                    withContext(Dispatchers.Main) { statusText = "Generating image…" }
+                    val promptText = actualPrompt
+                    val generated = if (imageParts.isNotEmpty()) {
+                        val firstImage = imageParts.first()
+                        GenerationApiClient().editImage(
+                            prompt = promptText,
+                            imageBase64 = firstImage.imageBase64!!,
+                            mimeType = firstImage.mimeType ?: "image/png"
+                        )
+                    } else {
+                        GenerationApiClient().generateImage(prompt = promptText)
+                    }
+                    ChatReply(
+                        text = "I've generated the image for you based on your prompt:
+
+*${promptText.take(160)}*",
+                        providerId = "openai",
+                        modelId = generated.modelId ?: "gpt-image-2.5-sunburst",
+                        creditsCharged = generated.creditsCharged,
+                        billingStatus = "settled",
+                        balanceAfter = null,
+                        imageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) },
+                        imageBase64 = generated.imageBase64
+                    )
+                } else if (imageParts.isNotEmpty() || fileParts.isNotEmpty()) {
                     val firstImage = imageParts.firstOrNull()
                     ChatApiClient().analyzeCameraFrame(
                         actualPrompt,
@@ -3597,7 +3623,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             .onSuccess { applyCreditSnapshot(it) }
                         return@launch
                     }
-                    if (current != null && current.text.isBlank()) messages.removeAt(aiIndex)
+                    if (current != null && (current.text.isBlank() || current.text == "Generating image…")) messages.removeAt(aiIndex)
                     attachments = selectedAttachments
                     message = text
                     taskStartedAtMs = null
@@ -3616,11 +3642,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             detail.contains("credit balance") && (detail.contains("low") || detail.contains("not enough")) ||
                             detail.contains("run out of") || detail.contains("out of credits") ||
                             detail.contains("no credits remaining") || detail.contains("credits_exhausted") ||
-                            detail.contains("insufficient_credits") || detail.contains("payment required") && detail.contains("credit")
+                            detail.contains("insufficient_credits") || detail.contains("payment required") && detail.contains("credit") ||
+                            detail.contains("don't have enough credits") || detail.contains("not enough credits")
                         ) {
                             creditsExhausted = true
                             creditNotice = "You’re out of credits. Please buy credits to continue using BQ Sqwad AI."
                             error = creditNotice
+                        } else if (detail.contains("card_verification_required") || detail.contains("card verification") || detail.contains("verify_card")) {
+                            error = "A one-time $0.50 card verification is required on our website. Please visit " + com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl + "/subscribe to verify your card, then return to the app to use your free trial."
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
                                 scope.launch(Dispatchers.IO) {
