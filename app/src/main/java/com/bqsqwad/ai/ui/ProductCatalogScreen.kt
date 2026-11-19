@@ -517,6 +517,28 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                                 }
                                                 Text(expiryText, fontWeight=if (warning) FontWeight.Bold else FontWeight.Medium, color=if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
+                                            if (days < 0 || row.state.equals("expired", ignoreCase = true)) {
+                                                Text(
+                                                    "This feature plan has finished. Renew or subscribe to regain access to advanced AI capabilities, higher token limits, and priority features.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                if (plan != null && plan.features.isNotEmpty()) {
+                                                    Text("Advanced features included:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                                    plan.features.take(4).forEach { feat ->
+                                                        Text("• $feat", style = MaterialTheme.typography.bodySmall)
+                                                    }
+                                                }
+                                                val context = androidx.compose.ui.platform.LocalContext.current
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                                ) {
+                                                    Text("Renew on website")
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -823,7 +845,7 @@ private fun LivePlanCard(
             val context = androidx.compose.ui.platform.LocalContext.current
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
-                Text("To verify your card for the free trial, open our website, complete the one-time $0.50 card verification, then return to the app.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("To verify your card for the free trial, open our website to complete card verification, then return to the app to use your trial.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(
                     onClick = {
                         context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
@@ -852,13 +874,32 @@ private fun LivePlanCard(
                 }
             }
             if (isFreePlan) {
-                Text("Included at no cost. If card verification is required, complete the one-time $0.50 verification on our website, then return to the app to continue.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text("Included at no cost. If card verification is required, complete verification on our website, then return to the app to continue.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(
                     onClick = {
                         context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Verify card on website") }
+            } else if (plan.paymentChannel == "website" || (!canPurchase && !isContactSales)) {
+                Text(
+                    "You can subscribe to this plan or purchase daily and weekly credits directly from our website.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = {
+                        val targetUrl = if (isCreditPack) {
+                            "${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/pricing"
+                        } else {
+                            "${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe"
+                        }
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isCreditPack) "Buy credits on website" else "Subscribe on website")
+                }
             } else {
                 purchaseBlockReason?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
