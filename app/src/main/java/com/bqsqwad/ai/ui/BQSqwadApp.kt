@@ -140,7 +140,7 @@ internal fun parseEntitlementExpiryMillis(value: Any?): Long? = when (value) {
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
     val message = throwable.message.orEmpty().lowercase()
-    if (message.contains("card_verification_required")) return "A one-time $0.50 card verification is required to unlock free-tier features. This verification is used strictly to prevent multi-account abuse. Once a card is verified, it is permanently linked to this account and cannot be used to verify any other account across the entire app and website."
+    if (message.contains("card_verification_required")) return "A one-time $0.50 card verification is required on our website. Please visit " + com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl + "/subscribe to verify your card, then return to the app to use your free trial."
     // Preserve actionable domain-specific guidance while routing common failures
     // through the shared, privacy-safe issue mapper.
     if (message.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."
@@ -3342,126 +3342,6 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
         }.orEmpty()
         val pdfRequest = text.isNotBlank() && isPdfGenerationRequest(text)
         val fileRequest = text.isNotBlank() && !pdfRequest && isChatFileGenerationRequest(text)
-        // PreparedChatAttachment keeps the image bytes as base64 until this send
-        // operation. Only a real image payload can be used as an edit reference.
-        val sourceImage = attachments.singleOrNull()?.takeIf {
-            canUseImageAttachmentForGeneration(it.mimeType, it.imageBase64)
-        }
-        val imageIntent = text.isNotBlank() && isImageGenerationRequest(text)
-        val imageRequest = imageIntent &&
-            (attachments.isEmpty() || (attachments.size == 1 && sourceImage != null))
-        if (imageIntent && !imageRequest) {
-            error = "For image generation, remove extra attachments or attach one reference image for editing, then send the prompt again."
-            return
-        }
-        if (imageRequest) {
-            val promptText = text.trim()
-            val sourceImageBase64 = sourceImage?.imageBase64?.takeIf { it.isNotBlank() }
-            val userImageAttachments = if (sourceImage != null && sourceImageBase64 != null) {
-                listOf(ChatMessageAttachment(sourceImage.name, sourceImage.mimeType, sourceImageBase64))
-            } else emptyList()
-            message = ""
-            attachments = emptyList()
-            appendChatMessage(ChatMessage(true, promptText, attachments = userImageAttachments))
-            val aiIndex = messages.size
-            appendChatMessage(ChatMessage(false, "Generating image…"))
-            busy = true
-            statusText = "Generating image…"
-            error = null
-            failedImagePrompt = null
-            streamJob = scope.launch(Dispatchers.IO) {
-                try {
-                    val generated = if (sourceImage != null && !sourceImageBase64.isNullOrBlank()) {
-                        GenerationApiClient().editImage(promptText, sourceImageBase64, mimeType = sourceImage.mimeType)
-                    } else {
-                        GenerationApiClient().generateImage(promptText, modelRegistryId = null)
-                    }
-                    // Match the website's tool flow: after the image is ready, let the
-                    // chat model provide a short natural follow-up. Failure here never
-                    // hides or discards the successfully generated image.
-                    val imageDescription = runCatching {
-                        ChatApiClient().streamMessage(
-                            message = "An image has just been generated successfully for this request: \"$promptText\". Briefly describe the intended visual result and tell the user it is displayed above. Do not generate another image.",
-                            capability = "chat",
-                            onDelta = {},
-                            system = listOf(
-                                activeSystem,
-                                "The image generation request has already succeeded and the image is displayed directly above this reply. Give a concise, natural follow-up about the requested composition. Do not substitute emojis or text-art for the image, and do not claim to inspect pixels you were not given."
-                            ).filter { it.isNotBlank() }.joinToString("\n\n"),
-                            modelKey = selectedModelKey
-                        ).text.trim().takeIf { it.isNotBlank() }
-                    }.getOrNull()
-                    val durableImageUrl = generated.url.takeIf { it.startsWith("https://", ignoreCase = true) }
-                        ?: generated.imageBase64?.let {
-                            runCatching { uploadGeneratedImage(it) }
-                                .onFailure { android.util.Log.w("BQImage", "Image service URL unavailable; secure storage fallback failed.") }
-                                .getOrNull()
-                        }
-                    scope.launch(Dispatchers.Main) {
-                        messages[aiIndex] = messages[aiIndex].copy(
-                            text = imageDescription ?: "Here’s the image you requested.",
-                            prompt = promptText,
-                            attachments = generated.imageBase64?.let {
-                                listOf(ChatMessageAttachment("Generated image.png", "image/png", it))
-                            } ?: emptyList(),
-                            imageUrl = durableImageUrl
-                        )
-                        busy = false
-                        statusText = "Ready"
-                        streamJob = null
-                        failedImagePrompt = null
-                        if (generated.imageBase64 != null && durableImageUrl == null) {
-                            error = "Your image was created, but secure image storage is unavailable, so it may not appear when you reopen this chat."
-                        }
-                        // Image generation is charged server-side; refresh the visible balance
-                        // after the request so the chat never keeps showing a stale credit count.
-                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                            .onSuccess { applyCreditSnapshot(it) }
-                        if (shouldAutoSaveHistory()) {
-                            runCatching {
-                                val snapshot = messages.filterNot { it.id in privateMessageIds }.map { m ->
-                                    HistoryMessage(m.mine, m.text, m.id, m.prompt, m.attachments.map { it.mimeType + "|" + it.name + (it.imageLocalId?.let { localId -> "|" + localId } ?: "") }, m.imageUrl)
-                                }
-                                withContext(Dispatchers.IO) {
-                                    HistoryApiClient().save(historyId, promptText, snapshot)
-                                }
-                            }.onSuccess { savedId ->
-                                historyId = savedId
-                            }.onFailure {
-                                error = safeUserFacingIssue(it, "The image was generated, but this conversation could not be saved.")
-                            }
-                        }
-                    }
-                } catch (t: Throwable) {
-                    scope.launch(Dispatchers.Main) {
-                        val cancelled = t is kotlinx.coroutines.CancellationException
-                        if (cancelled) {
-                            if (messages.getOrNull(aiIndex)?.text == "Generating image…") messages.removeAt(aiIndex)
-                            error = null
-                            statusText = "Stopped."
-                        } else {
-                            val issue = safeUserFacingIssue(t, "BQ Sqwad AI could not complete the image request. The team is working on it.")
-                            error = issue
-                            failedImagePrompt = promptText
-                            statusText = "Request failed. You can try again."
-                            if (messages.getOrNull(aiIndex)?.text == "Generating image…") {
-                                messages[aiIndex] = messages[aiIndex].copy(
-                                    text = issue.ifBlank { "Image generation couldn’t be completed. You can tap 'Retry image' below to try again." },
-                                    prompt = promptText
-                                )
-                            }
-                        }
-                        busy = false
-                        streamJob = null
-                        // Failed or cancelled generation can settle a server-side reservation;
-                        // refresh the canonical balance instead of leaving stale credit state.
-                        runCatching { withContext(Dispatchers.IO) { WorkspaceApiClient().credits() } }
-                            .onSuccess { applyCreditSnapshot(it) }
-                    }
-                }
-            }
-            return
-        }
         val selectedAttachments = attachments
         attachments = emptyList()
         message = ""
@@ -3582,15 +3462,28 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         fileParts.map { Triple(it.name, it.mimeType, it.fileBase64!!) }
                     )
                 } else {
-                    ChatApiClient().streamMessage(requestPrompt, capability = activeCapability, system = requestSystem, modelRegistryId = null, modelKey = selectedModelKey, onDelta = { /* Show only the final settled reply. */ },
+                    ChatApiClient().streamMessage(
+                        requestPrompt, capability = activeCapability, system = requestSystem,
+                        modelRegistryId = null, modelKey = selectedModelKey,
+                        onDelta = { /* Show only the final settled reply. */ },
                         onReplace = { /* Replaced full text is rendered after completion. */ },
-                        onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } }, onPhase = { label ->
-                        // Provider settlement is an internal billing operation, not a chat status.
-                        val safeLabel = label.trim()
-                        if (!safeLabel.contains(Regex("provider|cost|settle|billing|usage", RegexOption.IGNORE_CASE))) {
-                            scope.launch(Dispatchers.Main) { taskPhaseLabel = safeLabel; if (safeLabel.contains("connector", ignoreCase = true) || safeLabel.contains("connected service", ignoreCase = true)) taskStartedAtMs = System.currentTimeMillis() }
-                        }
-                    }, onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } })
+                        onImage = { url, b64 -> scope.launch(Dispatchers.Main) {
+                            val current = messages.getOrNull(aiIndex) ?: return@launch
+                            val storedUrl = url.takeIf { it.startsWith("https://", ignoreCase = true) } ?: current.imageUrl
+                            val imageAttachments = if (!b64.isNullOrBlank() && current.attachments.none { it.name == "Generated image.png" }) {
+                                current.attachments + ChatMessageAttachment("Generated image.png", "image/png", b64)
+                            } else current.attachments
+                            messages[aiIndex] = current.copy(imageUrl = storedUrl, attachments = imageAttachments)
+                        } },
+                        onTaskStarted = { startedAt -> scope.launch(Dispatchers.Main) { taskStartedAtMs = startedAt; taskPhaseLabel = "Preparing response" } },
+                        onPhase = { label ->
+                            val safeLabel = label.trim()
+                            if (!safeLabel.contains(Regex("provider|cost|settle|billing|usage", RegexOption.IGNORE_CASE))) {
+                                scope.launch(Dispatchers.Main) { taskPhaseLabel = safeLabel; if (safeLabel.contains("connector", ignoreCase = true) || safeLabel.contains("connected service", ignoreCase = true)) taskStartedAtMs = System.currentTimeMillis() }
+                            }
+                        },
+                        onTaskEnded = { scope.launch(Dispatchers.Main) { taskStartedAtMs = null } }
+                    )
                 }
                 var generatedPdfAttachment: ChatMessageAttachment? = null
                 var generatedPdfNotice = ""
@@ -3642,9 +3535,14 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             val language = chatGeneratedFileSpec(text).extension
                             "```" + language + "\n" + cleanReply.trim() + "\n```"
                         } else cleanReply
+                        val replyImageUrl = reply.imageUrl?.takeIf { it.startsWith("https://", ignoreCase = true) } ?: current.imageUrl
+                        val replyImageAttachments = if (!reply.imageBase64.isNullOrBlank() && current.attachments.none { it.name == "Generated image.png" }) {
+                            current.attachments + ChatMessageAttachment("Generated image.png", "image/png", reply.imageBase64)
+                        } else current.attachments
                         messages[aiIndex] = current.copy(
                             text = (webSearchNotice?.let { "$it\n\n" } ?: "") + visibleReply + generatedPdfNotice,
-                            attachments = current.attachments + listOfNotNull(generatedPdfAttachment),
+                            attachments = replyImageAttachments + listOfNotNull(generatedPdfAttachment),
+                            imageUrl = replyImageUrl,
                             sources = webSources,
                             webSearchAttempted = shouldSearchWeb && webSearchEnabled,
                             webSearchInProgress = false,

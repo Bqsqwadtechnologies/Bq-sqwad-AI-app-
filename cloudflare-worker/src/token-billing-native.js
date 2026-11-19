@@ -236,35 +236,30 @@ export async function resolveTokenPricing(providerId, modelId, feature, control 
     return Number(b.version || 0) - Number(a.version || 0);
   })[0] || null;
 
-  // Sunburst image generation needs explicit image-modality credit rates.
-  // Older Firestore pricing documents may predate these fields. Preserve every
-  // administrator-supplied numeric value (including zero), and only supply the
-  // established BQ defaults when a field is absent. Do not resurrect a rule
-  // that exists but is disabled or scoped to another customer class.
-  if (["image_generation", "image_edit"].includes(String(feature || "").toLowerCase()) &&
-      String(providerId || "").toLowerCase() === "openai" &&
-      String(modelId || "") === "gpt-image-2.5-sunburst") {
-    const hasAnySunburstRule = (Array.isArray(tokenRules) ? tokenRules : []).some(rule =>
-      String(rule.provider || "").toLowerCase() === "openai" &&
-      String(rule.model || "") === "gpt-image-2.5-sunburst"
+  // Keep fallback customer-credit defaults aligned with the website's canonical
+  // tokenPricingRules for every built-in OpenAI model. Explicit admin rules win.
+  const DEFAULT_TOKEN_RULES = {
+    "gpt-6-luna": { inputCreditsPerToken: 0.000005833333333333333, cachedInputCreditsPerToken: 0.0000005833333333333333, outputCreditsPerToken: 0.000029166666666666667, reasoningCreditsPerToken: 0.000029166666666666667 },
+    "gpt-5.6-luna": { inputCreditsPerToken: 0.000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0.00007, reasoningCreditsPerToken: 0.00007 },
+    "gpt-image-2.5-sunburst": { inputCreditsPerToken: 0.0002916666666666667, cachedInputCreditsPerToken: 0.00007291666666666667, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0, inputImageCreditsPerToken: 0.00046666666666666666, cachedInputImageCreditsPerToken: 0.00011666666666666667, outputImageCreditsPerToken: 0.00175 },
+    "gpt-realtime-2.1-mini": { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.0000035, outputCreditsPerToken: 0.00014, reasoningCreditsPerToken: 0.0002, liveVoiceReasoningCreditsPerToken: 0.0002, liveCameraReasoningCreditsPerToken: 0.0006, inputAudioCreditsPerToken: 0.0005833333333333334, cachedInputAudioCreditsPerToken: 0.0000175, outputAudioCreditsPerToken: 0.0011666666666666668, inputImageCreditsPerToken: 0.00004666666666666667, cachedInputImageCreditsPerToken: 0.000004666666666666667 },
+    "gpt-image-1-mini": { inputCreditsPerToken: 0.00011666666666666667, cachedInputCreditsPerToken: 0.000011666666666666668, outputCreditsPerToken: 0.00046666666666666666, reasoningCreditsPerToken: 0.00046666666666666666, inputImageCreditsPerToken: 0.00014583333333333335, cachedInputImageCreditsPerToken: 0.000014583333333333333, outputImageCreditsPerToken: 0.00046666666666666666 },
+    "gpt-4o-mini-transcribe": { inputCreditsPerToken: 0, cachedInputCreditsPerToken: 0, outputCreditsPerToken: 0.0002916666666666667, reasoningCreditsPerToken: 0.0002916666666666667, inputAudioCreditsPerToken: 0.00007291666666666667 },
+    "gpt-4o-mini-tts": { inputCreditsPerToken: 0.000035, cachedInputCreditsPerToken: 0.000035, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0, outputAudioCreditsPerToken: 0.0007 },
+    "text-embedding-3-small": { inputCreditsPerToken: 0.0000011666666666666668, cachedInputCreditsPerToken: 0.0000011666666666666668, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0 },
+    "omni-moderation-latest": { inputCreditsPerToken: 0.00001, cachedInputCreditsPerToken: 0.00001, outputCreditsPerToken: 0, reasoningCreditsPerToken: 0 }
+  };
+  const standardDefaults = String(providerId || "").toLowerCase() === "openai" ? DEFAULT_TOKEN_RULES[String(modelId || "")] : null;
+  if (standardDefaults) {
+    const hasAnyModelRule = (Array.isArray(tokenRules) ? tokenRules : []).some(rule =>
+      String(rule.provider || "").toLowerCase() === "openai" && String(rule.model || "") === String(modelId || "")
     );
-    const defaults = {
-      inputCreditsPerToken: 0.0002916666666666667,
-      cachedInputCreditsPerToken: 0.00007291666666666667,
-      outputCreditsPerToken: 0,
-      reasoningCreditsPerToken: 0,
-      inputImageCreditsPerToken: 0.00046666666666666666,
-      cachedInputImageCreditsPerToken: 0.00011666666666666667,
-      outputImageCreditsPerToken: 0.00175
-    };
-    if (!tokenRule && !hasAnySunburstRule) {
-      tokenRule = { provider: "openai", model: "gpt-image-2.5-sunburst", customerClass: "all", status: "active", ...defaults };
+    if (!tokenRule && !hasAnyModelRule) {
+      tokenRule = { provider: "openai", model: String(modelId), customerClass: "all", status: "active", ...standardDefaults };
     } else if (tokenRule) {
       tokenRule = { ...tokenRule };
-      for (const [field, fallback] of Object.entries(defaults)) {
-        if (typeof tokenRule[field] !== "number" || !Number.isFinite(tokenRule[field])) {
-          tokenRule[field] = fallback;
-        }
+      for (const [field, fallback] of Object.entries(standardDefaults)) {
+        if (typeof tokenRule[field] !== "number" || !Number.isFinite(tokenRule[field])) tokenRule[field] = fallback;
       }
     }
   }

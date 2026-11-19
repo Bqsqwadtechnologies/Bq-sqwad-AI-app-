@@ -25,7 +25,9 @@ data class ChatReply(
     val modelId: String?,
     val creditsCharged: Double,
     val billingStatus: String? = null,
-    val balanceAfter: Double? = null
+    val balanceAfter: Double? = null,
+    val imageUrl: String? = null,
+    val imageBase64: String? = null
 )
 
 class ChatApiClient(
@@ -147,7 +149,9 @@ class ChatApiClient(
                 providerId = body.optString("providerId").takeIf { it.isNotBlank() },
                 modelId = body.optString("modelId").takeIf { it.isNotBlank() },
                 creditsCharged = body.optDouble("creditsCharged", 0.0),
-                billingStatus = body.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
+                billingStatus = body.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" },
+                imageUrl = body.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" },
+                imageBase64 = body.optString("imageBase64").takeIf { it.isNotBlank() && it != "null" }
             )
         } } }
 
@@ -162,6 +166,7 @@ class ChatApiClient(
         onTaskStarted: (Long) -> Unit = {},
         onPhase: (String) -> Unit = {},
         onReplace: (String) -> Unit = {},
+        onImage: (String, String?) -> Unit = { _, _ -> },
         onTaskEnded: () -> Unit = {}
     ): ChatReply = withFriendlyNetworkErrors {
         withTimeout(120000) {
@@ -244,6 +249,8 @@ class ChatApiClient(
                 var creditsCharged = 0.0
                 var billingStatus: String? = null
                 var balanceAfter: Double? = null
+                var completedImageUrl: String? = null
+                var completedImageBase64: String? = null
                 var eventData = StringBuilder()
                 var eventName = "message"
                 var completed = false
@@ -252,6 +259,14 @@ class ChatApiClient(
                     val trimmed = data.trim()
                     if (trimmed.isEmpty() || trimmed == "[DONE]") return
                     val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+                    if (event == "image" || json.optString("type") == "image") {
+                        val url = json.optString("url").takeIf { it.isNotBlank() && it != "null" }
+                        val b64 = json.optString("imageBase64").takeIf { it.isNotBlank() && it != "null" }
+                        completedImageUrl = url ?: completedImageUrl
+                        completedImageBase64 = b64 ?: completedImageBase64
+                        if (url != null || b64 != null) onImage(url.orEmpty(), b64)
+                        return
+                    }
                     when (event) {
                         // Main Chat intentionally has no separate "streaming response" status row.
                         // Keep task timing/status callbacks for specialized capabilities only.
@@ -288,6 +303,9 @@ class ChatApiClient(
                             creditsCharged = json.optDouble("creditsCharged", 0.0).coerceAtLeast(0.0)
                             billingStatus = json.optString("billingStatus").takeIf { it.isNotBlank() && it != "null" }
                             balanceAfter = if (json.has("balanceAfter") && !json.isNull("balanceAfter")) json.optDouble("balanceAfter").coerceAtLeast(0.0) else null
+                            completedImageUrl = json.optString("imageUrl").takeIf { it.isNotBlank() && it != "null" } ?: completedImageUrl
+                            completedImageBase64 = json.optString("imageBase64").takeIf { it.isNotBlank() && it != "null" } ?: completedImageBase64
+                            if (completedImageUrl != null || completedImageBase64 != null) onImage(completedImageUrl.orEmpty(), completedImageBase64)
                             completed = true
                         }
                         "error" -> {
@@ -339,7 +357,9 @@ class ChatApiClient(
                     modelId = modelId,
                     creditsCharged = creditsCharged,
                     billingStatus = billingStatus,
-                    balanceAfter = balanceAfter
+                    balanceAfter = balanceAfter,
+                    imageUrl = completedImageUrl,
+                    imageBase64 = completedImageBase64
                 )
             } finally {
                 cancellationHandle?.dispose()

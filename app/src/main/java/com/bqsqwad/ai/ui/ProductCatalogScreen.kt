@@ -820,8 +820,16 @@ private fun LivePlanCard(
             if (isOneTimeAddOn) {
                 Text("One-time purchase • no automatic renewal • buy again whenever you need more credits", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            val context = androidx.compose.ui.platform.LocalContext.current
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
+                Text("To verify your card for the free trial, open our website, complete the one-time $0.50 card verification, then return to the app.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Verify card on website") }
             }
             if (plan.features.isNotEmpty()) {
                 Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
@@ -844,7 +852,13 @@ private fun LivePlanCard(
                 }
             }
             if (isFreePlan) {
-                Text("Included at no cost (one-time $0.50 card verification unlocks free-tier features to prevent abuse).", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text("Included at no cost. If card verification is required, complete the one-time $0.50 verification on our website, then return to the app to continue.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Verify card on website") }
             } else {
                 purchaseBlockReason?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
