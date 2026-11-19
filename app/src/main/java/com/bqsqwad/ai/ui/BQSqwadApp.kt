@@ -3466,7 +3466,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     }
                     ChatReply(
                         text = "I've generated the image for you based on your prompt:\n\n*${promptText.take(160)}*",
-                        providerId = "openai",
+                        providerId = null,
                         modelId = generated.modelId ?: "gpt-image-2.5-sunburst",
                         creditsCharged = generated.creditsCharged,
                         billingStatus = "settled",
