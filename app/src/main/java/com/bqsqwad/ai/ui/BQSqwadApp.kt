@@ -3465,9 +3465,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                         GenerationApiClient().generateImage(prompt = promptText)
                     }
                     ChatReply(
-                        text = "I've generated the image for you based on your prompt:
-
-*${promptText.take(160)}*",
+                        text = "I've generated the image for you based on your prompt:\n\n*${promptText.take(160)}*",
                         providerId = "openai",
                         modelId = generated.modelId ?: "gpt-image-2.5-sunburst",
                         creditsCharged = generated.creditsCharged,
