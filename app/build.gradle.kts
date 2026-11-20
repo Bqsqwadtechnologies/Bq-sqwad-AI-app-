@@ -16,6 +16,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", "\"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev\"")
         buildConfigField("String", "WEBSITE_BASE_URL", "\"https://bqsqwadai.com\"")
+        buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"GOOGLE_PLAY\"")
         minSdk = 24
         targetSdk = 36
         versionCode = 23
@@ -40,6 +41,17 @@ android {
                     keyAlias = requireNotNull(System.getenv("KEY_ALIAS"))
                     keyPassword = requireNotNull(System.getenv("KEY_PASSWORD"))
                 }
+            }
+        }
+
+        // Amazon is an isolated build type, not a product flavor. This preserves
+        // existing assembleRelease/bundleRelease tasks and their Google Play outputs.
+        create("amazon") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"AMAZON_APPSTORE\"")
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.getByName("releaseCi")
             }
         }
     }
@@ -88,6 +100,7 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.android.billingclient:billing:9.1.0")
+    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.thibaultbee.streampack:streampack-core:3.2.0")
@@ -106,12 +119,12 @@ dependencies {
 
 
 gradle.taskGraph.whenReady {
-    val wantsRelease = allTasks.any {
+    val wantsSignedRelease = allTasks.any {
         it.project == project &&
             (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package")) &&
-            it.name.endsWith("Release")
+            (it.name.endsWith("Release") || it.name.endsWith("Amazon"))
     }
-    if (wantsRelease) {
+    if (wantsSignedRelease) {
         check(releaseSigningReady) {
             "Release signing is not configured. Set KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD before building a release artifact."
         }
