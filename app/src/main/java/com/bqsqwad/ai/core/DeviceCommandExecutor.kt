@@ -46,17 +46,11 @@ class DeviceCommandExecutor(private val context: Context) {
     }
 
     private fun setBrightness(value: String?) {
-        val brightness = (value?.toFloatOrNull() ?: 0.5f).coerceIn(0f, 1f)
-        val resolver = context.contentResolver
-        if (!Settings.System.canWrite(context)) {
-            context.startActivity(
-                Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                    .setData(android.net.Uri.parse("package:" + context.packageName))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            throw SecurityException("WRITE_SETTINGS permission is required")
-        }
-        Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, (brightness * 255).toInt())
+        // Modifying global system settings requires WRITE_SETTINGS, which is restricted by
+        // Google Play policies for non-system apps. Instead, launch system display settings directly.
+        context.startActivity(
+            Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 
     private fun adjustVolume(direction: Int) {

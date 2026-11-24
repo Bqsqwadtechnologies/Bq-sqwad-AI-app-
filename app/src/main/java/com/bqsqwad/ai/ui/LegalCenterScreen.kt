@@ -52,8 +52,8 @@ fun LegalCenterScreen(initialTopic: Workspace? = null, onBack: () -> Unit) {
         LegalSection("Your rights and choices", "See access, correction, deletion, export, objection and consent choices.", textFragment(PRIVACY, "Your rights and choices")),
         LegalSection("Security", "See the security measures used to protect information.", textFragment(PRIVACY, "Security")),
         LegalSection("International data transfers", "See how cross-border processing is addressed.", textFragment(PRIVACY, "International data transfers")),
-        LegalSection("Account deletion", "Delete your account in the app or use the public deletion instructions in the Privacy Policy.", textFragment(PRIVACY, "Your rights and choices")),
-        LegalSection("Contact and privacy requests", "Use the official privacy contact information for questions or data requests.", textFragment(PRIVACY, "Contact us"))
+        LegalSection("Web account & data deletion", "Submit an account and data deletion request directly from any browser without installing the app.", "https://bqsqwadai.com/delete-account"),
+        LegalSection("Contact and privacy requests", "Contact hello@bqsqwadai.com for privacy, data, and account deletion inquiries.", "mailto:hello@bqsqwadai.com")
     )
     val terms = listOf(
         LegalSection("Using the service", "See the rules governing lawful and respectful use.", textFragment(TERMS, "Using the service")),

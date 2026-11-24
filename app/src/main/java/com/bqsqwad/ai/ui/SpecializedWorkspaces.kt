@@ -666,6 +666,11 @@ Use the plan context to tailor the experience, but never claim an unavailable to
         Button(onClick = ::runLife, enabled = busy || request.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "Stop planning" else "Get practical help")
         }
+        Text(
+            "Disclaimer: Life Mathis provides AI-generated suggestions for general organization and productivity purposes only. It is not licensed professional, medical, mental health, legal, or financial advice.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         result?.let { SurfaceCard("Your plan", it) }
     }

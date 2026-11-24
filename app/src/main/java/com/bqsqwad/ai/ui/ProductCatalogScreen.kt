@@ -538,11 +538,15 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                                                 val context = androidx.compose.ui.platform.LocalContext.current
                                                 OutlinedButton(
                                                     onClick = {
-                                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
+                                                        val playSubsIntent = android.content.Intent(
+                                                            android.content.Intent.ACTION_VIEW,
+                                                            android.net.Uri.parse("https://play.google.com/store/account/subscriptions?package=" + context.packageName)
+                                                        )
+                                                        context.startActivity(playSubsIntent)
                                                     },
                                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                                                 ) {
-                                                    Text("Renew on website")
+                                                    Text("Manage Play subscription")
                                                 }
                                             }
                                         }
@@ -853,13 +857,7 @@ private fun LivePlanCard(
             val context = androidx.compose.ui.platform.LocalContext.current
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
-                Text("To verify your card for the free trial, open our website to complete card verification, then return to the app to use your trial.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Verify card on website") }
+                Text("Eligible accounts can start a free trial via Google Play Billing. You can manage or cancel your subscription at any time in Google Play Subscriptions.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (plan.features.isNotEmpty()) {
                 Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
@@ -882,13 +880,7 @@ private fun LivePlanCard(
                 }
             }
             if (isFreePlan) {
-                Text("Included at no cost. If card verification is required, complete verification on our website, then return to the app to continue.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe")))
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Verify card on website") }
+                Text("Included at no cost with your account.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             } else if (plan.paymentChannel == "website" || (!canPurchase && !isContactSales)) {
                 Text(
                     purchaseBlockReason ?: "This option isn't available in the app right now.",
@@ -943,7 +935,7 @@ private fun LivePlanCard(
                             plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
                             plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
                             plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
-                            plan.paymentChannel == "website" -> "Website purchase only"
+                            plan.paymentChannel == "website" -> "Not available in-app"
                             else -> "Not available in-app"
                         }
                     )

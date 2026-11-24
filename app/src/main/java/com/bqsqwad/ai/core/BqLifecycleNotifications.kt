@@ -50,7 +50,7 @@ object BqLifecycleNotifications {
     const val ACTION_BIRTHDAY_MILESTONE = "com.bqsqwad.ai.ACTION_BIRTHDAY_MILESTONE"
 
     fun notificationsEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFICATIONS_ENABLED, true)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFICATIONS_ENABLED, false)
 
     fun birthTimestamp(context: Context): Long {
         val user = FirebaseAuth.getInstance().currentUser ?: return 0L
@@ -92,13 +92,18 @@ object BqLifecycleNotifications {
         if (firstOpen > 0L && prefs.getLong(FIRST_OPEN, 0L) <= 0L) {
             prefs.edit().putLong(FIRST_OPEN, firstOpen).apply()
         }
+        val inactivityOptIn = prefs.getBoolean("inactivity_reminders_opt_in", false)
         val previousOpen = prefs.getLong(LAST_OPEN, 0L)
-        if (previousOpen > 0L && now - previousOpen >= TimeUnit.DAYS.toMillis(2) && !AppVisibility.isForeground) {
+        if (inactivityOptIn && previousOpen > 0L && now - previousOpen >= TimeUnit.DAYS.toMillis(2) && !AppVisibility.isForeground) {
             post(context, "Your AI is waiting for you", "It has been a couple of days. Come back and pick up where you left off.")
         }
         prefs.edit().putLong(LAST_OPEN, now).apply()
         prefs.edit().putInt(COMEBACK_COUNT, 0).apply()
-        scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
+        if (inactivityOptIn) {
+            scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
+        } else {
+            cancelInactivityReminder(context)
+        }
 
         if (firstOpen > 0L) processBirthdayMilestone(context, firstOpen, now, allowPost = !AppVisibility.isForeground)
     }
@@ -289,7 +294,8 @@ object BqLifecycleNotifications {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val lastOpen = prefs.getLong(LAST_OPEN, 0L)
         val now = System.currentTimeMillis()
-        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
+        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, false)) return
+        if (!prefs.getBoolean("inactivity_reminders_opt_in", false)) return
         if (AppVisibility.isForeground) {
             scheduleInactivityReminder(context, now + TimeUnit.DAYS.toMillis(2))
             return
@@ -350,10 +356,10 @@ object BqLifecycleNotifications {
 
     fun onBoot(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, true)) return
+        if (!prefs.getBoolean(NOTIFICATIONS_ENABLED, false)) return
         val now = System.currentTimeMillis()
         val lastOpen = prefs.getLong(LAST_OPEN, 0L)
-        if (lastOpen > 0L && prefs.getInt(COMEBACK_COUNT, 0) < 3) {
+        if (prefs.getBoolean("inactivity_reminders_opt_in", false) && lastOpen > 0L && prefs.getInt(COMEBACK_COUNT, 0) < 3) {
             scheduleInactivityReminder(context, maxOf(now + 60_000L, lastOpen + TimeUnit.DAYS.toMillis(2)))
         }
         val firstOpen = prefs.getLong(FIRST_OPEN, 0L)
