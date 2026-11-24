@@ -19,8 +19,8 @@ android {
         buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"GOOGLE_PLAY\"")
         minSdk = 24
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.0.22"
+        versionCode = 24
+        versionName = "1.0.23"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
     }

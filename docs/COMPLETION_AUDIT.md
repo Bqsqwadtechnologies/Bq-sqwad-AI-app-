@@ -139,3 +139,42 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 - **DONE — debug build and unit tests passed:** GitHub Actions run `41500248632`, step `Run Android unit tests and debug build`, passed for commit `dada5fd6890ace181c574dc3eb28b0ea004fce85`.
 - **DONE — signed release outputs verified:** Existing signed release workflow run `41500248746` completed successfully for the same Android source commit. Both APK and AAB build steps, signature verification and artifact uploads passed.
 - **NOTE:** Later commits in this phase changed only website code and Worker test files; no Android source changed after the verified Android commit.
+
+## Release 1.0.23 (versionCode 24) — Google Play Rejection Resolution
+
+### Summary of Changes Completed
+1. **Version Bump (Step 1)**:
+   - Bumped `versionCode` to 24 and `versionName` to "1.0.23" in `app/build.gradle.kts`.
+2. **Weekly Credits Removal from Catalogs (Step 2)**:
+   - Updated `cloudflare-worker/src/plan-catalog-native.js` credit subscription rows (`credit100`, `credit250`, `credit500`, `credit1000`) to remove weekly/weakly base plans and pricing, retaining only `monthly` (and `yearly` for 500/1000).
+   - Updated `functions/plan-catalog.js` lines 90-93 to align credit plans with monthly/yearly base plans.
+   - Updated `functions/test/plan-catalog.test.js` to assert credit plans contain monthly (and yearly) base plans without weekly.
+3. **Worker Weekly Filtering & Stored Override Guard (Step 3)**:
+   - In `cloudflare-worker/src/index.js`, added helpers `isWeeklyId`, `isWeeklyPlayProduct`, and `stripWeeklyFromCatalog` to ensure even stored Firestore catalog overrides or products never emit weekly entries.
+   - Preserved `subscriptionPeriodFromBasePlan` in `google-play.js` for existing subscribers.
+4. **App Weekly Options Removal (Step 4)**:
+   - In `ProductCatalogScreen.kt`, updated `parseCatalog` to filter out any products with billingPeriod "weekly" or regex `week|weak` in basePlanId.
+   - Updated `supportedPeriods` to exclude "weekly".
+5. **Removed External Purchase Steering & Dead Buttons (Step 5)**:
+   - In `ProductCatalogScreen.kt`, replaced the "Buy credits on website" / "Subscribe on website" buttons and external link navigation with informational text using `purchaseBlockReason` ("This option isn't available in the app right now.") in compliance with Google Play Payments policy.
+6. **Replaced "Google Pay" Customer-Facing Strings (Step 6)**:
+   - In `ProductCatalogScreen.kt`, replaced all instances of "Google Pay" with generic, store-neutral copy ("Purchases are available when you're back online.", "Your subscription", "Continue", etc.). Confirmed 0 remaining matches for "Google Pay" in `ProductCatalogScreen.kt`.
+7. **Checkout Preflight Re-query & Store-Install Guard (Step 7)**:
+   - In `PlayBillingClient.kt`, added `isInstalledFromStore()` to check for `com.android.vending` install source, preventing non-store builds from opening broken Play billing dialogs.
+   - Added `refreshProductThen(productId, productType, onDone)` to re-query fresh product details and fresh offer tokens immediately prior to purchase, preventing stale offer token errors.
+   - In `ProductCatalogScreen.kt`, integrated `billing?.isInstalledFromStore()` guard into `canPurchase` and `purchaseBlockReason`.
+   - Updated the purchase click handler to call `refreshProductThen` before launching the purchase flow.
+
+### Verification Status
+- **Functions unit tests (`functions/test/plan-catalog.test.js`)**: 10 passed, 0 failed.
+- **Weekly / weakly code scan**: `grep -rn -i "weekly\|weakly"` across `app/src/main`, `cloudflare-worker/src/plan-catalog-native.js`, and `functions/plan-catalog.js` confirmed no unexpected occurrences (only organization scheduler, the app filterNot guard, and educational plan feature bullet strings).
+- **Version bump**: Verified `versionCode = 24`, `versionName = "1.0.23"` in `app/build.gradle.kts`.
+- **Android Gradle build**: Local Android SDK is unavailable in this environment; full compilation and bundle assembly will run via repository GitHub Actions on `main`.
+
+### OWNER ACTIONS (Play Console Manual Steps)
+1. **Monetize → Subscriptions**: Ensure `credit100`, `credit250`, `credit500`, and `credit1000` each exist and be **Active**, with base plan **`monthly`** active (and **`yearly`** active for `credit500` and `credit1000`) and available in every country where the app is released (the reviewer used India). The base-plan IDs must match the app exactly: `monthly`, `yearly`.
+2. **Deactivate weekly base plans**: **Deactivate** the old weekly base plans (`weakly` / `weekly`) on all four subscriptions in Google Play Console. Do not delete them if anyone already subscribed; deactivating only stops new purchases.
+3. **Monetize → In-app products**: `creditaddon25` and `creditaddon50` **Active**.
+4. **License Testers**: Add your own account and the reviewer test accounts as **license testers**; install the new build from the internal testing link (not by adb), and complete one test subscription and one one-time purchase before sending for review.
+5. **App Access & Submission**: Upload the version code 24 bundle, signed with the same upload key, and in App content → App access give the reviewers sign-in details so they can reach Plans & Credits.
+6. **Expected Result**: On a store install the "Continue" button opens the purchase sheet; on a non-store install the screen shows "In-app purchases are only available in the store version of BQ Sqwad AI." and no store error dialog appears.

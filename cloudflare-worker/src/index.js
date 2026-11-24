@@ -2099,6 +2099,29 @@ export function isPublicCatalogPlan(x) {
   return true;
 }
 
+const isWeeklyId = (v) => /^(weekly|weakly)$/i.test(String(v || ""));
+const isWeeklyPlayProduct = (p) =>
+  isWeeklyId(p?.billingPeriod) || /week|weak/i.test(String(p?.basePlanId || ""));
+function stripWeeklyFromCatalog(catalog) {
+  if (!catalog || typeof catalog !== "object" || !catalog.sections) return catalog;
+  const sections = {};
+  for (const [key, rows] of Object.entries(catalog.sections)) {
+    sections[key] = Array.isArray(rows) ? rows.map(row => {
+      if (!row || typeof row !== "object") return row;
+      const price = { ...(row.price || {}) }; delete price.weekly;
+      const basePlanBillingPeriods = Object.fromEntries(
+        Object.entries(row.basePlanBillingPeriods || {}).filter(([k, v]) => !isWeeklyId(k) && !isWeeklyId(v)));
+      return {
+        ...row,
+        billingPeriods: (row.billingPeriods || []).filter(p => !isWeeklyId(p)),
+        basePlans: (row.basePlans || []).filter(p => !isWeeklyId(p)),
+        basePlanBillingPeriods, price
+      };
+    }) : rows;
+  }
+  return { ...catalog, sections };
+}
+
 async function nativeCatalog() {
   // The canonical catalog is bundled with the Worker. A failure in an optional
   // Firestore collection must not blank the customer-facing catalog.
@@ -2161,7 +2184,7 @@ async function nativeCatalog() {
   const visiblePlanIds = new Set(publicPlans.map(p => p.id));
   const configuredProducts = Array.isArray(playCatalogConfig?.products) ? playCatalogConfig.products : [];
   const configuredPlanKeys = new Set(configuredProducts.map(p => String(p.planId || "") + "|" + String(p.basePlanId || "")));
-  const storedCatalog = planCatalog?.catalog;
+  const storedCatalog = stripWeeklyFromCatalog(planCatalog?.catalog);
   const hasStoredPlans = Object.values(storedCatalog?.sections || {}).some(rows => Array.isArray(rows) && rows.length > 0);
   const planMappings = canonicalPlayMappings(hasStoredPlans ? storedCatalog : COMMERCIAL_CATALOG);
   const mergedProducts = [
@@ -2179,7 +2202,7 @@ async function nativeCatalog() {
     consumable: p.consumable === true,
     billingPeriod: p.billingPeriod ? String(p.billingPeriod) : null,
     priceUsd: p.priceUsd == null ? null : Number(p.priceUsd)
-  })).filter(p => p.enabled && p.productId && visiblePlanIds.has(p.planId) && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp"));
+  })).filter(p => p.enabled && p.productId && visiblePlanIds.has(p.planId) && /^[a-z0-9-]+$/.test(p.productId) && (p.productType === "subs" || p.productType === "inapp") && !isWeeklyPlayProduct(p));
   const featureRows = features.map(x => ({
     id: String(x.__name || "").split("/").pop(),
     name: String(x.name || x.title || String(x.__name || "").split("/").pop()),

@@ -413,12 +413,12 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                         }
                     }
                 }
-                if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchase actions remain controlled by Google Pay.")}
+                if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchases are available when you're back online.")}
                 item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Secure in-app purchases are handled automatically.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
-                        "No active plans are available right now. Please refresh this screen or try again later. Google Pay offers are configured separately from the BQ Sqwad AI catalog."
+                        "No active plans are available right now. Please refresh this screen or try again later."
                     )
                 }
                 if(status.isNotBlank())item{Text(status,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -427,7 +427,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     OutlinedButton(
                         onClick = {
                             billing?.restorePurchases()
-                            status = "Checking your Google Pay purchases and restoring verified access…"
+                            status = "Checking your purchases and restoring verified access…"
                         },
                         enabled = billing?.isReady() == true,
                         modifier = Modifier.fillMaxWidth()
@@ -443,9 +443,9 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                             modifier=Modifier.fillMaxWidth()
                         ) {
                             Column(Modifier.padding(18.dp), verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                                Text("Google Pay subscription", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
+                                Text("Your subscription", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold)
                                 Text(
-                                    if (autoRenew) "Auto-renewal is ON. Google Pay will renew this subscription unless you turn it off there."
+                                    if (autoRenew) "Auto-renewal is ON. Your subscription renews automatically unless you turn it off in your subscription settings."
                                     else "Auto-renewal is OFF. Access remains available until the current paid period ends.",
                                     color=if (autoRenew) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                                     fontWeight=FontWeight.SemiBold
@@ -696,10 +696,10 @@ private fun LivePlanCard(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val supportedPeriods = if (plan.playEligible) {
-        playEntries.mapNotNull { it.billingPeriod?.takeIf { period -> period in setOf("monthly", "yearly", "term", "weekly") } }
+        playEntries.mapNotNull { it.billingPeriod?.takeIf { period -> period in setOf("monthly", "yearly", "term") } }
             .distinct()
     } else {
-        plan.price.keys.filter { it in setOf("monthly", "yearly", "term", "weekly") }
+        plan.price.keys.filter { it in setOf("monthly", "yearly", "term") }
     }
     var selectedPeriod by remember(plan.id) { mutableStateOf("") }
     LaunchedEffect(plan.id, supportedPeriods) {
@@ -725,15 +725,17 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
-    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null
+    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isInstalledFromStore() != false
     val purchaseBlockReason = when {
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
+        !isFreePlan && !isContactSales && billing?.isInstalledFromStore() == false ->
+            "In-app purchases are only available in the store version of BQ Sqwad AI."
         isFreePlan || isContactSales || canPurchase -> null
-        plan.paymentChannel == "website" -> "This plan is only purchasable through the website, not inside this Android app."
+        plan.paymentChannel == "website" -> "This option isn't available in the app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
-        selectedEntry == null -> "No active BQ Sqwad AI purchase option is mapped to this plan, so Google Pay checkout is unavailable."
-        selectedProduct == null -> "Google Pay did not return the mapped purchase option for this device or account. Refresh the catalog before purchasing."
-        billing?.isReady() != true -> "Google Pay checkout is still connecting. Refresh the catalog and try again."
+        selectedEntry == null -> "This option isn't available right now."
+        selectedProduct == null -> "This option couldn't be confirmed for your account. Refresh and try again."
+        billing?.isReady() != true -> "Checkout is still connecting. Refresh and try again in a moment."
         else -> "This plan cannot be purchased in the app right now."
     }
     val moduleLabel = when (plan.module) {
@@ -889,23 +891,10 @@ private fun LivePlanCard(
                 ) { Text("Verify card on website") }
             } else if (plan.paymentChannel == "website" || (!canPurchase && !isContactSales)) {
                 Text(
-                    "You can subscribe to this plan or purchase daily and weekly credits directly from our website.",
+                    purchaseBlockReason ?: "This option isn't available in the app right now.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(
-                    onClick = {
-                        val targetUrl = if (isCreditPack) {
-                            "${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/pricing"
-                        } else {
-                            "${com.bqsqwad.ai.core.ApiConfig.websiteBaseUrl}/subscribe"
-                        }
-                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)))
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isCreditPack) "Buy credits on website" else "Subscribe on website")
-                }
             } else {
                 purchaseBlockReason?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -919,22 +908,23 @@ private fun LivePlanCard(
                                 if (mgr == null || product == null || entry == null) {
                                     onStatus("Checkout is not ready yet. Please retry in a moment.")
                                 } else {
-                                val result = mgr.launchPurchase(product.productId, entry.basePlanId)
-                                // launchPurchase reports a specific UI status when it returns null
-                                // (for example, missing Play product details or an offer mismatch).
-                                // Do not immediately overwrite that useful message with a generic one.
-                                if (result != null) {
-                                    if (result.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
-                                        onStatus(
-                                            "Purchase started for " + plan.id + "/" +
-                                                (entry.basePlanId ?: selectedPeriod) +
-                                                ". Access unlocks only after server verification."
-                                        )
-                                    } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
-                                        onStatus(
-                                            BrandCopy.checkout(result.debugMessage.takeIf { it.isNotBlank() }
-                                                ?: "Checkout couldn't be completed. Please try again.")
-                                        )
+                                onStatus("Confirming this option…")
+                                mgr.refreshProductThen(product.productId, entry.productType) { fresh ->
+                                    if (!fresh) {
+                                        onStatus(BrandCopy.checkout("This option couldn't be confirmed right now. Please refresh and try again."))
+                                    } else {
+                                        val result = mgr.launchPurchase(product.productId, entry.basePlanId)
+                                        // launchPurchase reports its own status when it returns null.
+                                        if (result != null) {
+                                            if (result.responseCode == com.android.billingclient.api.BillingClient.BillingResponseCode.OK) {
+                                                onStatus("Opening secure checkout…")
+                                            } else if (result.responseCode != com.android.billingclient.api.BillingClient.BillingResponseCode.USER_CANCELED) {
+                                                onStatus(
+                                                    BrandCopy.checkout(result.debugMessage.takeIf { it.isNotBlank() }
+                                                        ?: "Checkout couldn't be completed. Please try again.")
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 }
@@ -949,7 +939,7 @@ private fun LivePlanCard(
                         when {
                             isContactSales -> "Contact Sales"
                             isOneTimeAddOn && canPurchase -> "Buy one-time add-on"
-                            canPurchase -> "Continue with Google Pay"
+                            canPurchase -> "Continue"
                             plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
                             plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
                             plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
@@ -1017,6 +1007,7 @@ private fun parseCatalog(body:JSONObject):List<PlayCatalogEntry>{
             p.optString("billingPeriod").ifBlank{null}
         )
     }.filter{it.productId.isNotBlank() && it.planId in visiblePlanIds}
+     .filterNot{ it.billingPeriod.equals("weekly", true) || Regex("week|weak", RegexOption.IGNORE_CASE).containsMatchIn(it.basePlanId.orEmpty()) }
 }
 
 private fun parsePlans(body:JSONObject):List<LivePlan>{

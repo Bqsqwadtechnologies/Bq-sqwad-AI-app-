@@ -236,6 +236,36 @@ class PlayBillingClient(
 
     fun availableProducts(): List<ProductDetails> = details.values.toList()
 
+    /** True only when this build was installed by the store; other installs cannot complete in-app billing. */
+    fun isInstalledFromStore(): Boolean = try {
+        val pm = activity.packageManager
+        val installer = if (android.os.Build.VERSION.SDK_INT >= 30) {
+            pm.getInstallSourceInfo(activity.packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION") pm.getInstallerPackageName(activity.packageName)
+        }
+        installer == "com.android.vending"
+    } catch (_: Exception) { false }
+
+    /** Re-query one product so a stale offerToken can never reach checkout. */
+    fun refreshProductThen(productId: String, productType: String, onDone: (Boolean) -> Unit) {
+        if (!client.isReady) { start(); onDone(false); return }
+        val type = if (productType.equals("inapp", ignoreCase = true)) ProductType.INAPP else ProductType.SUBS
+        val request = QueryProductDetailsParams.newBuilder()
+            .setProductList(listOf(
+                QueryProductDetailsParams.Product.newBuilder().setProductId(productId).setProductType(type).build()
+            ))
+            .build()
+        client.queryProductDetailsAsync(request) { result, queried ->
+            val fresh = queried.productDetailsList.firstOrNull { it.productId == productId }
+            val ok = result.responseCode == BillingClient.BillingResponseCode.OK && fresh != null
+            if (ok) synchronized(details) { details[productId] = fresh!! } else {
+                reportBillingDiagnostic(billingDiagnosticCode(result.responseCode))
+            }
+            retryHandler.post { onDone(ok) }
+        }
+    }
+
     fun launchPurchase(productId: String): BillingResult? = launchPurchase(productId, null, null)
 
     fun launchPurchase(productId: String, basePlanId: String?, offerId: String? = null): BillingResult? {

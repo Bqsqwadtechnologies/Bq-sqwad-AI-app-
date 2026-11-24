@@ -50,7 +50,7 @@ test("business add-ons are admin-managed and the canonical fallback is explicit"
   assert.match(source, /configured\.empty \? fallback : configured\.docs\.map/);
 });
 
-test("credit subscriptions use internal credit IDs with weekly monthly base plans", () => {
+test("credit subscriptions use internal credit IDs with monthly (and yearly) base plans and no weekly", () => {
   const credits = COMMERCIAL_CATALOG.sections.credits;
   assert.deepEqual(
     credits.map(x => x.id),
@@ -58,8 +58,9 @@ test("credit subscriptions use internal credit IDs with weekly monthly base plan
   );
   for (const row of credits) {
     assert.equal(row.productId, row.id);
-    assert.deepEqual(row.billingPeriods, ["weekly", "monthly"]);
-    assert.deepEqual(row.basePlans, ["weekly", "monthly"]);
+    assert.ok(!row.billingPeriods.includes("weekly"));
+    assert.ok(!row.basePlans.some(p => /week|weak/i.test(p)));
+    assert.ok(row.billingPeriods.includes("monthly"));
     assert.equal(row.productType, "subs");
     assert.equal(row.recurring, true);
     assert.match(row.entitlements[0], /^credit:(100|250|500|1000)$/);
