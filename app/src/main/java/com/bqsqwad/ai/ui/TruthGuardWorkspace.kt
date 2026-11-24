@@ -329,7 +329,7 @@ private fun TruthGuardPlanStrip(plans: List<TruthGuardPlan>, activePlanId: Strin
                             }
                             if (price.isNotBlank()) Text(price, style = MaterialTheme.typography.bodySmall)
                         }
-                        if (active) AssistChip(onClick = {}, label = { Text("ACTIVE") })
+                        if (active) AssistChip(onClick = onOpenPlans, label = { Text("ACTIVE") })
                     }
                     if (plan.features.isNotEmpty()) Text(plan.features.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     val limitText = plan.limits.entries.joinToString(" • ") { pair ->

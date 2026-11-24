@@ -321,7 +321,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         TopAppBar(
             title={Column{Text("Plans & Credits",maxLines=1,fontWeight=FontWeight.Bold);Text("BQ Sqwad AI catalog",style=MaterialTheme.typography.labelSmall)}},
             navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,contentDescription="Back")}},
-            actions={IconButton(onClick={::load},enabled=!loading){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
+            actions={IconButton(onClick={ load() }){Icon(Icons.Default.Refresh,contentDescription="Refresh products")}}
         )
     }){padding->
         LaunchedEffect(initialSection, loading, error) {
@@ -426,10 +426,14 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                 item {
                     OutlinedButton(
                         onClick = {
-                            billing?.restorePurchases()
-                            status = "Checking your purchases and restoring verified access…"
+                            if (billing?.isReady() == true) {
+                                billing?.restorePurchases()
+                                status = "Checking your purchases and restoring verified access…"
+                            } else {
+                                billing?.refreshCatalog()
+                                status = "Connecting to store billing… please retry in a moment."
+                            }
                         },
-                        enabled = billing?.isReady() == true,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Restore purchases") }
                 }
@@ -857,7 +861,7 @@ private fun LivePlanCard(
             val context = androidx.compose.ui.platform.LocalContext.current
             if(plan.trialEligible && plan.trialDays > 0) {
                 Text(plan.trialDays.toString()+"-day free trial", fontWeight=FontWeight.SemiBold)
-                Text("Eligible accounts can start a free trial via Google Play Billing. You can manage or cancel your subscription at any time in Google Play Subscriptions.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Eligible accounts can start a free trial. You can manage or cancel your subscription at any time in your store subscriptions settings.", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (plan.features.isNotEmpty()) {
                 Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
@@ -924,7 +928,6 @@ private fun LivePlanCard(
                             else -> onStatus(purchaseBlockReason ?: "This plan is not currently purchasable on this device.")
                         }
                     },
-                    enabled = isContactSales || canPurchase,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(

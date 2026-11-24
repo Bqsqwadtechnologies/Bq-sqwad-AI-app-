@@ -140,7 +140,7 @@ internal fun parseEntitlementExpiryMillis(value: Any?): Long? = when (value) {
 internal fun safeUserFacingIssue(throwable: Throwable, fallback: String): String {
     if (throwable is WorkspaceRedirectException) return ""
     val message = throwable.message.orEmpty().lowercase()
-    if (message.contains("card_verification_required")) return "A verified subscription or trial is required. Open Plans to subscribe or start a trial via Google Play."
+    if (message.contains("card_verification_required")) return "A verified subscription or trial is required. Open Plans to subscribe or start a trial."
     // Preserve actionable domain-specific guidance while routing common failures
     // through the shared, privacy-safe issue mapper.
     if (message.contains("history_message_limit_exceeded")) return "This conversation has more than 100 messages. Start a new chat to keep history complete."
@@ -3647,7 +3647,7 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                             creditNotice = "You’re out of credits. Please buy credits to continue using BQ Sqwad AI."
                             error = creditNotice
                         } else if (detail.contains("card_verification_required") || detail.contains("card verification") || detail.contains("verify_card")) {
-                            error = "A verified subscription or trial is required. Open Plans to subscribe or start a trial via Google Play."
+                            error = "A verified subscription or trial is required. Open Plans to subscribe or start a trial."
                         } else {
                             if (Regex("https?://|\\bHTTP\\s*\\d{3}\\b|route_not_migrated|provider_http|not_configured|realtime_session_failed|unknownhost|timeout|internal server|\\b(?:500|501|502|503)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)) {
                                 scope.launch(Dispatchers.IO) {
