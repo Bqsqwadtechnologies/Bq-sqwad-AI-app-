@@ -178,3 +178,6 @@ And no: `rg "dictationRecording = true" app/src/main/java/com/bqsqwad/ai/ui/BQSq
 4. **License Testers**: Add your own account and the reviewer test accounts as **license testers**; install the new build from the internal testing link (not by adb), and complete one test subscription and one one-time purchase before sending for review.
 5. **App Access & Submission**: Upload the version code 24 bundle, signed with the same upload key, and in App content → App access give the reviewers sign-in details so they can reach Plans & Credits.
 6. **Expected Result**: On a store install the "Continue" button opens the purchase sheet; on a non-store install the screen shows "In-app purchases are only available in the store version of BQ Sqwad AI." and no store error dialog appears.
+
+### Post-Release CI Build Fix
+- Fixed script compilation error in `app/build.gradle.kts`: replaced dynamic Kotlin DSL accessor `amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")` with `add("amazonImplementation", "com.amazon.device:amazon-appstore-sdk:3.0.9")`.

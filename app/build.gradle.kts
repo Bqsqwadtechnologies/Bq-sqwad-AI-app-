@@ -100,7 +100,7 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.android.billingclient:billing:9.1.0")
-    amazonImplementation("com.amazon.device:amazon-appstore-sdk:3.0.9")
+    add("amazonImplementation", "com.amazon.device:amazon-appstore-sdk:3.0.9")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.thibaultbee.streampack:streampack-core:3.2.0")
