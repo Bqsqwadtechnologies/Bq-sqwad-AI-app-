@@ -772,7 +772,7 @@ private fun LivePlanCard(
         !playBillingReady -> "Google Play Billing is unavailable right now. Check that Google Play Store is enabled, you're online, and try again."
         selectedEntry == null -> "This option isn't available right now."
         selectedProduct == null -> "Google Play hasn't returned this product for the current app/account. Refresh and try again."
-        !selectedProductHasOffer -> "Google Play hasn't returned an active offer for the selected billing period. This option is unavailable until its Play Console product and base plan are active."
+        !selectedProductHasOffer -> "The selected billing period is not currently available. Refresh the catalog or contact support."
         else -> "This plan cannot be purchased in the app right now."
     }
     val moduleLabel = when (plan.module) {
