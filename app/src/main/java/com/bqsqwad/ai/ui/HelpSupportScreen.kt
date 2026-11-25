@@ -40,7 +40,7 @@ import kotlinx.coroutines.withContext
 private data class HelpGuide(val title: String, val category: String, val steps: List<String>)
 private val helpGuides = listOf(
     HelpGuide("Sign-in or account access", "account", listOf("Confirm you are using the correct BQ account.", "Update BQ Sqwad AI and reopen it.", "If your session expired, sign out and sign in again.", "If it continues, report the safe error/reference code. Never share your password or one-time code.")),
-    HelpGuide("Connect a provider", "connector", listOf("Open the Connectors section in BQ Sqwad AI.", "Choose the provider and tap Connect.", "Complete the provider's authorization screen and review its permissions.", "Return to BQ Sqwad AI and refresh connector status.", "If it remains disconnected, report the provider name and error reference. Never share provider passwords or access tokens.")),
+    HelpGuide("Connect an account", "connector", listOf("Open the Connectors section in BQ Sqwad AI.", "Choose the service you want to connect and tap Connect.", "Review the permissions on the secure authorization screen.", "Return to BQ Sqwad AI and refresh the connection status.", "If it remains disconnected, report the error reference. Never share passwords or access tokens.")), 
     HelpGuide("Upload a file or PDF", "app", listOf("Choose a non-empty file no larger than 25 MB.", "Use a stable connection and wait until upload finishes.", "Retry once if processing fails.", "Report the reference code and file type without including private file contents.")),
     HelpGuide("Credits or purchases", "billing", listOf("Confirm app and website use the same BQ account.", "Refresh your balance and check transaction history.", "For Android purchases, check the account used to pay.", "Report the product name and reference code. Never send full card details.")),
     HelpGuide("Live voice or camera", "app", listOf("Check camera/microphone permissions and Android privacy toggles.", "Close other apps using the microphone or camera.", "Restart the live session and check your connection.", "Report the safe error code and app/device version.")),
@@ -111,7 +111,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
             ) { Text(if (busy) "Submitting…" else "Send support request") }
             if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (ticketCode.isNotBlank()) Text("Support reference: $ticketCode", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            Text("Never share your password, one-time login code, payment card details or provider access tokens with support.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Never share your password, one-time login code, payment card details or account access tokens with support.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
