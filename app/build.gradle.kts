@@ -12,18 +12,32 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.bqsqwad.ai"
+        applicationId = "com.bqsqwad.ai.app"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "API_BASE_URL", "\"https://bq-sqwad-ai-app.isaacoshiomole0.workers.dev\"")
         buildConfigField("String", "WEBSITE_BASE_URL", "\"https://bqsqwadai.com\"")
         buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"GOOGLE_PLAY\"")
         minSdk = 24
         targetSdk = 36
-        versionCode = 25
-        versionName = "1.0.24"
+        versionCode = 1
+        versionName = "1.0.0"
         val buildSha = System.getenv("GITHUB_SHA")?.take(7) ?: "local"
         buildConfigField("String", "BUILD_SHA", "\"$buildSha\"")
     }
+    flavorDimensions += "channel"
+    productFlavors {
+        create("google") {
+            dimension = "channel"
+            applicationId = "com.bqsqwad.ai.app"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"GOOGLE_PLAY\"")
+        }
+        create("amazon") {
+            dimension = "channel"
+            applicationId = "com.bqsqwad.ai.amazon"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"AMAZON_APPSTORE\"")
+        }
+    }
+
 
     buildTypes {
         release {
@@ -118,4 +132,15 @@ gradle.taskGraph.whenReady {
             "Release signing is not configured. Set KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD before building a release artifact."
         }
     }
+}
+
+
+tasks.register("compileReleaseKotlin") {
+    dependsOn("compileGoogleReleaseKotlin")
+}
+tasks.register("testDebugUnitTest") {
+    dependsOn("testGoogleDebugUnitTest")
+}
+tasks.register("bundleRelease") {
+    dependsOn("bundleGoogleRelease")
 }

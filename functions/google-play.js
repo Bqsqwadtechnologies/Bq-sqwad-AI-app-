@@ -4,7 +4,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { canonicalPlayProducts } from "./play-catalog.js";
 import { creditOrganizationWalletOnce } from "./organization-billing.js";
 
-const PACKAGE_NAME = "com.bqsqwad.ai";
+const PACKAGE_NAME = "com.bqsqwad.ai.app";
 
 function base64url(value) {
   return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");

@@ -2713,7 +2713,7 @@ export const bqSqwadApi = onRequest(
           renewalState: String(entitlement.renewalState || ""),
           endDate: entitlement.endDate || null,
           managementUrl: hasSubscription
-            ? "https://play.google.com/store/account/subscriptions?sku=" + encodeURIComponent(String(entitlement.productId || "")) + "&package=" + encodeURIComponent("com.bqsqwad.ai")
+            ? "https://play.google.com/store/account/subscriptions?sku=" + encodeURIComponent(String(entitlement.productId || "")) + "&package=" + encodeURIComponent("com.bqsqwad.ai.app")
             : null,
           paymentMethodManagementUrl: hasSubscription ? "https://play.google.com/store/paymentmethods" : null,
           note: "Google Play is authoritative for auto-renewal and payment methods. The app/backend cannot silently change or remove a user's Google payment method."

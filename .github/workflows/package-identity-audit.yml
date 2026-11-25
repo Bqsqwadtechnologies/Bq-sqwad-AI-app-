@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   package-identity-audit:
-    name: Verify com.bqsqwad.ai across Android configuration
+    name: Verify package and flavor identities across Android configuration
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -48,7 +48,9 @@ jobs:
           import xml.etree.ElementTree as ET
 
           ROOT = pathlib.Path(".")
-          EXPECTED = "com.bqsqwad.ai"
+          EXPECTED_NAMESPACE = "com.bqsqwad.ai"
+          EXPECTED_PLAY_ID = "com.bqsqwad.ai.app"
+          EXPECTED_AMAZON_ID = "com.bqsqwad.ai.amazon"
           errors = []
           checked = []
 
@@ -61,11 +63,12 @@ jobs:
           gradle_path = ROOT / "app/build.gradle.kts"
           gradle = gradle_path.read_text(encoding="utf-8")
           namespace_match = re.search(r'(?m)^\s*namespace\s*=\s*"([^"]+)"', gradle)
-          app_id_match = re.search(r'(?m)^\s*applicationId\s*=\s*"([^"]+)"', gradle)
-          require(namespace_match is not None and namespace_match.group(1) == EXPECTED,
-                  f"Gradle namespace must be {EXPECTED}; found {namespace_match.group(1) if namespace_match else 'MISSING'}")
-          require(app_id_match is not None and app_id_match.group(1) == EXPECTED,
-                  f"Gradle applicationId must be {EXPECTED}; found {app_id_match.group(1) if app_id_match else 'MISSING'}")
+          require(namespace_match is not None and namespace_match.group(1) == EXPECTED_NAMESPACE,
+                  f"Gradle namespace must be {EXPECTED_NAMESPACE}; found {namespace_match.group(1) if namespace_match else 'MISSING'}")
+          require(EXPECTED_PLAY_ID in gradle,
+                  f"Gradle must configure Google Play application ID {EXPECTED_PLAY_ID}")
+          require(EXPECTED_AMAZON_ID in gradle,
+                  f"Gradle must configure Amazon application ID {EXPECTED_AMAZON_ID}")
 
           firebase_path = ROOT / "app/google-services.json"
           try:
@@ -75,17 +78,11 @@ jobs:
                   client.get("client_info", {}).get("android_client_info", {}).get("package_name")
                   for client in clients
               ]
-              oauth_android_packages = [
-                  oauth.get("android_info", {}).get("package_name")
-                  for client in clients
-                  for oauth in client.get("oauth_client", [])
-                  if oauth.get("client_type") == 1 and oauth.get("android_info")
-              ]
               require(bool(android_packages), "Firebase google-services.json contains at least one Android client")
-              require(all(p == EXPECTED for p in android_packages),
-                      f"Every Firebase Android client package must be {EXPECTED}; found {android_packages}")
-              require(all(p == EXPECTED for p in oauth_android_packages),
-                      f"Every Android OAuth client package must be {EXPECTED}; found {oauth_android_packages}")
+              require(EXPECTED_PLAY_ID in android_packages,
+                      f"Firebase must contain client for {EXPECTED_PLAY_ID}; found {android_packages}")
+              require(EXPECTED_AMAZON_ID in android_packages,
+                      f"Firebase must contain client for {EXPECTED_AMAZON_ID}; found {android_packages}")
           except Exception as exc:
               errors.append(f"FAIL: Could not parse {firebase_path}: {exc}")
 

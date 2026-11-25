@@ -1,5 +1,5 @@
 import { COMMERCIAL_CATALOG, canonicalPlayMappings } from "./plan-catalog-native.js";
-const PACKAGE_NAME = "com.bqsqwad.ai";
+const PACKAGE_NAME = "com.bqsqwad.ai.app";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const PLAY_BASE = "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/" + PACKAGE_NAME;
 
