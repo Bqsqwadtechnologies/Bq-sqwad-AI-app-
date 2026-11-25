@@ -44,16 +44,6 @@ android {
             }
         }
 
-        // Amazon is an isolated build type, not a product flavor. This preserves
-        // existing assembleRelease/bundleRelease tasks and their Google Play outputs.
-        create("amazon") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("release")
-            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"AMAZON_APPSTORE\"")
-            if (releaseSigningReady) {
-                signingConfig = signingConfigs.getByName("releaseCi")
-            }
-        }
     }
 
     compileOptions {
@@ -100,7 +90,6 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.android.billingclient:billing:9.1.0")
-    add("amazonImplementation", "com.amazon.device:amazon-appstore-sdk:3.0.9")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("io.github.thibaultbee.streampack:streampack-core:3.2.0")
@@ -122,7 +111,7 @@ gradle.taskGraph.whenReady {
     val wantsSignedRelease = allTasks.any {
         it.project == project &&
             (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package")) &&
-            (it.name.endsWith("Release") || it.name.endsWith("Amazon"))
+            it.name.endsWith("Release")
     }
     if (wantsSignedRelease) {
         check(releaseSigningReady) {
