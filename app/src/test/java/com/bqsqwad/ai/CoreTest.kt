@@ -166,6 +166,15 @@ class CoreTest {
         assertFalse(answer.contains("https://"))
     }
 
+    @Test fun playCheckoutRequiresTheExactActiveBasePlanOrOneTimeOffer() {
+        assertTrue(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("subs", "monthly", listOf("monthly", "yearly"), false))
+        assertFalse(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("subs", "monthly", listOf("weekly", "yearly"), false))
+        assertFalse(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("subs", null, listOf("monthly"), false))
+        assertTrue(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("inapp", null, emptyList(), true))
+        assertFalse(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("inapp", null, emptyList(), false))
+        assertFalse(com.bqsqwad.ai.ui.hasSelectedPlayPurchaseOffer("unknown", null, emptyList(), true))
+    }
+
     @Test fun catalogCreditPacksUseCanonicalOrderAndExcludeUnknownIds() {
         assertEquals(
             listOf("credit100", "credit250", "credit500", "credit1000"),
