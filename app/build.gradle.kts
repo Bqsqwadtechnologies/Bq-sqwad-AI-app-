@@ -133,14 +133,3 @@ gradle.taskGraph.whenReady {
         }
     }
 }
-
-
-tasks.register("compileReleaseKotlin") {
-    dependsOn("compileGoogleReleaseKotlin")
-}
-tasks.register("testDebugUnitTest") {
-    dependsOn("testGoogleDebugUnitTest")
-}
-tasks.register("bundleRelease") {
-    dependsOn("bundleGoogleRelease")
-}

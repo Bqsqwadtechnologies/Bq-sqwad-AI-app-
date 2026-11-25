@@ -107,7 +107,7 @@ jobs:
 
       - name: Compile Android Release Kotlin (no APK)
         working-directory: android-app
-        run: gradle :app:compileReleaseKotlin
+        run: gradle :app:compileGoogleReleaseKotlin :app:compileAmazonReleaseKotlin
 
       - name: Set up Node.js
         uses: actions/setup-node@v5

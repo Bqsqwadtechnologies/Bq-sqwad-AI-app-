@@ -49,6 +49,7 @@ jobs:
 
           ROOT = pathlib.Path(".")
           EXPECTED_NAMESPACE = "com.bqsqwad.ai"
+          EXPECTED = EXPECTED_NAMESPACE
           EXPECTED_PLAY_ID = "com.bqsqwad.ai.app"
           EXPECTED_AMAZON_ID = "com.bqsqwad.ai.amazon"
           errors = []
