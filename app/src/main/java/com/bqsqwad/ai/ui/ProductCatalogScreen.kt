@@ -68,6 +68,22 @@ internal fun orderCanonicalCreditPackIds(ids: Iterable<String>): List<String> {
 internal fun catalogCategoryHeaderIndex(totalItemCount: Int, trailingItemCount: Int, planCount: Int): Int =
     (totalItemCount - trailingItemCount - planCount - 1).coerceAtLeast(0)
 
+/** A Play product is purchasable only when its currently returned offer matches
+ * the selected billing period. ProductDetails existing by itself is insufficient:
+ * Google Play can return a subscription product without the requested base plan.
+ */
+internal fun hasSelectedPlayPurchaseOffer(
+    productType: String,
+    selectedBasePlanId: String?,
+    availableBasePlanIds: Iterable<String>,
+    hasOneTimeOffer: Boolean
+): Boolean = when (productType) {
+    ProductType.SUBS -> !selectedBasePlanId.isNullOrBlank() &&
+        availableBasePlanIds.any { it == selectedBasePlanId }
+    ProductType.INAPP -> hasOneTimeOffer
+    else -> false
+}
+
 private fun String.equalsAnyCatalogModule(modules: Set<String>): Boolean =
     modules.any { equals(it, ignoreCase = true) }
 
@@ -732,6 +748,13 @@ private fun LivePlanCard(
         playEntries.firstOrNull { it.basePlanId == selectedPeriod || it.billingPeriod == selectedPeriod }
     }
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
+    val selectedProductHasOffer = selectedEntry != null && selectedProduct != null &&
+        hasSelectedPlayPurchaseOffer(
+            productType = selectedEntry.productType,
+            selectedBasePlanId = selectedEntry.basePlanId,
+            availableBasePlanIds = selectedProduct.subscriptionOfferDetails.orEmpty().map { it.basePlanId },
+            hasOneTimeOffer = !selectedProduct.oneTimePurchaseOfferDetailsList.isNullOrEmpty()
+        )
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
     // Do not use PackageManager installer metadata as a purchase gate. Installer
@@ -740,7 +763,7 @@ private fun LivePlanCard(
     // BillingClient connectivity plus a live Play ProductDetails result are the
     // operational checks; the backend remains authoritative when verifying purchase tokens.
     val playBillingReady = billing?.isReady() == true
-    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && playBillingReady
+    val canPurchase = plan.playEligible && selectedEntry != null && selectedProductHasOffer && playBillingReady
     val purchaseBlockReason = when {
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
         isFreePlan || isContactSales || canPurchase -> null
@@ -749,6 +772,7 @@ private fun LivePlanCard(
         !playBillingReady -> "Google Play Billing is unavailable right now. Check that Google Play Store is enabled, you're online, and try again."
         selectedEntry == null -> "This option isn't available right now."
         selectedProduct == null -> "Google Play hasn't returned this product for the current app/account. Refresh and try again."
+        !selectedProductHasOffer -> "Google Play hasn't returned an active offer for the selected billing period. This option is unavailable until its Play Console product and base plan are active."
         else -> "This plan cannot be purchased in the app right now."
     }
     val moduleLabel = when (plan.module) {
@@ -942,6 +966,7 @@ private fun LivePlanCard(
                             canPurchase -> "Continue"
                             plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
                             plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
+                            plan.playEligible && !selectedProductHasOffer -> "Unavailable — offer not found"
                             plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
                             plan.paymentChannel == "website" -> "Not available in-app"
                             else -> "Not available in-app"
