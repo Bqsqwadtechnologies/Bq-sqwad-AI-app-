@@ -367,6 +367,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
                         Text("Buy credits for eligible AI features. Prices are shown in your local currency.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("ANDROID APP BILLING: eligible purchases on this screen use Google Play Billing and are verified before credits are added. WEBSITE BILLING: purchases made on bqsqwadai.com are processed separately through Paystack and are not charged through this app.", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (creditPacks.isEmpty()) {
@@ -737,7 +738,7 @@ private fun LivePlanCard(
     val purchaseBlockReason = when {
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
         !isFreePlan && !isContactSales && billing?.isInstalledFromStore() == false ->
-            "In-app purchases are only available in the store version of BQ Sqwad AI."
+            "Google Play purchases require BQ Sqwad AI to be installed from Google Play. A downloaded or sideloaded APK cannot start Google Play Billing."
         isFreePlan || isContactSales || canPurchase -> null
         plan.paymentChannel == "website" -> "This option isn't available in the app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
