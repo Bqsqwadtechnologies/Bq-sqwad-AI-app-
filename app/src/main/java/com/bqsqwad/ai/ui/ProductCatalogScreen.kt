@@ -383,7 +383,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         Text("Credit packs", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold)
                         Text("Buy credits for eligible AI features. Prices are shown in your local currency.", color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("ANDROID APP BILLING: eligible purchases on this screen use Google Play Billing and are verified before credits are added. WEBSITE BILLING: purchases made on bqsqwadai.com are processed separately through Paystack and are not charged through this app.", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
+                        Text("APP PURCHASES: eligible purchases on this screen use the app's secure checkout and are verified before credits are added. WEBSITE PURCHASES: purchases made on bqsqwadai.com are processed separately and are not charged through this app.", color=MaterialTheme.colorScheme.onSurfaceVariant, style=MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (creditPacks.isEmpty()) {
@@ -431,7 +431,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
                     }
                 }
                 if(offline)item{ProductNotice("Offline mode","Showing the last successfully synced catalog. Purchases are available when you're back online.")}
-                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Eligible purchases inside this Android app use Google Play Billing and are verified before access or credits are granted. Website purchases use Paystack separately.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
+                item{Surface(shape=RoundedCornerShape(20.dp),tonalElevation=3.dp,modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){BqLogo(56.dp);Text("Your AI. One connected ecosystem.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Explore BQ Sqwad AI workspaces and compare plan options. Eligible purchases inside this Android app use secure in-app checkout and are verified before access or credits are granted. Website purchases are processed separately.",color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium);if(nonCreditCustomerPlans.isNotEmpty())Text("${nonCreditCustomerPlans.size} available plans",style=MaterialTheme.typography.labelLarge,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary)}}}
                 if(plans.isEmpty()) item {
                     ProductNotice(
                         "No plans configured yet",
@@ -769,9 +769,9 @@ private fun LivePlanCard(
         isFreePlan || isContactSales || canPurchase -> null
         plan.paymentChannel == "website" -> "This option isn't available in the app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
-        !playBillingReady -> "Google Play Billing is unavailable right now. Check that Google Play Store is enabled, you're online, and try again."
+        !playBillingReady -> "In-app checkout is unavailable right now. Check that the store app is enabled, you're online, and try again."
         selectedEntry == null -> "This option isn't available right now."
-        selectedProduct == null -> "Google Play hasn't returned this product for the current app/account. Refresh and try again."
+        selectedProduct == null -> "This product isn't available for the current app or account. Refresh and try again."
         !selectedProductHasOffer -> "The selected billing period is not currently available. Refresh the catalog or contact support."
         else -> "This plan cannot be purchased in the app right now."
     }
