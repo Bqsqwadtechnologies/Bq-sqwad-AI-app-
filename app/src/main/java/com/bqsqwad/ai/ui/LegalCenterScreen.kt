@@ -59,7 +59,8 @@ fun LegalCenterScreen(initialTopic: Workspace? = null, onBack: () -> Unit) {
         LegalSection("Using the service", "See the rules governing lawful and respectful use.", textFragment(TERMS, "Using the service")),
         LegalSection("Your account", "See account security and responsibility requirements.", textFragment(TERMS, "Your account")),
         LegalSection("AI output", "See limitations and responsibilities when relying on AI-generated responses.", textFragment(TERMS, "AI output")),
-        LegalSection("Subscriptions", "See the current subscription and cancellation terms.", textFragment(TERMS, "Subscriptions")),
+        LegalSection("Subscriptions and billing", "Website purchases use Paystack. Eligible Android app purchases use Google Play Billing; renewal, cancellation and refunds follow the original purchase channel.", textFragment(TERMS, "Subscriptions and billing")),
+        LegalSection("Refund policy", "See how Paystack website refunds and Google Play purchase refunds are handled separately.", "https://bqsqwadai.com/refund-policy"),
         LegalSection("Changes", "See how material changes to the terms are communicated.", textFragment(TERMS, "Changes"))
     )
 
