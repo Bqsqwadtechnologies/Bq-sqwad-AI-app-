@@ -734,17 +734,21 @@ private fun LivePlanCard(
     val selectedProduct = selectedEntry?.let { entry -> playProducts.firstOrNull { it.productId == entry.productId } }
     val isFreePlan = plan.price.containsKey("free") || plan.paymentChannel == "free"
     val isContactSales = plan.contactSales || plan.paymentChannel == "contact_sales"
-    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && billing?.isInstalledFromStore() != false
+    // Do not use PackageManager installer metadata as a purchase gate. Installer
+    // attribution can be absent or stale (for example after restore/device migration),
+    // and it does not establish whether Google Play Billing is currently available.
+    // BillingClient connectivity plus a live Play ProductDetails result are the
+    // operational checks; the backend remains authoritative when verifying purchase tokens.
+    val playBillingReady = billing?.isReady() == true
+    val canPurchase = plan.playEligible && selectedEntry != null && selectedProduct != null && playBillingReady
     val purchaseBlockReason = when {
         com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null && !isFreePlan && !isContactSales -> "Sign in to buy this plan."
-        !isFreePlan && !isContactSales && billing?.isInstalledFromStore() == false ->
-            "Google Play purchases require BQ Sqwad AI to be installed from Google Play. A downloaded or sideloaded APK cannot start Google Play Billing."
         isFreePlan || isContactSales || canPurchase -> null
         plan.paymentChannel == "website" -> "This option isn't available in the app."
         !plan.playEligible -> "This plan is not enabled for in-app purchase yet."
+        !playBillingReady -> "Google Play Billing is unavailable right now. Check that Google Play Store is enabled, you're online, and try again."
         selectedEntry == null -> "This option isn't available right now."
-        selectedProduct == null -> "This option couldn't be confirmed for your account. Refresh and try again."
-        billing?.isReady() != true -> "Checkout is still connecting. Refresh and try again in a moment."
+        selectedProduct == null -> "Google Play hasn't returned this product for the current app/account. Refresh and try again."
         else -> "This plan cannot be purchased in the app right now."
     }
     val moduleLabel = when (plan.module) {
