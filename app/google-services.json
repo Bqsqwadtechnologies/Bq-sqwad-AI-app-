@@ -60,33 +60,17 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:848359744340:android:11a35aa871b41ba8839ec1",
+        "mobilesdk_app_id": "1:848359744340:android:af20170c35f898a0839ec1",
         "android_client_info": {
-          "package_name": "com.bqsqwad.ai.app"
+          "package_name": "com.bqsqwad.ai.amazon"
         }
       },
       "oauth_client": [
         {
-          "client_id": "848359744340-23teejhuet7gsh6tth3uglqjc437u79v.apps.googleusercontent.com",
+          "client_id": "848359744340-2uge540ar6udrhpnj4vhttq0ghjkrqdj.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.bqsqwad.ai.app",
-            "certificate_hash": "e20be3b6788e3358e639162021fe6f075d119743"
-          }
-        },
-        {
-          "client_id": "848359744340-7kfv7daamhdjbg57umd90ru816eciqf6.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bqsqwad.ai.app",
-            "certificate_hash": "5b7f384e37400e5758881a6aaa4a011a1f6c4938"
-          }
-        },
-        {
-          "client_id": "848359744340-etobns9cu6fjrqfo511kln2bape737cg.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bqsqwad.ai.app",
+            "package_name": "com.bqsqwad.ai.amazon",
             "certificate_hash": "6a62f90263821bff846e272ae1cd56ba6a1338d5"
           }
         },
@@ -113,33 +97,17 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:848359744340:android:11a35aa871b41ba8839ec1",
+        "mobilesdk_app_id": "1:848359744340:android:20a57d601f5682e6839ec1",
         "android_client_info": {
-          "package_name": "com.bqsqwad.ai.amazon"
+          "package_name": "com.bqsqwad.ai.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "848359744340-23teejhuet7gsh6tth3uglqjc437u79v.apps.googleusercontent.com",
+          "client_id": "848359744340-gks4f223lnbh5pvri5qa5a8n7cj3p2jq.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.bqsqwad.ai.amazon",
-            "certificate_hash": "e20be3b6788e3358e639162021fe6f075d119743"
-          }
-        },
-        {
-          "client_id": "848359744340-7kfv7daamhdjbg57umd90ru816eciqf6.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bqsqwad.ai.amazon",
-            "certificate_hash": "5b7f384e37400e5758881a6aaa4a011a1f6c4938"
-          }
-        },
-        {
-          "client_id": "848359744340-etobns9cu6fjrqfo511kln2bape737cg.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bqsqwad.ai.amazon",
+            "package_name": "com.bqsqwad.ai.app",
             "certificate_hash": "6a62f90263821bff846e272ae1cd56ba6a1338d5"
           }
         },
