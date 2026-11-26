@@ -16,6 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -839,10 +843,11 @@ private fun LivePlanCard(
         "tgteam" -> "TEAM"
         else -> null
     }
-    Card(
-        Modifier.fillMaxWidth(),
-        shape=RoundedCornerShape(18.dp),
-        border=if(plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (plan.popular) 4.dp else 1.dp),
+        border = if (plan.popular) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement=Arrangement.spacedBy(7.dp)) {
             if (truthGuard) {
@@ -898,7 +903,12 @@ private fun LivePlanCard(
             }
             if (plan.features.isNotEmpty()) {
                 Text("Included in this plan", style=MaterialTheme.typography.labelLarge, fontWeight=FontWeight.Bold)
-                plan.features.forEach { Text("• " + it, style=MaterialTheme.typography.bodySmall) }
+                plan.features.forEach {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                        Text(it, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             } else {
                 Text(
                     "Feature details are not configured for this item yet. Confirm availability with BQ Sqwad AI support before purchasing.",
@@ -961,20 +971,33 @@ private fun LivePlanCard(
                             else -> onStatus(purchaseBlockReason ?: "This plan is not currently purchasable on this device.")
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
+                    val icon = when {
+                        isContactSales -> Icons.Default.Email
+                        isOneTimeAddOn && canPurchase -> Icons.Default.ShoppingCart
+                        canPurchase -> Icons.Default.Bolt
+                        else -> null
+                    }
+                    if (icon != null) {
+                        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                    }
                     Text(
                         when {
                             isContactSales -> "Contact Sales"
-                            isOneTimeAddOn && canPurchase -> "Buy one-time add-on"
-                            canPurchase -> "Continue"
+                            isOneTimeAddOn && canPurchase -> "Buy One-Time Add-on"
+                            canPurchase -> "Get ${plan.name.ifBlank { "Plan" }}"
                             plan.playEligible && selectedEntry == null -> "Unavailable — product not mapped"
                             plan.playEligible && selectedProduct == null -> "Unavailable — product missing"
                             plan.playEligible && !selectedProductHasOffer -> "Unavailable — offer not found"
                             plan.playEligible && billing?.isReady() != true -> "Checkout loading…"
                             plan.paymentChannel == "website" -> "Not available in-app"
                             else -> "Not available in-app"
-                        }
+                        },
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

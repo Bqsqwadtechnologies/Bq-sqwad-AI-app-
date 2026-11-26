@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -62,6 +63,9 @@ data class TeamPlanItem(
     val status: String,
     val submittedByName: String,
     val createdAt: String,
+    val approvedBy: String? = null,
+    val approvedByName: String? = null,
+    val approvedAt: String? = null,
 )
 
 data class TeamTaskItem(
@@ -529,7 +533,7 @@ fun TeamWorkspaceScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.weight(1f)
                                 )
-                                TextButton(onClick = { selectedTab = 2 }) {
+                                TextButton(onClick = { selectedTab = 3 }) {
                                     Text("Switch to Codron", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -565,11 +569,47 @@ fun TeamWorkspaceScreen(
                                     }
                                 }
                                 Column {
-                                    Text(
-                                        m.authorName,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    val authorMember = members.firstOrNull { it.uid == m.authorUid }
+                                    val authorRole = when {
+                                        m.authorUid == "ai" -> "AI"
+                                        authorMember != null -> authorMember.role.uppercase()
+                                        else -> null
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            m.authorName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        if (authorRole != null) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = when (authorRole) {
+                                                    "OWNER" -> Color(0xFFFFD700).copy(alpha = 0.25f)
+                                                    "ADMIN" -> MaterialTheme.colorScheme.primaryContainer
+                                                    "MODERATOR" -> MaterialTheme.colorScheme.tertiaryContainer
+                                                    "AI" -> MaterialTheme.colorScheme.secondaryContainer
+                                                    else -> MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            ) {
+                                                Text(
+                                                    authorRole,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = androidx.compose.ui.unit.TextUnit(10f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = when (authorRole) {
+                                                        "OWNER" -> Color(0xFFB8860B)
+                                                        "ADMIN" -> MaterialTheme.colorScheme.primary
+                                                        "MODERATOR" -> MaterialTheme.colorScheme.tertiary
+                                                        "AI" -> MaterialTheme.colorScheme.secondary
+                                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
                                     Text(m.text, style = MaterialTheme.typography.bodyMedium)
                                     if (m.credits != null && m.credits > 0) {
                                         Text(
@@ -760,23 +800,74 @@ fun TeamWorkspaceScreen(
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            if (!p.approvedByName.isNullOrBlank()) {
+                                                Text(
+                                                    "✓ Approved by ${p.approvedByName}${if (!p.approvedAt.isNullOrBlank()) " · " + p.approvedAt.take(10) else ""}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                TextButton(onClick = {
-                                                    val tid = teamId ?: return@TextButton
-                                                    val nextStatus = if (p.status == "ready") "draft" else "ready"
-                                                    scope.launch {
-                                                        val token = authTokenProvider() ?: return@launch
-                                                        apiPost(baseUrl, token, "/native/teams/plans/update", JSONObject().put("teamId", tid).put("planId", p.id).put("status", nextStatus))
-                                                        loadPlans()
+                                                val isPrivileged = memberRole == "owner" || memberRole == "admin" || memberRole == "moderator"
+                                                val isApproved = p.status == "approved" || p.status == "ready" || p.status == "activated" || p.status == "completed"
+
+                                                if (isPrivileged) {
+                                                    if (p.status != "approved" && p.status != "ready" && p.status != "activated") {
+                                                        FilledTonalButton(onClick = {
+                                                            val tid = teamId ?: return@FilledTonalButton
+                                                            scope.launch {
+                                                                val token = authTokenProvider() ?: return@launch
+                                                                apiPost(baseUrl, token, "/native/teams/plans/update", JSONObject().put("teamId", tid).put("planId", p.id).put("status", "approved"))
+                                                                loadPlans()
+                                                            }
+                                                        }) {
+                                                            Text("✓ Approve Plan")
+                                                        }
+                                                    } else {
+                                                        TextButton(onClick = {
+                                                            val tid = teamId ?: return@TextButton
+                                                            val nextStatus = if (p.status == "ready") "approved" else "ready"
+                                                            scope.launch {
+                                                                val token = authTokenProvider() ?: return@launch
+                                                                apiPost(baseUrl, token, "/native/teams/plans/update", JSONObject().put("teamId", tid).put("planId", p.id).put("status", nextStatus))
+                                                                loadPlans()
+                                                            }
+                                                        }) {
+                                                            Text(if (p.status == "ready") "Mark Approved" else "Mark Ready")
+                                                        }
                                                     }
-                                                }) {
-                                                    Text(if (p.status == "ready") "Mark Draft" else "Mark Ready")
+                                                } else {
+                                                    if (!isApproved) {
+                                                        Surface(
+                                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                                            shape = RoundedCornerShape(4.dp)
+                                                        ) {
+                                                            Text(
+                                                                "Awaiting Admin Approval",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    } else {
+                                                        Text("Ready for execution", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                                    }
                                                 }
-                                                Button(onClick = {
-                                                    selectedTab = 3
-                                                    codonPrompt = "[EXECUTING APPROVED TEAM PLAN: ${p.title}]\nSpecifications:\n${p.details}\n\nTask: Generate production code and run Gradle test suites."
-                                                    codonLogs = codonLogs + listOf(">>> [Plan Box Activation] Team plan '${p.title}' dispatched to BQ Codron (GPT 5.6 Luna).")
-                                                }) {
+
+                                                Button(
+                                                    enabled = isApproved,
+                                                    onClick = {
+                                                        if (balance <= 0.0) {
+                                                            error = "Team pool balance is 0.00 credits. Please top up to activate BQ Codron."
+                                                            showTopupDialog = true
+                                                            return@Button
+                                                        }
+                                                        selectedTab = 3
+                                                        codonPrompt = "[EXECUTING APPROVED TEAM PLAN: ${p.title}]\nSpecifications:\n${p.details}\n\nTask: Generate production code and run Gradle test suites."
+                                                        codonLogs = codonLogs + listOf(">>> [Plan Box Activation] Team plan '${p.title}' dispatched to BQ Codron (GPT 5.6 Luna).")
+                                                    }
+                                                ) {
                                                     Text("Activate BQ Codron", fontWeight = FontWeight.Bold)
                                                 }
                                             }
@@ -786,8 +877,8 @@ fun TeamWorkspaceScreen(
                             }
                         }
                     }
-                } else if (selectedTab == 3) {
-                    // TAB 1: TEAM TASKS
+                } else if (selectedTab == 2) {
+                    // TAB 2: TEAM TASKS
                     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column {
@@ -1110,9 +1201,9 @@ Text("Powered by GPT 5.6 Luna", style = MaterialTheme.typography.bodySmall, colo
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Add credits to the shared team credit pool. All active members and BQ Codron tools build from this balance.", style = MaterialTheme.typography.bodySmall)
                     listOf(
-                        Triple(100, "$10", "Starter Pack"),
-                        Triple(200, "$20", "Most Popular"),
-                        Triple(500, "$43", "Pro Team Pack")
+                        Triple(100, "$15", "Starter Pack"),
+                        Triple(200, "$29", "Most Popular"),
+                        Triple(500, "$65", "Pro Team Pack")
                     ).forEach { (credits, price, label) ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -1332,6 +1423,9 @@ private fun parsePlans(arr: org.json.JSONArray?): List<TeamPlanItem> {
                     status = o.optString("status", "draft"),
                     submittedByName = o.optString("submittedByName", "Member"),
                     createdAt = o.optString("createdAt"),
+                    approvedBy = o.optString("approvedBy").takeIf { it.isNotBlank() },
+                    approvedByName = o.optString("approvedByName").takeIf { it.isNotBlank() },
+                    approvedAt = o.optString("approvedAt").takeIf { it.isNotBlank() },
                 )
             )
         }

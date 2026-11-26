@@ -132,7 +132,7 @@ async function requireActiveMember(user, teamId, minRole = "viewer") {
     err.httpStatus = 403;
     throw err;
   }
-  const rank = { viewer: 1, member: 2, admin: 3, owner: 4 };
+  const rank = { viewer: 1, member: 2, moderator: 3, admin: 4, owner: 5 };
   if ((rank[member.role] || 0) < (rank[minRole] || 0)) {
     const err = new Error("Your role in this team does not allow that action.");
     err.httpStatus = 403;
@@ -558,6 +558,77 @@ export async function teamsApproveMember(user, body) {
   });
   await firestoreSet("userTeams/" + targetUid + "/items/" + teamId, { teamId, joinedAt: ts, status: "active" }, true);
   return { ok: true };
+}
+
+export async function teamsSetMemberRole(user, body) {
+  const teamId = str(body?.teamId);
+  const targetUid = str(body?.targetUid);
+  const role = str(body?.role).toLowerCase();
+  if (!targetUid || targetUid.length > 160) {
+    const err = new Error("A valid member is required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  if (!["moderator", "admin", "member", "viewer"].includes(role)) {
+    const err = new Error("Role must be moderator, admin, member, or viewer.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  await requireActiveMember(user, teamId, "admin");
+  const target = await getMember(teamId, targetUid);
+  if (!target || target.status !== "active") {
+    const err = new Error("Active team member not found.");
+    err.httpStatus = 404;
+    throw err;
+  }
+  if (target.role === "owner") {
+    const err = new Error("The owner role cannot be modified.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  const ts = now();
+  await firestoreSet("teams/" + teamId + "/members/" + targetUid, {
+    ...target,
+    role,
+    updatedAt: ts,
+    updatedBy: user.uid,
+  }, true);
+  return { ok: true, teamId, targetUid, role };
+}
+
+export async function teamsAddMember(user, body) {
+  const teamId = str(body?.teamId);
+  const targetUid = str(body?.targetUid);
+  const targetName = str(body?.targetName || body?.email || "Member");
+  const role = str(body?.role || "member").toLowerCase();
+  if (!targetUid || targetUid.length > 160) {
+    const err = new Error("A valid member reference is required.");
+    err.httpStatus = 400;
+    throw err;
+  }
+  await requireActiveMember(user, teamId, "admin");
+  const ts = now();
+  const existing = await getMember(teamId, targetUid);
+  if (existing && existing.status === "active") {
+    return { ok: true, teamId, targetUid, status: "active", alreadyMember: true };
+  }
+  await firestoreSet("teams/" + teamId + "/members/" + targetUid, {
+    teamId,
+    uid: targetUid,
+    name: targetName,
+    role: ["moderator", "admin", "member", "viewer"].includes(role) ? role : "member",
+    status: "active",
+    joinedAt: ts,
+    addedBy: user.uid,
+    createdAt: ts,
+    updatedAt: ts,
+  }, true);
+  await firestoreSet("userTeams/" + targetUid + "/items/" + teamId, { teamId, joinedAt: ts, status: "active" }, true);
+  await firestoreUpdateAtomic("teams/" + teamId, (current) => {
+    if (!current) throw new Error("That team does not exist.");
+    return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
+  });
+  return { ok: true, teamId, targetUid, status: "active" };
 }
 
 export async function teamsLeave(user, body) {
@@ -1076,7 +1147,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     const { runProvider } = await import("./providers.js");
     const result = await runProvider(env, {
       primaryProviderId: "openai",
-      primaryModelId: (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "gpt-5.6-luna" : "gpt-6-luna",
+      primaryModelId: "gpt-6-luna",
       fallbackProviderIds: [],
       fallbackModels: {}
     }, {
@@ -1095,7 +1166,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
     const actualProvider = String(result.providerId || "openai").toLowerCase();
     const expectedModel = (body?.mode === "codron" || body?.mode === "codon" || body?.isCodon || body?.isCodron) ? "gpt-5.6-luna" : "gpt-6-luna";
     const actualModel = String(result.modelId || expectedModel);
-    if (actualProvider !== "openai" || actualModel !== expectedModel) {
+    if (actualProvider !== "openai" || actualModel !== "gpt-6-luna") {
       throw new Error("team_ai_model_mismatch");
     }
     const chatPricingControl = typeof billing.chatPricingControl === "function"
@@ -1306,6 +1377,7 @@ export async function teamsListPlans(user, query) {
     submittedByName: str(p.submittedByName),
     approvedBy: str(p.approvedBy),
     approvedByName: str(p.approvedByName),
+    approvedAt: str(p.approvedAt),
     createdAt: str(p.createdAt),
     updatedAt: str(p.updatedAt),
   })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -1341,12 +1413,19 @@ export async function teamsUpdatePlan(user, body) {
   if (!planId) throw new Error("Plan ID is required.");
   const { member } = await requireActiveMember(user, teamId, "member");
   const updates = {};
-  if (body?.status && ["draft", "review", "ready", "activated", "completed"].includes(body.status)) {
-    updates.status = body.status;
-    if (body.status === "ready" || body.status === "activated") {
+  if (body?.status && ["draft", "review", "approved", "ready", "activated", "completed"].includes(body.status)) {
+    if (["approved", "ready", "activated"].includes(body.status)) {
+      const memberRole = String(member.role || "member").toLowerCase();
+      if (!["owner", "admin", "moderator"].includes(memberRole)) {
+        const err = new Error("Only team admins, moderators, or owners can approve plans for execution.");
+        err.httpStatus = 403;
+        throw err;
+      }
       updates.approvedBy = user.uid;
-      updates.approvedByName = member.displayName || "Member";
+      updates.approvedByName = member.displayName || "Admin";
+      updates.approvedAt = now();
     }
+    updates.status = body.status;
   }
   if (body?.title) updates.title = str(body.title).trim();
   if (body?.details !== undefined) updates.details = str(body.details).trim();

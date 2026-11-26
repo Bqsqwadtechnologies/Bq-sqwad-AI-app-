@@ -1181,7 +1181,27 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         if (error == null && snapshot != null) entitlementRefreshNonce++
                     }
             }.getOrNull()
-            onDispose { runCatching { listener?.remove() } }
+            val testListener = runCatching {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("adminPlanTest")
+                    .document(uid)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error == null && snapshot != null) entitlementRefreshNonce++
+                    }
+            }.getOrNull()
+            val rootListener = runCatching {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("entitlements")
+                    .document(uid)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error == null && snapshot != null) entitlementRefreshNonce++
+                    }
+            }.getOrNull()
+            onDispose {
+                runCatching { listener?.remove() }
+                runCatching { testListener?.remove() }
+                runCatching { rootListener?.remove() }
+            }
         }
     }
 

@@ -441,7 +441,7 @@ export async function firestoreQuery(collection, {
 } = {}) {
   const project = encodeURIComponent(projectId());
   const parentPath = parent ? "/" + parent.split("/").map(encodeURIComponent).join("/") : "";
-  const url = FIRESTORE_BASE + "/projects/" + project + "/databases/(default)/documents:runQuery";
+  const url = FIRESTORE_BASE + "/projects/" + project + "/databases/(default)/documents" + parentPath + ":runQuery";
   const from = [{ collectionId: collection }];
   const structuredQuery = { from };
   if (filters.length) {
