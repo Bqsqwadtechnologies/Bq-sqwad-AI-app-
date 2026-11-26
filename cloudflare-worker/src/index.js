@@ -4835,6 +4835,34 @@ export default {
         return json({ ok: true, taskId, status });
       }
 
+      if (url.pathname === "/tasks/my/create" && request.method === "POST") {
+        const user = await verifyFirebaseUser(request);
+        const body = await readBody(request);
+        const title = String(body.title || "").trim().slice(0, 160);
+        if (!title) return json({ error: "missing_title" }, 400);
+        const description = String(body.description || "").trim().slice(0, 4000);
+        const type = String(body.type || "general").slice(0, 40);
+        const dueAt = body.dueAt ? String(body.dueAt).slice(0, 40) : null;
+        const now = new Date().toISOString();
+        const taskId = "task_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        const path = "adminTasks/" + taskId;
+        const record = {
+          id: taskId,
+          title,
+          description,
+          type,
+          assignees: [user.uid],
+          createdBy: user.uid,
+          status: "open",
+          dueAt,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await firestoreSet(path, record, false);
+        return json({ ok: true, task: record });
+      }
+
+
       if (url.pathname === "/notifications/preferences" && (request.method === "GET" || request.method === "PUT")) {
         const user = await verifyFirebaseUser(request);
         const path = "notificationPreferences/" + user.uid;

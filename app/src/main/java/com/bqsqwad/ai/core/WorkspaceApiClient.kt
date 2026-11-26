@@ -482,6 +482,18 @@ class WorkspaceApiClient {
             .put("pushEnabled", pushEnabled)
             .put("mutedKinds", JSONArray(mutedKinds)))
     suspend fun myTasks():JSONObject = request("/tasks/my", "GET")
+    suspend fun createMyTask(title: String, description: String = "", type: String = "general", dueAt: String = ""): JSONObject =
+        request(
+            "/tasks/my/create",
+            "POST",
+            JSONObject().apply {
+                put("title", title)
+                if (description.isNotBlank()) put("description", description)
+                if (type.isNotBlank()) put("type", type)
+                if (dueAt.isNotBlank()) put("dueAt", dueAt)
+            }
+        )
+
     suspend fun updateMyTaskStatus(taskId:String, status:String):JSONObject =
         request("/tasks/my/status", "PATCH", JSONObject().put("taskId", taskId).put("status", status))
     suspend fun adminIssues():JSONObject = request("/admin/issues","GET")
