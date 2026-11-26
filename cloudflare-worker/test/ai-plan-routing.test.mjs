@@ -15,6 +15,21 @@ test("TruthGuard Free has its own visible plan card and a five-check saved histo
   assert.match(legacy, /a\.slice\(0,safeLimit\)/);
 });
 
+
+test("TruthGuard website subscriptions unlock the app from verified server records and expire on time", async () => {
+  const legacy = await read("../src/legacy-native.js");
+  const worker = await read("../src/index.js");
+  const app = await read("../../app/src/main/java/com/bqsqwad/ai/ui/BQSqwadApp.kt");
+  const catalog = await read("../../app/src/main/java/com/bqsqwad/ai/ui/ProductCatalogScreen.kt");
+  assert.match(legacy, /solutionSubs\/"\+user\.uid\+"__truthguard/);
+  assert.match(legacy, /state==="active"&&webPlan&&Number\.isFinite\(expiry\)&&expiry>Date\.now\(\)/);
+  assert.match(worker, /solutionSubs\/" \+ user\.uid \+ "__truthguard/);
+  assert.match(worker, /expiry > Date\.now\(\)/);
+  assert.match(app, /Workspace\.TRUTH_GUARD -> "truthguard"/);
+  assert.match(catalog, /initialSection\.equals\("truthguard", ignoreCase = true\)/);
+  assert.match(catalog, /selectedCategory == "truthguard" && \(it\.price\.containsKey\("free"\)/);
+});
+
 test("TruthGuard Deep Evidence Sweep is Pro or Team only and uses Tavily plus GPT-6 Luna", async () => {
   const legacy = await read("../src/legacy-native.js");
   const ui = await read("../../app/src/main/java/com/bqsqwad/ai/ui/TruthGuardWorkspace.kt");

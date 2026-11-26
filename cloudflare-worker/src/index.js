@@ -3917,7 +3917,7 @@ export default {
 
       if (url.pathname === "/entitlements" && request.method === "GET") {
         const user = await verifyFirebaseUser(request);
-        const [primary, playRows, canonicalRows, adminPlanTest] = await Promise.all([
+        const [primary, playRows, canonicalRows, adminPlanTest, websiteTruthGuard] = await Promise.all([
           firestoreGet("entitlements/" + user.uid),
           firestoreQuery("playEntitlements", {
             filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
@@ -3926,7 +3926,8 @@ export default {
           // Website Paystack/admin and verified Play purchases share this
           // canonical multi-plan subcollection.
           firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }),
-          firestoreGet("adminPlanTest/" + user.uid).catch(() => null)
+          firestoreGet("adminPlanTest/" + user.uid).catch(() => null),
+          firestoreGet("solutionSubs/" + user.uid + "__truthguard").catch(() => null)
         ]);
         const rows = new Map();
         if (primary) {
@@ -3941,6 +3942,32 @@ export default {
           const key = String(row.planId || String(row.__name || "").split("/").pop());
           if (!key) continue;
           rows.set(key, { ...row, id: key });
+        }
+        // Expose an active website TruthGuard plan through the same read-only
+        // access snapshot used by Android, without trusting client-supplied data.
+        if (websiteTruthGuard && String(websiteTruthGuard.status || "").toLowerCase() === "active") {
+          const expiry = Date.parse(String(websiteTruthGuard.expiresAt || ""));
+          const webPlanId = ({ plus: "tgplus", pro: "tgpro", team: "tgteam" })[String(websiteTruthGuard.planId || "").toLowerCase()];
+          const existing = webPlanId ? rows.get(webPlanId) : null;
+          const existingExpiry = Date.parse(String(existing?.expiresAt || existing?.endDate || ""));
+          const preserveActivePlay = String(existing?.source || "") === "google_play" &&
+            ["active", "trialing", "grace"].includes(String(existing?.state || existing?.status || "").toLowerCase()) &&
+            Number.isFinite(existingExpiry) && existingExpiry > Date.now();
+          if (webPlanId && Number.isFinite(expiry) && expiry > Date.now() && !preserveActivePlay) {
+            rows.set(webPlanId, {
+              id: webPlanId,
+              planId: webPlanId,
+              productId: "truthguard",
+              product: "TruthGuard AI",
+              module: "truthguard",
+              state: "active",
+              status: "active",
+              source: "website",
+              startsAt: websiteTruthGuard.startedAt || null,
+              expiresAt: websiteTruthGuard.expiresAt,
+              updatedAt: websiteTruthGuard.updatedAt || null
+            });
+          }
         }
         return json({
           isAdmin: isSuperAdmin(user, env),

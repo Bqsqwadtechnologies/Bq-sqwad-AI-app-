@@ -106,7 +106,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var planSearch by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else if (initialSection.equals("business", ignoreCase = true)) "business" else "all") }
+    var selectedCategory by remember(initialSection) { mutableStateOf(when { initialSection.equals("credits", ignoreCase = true) -> "credits"; initialSection.equals("business", ignoreCase = true) -> "business"; initialSection.equals("truthguard", ignoreCase = true) -> "truthguard"; else -> "all" }) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = 0)
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }
@@ -325,8 +325,12 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
         categoryMatch && (normalizedSearch.isBlank() || searchText.contains(normalizedSearch) || compactText.contains(compactSearch))
     }.sortedWith(
         compareBy<LivePlan> {
-            if (it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true)) businessPlanTierOrder(it)
-            else it.sortOrder
+            when {
+                selectedCategory == "truthguard" && (it.price.containsKey("free") || it.paymentChannel.equals("free", ignoreCase = true) || it.id.contains("free", ignoreCase = true)) -> 0
+                selectedCategory == "truthguard" -> 1
+                it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true) -> businessPlanTierOrder(it)
+                else -> it.sortOrder
+            }
         }.thenBy {
             if (it.module.equals("business", ignoreCase = true) || it.module.equals("business-ai", ignoreCase = true)) it.sortOrder
             else 0

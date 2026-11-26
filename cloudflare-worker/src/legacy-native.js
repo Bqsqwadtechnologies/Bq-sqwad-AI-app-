@@ -117,11 +117,12 @@ async function gate(user,env,fallback){
     learning:new Set(["explorer","learnscholar","learnfamily","learnschool"]),
     truthguard:new Set(["truthguardfree","tgplus","tgpro","tgteam"])
   };
-  const [root,rows,test,userProfile]=await Promise.all([
+  const [root,rows,test,userProfile,websiteTruthGuard]=await Promise.all([
     firestoreGet("entitlements/"+user.uid).catch(()=>null),
     firestoreQuery("plans",{parent:"entitlements/"+user.uid,limit:100}).catch(()=>[]),
     adminTest(user,env),
-    firestoreGet("users/"+user.uid).catch(()=>null)
+    firestoreGet("users/"+user.uid).catch(()=>null),
+    workspace==="truthguard"?firestoreGet("solutionSubs/"+user.uid+"__truthguard").catch(()=>null):Promise.resolve(null)
   ]);
   const now=Date.now();
   const isActive=(item)=>{
@@ -139,7 +140,17 @@ async function gate(user,env,fallback){
   const rootModule=String(root?.module||"").trim().toLowerCase();
   const rootMatchesWorkspace=Boolean(workspace&&allowed[workspace]?.has(rootPlanId)&&(!rootModule||rootModule===workspace));
   const rootFallback=rootMatchesWorkspace&&isActive({...root,planId:rootPlanId});
-  const entitledPlan=modulePlans[0]?String(modulePlans[0].planId||modulePlans[0].id).trim().toLowerCase():(rootFallback?rootPlanId:"");
+  let entitledPlan=modulePlans[0]?String(modulePlans[0].planId||modulePlans[0].id).trim().toLowerCase():(rootFallback?rootPlanId:"");
+  // Website Paystack plans live in solutionSubs. Read the verified server record
+  // directly so an active website subscription unlocks the same app workspace.
+  if(workspace==="truthguard"&&websiteTruthGuard){
+    const state=String(websiteTruthGuard.status||"").toLowerCase();
+    const expiry=Date.parse(String(websiteTruthGuard.expiresAt||""));
+    const webPlan=({plus:"tgplus",pro:"tgpro",team:"tgteam"})[String(websiteTruthGuard.planId||"").toLowerCase()]||"";
+    const planRank={truthguardfree:0,tgplus:1,tgpro:2,tgteam:3};
+    const currentRank=planRank[entitledPlan]??0,webRank=planRank[webPlan]??0;
+    if(state==="active"&&webPlan&&Number.isFinite(expiry)&&expiry>Date.now()&&webRank>=currentRank) entitledPlan=webPlan;
+  }
   const cardVerified = userProfile?.cardVerified === true;
   return {planId:test?"admin-unlimited":(entitledPlan||fallback),adminTestMode:test,cardVerified};
 }
