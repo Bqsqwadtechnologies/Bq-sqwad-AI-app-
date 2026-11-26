@@ -1753,7 +1753,7 @@ private fun MainShell(modifier: Modifier, sharedText: String?, onSharedTextConsu
                         onPrivacy = { featurePrivacy = workspace!! },
                         onSettings = { featureSettings = workspace!! },
                         onOpenAppSettings = { settings = true },
-                        onOpenPlans = { plansInitialSection = "all"; plans = true },
+                        onOpenPlans = { plansInitialSection = if (workspace == Workspace.BUSINESS) "business" else "all"; plans = true },
                         onOpenCredits = { plansInitialSection = "credits"; plans = true },
                         onOpenMainChat = { workspace = null }
                     )

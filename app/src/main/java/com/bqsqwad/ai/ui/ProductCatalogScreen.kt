@@ -43,8 +43,8 @@ private fun businessPlanTierOrder(plan: LivePlan): Int {
     return when {
         key.contains("bizstarter") || key.contains("businessstarter") -> 0
         key.contains("bizbasic") || key.contains("businessbasic") -> 1
-        key.contains("bizprofessional") || key.contains("businessprofessional") || key.contains("professionalbusiness") -> 2
-        key.contains("bizstandard") || key.contains("businessstandard") -> 3
+        key.contains("bizstandard") || key.contains("businessstandard") -> 2
+        key.contains("bizprofessional") || key.contains("businessprofessional") || key.contains("professionalbusiness") -> 3
         key.contains("bizbusiness") || key.contains("businessadvanced") -> 4
         key.contains("bizenterprise") || key.contains("businessenterprise") -> 5
         else -> 100
@@ -106,7 +106,7 @@ fun ProductCatalogScreen(onBack:()->Unit, initialSection: String = "all") {
     var offline by remember { mutableStateOf(false) }
     var plans by remember { mutableStateOf(emptyList<LivePlan>()) }
     var planSearch by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else "all") }
+    var selectedCategory by remember { mutableStateOf(if (initialSection.equals("credits", ignoreCase = true)) "credits" else if (initialSection.equals("business", ignoreCase = true)) "business" else "all") }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = 0)
     var catalog by remember { mutableStateOf(emptyList<PlayCatalogEntry>()) }
     var features by remember { mutableStateOf(emptyList<CatalogFeature>()) }

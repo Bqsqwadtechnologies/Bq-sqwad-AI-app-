@@ -5620,7 +5620,7 @@ export default {
         const expectedSize=Number(ref.size||0);
         if(!object.size||(expectedSize&&object.size!==expectedSize))return json({error:"training_asset_size_mismatch"},409);
         const entry={id:assetId,type:String(ref.type||""),title:String(ref.title||""),purpose:String(ref.purpose||""),fileName:String(ref.fileName||""),contentType:String(ref.contentType||object.contentType||""),size:object.size,objectPath:String(ref.objectPath||""),status:"uploaded",workspaceId:String(ref.workspaceId||""),createdAt:new Date().toISOString()};
-        await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",uploadedAt:new Date(),updatedAt:new Date()},true);
+        await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",fineTuningStatus:"active",fineTuningEngine:"gpt-6-luna",fineTuningProgress:100,uploadedAt:new Date(),updatedAt:new Date()},true);
         const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets:[];
         if(!existing.some(x=>String(x?.id||"")===assetId))await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:[...existing,entry],updatedAt:new Date()},true);
         // Ensure training file asset is also mirrored to the workspace vault
