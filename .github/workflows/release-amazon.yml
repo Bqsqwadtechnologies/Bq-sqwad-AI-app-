@@ -7,6 +7,7 @@ on:
       - 'app/src/main/**'
       - 'app/src/test/**'
       - 'app/build.gradle.kts'
+      - 'app/google-services.json'
       - 'gradle/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
