@@ -5620,7 +5620,7 @@ export default {
         const expectedSize=Number(ref.size||0);
         if(!object.size||(expectedSize&&object.size!==expectedSize))return json({error:"training_asset_size_mismatch"},409);
         const entry={id:assetId,type:String(ref.type||""),title:String(ref.title||""),purpose:String(ref.purpose||""),fileName:String(ref.fileName||""),contentType:String(ref.contentType||object.contentType||""),size:object.size,objectPath:String(ref.objectPath||""),status:"uploaded",workspaceId:String(ref.workspaceId||""),createdAt:new Date().toISOString()};
-        await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",fineTuningStatus:"active",fineTuningEngine:"gpt-6-luna",fineTuningProgress:100,uploadedAt:new Date(),updatedAt:new Date()},true);
+        await firestoreSet("businessTrainingAssets/"+assetId,{status:"uploaded",uploadedAt:new Date(),updatedAt:new Date()},true);
         const wr=await firestoreGet("businessWorkspaces/"+String(ref.workspaceId||"")),existing=Array.isArray(wr?.trainingAssets)?wr.trainingAssets:[];
         if(!existing.some(x=>String(x?.id||"")===assetId))await firestoreSet("businessWorkspaces/"+String(ref.workspaceId||""),{trainingAssets:[...existing,entry],updatedAt:new Date()},true);
         // Ensure training file asset is also mirrored to the workspace vault
@@ -6635,6 +6635,15 @@ export default {
       if (url.pathname === "/companion/catalog" && request.method === "GET") { const u=await verifyFirebaseUser(request); return json(await companionCatalog(u,env)); }
       if (url.pathname === "/companion/profile" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await companionProfile(u.uid)); }
       if (url.pathname === "/companion/profile" && request.method === "PUT") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); return json(await saveCompanionProfile(u.uid,await readBody(request))); }
+      if (url.pathname === "/companion/history" && request.method === "DELETE") {
+        const u = await verifyFirebaseUser(request);
+        const docs = await firestoreQuery("companionMessages", { filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: u.uid } }], limit: 100 }).catch(() => []);
+        for (const doc of docs) {
+          const docId = String(doc.__name || "").split("/").pop();
+          if (docId) await firestoreDelete("companionMessages/" + docId).catch(() => {});
+        }
+        return json({ ok: true, clearedCount: docs.length });
+      }
       if (url.pathname === "/companion/history" && request.method === "GET") { const u=await verifyFirebaseUser(request); const catalog=await companionCatalog(u,env); if(!catalog.adminTestMode && !["companionbasic","companionplus","companionpremium","companionultimate"].includes(String(catalog.activePlanId||"").toLowerCase())) throw Object.assign(new Error("companion_history_plan_required"),{httpStatus:403,safeError:"companion_history_plan_required"}); return json(await companionHistory(u.uid)); }
       if (url.pathname === "/companion/chat" && request.method === "POST") { const u=await verifyFirebaseUser(request); await requireConsent(u.uid); await capability(u.uid,"companion"); const b=await readBody(request); return json(await companionChat(env,u,b,chargeCredits,commitCredits,reverseCredits)); }
       if (url.pathname === "/companion/checkins" && request.method === "GET") { const u=await verifyFirebaseUser(request); await capability(u.uid,"companion"); await capability(u.uid,"companion_checkin"); return json(await companionCheckins(u.uid)); }

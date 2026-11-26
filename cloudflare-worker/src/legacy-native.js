@@ -157,23 +157,56 @@ export async function companionChat(env,user,b,charge,commit,reverse){
   if(g.planId==="companionfree"&&!g.adminTestMode&&!g.cardVerified){
     throw Object.assign(new Error("card_verification_required"),{httpStatus:403,safeError:"card_verification_required",message:"A one-time $0.50 card verification is required to unlock free-tier features. This verification is used strictly to prevent multi-account abuse. Once a card is verified, it is permanently linked to this account and cannot be used to verify any other account across the entire app and website."});
   }
+  const normMsg = m.toLowerCase().trim().replace(/[?.!,;:]+$/, "");
+  if (normMsg) {
+    const pastMessages = await firestoreQuery("companionMessages", {
+      filters: [{ field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: user.uid } }],
+      limit: 100
+    }).catch(() => []);
+    pastMessages.sort((x, y) => String(x.createdAt || "").localeCompare(String(y.createdAt || "")));
+    let cachedReply = null;
+    for (let i = 0; i < pastMessages.length - 1; i++) {
+      const item = pastMessages[i];
+      if (item.role === "user") {
+        const q = String(item.text || "").toLowerCase().trim().replace(/[?.!,;:]+$/, "");
+        if (q === normMsg) {
+          const next = pastMessages[i + 1];
+          if (next && next.role === "assistant" && (next.text || next.answer)) {
+            cachedReply = String(next.text || next.answer);
+            break;
+          }
+        }
+      }
+    }
+    if (cachedReply) {
+      return {
+        ok: true,
+        text: cachedReply,
+        answer: cachedReply,
+        creditsCharged: 0,
+        cached: true,
+        modelId: "gpt-6-luna",
+        assistantName: "ChatGPT 6 Luna"
+      };
+    }
+  }
   const r=await charge(user.uid,Number(b.creditCost||0),"companion",user);
   try{
     const p=await firestoreGet("companionProfiles/"+user.uid)||{};
     const settings=await firestoreGet("companionSettings/"+user.uid)||{};
-    const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm"]);
+    const allowedPersonality=new Set(["Warm","Caring","Encouraging","Calm","Motivational","Professional"]);
     const requestedPersonality=clean(b.personality||p.personality||"Warm",40);
     const personality=allowedPersonality.has(requestedPersonality)?requestedPersonality:"Warm";
     const history=settings.saveHistory===false||p.memoryEnabled===false?[]:await firestoreQuery("companionMessages",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:user.uid}}],limit:20});
     history.sort((x,y)=>String(x.createdAt||"").localeCompare(String(y.createdAt||"")));
     const memory=p.memoryEnabled===false?"":history.map(x=>String(x.role||"user")+": "+clean(x.text,1000)).join("\n");
-    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:m,system:["You are BQ Sqwad AI Companion.",workspaceScopeSystemPrompt("companion"),"Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
+    const z=await runProvider(env,{primaryProviderId:"openai",primaryModelId:"gpt-6-luna",fallbackProviderIds:[]},{message:m,system:["You are BQ Sqwad AI Companion, powered by ChatGPT 6 Luna.",workspaceScopeSystemPrompt("companion"),"Be warm, supportive, respectful and concise.","Do not claim to be human or a real-world person.","Respect the user's boundaries and do not pressure them.","Personality: "+personality,memory?"Conversation memory:\n"+memory:""].filter(Boolean).join("\n")});
     if(settings.saveHistory!==false){
       await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"user",text:m,createdAt:new Date()});
-      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:z.modelId||null});
+      await firestoreCreate("companionMessages/"+crypto.randomUUID(),{uid:user.uid,role:"assistant",text:z.text||"",createdAt:new Date(),providerId:z.providerId||null,modelId:"gpt-6-luna",assistantName:"ChatGPT 6 Luna"});
     }
     await commit(user.uid,r.reservationId,z.providerId||"companion");
-    return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0};
+    return {ok:true,text:z.text||"",answer:z.text||"",creditsCharged:r.amount||0,cached:false,modelId:"gpt-6-luna",assistantName:"ChatGPT 6 Luna"};
   }catch(e){await reverse(user.uid,r.reservationId);throw e}
 }
 export async function companionCheckins(uid){const a=await firestoreQuery("companionCheckins",{filters:[{field:{fieldPath:"uid"},op:"EQUAL",value:{stringValue:uid}}],limit:60});a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));return {ok:true,items:a.map(x=>({id:String(x.__name||"").split("/").pop(),...x}))}}
