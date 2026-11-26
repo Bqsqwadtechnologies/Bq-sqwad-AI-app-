@@ -743,7 +743,7 @@ fun CompleteLearningStudioWorkspace(
 
                     // Markdown rendering for math, headings, bullets, code
                     MarkdownText(
-                        markdown = lessonContent,
+                        text = lessonContent,
                         modifier = Modifier.fillMaxWidth()
                     )
 
