@@ -1036,6 +1036,7 @@ class WorkspaceApiClient {
     suspend fun companionProfile(): JSONObject = request("/companion/profile", "GET")
     suspend fun saveCompanionProfile(profile: JSONObject): JSONObject = request("/companion/profile", "PUT", profile)
     suspend fun companionHistory(): JSONObject = request("/companion/history", "GET")
+    suspend fun clearCompanionHistory(): JSONObject = request("/companion/history", "DELETE")
     suspend fun companionChat(message: String, personality: String? = null): JSONObject =
         request("/companion/chat", payload=JSONObject().apply {
             put("message", message.take(12000))

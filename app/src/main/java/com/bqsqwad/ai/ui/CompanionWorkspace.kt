@@ -7,34 +7,56 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.bqsqwad.ai.core.WorkspaceApiClient
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-private data class CompanionMessage(val fromUser: Boolean, val text: String)
+private data class CompanionMessage(
+    val fromUser: Boolean,
+    val text: String,
+    val isCached: Boolean = false,
+    val assistantName: String = "ChatGPT 6 Luna",
+    val timestamp: String = ""
+)
+
 private data class CompanionPlan(
     val id: String,
     val name: String,
@@ -48,6 +70,8 @@ private data class CompanionPlan(
 fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Chat, 1: Tool Guide, 2: Plans & Storage
     var personality by remember { mutableStateOf("Caring") }
     var mode by remember { mutableStateOf("Chat") }
     var input by remember { mutableStateOf("") }
@@ -62,15 +86,33 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
     var saveHistory by remember { mutableStateOf(true) }
     var notifications by remember { mutableStateOf(true) }
     var safeMode by remember { mutableStateOf(true) }
+    var isExpiring by remember { mutableStateOf(false) }
     var currentPlan by remember { mutableStateOf<CompanionPlan?>(null) }
     var catalogPlans by remember { mutableStateOf<List<CompanionPlan>>(emptyList()) }
+    var isRedirectedNoPlan by remember { mutableStateOf(false) }
+    var cloudSyncStatus by remember { mutableStateOf("Synced with BQ SQWAD AI Cloud") }
+
     val messages = remember { mutableStateListOf<CompanionMessage>() }
+
+    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "companion-pulse")
+    val blinkingAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "blinking-alpha"
+    )
+
     val dictationResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty().trim()
             if (spoken.isNotBlank()) {
                 input = if (input.isBlank()) spoken else input.trimEnd() + " " + spoken
-                notice = "Voice dictation added to your message. Review it before sending."
+                notice = "Voice dictation added. Ready to send to ChatGPT 6 Luna."
             }
         }
     }
@@ -78,49 +120,29 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         if (granted) {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to your AI Companion")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to ChatGPT 6 Luna")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             }
             runCatching { dictationResultLauncher.launch(intent) }
                 .onFailure { notice = "Voice dictation is not available on this device right now." }
         } else {
-            notice = "Microphone permission is needed for voice-to-text. You can still type your message."
+            notice = "Microphone permission is needed for speech dictation."
         }
     }
 
-    fun hasPlan(vararg ids: String): Boolean = currentPlan?.id?.let { it in ids } == true
-    val memoryUnlocked = accessLoadedSuccessfully && (adminTestMode || hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate"))
-    // Live Voice and Live Camera are credit-metered, never Companion-plan gated.
-    val voiceUnlocked = true
-    val cameraUnlocked = true
+    fun hasPlan(vararg ids: String): Boolean = currentPlan?.id?.let { planId ->
+        ids.any { planId.equals(it, ignoreCase = true) }
+    } == true
 
-    fun selectMode(next: String) {
-        val unlocked = when (next) {
-            "Voice" -> voiceUnlocked
-            "Camera" -> cameraUnlocked
-            "Memory" -> memoryUnlocked
-            else -> true
-        }
-        if (unlocked) {
-            mode = next
-            notice = null
-        } else {
-            notice = when (next) {
-                "Memory" -> "Companion Memory requires Companion Basic or higher."
-                else -> "This Companion feature requires an eligible plan."
-            }
-        }
-    }
+    val isFreePlan = currentPlan?.id == "companionfree" || currentPlan?.id == "companion_free"
+    val memoryUnlocked = accessLoadedSuccessfully && (adminTestMode || hasPlan("companionbasic", "companionplus", "companionpremium", "companionultimate", "companion_basic", "companion_plus", "companion_premium", "companion_ultimate"))
 
     LaunchedEffect(accessRefresh) {
         loadingAccess = true
         accessLoadedSuccessfully = false
         val api = WorkspaceApiClient()
 
-        // Only the catalog and canonical entitlement snapshot are required to
-        // decide which exact Companion subscription is active. Settings,
-        // profile, history and memory are deliberately kept off this critical path.
         val coreData = withTimeoutOrNull(8_000L) {
             coroutineScope {
                 val catalogRequest = async { api.companionCatalog() }
@@ -130,8 +152,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
         }
         if (coreData == null) {
             accessLoadedSuccessfully = false
-            notice = "Your plan could not be refreshed quickly. Check your connection and retry."
-            currentPlan = null
+            notice = "Plan status could not be refreshed quickly. Tap Retry to reconnect."
             loadingAccess = false
             return@LaunchedEffect
         }
@@ -149,38 +170,38 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 val module = item.optString("module").lowercase()
                 val state = item.optString("state").lowercase()
                 (module == "companion" || planId.startsWith("companion")) &&
-                    state in setOf("active", "grace", "trialing")
+                        state in setOf("active", "grace", "trialing")
             }
             .maxByOrNull { item ->
                 item.optString("updatedAt").ifBlank { item.optString("startDate") }
             }
 
-        // A verified account-level admin test grant takes precedence. Otherwise
-        // display the exact active Companion plan from the shared entitlement ledger.
         val activePlanId = when {
             adminTestMode -> "companionultimate"
             activeEntitlement != null -> activeEntitlement.optString("planId").lowercase()
             else -> "companionfree"
         }
-        currentPlan = plans.firstOrNull { it.id.equals(activePlanId, ignoreCase = true) }
+
+        isRedirectedNoPlan = (activeEntitlement == null && !adminTestMode && catalogPlans.none { it.id == "companionfree" })
+        currentPlan = plans.firstOrNull { it.id.equals(activePlanId, ignoreCase = true) } ?: plans.firstOrNull { it.id == "companionfree" }
+
+        // Expiring condition: trialing with <= 2 days or grace state
+        val state = activeEntitlement?.optString("state")?.lowercase()
+        val trialDays = currentPlan?.trialDays ?: 0
+        isExpiring = state == "grace" || (state == "trialing" && trialDays <= 2)
+
         val memoryPlanEligible = adminTestMode ||
-            (currentPlan?.id?.lowercase()?.let {
-                it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate")
-            } == true)
+                (currentPlan?.id?.lowercase()?.let {
+                    it in setOf("companionbasic", "companionplus", "companionpremium", "companionultimate")
+                } == true)
 
         accessLoadedSuccessfully = currentPlan != null
         loadingAccess = false
 
-        // Ancillary data loads after the plan decision, so a slow history or
-        // settings request can no longer hold the workspace behind "Checking plan…".
         scope.launch {
             coroutineScope {
-                val settingsTask = async {
-                    withTimeoutOrNull(5_000L) { api.companionSettings() }
-                }
-                val profileTask = async {
-                    withTimeoutOrNull(5_000L) { api.companionProfile() }
-                }
+                val settingsTask = async { withTimeoutOrNull(5_000L) { api.companionSettings() } }
+                val profileTask = async { withTimeoutOrNull(5_000L) { api.companionProfile() } }
                 val historyTask = if (currentPlan?.id != "companionfree" && currentPlan != null) async {
                     withTimeoutOrNull(6_000L) { api.companionHistory() }
                 } else null
@@ -197,7 +218,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 profileTask.await()?.let { response ->
                     val profile = response.optJSONObject("profile") ?: JSONObject()
                     personality = profile.optString("personality")
-                        .takeIf { it in setOf("Caring", "Encouraging", "Calm") } ?: "Caring"
+                        .takeIf { it in setOf("Caring", "Encouraging", "Calm", "Motivational", "Professional") } ?: "Caring"
                 }
                 if (saveHistory) {
                     historyTask?.await()?.let { response ->
@@ -205,7 +226,14 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                         messages.clear()
                         for (index in saved.length() - 1 downTo 0) {
                             val item = saved.optJSONObject(index) ?: continue
-                            messages.add(CompanionMessage(item.optString("role") == "user", item.optString("text")))
+                            messages.add(
+                                CompanionMessage(
+                                    fromUser = item.optString("role") == "user",
+                                    text = item.optString("text"),
+                                    isCached = item.optBoolean("cached", false),
+                                    assistantName = item.optString("assistantName").ifBlank { "ChatGPT 6 Luna" }
+                                )
+                            )
                         }
                     }
                 }
@@ -214,6 +242,7 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 } ?: run {
                     if (!memoryPlanEligible) memoryEnabled = false
                 }
+                cloudSyncStatus = "Cloud Sync Active • Synchronized with Web"
             }
         }
     }
@@ -225,346 +254,928 @@ fun CompanionWorkspace(onOpenPlans: () -> Unit = {}, onOpenCredits: () -> Unit =
                 api.saveCompanionSettings(JSONObject()
                     .put("notifications", notifications)
                     .put("saveHistory", saveHistory)
-                    .put("safeMode", safeMode)
-                    .put("voiceName", "Aurora")
-                    .put("avatarStyle", "Natural"))
+                    .put("safeMode", safeMode))
                 api.saveCompanionProfile(JSONObject().put("personality", personality))
-            }.onSuccess { notice = "Companion settings saved." }
-                .onFailure { notice = safeUserFacingIssue(it, "Companion settings could not be saved.") }
+            }.onSuccess { notice = "Settings and personality updated successfully." }
+                .onFailure { notice = safeUserFacingIssue(it, "Settings could not be saved.") }
+        }
+    }
+
+    fun updatePersonality(newPersonality: String) {
+        personality = newPersonality
+        scope.launch {
+            runCatching {
+                WorkspaceApiClient().saveCompanionProfile(JSONObject().put("personality", newPersonality))
+            }.onSuccess {
+                notice = "ChatGPT 6 Luna tone tuned to '$newPersonality'."
+            }.onFailure {
+                notice = safeUserFacingIssue(it, "Could not update personality tone.")
+            }
+        }
+    }
+
+    fun sendMessageText(textToSend: String) {
+        val trimmed = textToSend.trim()
+        if (trimmed.isBlank() || busy) return
+        input = ""
+        val timeNow = timeFormatter.format(Date())
+        messages.add(CompanionMessage(fromUser = true, text = trimmed, timestamp = timeNow))
+        busy = true
+        notice = null
+
+        scope.launch {
+            runCatching {
+                WorkspaceApiClient().companionChat(trimmed, personality)
+            }.onSuccess { reply ->
+                val answer = reply.optString("text").ifBlank { reply.optString("answer") }
+                val isCached = reply.optBoolean("cached", false)
+                val assistantName = reply.optString("assistantName").ifBlank { "ChatGPT 6 Luna" }
+                if (answer.isNotBlank()) {
+                    messages.add(
+                        CompanionMessage(
+                            fromUser = false,
+                            text = answer,
+                            isCached = isCached,
+                            assistantName = assistantName,
+                            timestamp = timeFormatter.format(Date())
+                        )
+                    )
+                }
+            }.onFailure {
+                notice = safeUserFacingIssue(it, "ChatGPT 6 Luna response failed. Please retry.")
+            }
+            busy = false
         }
     }
 
     if (loadingAccess) {
-        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-            BqSqwadLoadingIndicator(Modifier.size(48.dp))
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                BqSqwadLoadingIndicator(Modifier.size(44.dp))
+                Text("Initializing ChatGPT 6 Luna…", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        return
+    }
+
+    // No Active Plan Redirection
+    if (isRedirectedNoPlan) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BqLogo(56.dp)
+                    Text(
+                        "Welcome to BQ SQWAD AI Companion",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "An active Companion Plan or Free Mode is required to connect with ChatGPT 6 Luna.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onOpenPlans,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.ShoppingCart, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("View Plan Catalog & Subscribe")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            isRedirectedNoPlan = false
+                            currentPlan = catalogPlans.firstOrNull { it.id == "companionfree" }
+                                ?: CompanionPlan("companionfree", "Companion Free", mapOf("Free" to "₦0"), listOf("Caring text conversation", "ChatGPT 6 Luna"), 0, false)
+                            notice = "Switched to Free Mode. Luna is ready."
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Start with Free Mode")
+                    }
+                }
+            }
         }
         return
     }
 
     Column(
-        Modifier.fillMaxSize().imePadding(),
+        Modifier
+            .fillMaxSize()
+            .imePadding(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Top Executive Header
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = when (currentPlan?.id) {
-                "companionfree" -> MaterialTheme.colorScheme.primaryContainer
-                "companionbasic" -> MaterialTheme.colorScheme.secondaryContainer
-                "companionplus" -> MaterialTheme.colorScheme.tertiaryContainer
-                "companionpremium" -> MaterialTheme.colorScheme.surfaceContainerHigh
-                "companionultimate" -> MaterialTheme.colorScheme.surfaceContainerHighest
-                else -> MaterialTheme.colorScheme.secondaryContainer
-            }
+            shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+            tonalElevation = 2.dp,
+            color = MaterialTheme.colorScheme.surface
         ) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                CompanionFloatingWords(Modifier.fillMaxWidth().height(38.dp))
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    BqLogo(42.dp)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("AI Companion", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                        Text(
-                            when (personality) {
-                                "Motivational" -> "Positive momentum, goals and gentle encouragement"
-                                "Professional" -> "Clear, organised and practical personal assistance"
-                                "Creative" -> "Ideas, reflection and creative exploration"
-                                "Calm" -> "A quieter space for reflection and thoughtful conversation"
-                                else -> "A personal space for thoughtful, supportive conversation"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                    IconButton(onClick = { settingsOpen = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Companion settings")
-                    }
-                }
-
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(currentPlan?.name ?: if (loadingAccess) "Checking plan…" else "Could not check plan", fontWeight = FontWeight.Bold)
-                        currentPlan?.price?.entries?.joinToString(" • ") { (period, value) ->
-                            period.replaceFirstChar { it.uppercase() } + ": " + value
-                        }?.takeIf { it.isNotBlank() }?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall)
-                        }
-                        if (currentPlan?.trialEligible == true && (currentPlan?.trialDays ?: 0) > 0) {
-                            Text(currentPlan?.trialDays.toString() + "-day free trial", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    if (adminTestMode) {
-                BqStatusBadge("ROOT ADMIN TEST MODE • ALL COMPANION FEATURES")
-            }
-            if (currentPlan == null && !loadingAccess) {
-                        TextButton(onClick = { accessRefresh++ }) { Text("Retry") }
-                    } else if (currentPlan?.id != "companionultimate") {
-                        OutlinedButton(onClick = onOpenPlans) { Text("Upgrade") }
-                    }
-                }
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    FilterChip(selected = mode == "Chat", onClick = { selectMode("Chat") }, label = { Text("Chat", maxLines = 1, softWrap = false) })
-                    FilterChip(selected = mode == "Voice", onClick = { selectMode("Voice") }, label = { Text("Voice", maxLines = 1, softWrap = false) })
-                    FilterChip(selected = mode == "Camera", onClick = { selectMode("Camera") }, label = { Text("Camera", maxLines = 1, softWrap = false) })
-                    FilterChip(selected = mode == "Memory", onClick = { selectMode("Memory") }, label = { Text(if (memoryUnlocked) "Memory" else "🔒 Memory", maxLines = 1, softWrap = false) })
-                }
-            }
-        }
-
-        Text("Companion plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(catalogPlans, key = { it.id }) { plan ->
-                val isCurrent = currentPlan?.id == plan.id
-                Card(
-                    modifier = Modifier.width(236.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    border = if (isCurrent) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text(plan.name, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                            if (adminTestMode) BqStatusBadge("ADMIN TEST") else if (isCurrent) BqStatusBadge("CURRENT")
-                        }
-                        Text("Plan ID: " + plan.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            plan.price.entries.joinToString(" • ") { (period, value) -> period.replaceFirstChar { it.uppercase() } + ": " + value }.ifBlank { if (plan.id == "companionfree") "Free" else "See Plans & Billing" },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        plan.features.take(4).forEach { feature -> Text("• " + feature, style = MaterialTheme.typography.bodySmall) }
-                        if (plan.features.size > 4) Text("+" + (plan.features.size - 4) + " more features", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (plan.trialEligible && plan.trialDays > 0) Text(plan.trialDays.toString() + "-day trial eligible", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        if (!isCurrent && !adminTestMode) {
-                            OutlinedButton(onClick = onOpenPlans, modifier = Modifier.fillMaxWidth()) { Text("View plan") }
-                        }
-                    }
-                }
-            }
-        }
-
-        when (mode) {
-            "Voice" -> {
-                VoiceWorkspace(onOpenCredits = onOpenCredits)
-                return@Column
-            }
-            "Camera" -> {
-                CameraWorkspace(onOpenCredits = onOpenCredits)
-                return@Column
-            }
-            "Memory" -> {
-                SurfaceCard("Memory controls", "Memory is account-scoped and remains under your control.")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Companion memory", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (memoryEnabled) "Enabled — you control it" else "Disabled",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = memoryEnabled,
-                        onCheckedChange = { enabled ->
-                            memoryEnabled = enabled
-                            scope.launch {
-                                runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(enabled) }
-                                    .onFailure { notice = safeUserFacingIssue(it, "Memory setting could not be saved.") }
-                            }
-                        }
-                    )
-                }
-                DeviceIntelligencePanel("AI Companion")
-                return@Column
-            }
-        }
-
-        if (settingsOpen) {
-            ModalBottomSheet(onDismissRequest = { settingsOpen = false }) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Companion settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Notifications", modifier = Modifier.weight(1f)); Switch(checked = notifications, onCheckedChange = { notifications = it })
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Save conversation history", modifier = Modifier.weight(1f)); Switch(checked = saveHistory, onCheckedChange = { saveHistory = it })
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Safety mode", modifier = Modifier.weight(1f)); Switch(checked = safeMode, onCheckedChange = { safeMode = it })
-                    }
-                    Button(onClick = { saveSettings(); settingsOpen = false }, modifier = Modifier.fillMaxWidth()) { Text("Save settings") }
-                    Spacer(Modifier.height(18.dp))
-                }
-            }
-        }
-
-        Text("Personality", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("Caring", "Encouraging", "Calm").forEach { value ->
-                FilterChip(selected = personality == value, onClick = { personality = value }, label = { Text(value, maxLines = 1, softWrap = false) })
-            }
-        }
-
-        SurfaceCard(
-            "Memory",
-            if (memoryUnlocked) {
-                                    if (memoryEnabled) "Enabled — your companion can use permitted account memory." else "Disabled — you control it."
-                                } else {
-                                    "Locked until Companion Basic or higher. View plans to unlock memory."
-                                }
-        )
-
-        notice?.let {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
-                Text(it, Modifier.padding(10.dp), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (messages.isEmpty()) {
-                item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 1.dp
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(
-                            Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                        BqLogo(38.dp)
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    "AI Companion",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        "ChatGPT 6 Luna",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
                             Text(
-                                "Your space to think things through",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Start a conversation or choose a prompt. You stay in control of memory and settings.",
+                                "Personal guidance, caring check-ins & memory",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Row(
-                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        IconButton(onClick = { settingsOpen = true }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Companion settings")
+                        }
+                    }
+                }
+
+                // Plan Status Banner with Glowing/Blinking Upgrade Button when Expiring or Free
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    currentPlan?.name ?: "Companion Plan",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                if (adminTestMode) {
+                                    BqStatusBadge("ADMIN TEST")
+                                } else if (isFreePlan) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = MaterialTheme.colorScheme.tertiaryContainer
+                                    ) {
+                                        Text(
+                                            "Free Mode Active",
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                if (isFreePlan) "Standard Luna chat · Upgrade to unlock full memory"
+                                else "Memory & cloud history synchronized across app & web",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Blinking/pulsing upgrade button when expiring or on free tier
+                        if (isExpiring || isFreePlan) {
+                            Button(
+                                onClick = onOpenPlans,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isExpiring) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .alpha(if (isExpiring) blinkingAlpha else 1f)
                             ) {
-                                listOf(
-                                    "Help me plan my day",
-                                    "Help me set a goal",
-                                    "I want to learn something"
-                                ).forEach { prompt ->
-                                    AssistChip(
-                                        onClick = { input = prompt },
-                                        label = { Text(prompt, maxLines = 1, softWrap = false) }
+                                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(if (isExpiring) "Expiring • Upgrade" else "Upgrade")
+                            }
+                        } else if (currentPlan?.id != "companionultimate") {
+                            OutlinedButton(
+                                onClick = onOpenPlans,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text("Manage")
+                            }
+                        }
+                    }
+                }
+
+                // Interactive Navigation Tabs
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("Conversation", fontWeight = FontWeight.SemiBold) },
+                        icon = { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("Tool Guide", fontWeight = FontWeight.SemiBold) },
+                        icon = { Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("Plans & Sync", fontWeight = FontWeight.SemiBold) },
+                        icon = { Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                }
+            }
+        }
+
+        // Notification banner
+        notice?.let { msg ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        msg,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    IconButton(onClick = { notice = null }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+
+        when (selectedTab) {
+            0 -> { // TAB 0: CONVERSATION
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Personality Quick Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Tone:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional").forEach { p ->
+                            FilterChip(
+                                selected = personality == p,
+                                onClick = { updatePersonality(p) },
+                                label = { Text(p, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    // Message list
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (messages.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Icon(Icons.Default.Spa, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            Text(
+                                                "Welcome to your personal space",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            "ChatGPT 6 Luna is ready to listen, reflect and support your day. Responses are cached to protect tokens, and full memory is available on eligible plans.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text("Quick questions to start:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            listOf(
+                                                "How can I decompress tonight?",
+                                                "Help me plan a productive morning",
+                                                "Give me a positive perspective on today",
+                                                "Help me reflect on a difficult goal"
+                                            ).forEach { prompt ->
+                                                SuggestionChip(
+                                                    onClick = { sendMessageText(prompt) },
+                                                    label = { Text(prompt, maxLines = 1) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        items(messages) { msg ->
+                            val isUser = msg.fromUser
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+                            ) {
+                                if (!isUser) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                                    ) {
+                                        Text(
+                                            msg.assistantName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        if (msg.isCached) {
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    "⚡ Instant Cache · 0 Credits",
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontSize = 9.sp,
+                                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                                )
+                                            }
+                                        }
+                                        if (msg.timestamp.isNotBlank()) {
+                                            Text(msg.timestamp, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, fontSize = 10.sp)
+                                        }
+                                    }
+                                }
+
+                                Surface(
+                                    color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 16.dp,
+                                        bottomStart = if (isUser) 16.dp else 4.dp,
+                                        bottomEnd = if (isUser) 4.dp else 16.dp
+                                    ),
+                                    modifier = Modifier.widthIn(max = 320.dp)
+                                ) {
+                                    Text(
+                                        msg.text,
+                                        modifier = Modifier.padding(12.dp),
+                                        color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
                             }
                         }
                     }
-                }
-            }
-            items(messages) { message ->
-                Surface(
-                    color = if (message.fromUser) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(message.text, Modifier.padding(12.dp))
-                }
-            }
-        }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it; notice = null },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Talk to your companion…") },
-                maxLines = 4
-            )
-            OutlinedButton(
-                enabled = !busy,
-                onClick = {
-                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to your AI Companion")
-                        }
-                        runCatching { dictationResultLauncher.launch(intent) }
-                            .onFailure { notice = "Voice dictation is not available on this device right now." }
-                    } else {
-                        dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                modifier = Modifier.height(56.dp)
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("Voice to text")
-            }
-            Button(
-                enabled = !busy && input.isNotBlank(),
-                onClick = {
-                    val text = input.trim()
-                    input = ""
-                    messages.add(CompanionMessage(true, text))
-                    busy = true
-                    notice = null
-                    scope.launch {
-                        runCatching {
-                            WorkspaceApiClient().companionChat(text, personality)
-                        }.onSuccess { reply ->
-                            val answer = reply.optString("text").ifBlank { reply.optString("answer") }
-                            if (answer.isNotBlank()) {
-                                messages.add(CompanionMessage(false, answer))
-                                // The service independently checks explicit account consent before storing anything.
-                                scope.launch {
-                                    runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
+                    // Input & Action controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = input,
+                            onValueChange = { input = it; notice = null },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Talk to ChatGPT 6 Luna…") },
+                            maxLines = 4,
+                            shape = RoundedCornerShape(20.dp)
+                        )
+
+                        IconButton(
+                            onClick = {
+                                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to ChatGPT 6 Luna")
+                                    }
+                                    runCatching { dictationResultLauncher.launch(intent) }
+                                        .onFailure { notice = "Voice dictation is unavailable on this device." }
+                                } else {
+                                    dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 }
-                                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    runCatching { WorkspaceApiClient().submitTrainingContribution(text, answer, "companion", false) }
+                            },
+                            enabled = !busy
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = "Voice dictation", tint = MaterialTheme.colorScheme.primary)
+                        }
+
+                        Button(
+                            onClick = { sendMessageText(input) },
+                            enabled = !busy && input.isNotBlank(),
+                            shape = CircleShape,
+                            modifier = Modifier.size(48.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            if (busy) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                            } else {
+                                Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            1 -> { // TAB 1: TOOL GUIDE DASHBOARD
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(
+                            "AI Companion Tool Guide",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Explore and control the core tools of your companion system. Every button is fully functional and synchronized with your account.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // TOOL 1: ChatGPT 6 Luna Engine
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Text("Tool 1: ChatGPT 6 Luna Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    "Dedicated conversational model configured with emotional intelligence, boundary safety, and token-saving smart caching.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            selectedTab = 0
+                                            sendMessageText("Hello Luna, can you introduce your role as my AI companion?")
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Ask Luna Introduction")
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                runCatching { WorkspaceApiClient().clearCompanionHistory() }
+                                                    .onSuccess {
+                                                        messages.clear()
+                                                        notice = "Conversation history cleared from cloud storage."
+                                                    }
+                                                    .onFailure {
+                                                        notice = safeUserFacingIssue(it, "Could not clear history.")
+                                                    }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Clear History")
+                                    }
                                 }
                             }
-                        }.onFailure { notice = safeUserFacingIssue(it, "Companion response failed.") }
-                        busy = false
+                        }
                     }
+
+                    // TOOL 2: Daily Caring Check-in
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                    Text("Tool 2: Daily Reflection & Check-in", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    "Generate tailored daily mindfulness check-ins. Prompts help process emotions, calibrate routines, and reduce anxiety.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            selectedTab = 0
+                                            busy = true
+                                            scope.launch {
+                                                runCatching {
+                                                    WorkspaceApiClient().companionCheckin("Please provide a caring daily reflection prompt for today.", personality)
+                                                }.onSuccess {
+                                                    val checkinText = it.optString("text")
+                                                    messages.add(CompanionMessage(fromUser = false, text = checkinText, assistantName = "ChatGPT 6 Luna (Daily Check-in)"))
+                                                    notice = "Daily check-in received."
+                                                }.onFailure {
+                                                    notice = safeUserFacingIssue(it, "Check-in failed.")
+                                                }
+                                                busy = false
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Run Daily Check-in")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TOOL 3: Memory Vault & Context
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                                    Text("Tool 3: Memory Vault & Continuity", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    if (memoryUnlocked) "Companion Memory is active. Luna retains context you share to provide continuity across sessions."
+                                    else "Memory is locked on the Free tier. Upgrade to Companion Basic or higher to enable conversation memory.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (memoryUnlocked) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(if (memoryEnabled) "Memory Active" else "Memory Disabled", fontWeight = FontWeight.SemiBold)
+                                        Switch(
+                                            checked = memoryEnabled,
+                                            onCheckedChange = { en ->
+                                                memoryEnabled = en
+                                                scope.launch {
+                                                    runCatching { WorkspaceApiClient().setCompanionMemoryEnabled(en) }
+                                                        .onSuccess { notice = "Memory setting updated." }
+                                                        .onFailure { notice = safeUserFacingIssue(it, "Failed to update memory setting.") }
+                                                }
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    Button(onClick = onOpenPlans, shape = RoundedCornerShape(10.dp)) {
+                                        Text("Unlock Memory (View Plans)")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TOOL 4: Personality & Emotional Tone
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Text("Tool 4: Personality & Tone Tuning", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    "Switch Luna's response style. Settings immediately sync to your cloud profile.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("Caring", "Encouraging", "Calm", "Motivational", "Professional").forEach { p ->
+                                        FilterChip(
+                                            selected = personality == p,
+                                            onClick = { updatePersonality(p) },
+                                            label = { Text(p) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TOOL 5: Voice & Speech Engine
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                                    Text("Tool 5: Voice & Speech Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    "Speak directly with voice dictation or live voice streaming sessions.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = {
+                                            selectedTab = 0
+                                            dictationPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Dictate Message")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // TOOL 6: Token-Saving Smart Cache
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Text("Tool 6: Token-Saving Smart Cache", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text(
+                                    "Repeated questions and common inquiries are automatically retrieved from the high-speed local and cloud cache. This avoids burning unnecessary tokens with ChatGPT 6 Luna while delivering instant answers.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Text("Cache Engine: Active · Zero credit billing on repeat queries", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(16.dp)) }
                 }
-            ) { Text(if (busy) "…" else "Send") }
+            }
+
+            2 -> { // TAB 2: PLANS & SYNCHRONIZATION
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Text(
+                            "Companion Plans & Cloud Sync",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Each plan is synchronized between the mobile app and website repository. Storage buckets store conversation history and media seamlessly.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Synchronization Status", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                                Text(cloudSyncStatus, style = MaterialTheme.typography.bodySmall)
+                                Text("Storage Bucket: bqsqwadai.appspot.com (Firestore / Cloud Storage)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                Button(
+                                    onClick = { accessRefresh++ },
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Force Cloud Refresh")
+                                }
+                            }
+                        }
+                    }
+
+                    // Render plans
+                    items(catalogPlans, key = { it.id }) { plan ->
+                        val isCurrent = currentPlan?.id == plan.id
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            border = if (isCurrent) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isCurrent) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(plan.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    if (isCurrent) {
+                                        BqStatusBadge("ACTIVE")
+                                    }
+                                }
+
+                                val priceDisplay = plan.price.entries.joinToString(" • ") { (k, v) -> "$k: $v" }
+                                    .ifBlank { if (plan.id == "companionfree") "Free Mode" else "View in Billing" }
+                                Text(priceDisplay, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+
+                                plan.features.forEach { feat ->
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text(feat, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+
+                                if (!isCurrent) {
+                                    Button(
+                                        onClick = onOpenPlans,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Subscribe to ${plan.name}")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            }
         }
 
-        OutlinedButton(
-            enabled = !busy,
-            onClick = {
-                val prompt = "Give me a brief, caring daily check-in prompt for today."
-                busy = true
-                scope.launch {
-                    runCatching {
-                        WorkspaceApiClient().companionCheckin(prompt, personality)
-                    }.onSuccess { messages.add(CompanionMessage(false, it.optString("text"))) }
-                        .onFailure { notice = safeUserFacingIssue(it, "Check-in failed.") }
-                    busy = false
+        // Settings Bottom Sheet
+        if (settingsOpen) {
+            ModalBottomSheet(onDismissRequest = { settingsOpen = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text("Companion Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Notifications & Check-in Reminders", modifier = Modifier.weight(1f))
+                        Switch(checked = notifications, onCheckedChange = { notifications = it })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Sync Conversation History", modifier = Modifier.weight(1f))
+                        Switch(checked = saveHistory, onCheckedChange = { saveHistory = it })
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Safety & Boundary Enforcement", modifier = Modifier.weight(1f))
+                        Switch(checked = safeMode, onCheckedChange = { safeMode = it })
+                    }
+
+                    Button(
+                        onClick = {
+                            saveSettings()
+                            settingsOpen = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save & Close")
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Daily check-in") }
+            }
+        }
     }
 }
-
 
 private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
     val array = body.optJSONArray("plans") ?: JSONArray()
@@ -577,12 +1188,12 @@ private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
             val key = keys.next()
             val raw = priceObject.opt(key).toString()
             price[key] = if (raw.contains("₦")) raw else raw.toDoubleOrNull()?.let {
-                String.format(java.util.Locale.US, "₦%,.2f", it)
+                String.format(Locale.US, "₦%,.2f", it)
             } ?: raw
         }
         if (price.isEmpty()) {
             if (p.optBoolean("free", false) || p.optString("id") == "companionfree") price["Plan"] = "Free"
-            else price["Price"] = "View localized price in Plans & Credits"
+            else price["Price"] = "View in Plans & Credits"
         }
         val featuresArray = p.optJSONArray("features") ?: JSONArray()
         CompanionPlan(
@@ -594,55 +1205,4 @@ private fun parseCompanionPlans(body: JSONObject): List<CompanionPlan> {
             trialEligible = p.optBoolean("trialEligible", false)
         )
     }.filter { it.id.startsWith("companion") && it.id.isNotBlank() }
-}
-
-
-@Composable
-private fun CompanionFloatingWords(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        runCatching {
-            android.provider.Settings.Global.getFloat(
-                context.contentResolver,
-                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
-                1f
-            ) <= 0f
-        }.getOrDefault(false)
-    }
-    val transition = rememberInfiniteTransition(label = "companion-floating-words")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Restart),
-        label = "word-drift"
-    )
-    val words = remember {
-        listOf(
-            Triple("Care", .05f, .25f), Triple("Calm", .27f, .72f),
-            Triple("Hope", .48f, .40f), Triple("Joy", .68f, .82f),
-            Triple("Courage", .84f, .24f), Triple("Friend", .15f, .86f),
-            Triple("Trust", .38f, .18f), Triple("Growth", .58f, .66f),
-            Triple("Peace", .77f, .54f), Triple("Together", .92f, .90f),
-            Triple("Listen", .32f, .92f), Triple("Believe", .63f, .12f)
-        )
-    }
-    val paint = remember {
-        android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-        }
-    }
-    Canvas(modifier) {
-        val canvas = drawContext.canvas.nativeCanvas
-        val saveCount = canvas.save()
-        canvas.clipRect(0f, 0f, size.width, size.height)
-        words.forEachIndexed { index, word ->
-            paint.textSize = (10 + index % 4 * 2) * density
-            paint.color = if (index % 2 == 0) android.graphics.Color.rgb(70, 155, 245) else android.graphics.Color.rgb(73, 190, 183)
-            paint.alpha = if (reduceMotion) 58 else (36 + ((kotlin.math.sin(((phase * 6.28318f) + index).toDouble()).toFloat() + 1f) * 20f).toInt()).coerceIn(25, 78)
-            val yBase = word.third * size.height
-            val y = if (reduceMotion) yBase else (yBase - phase * size.height + size.height * 2f) % size.height
-            canvas.drawText(word.first, word.second * size.width, y, paint)
-        }
-        canvas.restoreToCount(saveCount)
-    }
 }
