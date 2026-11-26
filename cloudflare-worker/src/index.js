@@ -2706,9 +2706,10 @@ async function ai(request, user, body) {
       frontier_lab: { module: "frontier", ids: new Set(["frontierexplorer", "frontierpro", "frontierenterprise"]) },
       learning_studio: { module: "learning", ids: new Set(["explorer", "learnscholar", "learnfamily", "learnschool"]) }
     }[capabilityName];
-    const [rootEntitlement, planRows] = await Promise.all([
+    const [rootEntitlement, planRows, learningSubDoc] = await Promise.all([
       firestoreGet("entitlements/" + user.uid).catch(() => null),
-      firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }).catch(() => [])
+      firestoreQuery("plans", { parent: "entitlements/" + user.uid, limit: 100 }).catch(() => []),
+      capabilityName === "learning_studio" ? firestoreGet("learningSubs/" + user.uid).catch(() => null) : Promise.resolve(null)
     ]);
     const now = Date.now();
     const isCurrentPlan = item => {
@@ -2727,9 +2728,19 @@ async function ai(request, user, body) {
     const rootPlanId = String(rootEntitlement?.planId || "").trim().toLowerCase();
     const rootModule = String(rootEntitlement?.module || "").trim().toLowerCase();
     const rootMatches = planScope.ids.has(rootPlanId) && (!rootModule || rootModule === planScope.module) && isCurrentPlan({ ...rootEntitlement, planId: rootPlanId });
-    const entitlementPlan = matchingPlans[0]
+    let entitlementPlan = matchingPlans[0]
       ? String(matchingPlans[0].planId || matchingPlans[0].id).trim().toLowerCase()
       : (rootMatches ? rootPlanId : "");
+    if (!entitlementPlan && capabilityName === "learning_studio" && learningSubDoc) {
+      const lState = String(learningSubDoc.status || learningSubDoc.state || "").toLowerCase();
+      const lExp = learningSubDoc.expiresAt ? Date.parse(String(learningSubDoc.expiresAt)) : NaN;
+      const lNotExp = !learningSubDoc.expiresAt || (Number.isFinite(lExp) && lExp > now);
+      const rawSub = String(learningSubDoc.planId || learningSubDoc.id || "").trim().toLowerCase();
+      const mapped = rawSub === "scholar" ? "learnscholar" : rawSub === "academy" || rawSub === "family" ? "learnfamily" : rawSub === "school" || rawSub === "tutor" ? "learnschool" : rawSub;
+      if (["active", "trialing", "grace"].includes(lState) && lNotExp && planScope.ids.has(mapped)) {
+        entitlementPlan = mapped;
+      }
+    }
     if (capabilityName === "life_matters") {
       const planId = planScope.ids.has(entitlementPlan) ? entitlementPlan : "lifemathisfree";
       const monthlyLimit = planId === "lifemathisfree" ? 10 : planId === "lmstandard" ? 300 : Infinity;
