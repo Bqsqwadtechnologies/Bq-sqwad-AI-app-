@@ -132,7 +132,7 @@ async function requireActiveMember(user, teamId, minRole = "viewer") {
     err.httpStatus = 403;
     throw err;
   }
-  const rank = { viewer: 1, member: 2, moderator: 2.5, admin: 3, owner: 4 };
+  const rank = { viewer: 1, member: 2, admin: 3, owner: 4 };
   if ((rank[member.role] || 0) < (rank[minRole] || 0)) {
     const err = new Error("Your role in this team does not allow that action.");
     err.httpStatus = 403;
@@ -510,9 +510,7 @@ export async function teamsJoin(user, body) {
   const photoUrl = user.picture || "";
   const email = (user.email || "").toLowerCase();
 
-  const isPublic = team.visibility === "public";
-  const initialStatus = isPublic ? "active" : "pending";
-
+  // Every new join request waits for owner/admin approval.
   await firestoreSet(
     "teams/" + teamId + "/members/" + user.uid,
     {
@@ -520,24 +518,16 @@ export async function teamsJoin(user, body) {
       displayName,
       photoUrl,
       email,
-      status: initialStatus,
+      status: "pending",
       tags: [],
       joinedAt: ts,
       spendLimitCredits: null,
     },
     true,
   );
-  await firestoreSet("userTeams/" + user.uid + "/items/" + teamId, { teamId, joinedAt: ts, status: initialStatus }, true);
-
-  if (isPublic) {
-    await firestoreUpdateAtomic("teams/" + teamId, (current) => {
-      if (!current) return null;
-      return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
-    });
-  }
-
+  await firestoreSet("userTeams/" + user.uid + "/items/" + teamId, { teamId, joinedAt: ts, status: "pending" }, true);
   const member = await getMember(teamId, user.uid);
-  return { team, member, pending: !isPublic };
+  return { team, member, pending: true };
 }
 
 export async function teamsApproveMember(user, body) {
@@ -548,7 +538,7 @@ export async function teamsApproveMember(user, body) {
     err.httpStatus = 400;
     throw err;
   }
-  await requireActiveMember(user, teamId, "moderator");
+  await requireActiveMember(user, teamId, "admin");
   const ts = now();
   const activated = await firestoreUpdateAtomic(
     "teams/" + teamId + "/members/" + targetUid,
@@ -931,7 +921,7 @@ export async function teamsAskAi(user, body, env, billing = {}) {
       "teams/" + teamId + "/projects/" + projectId + "/messages/" + aiId,
       {
         authorUid: "ai",
-        authorName: "BQ Sqwad AI",
+        authorName: (body?.mode === "codon" || body?.isCodon) ? "BQ Codon" : "BQ Sqwad AI",
         text: msg,
         attachments: [],
         createdAt: now(),
@@ -1199,78 +1189,99 @@ export async function teamsSeedWhite(user) {
 }
 
 
-export async function teamsSetMemberRole(user, body) {
-  const teamId = str(body?.teamId);
-  const targetUid = str(body?.targetUid);
-  const newRole = str(body?.role).toLowerCase();
+// ==========================================
+// Team Tasks & Credit Pool Topup Operations
+// ==========================================
 
-  if (!["moderator", "admin", "member"].includes(newRole)) {
-    const err = new Error("Invalid role. Role must be moderator, admin, or member.");
-    err.httpStatus = 400;
-    throw err;
-  }
-
-  const { member: actor } = await requireActiveMember(user, teamId, "admin");
-  const target = await getMember(teamId, targetUid);
-  if (!target || target.status !== "active") {
-    const err = new Error("Target member is not active in this team.");
-    err.httpStatus = 404;
-    throw err;
-  }
-
-  if (target.role === "owner") {
-    const err = new Error("Owner role cannot be changed.");
-    err.httpStatus = 400;
-    throw err;
-  }
-
-  const ts = now();
-  await firestoreUpdateAtomic(
-    "teams/" + teamId + "/members/" + targetUid,
-    (current) => {
-      if (!current) return null;
-      return { ...current, role: newRole, updatedAt: ts, roleUpdatedBy: user.uid };
-    }
-  );
-
-  return { ok: true, targetUid, role: newRole };
+export async function teamsListTasks(user, query) {
+  const teamId = str(query?.teamId);
+  await requireActiveMember(user, teamId, "viewer");
+  const raw = await firestoreQuery("teams/" + teamId + "/tasks");
+  const tasks = (Array.isArray(raw) ? raw : []).map((t) => ({
+    id: str(t.id),
+    title: str(t.title),
+    description: str(t.description),
+    assignedTo: str(t.assignedTo),
+    assignedToName: str(t.assignedToName),
+    priority: str(t.priority, "medium"),
+    status: str(t.status, "todo"),
+    projectId: str(t.projectId),
+    createdAt: str(t.createdAt),
+    createdBy: str(t.createdBy),
+  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { tasks };
 }
 
-export async function teamsAddMember(user, body) {
+export async function teamsCreateTask(user, body) {
   const teamId = str(body?.teamId);
-  const email = str(body?.email).trim().toLowerCase();
-  const targetUid = str(body?.targetUid || body?.uid).trim();
-
-  await requireActiveMember(user, teamId, "moderator");
-  const team = await getTeam(teamId);
-  if (!team) {
-    const err = new Error("Team not found.");
-    err.httpStatus = 404;
-    throw err;
-  }
-
-  const memberUid = targetUid || ("usr_" + Math.random().toString(36).slice(2, 10));
+  const title = str(body?.title).trim();
+  if (!title) throw new Error("Task title is required.");
+  const { member } = await requireActiveMember(user, teamId, "member");
+  const taskId = "task_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   const ts = now();
+  const task = {
+    id: taskId,
+    title,
+    description: str(body?.description).trim(),
+    assignedTo: str(body?.assignedTo).trim(),
+    assignedToName: str(body?.assignedToName).trim(),
+    priority: ["low", "medium", "high", "urgent"].includes(body?.priority) ? body.priority : "medium",
+    status: ["todo", "in_progress", "done"].includes(body?.status) ? body.status : "todo",
+    projectId: str(body?.projectId).trim(),
+    createdAt: ts,
+    createdBy: user.uid,
+    createdByName: member.displayName || "Member",
+  };
+  await firestoreSet("teams/" + teamId + "/tasks/" + taskId, task, true);
+  return { ok: true, task };
+}
 
-  await firestoreSet(
-    "teams/" + teamId + "/members/" + memberUid,
-    {
-      role: "member",
-      displayName: email ? email.split("@")[0] : "New Member",
-      photoUrl: "",
-      email: email,
-      status: "active",
-      tags: [],
-      joinedAt: ts,
-      addedBy: user.uid,
-    },
-    true
-  );
-  await firestoreSet("userTeams/" + memberUid + "/items/" + teamId, { teamId, joinedAt: ts, status: "active" }, true);
-  await firestoreUpdateAtomic("teams/" + teamId, (current) => {
-    if (!current) return null;
-    return { ...current, memberCount: num(current.memberCount) + 1, updatedAt: ts };
+export async function teamsUpdateTask(user, body) {
+  const teamId = str(body?.teamId);
+  const taskId = str(body?.taskId);
+  if (!taskId) throw new Error("Task ID is required.");
+  await requireActiveMember(user, teamId, "member");
+  const updates = {};
+  if (body?.status && ["todo", "in_progress", "done"].includes(body.status)) updates.status = body.status;
+  if (body?.priority && ["low", "medium", "high", "urgent"].includes(body.priority)) updates.priority = body.priority;
+  if (body?.title) updates.title = str(body.title).trim();
+  if (body?.description !== undefined) updates.description = str(body.description).trim();
+  if (body?.assignedTo !== undefined) updates.assignedTo = str(body.assignedTo).trim();
+  if (body?.assignedToName !== undefined) updates.assignedToName = str(body.assignedToName).trim();
+  updates.updatedAt = now();
+  updates.updatedBy = user.uid;
+
+  await firestoreUpdateAtomic("teams/" + teamId + "/tasks/" + taskId, (current) => ({
+    ...(current || {}),
+    ...updates,
+  }));
+  return { ok: true, taskId, updates };
+}
+
+export async function teamsDeleteTask(user, body) {
+  const teamId = str(body?.teamId);
+  const taskId = str(body?.taskId);
+  await requireActiveMember(user, teamId, "moderator");
+  await firestoreSet("teams/" + teamId + "/tasks/" + taskId, { deletedAt: now(), status: "deleted" }, true);
+  return { ok: true, taskId };
+}
+
+export async function teamsTopupCreditPool(user, body) {
+  const teamId = str(body?.teamId);
+  const amount = Number(body?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Invalid topup amount.");
+  const { team } = await requireActiveMember(user, teamId, "member");
+  const ts = now();
+  let newBalance = 0;
+  await firestoreUpdateAtomic("teamCreditPools/" + team.creditPoolId, (current) => {
+    newBalance = Number((num(current?.balance) + amount).toFixed(7));
+    return {
+      ...(current || {}),
+      balance: newBalance,
+      lifetimeDeposited: Number((num(current?.lifetimeDeposited) + amount).toFixed(7)),
+      updatedAt: ts,
+      lastDepositedBy: user.uid,
+    };
   });
-
-  return { ok: true, memberUid };
+  return { ok: true, amount, balance: newBalance };
 }

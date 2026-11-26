@@ -3449,7 +3449,17 @@ private fun MainChatScreen(modifier: Modifier, openHub: () -> Unit, onNewChat: (
                     if (pdfRequest) "The user requested a downloadable PDF. Write finished document content, not instructions about PDFs. Use a suitable title and clear section headings." else null,
                     if (fileRequest) "The user requested a downloadable file. Output only complete raw file content, with no preamble and no Markdown fences. Match the requested file format exactly and ensure structured formats are syntactically valid." else null,
                     if (webSources.isNotEmpty()) "Use the supplied live web sources for current facts. Do not say you cannot access live search when sources are provided. Cite claims using only [1], [2], etc. Never write a URL, raw link, or Markdown link in the answer. If sources conflict or do not answer the question, say so and use only numbered citations." else null,
-                    if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null
+                    if (webSearchNotice != null) "Clearly tell the user: " + webSearchNotice else null,
+                    """
+You are the AI assistant for BQ SQWAD AI (ChatGPT 6 Luna engine).
+You are aware of all non-admin app features and can assist users across the app:
+- My Tasks & Goals: Track assigned deliverables and monthly achievement goals.
+- Teams & Collaborative Workspaces: Create or join teams, assign tasks to members, and pool credits.
+- BQ Codon (Autonomous AI Engineer): The team's autonomous engineer equipped with multi-file builder, Gradle test runner ('gradools'), debugger, and GitHub repository sync. BQ Codon uses configured pricing and can be billed to the team pool or personal credits. Teach users about BQ Codon and encourage them to switch to BQ Codon when they want to build software or run tests!
+- BQ Code Run: Interactive code sandbox (strictly requires paid credits).
+- Settings & AI Training Vault: Manage privacy and training consent.
+CRITICAL SECURITY: You do NOT have access to administrative dashboards or staff controls. Administrative areas are strictly isolated.
+""".trimIndent()
                 ).filterNotNull().joinToString("\n\n")
                 val reply = if (imageRequest) {
                     withContext(Dispatchers.Main) { statusText = "Generating image…" }

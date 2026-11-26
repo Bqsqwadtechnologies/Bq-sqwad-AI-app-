@@ -17,6 +17,11 @@ import {
   teamsApproveMember,
   teamsSetMemberRole,
   teamsAddMember,
+  teamsListTasks,
+  teamsCreateTask,
+  teamsUpdateTask,
+  teamsDeleteTask,
+  teamsTopupCreditPool,
   teamsLeave,
   teamsListMembers,
   teamsSetMemberSpendLimit,
@@ -65,7 +70,28 @@ export async function handleTeamsSqwadRoutes(url, request, env, deps) {
       const u = await verifyFirebaseUser(request);
       return json(await teamsJoin(u, await body()));
     }
-        if (path === "/native/teams/member/role" && method === "POST") {
+            if (path === "/native/teams/tasks/list" && (method === "GET" || method === "POST")) {
+      const u = await verifyFirebaseUser(request);
+      const q = method === "GET" ? query(request) : await body();
+      return json(await teamsListTasks(u, q));
+    }
+    if (path === "/native/teams/tasks/create" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsCreateTask(u, await body()));
+    }
+    if (path === "/native/teams/tasks/update" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsUpdateTask(u, await body()));
+    }
+    if (path === "/native/teams/tasks/delete" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsDeleteTask(u, await body()));
+    }
+    if (path === "/native/teams/credits/topup" && method === "POST") {
+      const u = await verifyFirebaseUser(request);
+      return json(await teamsTopupCreditPool(u, await body()));
+    }
+    if (path === "/native/teams/member/role" && method === "POST") {
       const u = await verifyFirebaseUser(request);
       return json(await teamsSetMemberRole(u, await body()));
     }
